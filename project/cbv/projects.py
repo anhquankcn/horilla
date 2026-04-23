@@ -518,7 +518,7 @@ from employee.cbv.employee_profile import EmployeeProfileView
 EmployeeProfileView.add_tab(
     tabs=[
         {
-            "title": "Projects",
+            "title": _("Projects"),
             # "view": projects_tab,
             "view": ProjectsTabView.as_view(),
             "accessibility": "employee.cbv.accessibility.workshift_accessibility",

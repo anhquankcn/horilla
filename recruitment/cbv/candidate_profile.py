@@ -169,7 +169,7 @@ CandidateProfileView.add_tab(
 EmployeeProfileView.add_tab(
     tabs=[
         {
-            "title": "Scheduled Interviews",
+            "title": _("Scheduled Interviews"),
             "view": views.scheduled_interview_tab,
             "accessibility": "recruitment.cbv.accessibility.empl_scheduled_interview_accessibility",
         },

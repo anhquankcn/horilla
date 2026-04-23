@@ -103,37 +103,37 @@ class EmployeeProfileView(HorillaProfileView):
 EmployeeProfileView.add_tab(
     tabs=[
         {
-            "title": "About",
+            "title": _("About"),
             "view": views.about_tab,
         },
         {
-            "title": "Work Type & Shift",
+            "title": _("Work Type & Shift"),
             # "view": views.shift_tab,
             "view": WorkAndShiftTabView.as_view(),
             "accessibility": "employee.cbv.accessibility.workshift_accessibility",
         },
         {
-            "title": "Groups & Permissions",
+            "title": _("Groups & Permissions"),
             "view": base_views.employee_permission_assign,
             "accessibility": "employee.cbv.accessibility.permission_accessibility",
         },
         {
-            "title": "Note",
+            "title": _("Note"),
             "view": views.note_tab,
             "accessibility": "employee.cbv.accessibility.note_accessibility",
         },
         {
-            "title": "Documents",
+            "title": _("Documents"),
             "view": views.document_tab,
             "accessibility": "employee.cbv.accessibility.document_accessibility",
         },
         {
-            "title": "Mail Log",
+            "title": _("Mail Log"),
             "view": MailLogTabList.as_view(),
             "accessibility": "employee.cbv.accessibility.mail_log_accessibility",
         },
         {
-            "title": "History",
+            "title": _("History"),
             "view": views.history_tab,
             "accessibility": "employee.cbv.accessibility.history_accessibility",
         },

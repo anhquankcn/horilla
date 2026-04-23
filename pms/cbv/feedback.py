@@ -499,7 +499,7 @@ class PerformanceTab(SelfFeedbacktab):
 EmployeeProfileView.add_tab(
     tabs=[
         {
-            "title": "Performance",
+            "title": _("Performance"),
             "view": PerformanceTab.as_view(),
             "accessibility": "pms.cbv.accessibility.performance_accessibility",
         },

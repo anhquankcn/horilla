@@ -397,12 +397,12 @@ class PayrollTab(PayslipList):
 EmployeeProfileView.add_tab(
     tabs=[
         {
-            "title": "Payroll",
+            "title": _("Payroll"),
             "view": PayrollTab.as_view(),
             "accessibility": "payroll.cbv.accessibility.payroll_accessibility",
         },
         {
-            "title": "Allowance & Deduction",
+            "title": _("Allowance & Deduction"),
             "view": AllowanceDeductionTabView.as_view(),
             # "view": views.allowances_deductions_tab,
             "accessibility": "payroll.cbv.accessibility.allowance_and_deduction_accessibility",

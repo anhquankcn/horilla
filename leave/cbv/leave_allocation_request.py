@@ -367,7 +367,7 @@ class LeaveAllocationRequestFormView(HorillaFormView):
 EmployeeProfileView.add_tab(
     tabs=[
         {
-            "title": "Leave",
+            "title": _("Leave"),
             # "view": views.employee_view_individual_leave_tab,
             "view": IndividualLeaveTab.as_view(),
             "accessibility": "leave.cbv.accessibility.leave_accessibility",

@@ -676,13 +676,13 @@ class ValidateAttendancesIndividualDetailView(GenericAttendancesDetailView):
 EmployeeProfileView.add_tab(
     tabs=[
         {
-            "title": "Attendance",
+            "title": _("Attendance"),
             # "view": views.attendance_tab,
             "view": AttendanceTabView.as_view(),
             "accessibility": "attendance.cbv.accessibility.attendance_accessibility",
         },
         {
-            "title": "Penalty Account",
+            "title": _("Penalty Account"),
             "view": PenaltyAccountListView.as_view(),
             "accessibility": "attendance.cbv.accessibility.penalty_accessibility",
         },
