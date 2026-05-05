@@ -55,6 +55,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "mozilla_django_oidc",
     "notifications",
     "mathfilters",
     "corsheaders",
@@ -235,9 +236,9 @@ LOCALE_PATHS = [
 # Internationalization
 # https://docs.djangoproject.com/en/4.1/topics/i18n/
 
-LANGUAGE_CODE = "en-us"
+LANGUAGE_CODE = "vi"
 
-TIME_ZONE = env("TIME_ZONE", default="Asia/Kolkata")
+TIME_ZONE = env("TIME_ZONE", default="Asia/Ho_Chi_Minh")
 
 USE_I18N = True
 
@@ -266,8 +267,29 @@ AUTH_LDAP_USER_ATTR_MAP = {
     "email": "mail",
 }
 
+# ── OIDC / Keycloak SSO ─────────────────────────────────────────────
+KC_BASE = env("OIDC_KC_BASE", default="https://quanna.tail072b2f.ts.net:8443/realms/HNHTravel-SGN")
+OIDC_RP_CLIENT_ID = env("OIDC_RP_CLIENT_ID", default="horilla-hrm")
+OIDC_RP_CLIENT_SECRET = env("OIDC_RP_CLIENT_SECRET")
+OIDC_OP_AUTHORIZATION_ENDPOINT = f"{KC_BASE}/protocol/openid-connect/auth"
+OIDC_OP_TOKEN_ENDPOINT = f"{KC_BASE}/protocol/openid-connect/token"
+OIDC_OP_USER_ENDPOINT = f"{KC_BASE}/protocol/openid-connect/userinfo"
+OIDC_OP_JWKS_ENDPOINT = f"{KC_BASE}/protocol/openid-connect/certs"
+OIDC_RP_SIGN_ALGO = "RS256"
+OIDC_RP_SCOPES = "openid email profile"
+OIDC_VERIFY_SSL = env.bool("OIDC_VERIFY_SSL", default=False)
+LOGIN_REDIRECT_URL = "/"
+LOGOUT_REDIRECT_URL = "/login"
+OIDC_USERNAME_ALGO = "horilla.oidc_backend.generate_username"
+OIDC_AUTHENTICATION_BACKEND = "horilla.oidc_backend.HorillaOIDCBackend"
+OIDC_STORE_ACCESS_TOKEN = True
+OIDC_STORE_ID_TOKEN = True
+OIDC_REDIRECT_BASE_URL = env("OIDC_REDIRECT_BASE_URL", default="http://100.71.141.71:8765")
+# ────────────────────────────────────────────────────────────────────
+
 AUTHENTICATION_BACKENDS = [
     #    "django_auth_ldap.backend.LDAPBackend",
+    "horilla.oidc_backend.HorillaOIDCBackend",
     "django.contrib.auth.backends.ModelBackend",
 ]
 AUTH_LDAP_ALWAYS_UPDATE_USER = True

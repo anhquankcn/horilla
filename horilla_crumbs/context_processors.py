@@ -190,7 +190,7 @@ def breadcrumbs(request):
     # Initialize breadcrumbs in the session if not already present
     if "breadcrumbs" not in request.session:
         request.session["breadcrumbs"] = [
-            {"url": base_url, "name": company, "found": True}
+            {"url": base_url, "name": "Trang chủ", "found": True}
         ]
 
     try:
@@ -253,7 +253,7 @@ def breadcrumbs(request):
 
         if len(parts) == 0:
             request.session["breadcrumbs"].clear()
-            breadcrumbs.append({"url": base_url, "name": company, "found": True})
+            breadcrumbs.append({"url": base_url, "name": "Trang chủ", "found": True})
 
         if len(parts) > 1:
             last_path = parts[-1]
@@ -318,7 +318,7 @@ def breadcrumbs(request):
 
     except Exception as e:
         request.session["breadcrumbs"] = [
-            {"url": base_url, "name": company, "found": True}
+            {"url": base_url, "name": "Trang chủ", "found": True}
         ]
     return {"breadcrumbs": request.session["breadcrumbs"]}
 

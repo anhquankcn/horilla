@@ -1,0 +1,85 @@
+{% extends 'index.html' %}
+{% block content %}
+{% load static i18n %}
+
+{% include "generic/components.html" %}
+<main :class="sidebarOpen ? 'oh-main__sidebar-visible' : ''">
+  <section class="oh-wrapper oh-main__topbar">
+    <div class="oh-main__titlebar oh-main__titlebar--left">
+      <h1 class="oh-main__titlebar-title fw-bold">{% trans "Hướng dẫn viên" %}</h1>
+    </div>
+    <div class="oh-main__titlebar oh-main__titlebar--right">
+      <a href="{% url 'tourism-guide-create' %}" class="oh-btn oh-btn--primary">
+        <ion-icon name="add-outline" class="me-1"></ion-icon>
+        {% trans "Thêm HDV" %}
+      </a>
+    </div>
+  </section>
+
+  <section class="oh-wrapper">
+    {% if guides %}
+    <div class="oh-sticky-table oh-sticky-table--lg">
+      <table class="table oh-table">
+        <thead>
+          <tr>
+            <th>{% trans "Nhân viên" %}</th>
+            <th>{% trans "Số thẻ HDV" %}</th>
+            <th>{% trans "Hết hạn thẻ" %}</th>
+            <th>{% trans "Loại HDV" %}</th>
+            <th>{% trans "Ngôn ngữ" %}</th>
+            <th>{% trans "Chuyên môn" %}</th>
+            <th>{% trans "Trạng thái" %}</th>
+            <th>{% trans "Thao tác" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for guide in guides %}
+          <tr>
+            <td>
+              <div class="d-flex align-items-center gap-2">
+                {% if guide.employee.employee_profile.url %}
+                  <img src="{{ guide.employee.employee_profile.url }}" class="rounded-circle" width="32" height="32">
+                {% endif %}
+                {{ guide.employee }}
+              </div>
+            </td>
+            <td>{{ guide.license_number|default:"–" }}</td>
+            <td>{{ guide.license_expiry|date:"d/m/Y"|default:"–" }}</td>
+            <td>{{ guide.get_guide_type_display }}</td>
+            <td>{{ guide.languages|default:"–" }}</td>
+            <td>{{ guide.specialization|default:"–" }}</td>
+            <td>
+              <span class="oh-badge {% if guide.is_active %}oh-badge--success{% else %}oh-badge--secondary{% endif %}">
+                {% if guide.is_active %}{% trans "Đang hoạt động" %}{% else %}{% trans "Tạm dừng" %}{% endif %}
+              </span>
+            </td>
+            <td>
+              <div class="d-flex gap-2">
+                <a href="{% url 'tourism-guide-edit' guide.pk %}" class="oh-btn oh-btn--sm oh-btn--secondary">
+                  <ion-icon name="create-outline"></ion-icon>
+                </a>
+                <form method="post" action="{% url 'tourism-guide-delete' guide.pk %}" onsubmit="return confirm('{% trans "Bạn có chắc muốn xóa HDV này?" %}')">
+                  {% csrf_token %}
+                  <button type="submit" class="oh-btn oh-btn--sm oh-btn--danger">
+                    <ion-icon name="trash-outline"></ion-icon>
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="oh-card oh-card--bordered text-center p-5">
+      <img src="/static/horilla_theme/assets/img/no-records.svg" alt="" width="200" class="mb-3">
+      <p class="text-muted">{% trans "Chưa có hướng dẫn viên nào." %}</p>
+      <a href="{% url 'tourism-guide-create' %}" class="oh-btn oh-btn--primary">
+        {% trans "Thêm HDV đầu tiên" %}
+      </a>
+    </div>
+    {% endif %}
+  </section>
+</main>
+{% endblock %}

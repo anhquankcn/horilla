@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Compass rose for tourism -->
+  <circle cx="12" cy="12" r="10"/>
+  <polygon points="12,2 14,10 12,12 10,10" fill="currentColor" opacity="0.8"/>
+  <polygon points="22,12 14,14 12,12 14,10" fill="currentColor" opacity="0.4"/>
+  <polygon points="12,22 10,14 12,12 14,14" fill="currentColor" opacity="0.6"/>
+  <polygon points="2,12 10,10 12,12 10,14" fill="currentColor" opacity="0.3"/>
+  <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
+</svg>

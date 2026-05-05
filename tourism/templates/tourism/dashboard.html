@@ -1,0 +1,152 @@
+{% extends 'index.html' %}
+{% block content %}
+{% load static i18n %}
+
+{% include "generic/components.html" %}
+<main :class="sidebarOpen ? 'oh-main__sidebar-visible' : ''">
+  <section class="oh-wrapper oh-main__topbar">
+    <div class="oh-main__titlebar oh-main__titlebar--left">
+      <h1 class="oh-main__titlebar-title fw-bold">{% trans "Tổng quan Du lịch" %}</h1>
+    </div>
+    <div class="oh-main__titlebar oh-main__titlebar--right">
+      <a href="{% url 'tourism-schedule-create' %}" class="oh-btn oh-btn--primary">
+        <ion-icon name="add-outline" class="me-1"></ion-icon>
+        {% trans "Tạo lịch khởi hành" %}
+      </a>
+    </div>
+  </section>
+
+  <section class="oh-wrapper">
+    <div class="row g-3 mb-4">
+      <!-- Card: Tours đang hoạt động -->
+      <div class="col-12 col-sm-6 col-lg-3">
+        <div class="oh-card oh-card--bordered p-3 h-100">
+          <div class="d-flex align-items-center gap-3">
+            <div class="oh-card__icon bg-primary-500 rounded p-2">
+              <ion-icon name="map-outline" style="font-size:1.5rem; color:#e54f38"></ion-icon>
+            </div>
+            <div>
+              <p class="text-muted mb-0 small">{% trans "Tour đang hoạt động" %}</p>
+              <h3 class="mb-0 fw-bold">{{ total_tours }}</h3>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card: HDV -->
+      <div class="col-12 col-sm-6 col-lg-3">
+        <div class="oh-card oh-card--bordered p-3 h-100">
+          <div class="d-flex align-items-center gap-3">
+            <div class="oh-card__icon bg-primary-500 rounded p-2">
+              <ion-icon name="person-outline" style="font-size:1.5rem; color:#e54f38"></ion-icon>
+            </div>
+            <div>
+              <p class="text-muted mb-0 small">{% trans "Hướng dẫn viên" %}</p>
+              <h3 class="mb-0 fw-bold">{{ total_guides }}</h3>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card: Lịch sắp khởi hành -->
+      <div class="col-12 col-sm-6 col-lg-3">
+        <div class="oh-card oh-card--bordered p-3 h-100">
+          <div class="d-flex align-items-center gap-3">
+            <div class="oh-card__icon bg-primary-500 rounded p-2">
+              <ion-icon name="calendar-outline" style="font-size:1.5rem; color:#e54f38"></ion-icon>
+            </div>
+            <div>
+              <p class="text-muted mb-0 small">{% trans "Lịch sắp khởi hành" %}</p>
+              <h3 class="mb-0 fw-bold">{{ upcoming_schedules|length }}</h3>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Card: Tour đang thực hiện -->
+      <div class="col-12 col-sm-6 col-lg-3">
+        <div class="oh-card oh-card--bordered p-3 h-100">
+          <div class="d-flex align-items-center gap-3">
+            <div class="oh-card__icon bg-primary-500 rounded p-2">
+              <ion-icon name="airplane-outline" style="font-size:1.5rem; color:#e54f38"></ion-icon>
+            </div>
+            <div>
+              <p class="text-muted mb-0 small">{% trans "Đang thực hiện" %}</p>
+              <h3 class="mb-0 fw-bold">{{ ongoing_schedules|length }}</h3>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lịch sắp khởi hành -->
+    {% if upcoming_schedules %}
+    <div class="oh-card oh-card--bordered p-3 mb-4">
+      <h5 class="fw-bold mb-3">{% trans "Lịch khởi hành sắp tới" %}</h5>
+      <div class="oh-sticky-table oh-sticky-table--lg">
+        <table class="table oh-table">
+          <thead>
+            <tr>
+              <th>{% trans "Mã lịch" %}</th>
+              <th>{% trans "Tour" %}</th>
+              <th>{% trans "Ngày khởi hành" %}</th>
+              <th>{% trans "Ngày về" %}</th>
+              <th>{% trans "Số khách" %}</th>
+              <th>{% trans "HDV trưởng đoàn" %}</th>
+              <th>{% trans "Trạng thái" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for s in upcoming_schedules %}
+            <tr>
+              <td><a href="{% url 'tourism-schedule-list' %}">{{ s.schedule_code }}</a></td>
+              <td>{{ s.tour.name }}</td>
+              <td>{{ s.start_date|date:"d/m/Y" }}</td>
+              <td>{{ s.end_date|date:"d/m/Y" }}</td>
+              <td>{{ s.pax }}</td>
+              <td>{{ s.lead_guide|default:"–" }}</td>
+              <td>
+                <span class="oh-badge {% if s.status == 'confirmed' %}oh-badge--success{% else %}oh-badge--warning{% endif %}">
+                  {{ s.get_status_display }}
+                </span>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Tour đang thực hiện -->
+    {% if ongoing_schedules %}
+    <div class="oh-card oh-card--bordered p-3">
+      <h5 class="fw-bold mb-3">{% trans "Tour đang thực hiện" %}</h5>
+      <div class="row g-3">
+        {% for s in ongoing_schedules %}
+        <div class="col-12 col-md-6 col-lg-4">
+          <div class="oh-card oh-card--bordered p-3">
+            <div class="d-flex justify-content-between align-items-start mb-2">
+              <h6 class="fw-bold mb-0">{{ s.tour.name }}</h6>
+              <span class="oh-badge oh-badge--info">{{ s.get_status_display }}</span>
+            </div>
+            <p class="text-muted small mb-1">{{ s.schedule_code }}</p>
+            <p class="small mb-1">
+              <ion-icon name="calendar-outline"></ion-icon>
+              {{ s.start_date|date:"d/m" }} – {{ s.end_date|date:"d/m/Y" }}
+            </p>
+            {% if s.lead_guide %}
+            <p class="small mb-0">
+              <ion-icon name="person-outline"></ion-icon>
+              {% trans "HDV" %}: {{ s.lead_guide }}
+            </p>
+            {% endif %}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </section>
+</main>
+{% endblock %}

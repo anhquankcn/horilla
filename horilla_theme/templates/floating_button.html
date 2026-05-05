@@ -1,5 +1,6 @@
 {% load static %}
 {% load horillafilters %}
+{% load i18n %}
 {% include 'generic/components.html' %}
 
 <style>
@@ -130,7 +131,7 @@
 
     <div class="inner-fabs">
         <div class="fab inner-fab"
-             title="Dashboard Charts"
+             title="{% trans 'Dashboard Charts' %}"
              data-delay="1"
              data-toggle="oh-modal-toggle"
              data-target="#objectDetailsModal"
@@ -141,7 +142,7 @@
 
         {% if "helpdesk"|app_installed %}
         <div class="fab inner-fab"
-             title="Create Ticket"
+             title="{% trans 'Create Ticket' %}"
              data-delay="2"
              data-toggle="oh-modal-toggle"
              data-target="#objectCreateModal"
@@ -153,7 +154,7 @@
 
         {% if "asset"|app_installed %}
         <div class="fab inner-fab"
-             title="Create Asset Request"
+             title="{% trans 'Create Asset Request' %}"
              data-delay="3"
              data-toggle="oh-modal-toggle"
              data-target="#objectCreateModal"
@@ -165,7 +166,7 @@
 
         {% if "payroll"|app_installed %}
         <div class="fab inner-fab"
-             title="Create Reimbursement"
+             title="{% trans 'Create Reimbursement' %}"
              data-delay="4"
              data-toggle="oh-modal-toggle"
              data-target="#genericModal"
@@ -176,7 +177,7 @@
         {% endif %}
 
         <div class="fab inner-fab"
-             title="Create Work Type Request"
+             title="{% trans 'Create Work Type Request' %}"
              data-delay="5"
              data-toggle="oh-modal-toggle"
              data-target="#objectCreateModal"
@@ -186,7 +187,7 @@
         </div>
 
         <div class="fab inner-fab"
-             title="Create Shift Request"
+             title="{% trans 'Create Shift Request' %}"
              data-delay="6"
              data-toggle="oh-modal-toggle"
              data-target="#objectCreateModal"
@@ -197,7 +198,7 @@
 
         {% if "leave"|app_installed %}
         <div class="fab inner-fab"
-             title="Create Leave Request"
+             title="{% trans 'Create Leave Request' %}"
              data-delay="7"
              data-toggle="oh-modal-toggle"
              data-target="#genericModal"
@@ -213,7 +214,7 @@
 
         {% if "attendance"|app_installed %}
         <div class="fab inner-fab"
-             title="Create Attendance Request"
+             title="{% trans 'Create Attendance Request' %}"
              data-delay="8"
              data-toggle="oh-modal-toggle"
              data-target="#genericModal"
@@ -225,7 +226,7 @@
     </div>
 
     <!-- Main FAB button -->
-    <div class="fab main-fab" title="Quick Actions">
+    <div class="fab main-fab" title="{% trans 'Quick Actions' %}">
         <i class="material-icons fab-icon">arrow_forward</i>
     </div>
 </div>

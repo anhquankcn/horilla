@@ -1,0 +1,89 @@
+{% extends 'index.html' %}
+{% block content %}
+{% load static i18n %}
+
+{% include "generic/components.html" %}
+<main :class="sidebarOpen ? 'oh-main__sidebar-visible' : ''">
+  <section class="oh-wrapper oh-main__topbar">
+    <div class="oh-main__titlebar oh-main__titlebar--left">
+      <h1 class="oh-main__titlebar-title fw-bold">{% trans "Lịch khởi hành" %}</h1>
+    </div>
+    <div class="oh-main__titlebar oh-main__titlebar--right">
+      <a href="{% url 'tourism-schedule-create' %}" class="oh-btn oh-btn--primary">
+        <ion-icon name="add-outline" class="me-1"></ion-icon>
+        {% trans "Tạo lịch khởi hành" %}
+      </a>
+    </div>
+  </section>
+
+  <section class="oh-wrapper">
+    {% if schedules %}
+    <div class="oh-sticky-table oh-sticky-table--lg">
+      <table class="table oh-table">
+        <thead>
+          <tr>
+            <th>{% trans "Mã lịch" %}</th>
+            <th>{% trans "Tour" %}</th>
+            <th>{% trans "Ngày đi" %}</th>
+            <th>{% trans "Ngày về" %}</th>
+            <th>{% trans "Số khách" %}</th>
+            <th>{% trans "HDV trưởng đoàn" %}</th>
+            <th>{% trans "Trạng thái" %}</th>
+            <th>{% trans "Thao tác" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for s in schedules %}
+          <tr>
+            <td><strong>{{ s.schedule_code }}</strong></td>
+            <td>
+              <div>{{ s.tour.name }}</div>
+              <small class="text-muted">{{ s.tour.destination }}</small>
+            </td>
+            <td>{{ s.start_date|date:"d/m/Y" }}</td>
+            <td>{{ s.end_date|date:"d/m/Y" }}</td>
+            <td>{{ s.pax }}</td>
+            <td>{{ s.lead_guide|default:"–" }}</td>
+            <td>
+              <span class="oh-badge
+                {% if s.status == 'confirmed' %}oh-badge--success
+                {% elif s.status == 'ongoing' %}oh-badge--info
+                {% elif s.status == 'completed' %}oh-badge--secondary
+                {% elif s.status == 'cancelled' %}oh-badge--danger
+                {% else %}oh-badge--warning{% endif %}">
+                {{ s.get_status_display }}
+              </span>
+            </td>
+            <td>
+              <div class="d-flex gap-2 flex-wrap">
+                <a href="{% url 'tourism-attendance-list' %}?schedule={{ s.pk }}" class="oh-btn oh-btn--sm oh-btn--secondary" title="{% trans 'Chấm công' %}">
+                  <ion-icon name="checkmark-circle-outline"></ion-icon>
+                </a>
+                <a href="{% url 'tourism-schedule-edit' s.pk %}" class="oh-btn oh-btn--sm oh-btn--secondary">
+                  <ion-icon name="create-outline"></ion-icon>
+                </a>
+                <form method="post" action="{% url 'tourism-schedule-delete' s.pk %}" onsubmit="return confirm('{% trans "Bạn có chắc muốn xóa lịch này?" %}')">
+                  {% csrf_token %}
+                  <button type="submit" class="oh-btn oh-btn--sm oh-btn--danger">
+                    <ion-icon name="trash-outline"></ion-icon>
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="oh-card oh-card--bordered text-center p-5">
+      <img src="/static/horilla_theme/assets/img/no-records.svg" alt="" width="200" class="mb-3">
+      <p class="text-muted">{% trans "Chưa có lịch khởi hành nào." %}</p>
+      <a href="{% url 'tourism-schedule-create' %}" class="oh-btn oh-btn--primary">
+        {% trans "Tạo lịch khởi hành đầu tiên" %}
+      </a>
+    </div>
+    {% endif %}
+  </section>
+</main>
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends 'index.html' %}
+{% block content %}
+{% load static i18n %}
+
+{% include "generic/components.html" %}
+<main :class="sidebarOpen ? 'oh-main__sidebar-visible' : ''">
+  <section class="oh-wrapper oh-main__topbar">
+    <div class="oh-main__titlebar oh-main__titlebar--left">
+      <h1 class="oh-main__titlebar-title fw-bold">{{ title }}</h1>
+    </div>
+  </section>
+
+  <section class="oh-wrapper">
+    <div class="row justify-content-center">
+      <div class="col-12 col-md-8 col-lg-6">
+        <div class="oh-card oh-card--bordered p-4">
+          <form method="post" class="oh-form-group">
+            {% csrf_token %}
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="oh-label">{% trans "Lịch tour" %} <span class="text-danger">*</span></label>
+                {{ form.tour_schedule }}
+              </div>
+              <div class="col-12">
+                <label class="oh-label">{% trans "Nhân viên" %} <span class="text-danger">*</span></label>
+                {{ form.employee }}
+              </div>
+              <div class="col-12 col-sm-6">
+                <label class="oh-label">{% trans "Ngày làm việc" %} <span class="text-danger">*</span></label>
+                {{ form.work_date }}
+              </div>
+              <div class="col-12 col-sm-6">
+                <label class="oh-label">{% trans "Trạng thái" %}</label>
+                {{ form.status }}
+              </div>
+              <div class="col-12 col-sm-6">
+                <label class="oh-label">{% trans "Giờ vào" %}</label>
+                {{ form.check_in }}
+              </div>
+              <div class="col-12 col-sm-6">
+                <label class="oh-label">{% trans "Giờ ra" %}</label>
+                {{ form.check_out }}
+              </div>
+              <div class="col-12 col-sm-6">
+                <label class="oh-label">{% trans "Giờ tăng ca" %}</label>
+                {{ form.overtime_hours }}
+              </div>
+              <div class="col-12">
+                <label class="oh-label">{% trans "Ghi chú" %}</label>
+                {{ form.notes }}
+              </div>
+            </div>
+
+            {% if form.errors %}
+            <div class="oh-alert oh-alert--warning mt-3">
+              {% for field, errors in form.errors.items %}
+                {% for error in errors %}<p class="mb-0">{{ error }}</p>{% endfor %}
+              {% endfor %}
+            </div>
+            {% endif %}
+
+            <div class="d-flex gap-2 mt-4">
+              <button type="submit" class="oh-btn oh-btn--primary">
+                <ion-icon name="save-outline" class="me-1"></ion-icon>
+                {% trans "Lưu" %}
+              </button>
+              <a href="{% url 'tourism-attendance-list' %}" class="oh-btn oh-btn--secondary">
+                {% trans "Hủy" %}
+              </a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+{% endblock %}

@@ -1,0 +1,105 @@
+{% extends 'index.html' %}
+{% block content %}
+{% load static i18n %}
+
+{% include "generic/components.html" %}
+<main :class="sidebarOpen ? 'oh-main__sidebar-visible' : ''">
+  <section class="oh-wrapper oh-main__topbar">
+    <div class="oh-main__titlebar oh-main__titlebar--left">
+      <h1 class="oh-main__titlebar-title fw-bold">{% trans "Chấm công theo tour" %}</h1>
+    </div>
+    <div class="oh-main__titlebar oh-main__titlebar--right">
+      <a href="{% url 'tourism-attendance-create' %}{% if selected_schedule %}?schedule={{ selected_schedule.pk }}{% endif %}"
+         class="oh-btn oh-btn--primary">
+        <ion-icon name="add-outline" class="me-1"></ion-icon>
+        {% trans "Thêm chấm công" %}
+      </a>
+    </div>
+  </section>
+
+  <section class="oh-wrapper">
+    <!-- Bộ lọc theo lịch tour -->
+    <div class="oh-card oh-card--bordered p-3 mb-3">
+      <form method="get" class="d-flex align-items-center gap-3">
+        <label class="oh-label mb-0">{% trans "Lọc theo lịch tour:" %}</label>
+        <select name="schedule" class="oh-input" onchange="this.form.submit()">
+          <option value="">{% trans "-- Tất cả --" %}</option>
+          {% for s in schedules %}
+          <option value="{{ s.pk }}" {% if selected_schedule and selected_schedule.pk == s.pk %}selected{% endif %}>
+            {{ s.schedule_code }} – {{ s.tour.name }} ({{ s.start_date|date:"d/m/Y" }})
+          </option>
+          {% endfor %}
+        </select>
+        {% if selected_schedule %}
+        <a href="{% url 'tourism-attendance-list' %}" class="oh-btn oh-btn--sm oh-btn--secondary">
+          <ion-icon name="close-outline"></ion-icon> {% trans "Xóa lọc" %}
+        </a>
+        {% endif %}
+      </form>
+    </div>
+
+    {% if attendances %}
+    <div class="oh-sticky-table oh-sticky-table--lg">
+      <table class="table oh-table">
+        <thead>
+          <tr>
+            <th>{% trans "Nhân viên" %}</th>
+            <th>{% trans "Lịch tour" %}</th>
+            <th>{% trans "Ngày làm việc" %}</th>
+            <th>{% trans "Giờ vào" %}</th>
+            <th>{% trans "Giờ ra" %}</th>
+            <th>{% trans "Trạng thái" %}</th>
+            <th>{% trans "Tăng ca (h)" %}</th>
+            <th>{% trans "Ghi chú" %}</th>
+            <th>{% trans "Thao tác" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for att in attendances %}
+          <tr>
+            <td>{{ att.employee }}</td>
+            <td>
+              <div>{{ att.tour_schedule.schedule_code }}</div>
+              <small class="text-muted">{{ att.tour_schedule.tour.name }}</small>
+            </td>
+            <td>{{ att.work_date|date:"d/m/Y" }}</td>
+            <td>{{ att.check_in|time:"H:i"|default:"–" }}</td>
+            <td>{{ att.check_out|time:"H:i"|default:"–" }}</td>
+            <td>
+              <span class="oh-badge
+                {% if att.status == 'present' %}oh-badge--success
+                {% elif att.status == 'absent' %}oh-badge--danger
+                {% elif att.status == 'leave' %}oh-badge--warning
+                {% else %}oh-badge--secondary{% endif %}">
+                {{ att.get_status_display }}
+              </span>
+            </td>
+            <td>{{ att.overtime_hours }}</td>
+            <td>{{ att.notes|truncatechars:30|default:"–" }}</td>
+            <td>
+              <div class="d-flex gap-2">
+                <a href="{% url 'tourism-attendance-edit' att.pk %}" class="oh-btn oh-btn--sm oh-btn--secondary">
+                  <ion-icon name="create-outline"></ion-icon>
+                </a>
+                <form method="post" action="{% url 'tourism-attendance-delete' att.pk %}" onsubmit="return confirm('{% trans "Xác nhận xóa?" %}')">
+                  {% csrf_token %}
+                  <button type="submit" class="oh-btn oh-btn--sm oh-btn--danger">
+                    <ion-icon name="trash-outline"></ion-icon>
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="oh-card oh-card--bordered text-center p-5">
+      <img src="/static/horilla_theme/assets/img/no-records.svg" alt="" width="200" class="mb-3">
+      <p class="text-muted">{% trans "Không có dữ liệu chấm công." %}</p>
+    </div>
+    {% endif %}
+  </section>
+</main>
+{% endblock %}

@@ -1,0 +1,76 @@
+{% extends 'index.html' %}
+{% block content %}
+{% load static i18n %}
+
+{% include "generic/components.html" %}
+<main :class="sidebarOpen ? 'oh-main__sidebar-visible' : ''">
+  <section class="oh-wrapper oh-main__topbar">
+    <div class="oh-main__titlebar oh-main__titlebar--left">
+      <h1 class="oh-main__titlebar-title fw-bold">{% trans "Danh sách tour" %}</h1>
+    </div>
+    <div class="oh-main__titlebar oh-main__titlebar--right">
+      <a href="{% url 'tourism-tour-create' %}" class="oh-btn oh-btn--primary">
+        <ion-icon name="add-outline" class="me-1"></ion-icon>
+        {% trans "Thêm tour" %}
+      </a>
+    </div>
+  </section>
+
+  <section class="oh-wrapper">
+    {% if tours %}
+    <div class="oh-sticky-table oh-sticky-table--lg">
+      <table class="table oh-table">
+        <thead>
+          <tr>
+            <th>{% trans "Mã tour" %}</th>
+            <th>{% trans "Tên tour" %}</th>
+            <th>{% trans "Loại" %}</th>
+            <th>{% trans "Điểm đến" %}</th>
+            <th>{% trans "Thời lượng" %}</th>
+            <th>{% trans "Trạng thái" %}</th>
+            <th>{% trans "Thao tác" %}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for tour in tours %}
+          <tr>
+            <td><strong>{{ tour.code }}</strong></td>
+            <td>{{ tour.name }}</td>
+            <td>{{ tour.get_tour_type_display }}</td>
+            <td>{{ tour.destination }}</td>
+            <td>{{ tour.duration_display }}</td>
+            <td>
+              <span class="oh-badge {% if tour.status == 'active' %}oh-badge--success{% elif tour.status == 'completed' %}oh-badge--secondary{% else %}oh-badge--warning{% endif %}">
+                {{ tour.get_status_display }}
+              </span>
+            </td>
+            <td>
+              <div class="d-flex gap-2">
+                <a href="{% url 'tourism-tour-edit' tour.pk %}" class="oh-btn oh-btn--sm oh-btn--secondary">
+                  <ion-icon name="create-outline"></ion-icon>
+                </a>
+                <form method="post" action="{% url 'tourism-tour-delete' tour.pk %}" onsubmit="return confirm('{% trans "Bạn có chắc muốn xóa tour này?" %}')">
+                  {% csrf_token %}
+                  <button type="submit" class="oh-btn oh-btn--sm oh-btn--danger">
+                    <ion-icon name="trash-outline"></ion-icon>
+                  </button>
+                </form>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="oh-card oh-card--bordered text-center p-5">
+      <img src="/static/horilla_theme/assets/img/no-records.svg" alt="" width="200" class="mb-3">
+      <p class="text-muted">{% trans "Chưa có tour nào. Hãy thêm tour đầu tiên!" %}</p>
+      <a href="{% url 'tourism-tour-create' %}" class="oh-btn oh-btn--primary">
+        {% trans "Thêm tour mới" %}
+      </a>
+    </div>
+    {% endif %}
+  </section>
+</main>
+{% endblock %}

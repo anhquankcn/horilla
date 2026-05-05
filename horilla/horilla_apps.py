@@ -25,6 +25,7 @@ INSTALLED_APPS.append("project")
 INSTALLED_APPS.append("horilla_meet")
 INSTALLED_APPS.append("report")
 INSTALLED_APPS.append("whatsapp")
+INSTALLED_APPS.append("tourism")
 
 if settings.env("AWS_ACCESS_KEY_ID", default=None) and "storages" not in INSTALLED_APPS:
     INSTALLED_APPS.append("storages")
@@ -63,9 +64,10 @@ SIDEBARS = [
     "asset",
     "helpdesk",
     "project",
+    "tourism",
     "report",
 ]
 
-WHITE_LABELLING = False
+WHITE_LABELLING = True
 NESTED_SUBORDINATE_VISIBILITY = False
 TWO_FACTORS_AUTHENTICATION = False

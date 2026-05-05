@@ -1,4 +1,32 @@
-/* CUSTOM DROPDOWN */
+/* ── HNH BRAND COLORS ──────────────────────────────────────────── */
+:root {
+  --hnh-primary:       #c0222b;   /* HNH đỏ crimson */
+  --hnh-primary-dark:  #9a1a21;
+  --hnh-primary-light: rgba(192, 34, 43, 0.10);
+  --hnh-gold:          #d4a017;   /* vàng du lịch */
+  --hnh-surface:       #fff8f8;
+}
+
+/* Override Horilla's secondary button màu để phù hợp brand HNH */
+.oh-btn--secondary {
+  background-color: var(--hnh-primary) !important;
+  border-color:     var(--hnh-primary) !important;
+}
+.oh-btn--secondary:hover,
+.oh-btn--secondary:focus {
+  background-color: var(--hnh-primary-dark) !important;
+  border-color:     var(--hnh-primary-dark) !important;
+}
+
+/* Sidebar active indicator */
+.sideboxmain.active {
+  background-color: var(--hnh-primary-light) !important;
+}
+.sideboxmain.active img {
+  filter: none !important;
+}
+
+/* ── CUSTOM DROPDOWN */
 .dropdown-content {
   opacity: 0;
   visibility: hidden;
@@ -72,7 +100,7 @@
   font-family: "Font Awesome 6 Free";
   font-weight: 600;
   font-size: 12px;
-  color: #e54f38;
+  color: #c0222b;
   position: absolute;
   left: 0;
 }
@@ -115,7 +143,7 @@
 }
 
 .sideboxmain:hover {
-  background-color: #e34e38;
+  background-color: #c0222b;
 }
 
 .sideboxmain:hover img {
@@ -123,7 +151,7 @@
 }
 
 .sideboxmain.active {
-  background-color: #e34e38;
+  background-color: #c0222b;
 }
 
 .sideboxmain img {
@@ -156,7 +184,7 @@
   position: absolute;
   width: 2px;
   height: 100%;
-  background-color: #e34e38;
+  background-color: #c0222b;
   opacity: 0;
   inset: 0;
   right: 0;
@@ -165,9 +193,9 @@
 }
 
 .sidebox ul li a:hover {
-  background: rgb(227 78 56 / 10%);
-  color: #e34e38;
-  /* border-right: 2px solid #e54f38; */
+  background: rgb(192 34 43 / 10%);
+  color: #c0222b;
+  /* border-right: 2px solid #c0222b; */
 }
 
 .sidebox ul li a:hover:after,
@@ -176,8 +204,8 @@
 }
 
 .sidebox ul li a.active {
-  background: rgb(227 78 56 / 10%);
-  color: #e34e38;
+  background: rgb(192 34 43 / 10%);
+  color: #c0222b;
 }
 
 .breadcrumb {
@@ -211,7 +239,7 @@
 }
 
 .breadcrumb li:last-child {
-  color: #e54f38;
+  color: #c0222b;
   font-weight: 500;
 }
 
@@ -220,7 +248,7 @@
 }
 
 .breadcrumb li a:hover {
-  color: #e54f38;
+  color: #c0222b;
 }
 
 .stickyleft {
@@ -314,7 +342,7 @@
 .myform select:focus,
 .myform textarea:focus {
   outline: unset;
-  border: 1px solid #e54f38;
+  border: 1px solid #c0222b;
 }
 
 .myform label {
@@ -324,7 +352,7 @@
 }
 
 .btn {
-  background: #e54f38;
+  background: #c0222b;
   color: white;
   font-size: 13px;
   min-width: max-content;
@@ -374,7 +402,7 @@
 
 /* When checked */
 .toggle-input:checked+.toggle-switch {
-  background-color: #e54f38;
+  background-color: #c0222b;
 }
 
 .toggle-input:checked+.toggle-switch::after {
@@ -395,7 +423,7 @@
 }
 
 .select2-container--default .select2-selection--multiple .select2-selection__choice {
-  background-color: #e54f38;
+  background-color: #c0222b;
   color: white;
   border: unset;
   height: 23px;
@@ -418,12 +446,12 @@
 
 .select2-container--default .select2-results__option--highlighted.select2-results__option--selectable {
   background-color: #fff5f1;
-  color: #e54f38;
+  color: #c0222b;
 }
 
 .select2-container--default .select2-results__option--selected {
   background-color: #fff5f1;
-  color: #e54f38;
+  color: #c0222b;
 }
 
 .select2-container--default.select2-container--focus .select2-selection--multiple {
@@ -450,7 +478,7 @@
 
 .userbox.active,
 .userbox:hover {
-  border: 1px solid #e34e38;
+  border: 1px solid #c0222b;
 }
 
 .userlist {
@@ -552,15 +580,15 @@
 
 .usertablist li button.active,
 .usertablist li button:hover {
-  background-color: #e54f38;
-  border: 1px solid #e54f38;
+  background-color: #c0222b;
+  border: 1px solid #c0222b;
   color: white;
 }
 
 /* TAB DESIGN */
 
 .mytab {
-  border: 1px solid #e34e38;
+  border: 1px solid #c0222b;
   border-radius: 50px;
   overflow: hidden;
   padding: 5px;
@@ -570,7 +598,7 @@
 
 .mytab .tab-button.active {
   color: white;
-  background: #e34e38;
+  background: #c0222b;
   border-radius: 50px;
 }
 
@@ -895,8 +923,8 @@ input[type="radio"].red-radio {
 }
 
 input[type="radio"].red-radio:checked {
-  border-color: #e54f38;
-  background-color: #e54f38;
+  border-color: #c0222b;
+  background-color: #c0222b;
 }
 
 input[type="radio"].red-radio:checked::after {
@@ -928,8 +956,8 @@ table input[type="checkbox"] {
 }
 
 input[type="checkbox"].custom-checkbox:checked {
-  background-color: #e54f38;
-  border-color: #e54f38;
+  background-color: #c0222b;
+  border-color: #c0222b;
 }
 
 input[type="checkbox"].custom-checkbox:checked::after {
@@ -945,7 +973,7 @@ input[type="checkbox"].custom-checkbox:checked::after {
 }
 
 input[type="checkbox"].custom-checkbox:hover {
-  border-color: #e54f38;
+  border-color: #c0222b;
 }
 
 .tooltip {
@@ -993,7 +1021,7 @@ input[type="checkbox"].custom-checkbox:hover {
 }
 
 .progress li.active .sec::before {
-  background-color: #e54f38;
+  background-color: #c0222b;
 }
 
 .progress li span {
@@ -1061,7 +1089,7 @@ input[type="checkbox"].custom-checkbox:hover {
   background-color: #f6f6f6;
 }
 .text-primary-600 {
-  color: #e54f38;
+  color: #c0222b;
 } */
 .dropdown-wrapper:focus-within .dropdown-content {
   opacity: 1;

@@ -1,0 +1,80 @@
+{% extends 'index.html' %}
+{% block content %}
+{% load static i18n %}
+
+{% include "generic/components.html" %}
+<main :class="sidebarOpen ? 'oh-main__sidebar-visible' : ''">
+  <section class="oh-wrapper oh-main__topbar">
+    <div class="oh-main__titlebar oh-main__titlebar--left">
+      <h1 class="oh-main__titlebar-title fw-bold">{{ title }}</h1>
+    </div>
+  </section>
+
+  <section class="oh-wrapper">
+    <div class="row justify-content-center">
+      <div class="col-12 col-md-8 col-lg-6">
+        <div class="oh-card oh-card--bordered p-4">
+          <form method="post" class="oh-form-group">
+            {% csrf_token %}
+            <div class="row g-3">
+              <div class="col-12">
+                <label class="oh-label">{% trans "Nhân viên" %} <span class="text-danger">*</span></label>
+                {{ form.employee }}
+              </div>
+              <div class="col-12 col-sm-6">
+                <label class="oh-label">{% trans "Số thẻ HDV" %}</label>
+                {{ form.license_number }}
+              </div>
+              <div class="col-12 col-sm-6">
+                <label class="oh-label">{% trans "Ngày hết hạn thẻ" %}</label>
+                {{ form.license_expiry }}
+              </div>
+              <div class="col-12 col-sm-6">
+                <label class="oh-label">{% trans "Loại HDV" %}</label>
+                {{ form.guide_type }}
+              </div>
+              <div class="col-12 col-sm-6">
+                <div class="d-flex align-items-center gap-2 mt-4">
+                  {{ form.is_active }}
+                  <label class="oh-label mb-0">{% trans "Đang hoạt động" %}</label>
+                </div>
+              </div>
+              <div class="col-12">
+                <label class="oh-label">{% trans "Ngôn ngữ dẫn tour" %}</label>
+                {{ form.languages }}
+                <small class="text-muted">{% trans "VD: Tiếng Việt, Tiếng Anh, Tiếng Hàn" %}</small>
+              </div>
+              <div class="col-12">
+                <label class="oh-label">{% trans "Chuyên môn / Tuyến tour" %}</label>
+                {{ form.specialization }}
+              </div>
+              <div class="col-12">
+                <label class="oh-label">{% trans "Ghi chú" %}</label>
+                {{ form.notes }}
+              </div>
+            </div>
+
+            {% if form.errors %}
+            <div class="oh-alert oh-alert--warning mt-3">
+              {% for field, errors in form.errors.items %}
+                {% for error in errors %}<p class="mb-0">{{ error }}</p>{% endfor %}
+              {% endfor %}
+            </div>
+            {% endif %}
+
+            <div class="d-flex gap-2 mt-4">
+              <button type="submit" class="oh-btn oh-btn--primary">
+                <ion-icon name="save-outline" class="me-1"></ion-icon>
+                {% trans "Lưu" %}
+              </button>
+              <a href="{% url 'tourism-guide-list' %}" class="oh-btn oh-btn--secondary">
+                {% trans "Hủy" %}
+              </a>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+{% endblock %}

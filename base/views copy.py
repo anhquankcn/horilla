@@ -1439,7 +1439,7 @@ def mail_server_test_email(request):
 
                 # Attach the image
                 image_path = path.join(
-                    settings.STATIC_ROOT, "images/ui/horilla-logo.png"
+                    settings.STATIC_ROOT, "images/ui/aq-logo.png"
                 )
                 with open(image_path, "rb") as img:
                     msg_img = MIMEImage(img.read())
