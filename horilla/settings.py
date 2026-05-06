@@ -268,7 +268,7 @@ AUTH_LDAP_USER_ATTR_MAP = {
 }
 
 # ── OIDC / Keycloak SSO ─────────────────────────────────────────────
-KC_BASE = env("OIDC_KC_BASE", default="https://quanna.tail072b2f.ts.net:8443/realms/HNHTravel-SGN")
+KC_BASE = env("OIDC_KC_BASE", default="https://kc.hnhtravel.work/realms/HNHTravel-SGN")
 OIDC_RP_CLIENT_ID = env("OIDC_RP_CLIENT_ID", default="horilla-hrm")
 OIDC_RP_CLIENT_SECRET = env("OIDC_RP_CLIENT_SECRET")
 OIDC_OP_AUTHORIZATION_ENDPOINT = f"{KC_BASE}/protocol/openid-connect/auth"

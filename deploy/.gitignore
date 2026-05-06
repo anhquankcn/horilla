@@ -1,0 +1,4 @@
+# Secrets tự động tạo bởi azure-deploy.sh — KHÔNG commit
+.env.generated
+*.pem
+*.key

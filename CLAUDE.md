@@ -61,7 +61,7 @@ Sau khi chạy xong: **Admin > Companies** → upload logo công ty để brandi
 ## SSO / Xác thực
 
 Keycloak OIDC tích hợp qua `mozilla_django_oidc`:
-- Realm: `HNHTravel-SGN` tại `https://quanna.tail072b2f.ts.net:8443`
+- Realm: `HNHTravel-SGN` tại `https://kc.hnhtravel.work`
 - Client: `horilla-hrm`
 - Custom backend: `horilla/oidc_backend.py`
 - Route: `/oidc/` → nút "Đăng nhập qua HNHSSO" trên trang login
