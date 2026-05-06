@@ -53,16 +53,21 @@ generate_password() {
 run_on_vm() {
   local description="$1"
   local script="$2"
+  local timeout_sec="${3:-300}"   # default 5 phút; Docker install truyền 600
   log "$description..."
   local output
-  output=$(az vm run-command invoke \
+  output=$(timeout "$timeout_sec" az vm run-command invoke \
     --resource-group "$RESOURCE_GROUP" \
     --name "$VM_NAME" \
     --command-id RunShellScript \
     --scripts "$script" \
-    --query "value[0].message" -o tsv 2>/dev/null || echo "ERROR")
+    --query "value[0].message" -o tsv 2>/dev/null || echo "TIMEOUT_OR_ERROR")
   echo "$output" | grep -v "^\[stdout\]\|^\[stderr\]" | grep -v "^$" | head -10 || true
-  [[ "$output" == *"ERROR"* ]] && warn "Lệnh có thể lỗi — kiểm tra lại" || true
+  if [[ "$output" == *"TIMEOUT_OR_ERROR"* ]]; then
+    warn "$description — timeout/lỗi (script tiếp tục)"
+    return 1
+  fi
+  return 0
 }
 
 check_vm_running() {
@@ -254,6 +259,19 @@ run_on_vm "Dừng và xóa Keycloak" '
 
 run_on_vm "Cài Docker và công cụ" '
   export DEBIAN_FRONTEND=noninteractive
+
+  # Giải phóng APT lock (unattended-upgrades thường giữ lock sau boot)
+  systemctl stop unattended-upgrades apt-daily.service apt-daily-upgrade.service 2>/dev/null || true
+  systemctl kill --kill-who=all apt-daily.service apt-daily-upgrade.service 2>/dev/null || true
+  # Chờ tối đa 30s cho dpkg lock tự giải phóng
+  for _i in $(seq 1 15); do
+    fuser /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/lock 2>/dev/null \
+      || break
+    sleep 2
+  done
+  rm -f /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/cache/apt/archives/lock 2>/dev/null || true
+  dpkg --configure -a --force-confold 2>/dev/null || true
+
   apt-get update -qq
 
   # Cài Docker nếu chưa có
@@ -269,11 +287,11 @@ run_on_vm "Cài Docker và công cụ" '
   # Cài công cụ bổ trợ
   apt-get install -y -qq git curl htop ncdu 2>/dev/null
 
-  # Thêm user vào docker group (dùng tên user hiện tại của VM)
+  # Thêm user vào docker group
   VM_USER=$(getent passwd 1000 | cut -d: -f1 2>/dev/null || echo "azureuser")
   usermod -aG docker "$VM_USER" 2>/dev/null || true
   echo "Docker group: OK"
-'
+' 600
 
 run_on_vm "Format và mount data disk" '
   if mountpoint -q /data 2>/dev/null; then
@@ -395,7 +413,7 @@ run_on_vm "Chờ PostgreSQL sẵn sàng và migrate" "
   docker compose -f docker-compose.stage.yml exec -T web python manage.py setup_hnh_company
   docker compose -f docker-compose.stage.yml exec -T web python manage.py collectstatic --noinput
   echo 'Migrate + setup HNH OK'
-"
+" 600
 
 run_on_vm "Tạo Django superuser" "
   cd '${APP_DIR}'
