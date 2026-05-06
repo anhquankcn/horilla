@@ -284,7 +284,11 @@ OIDC_USERNAME_ALGO = "horilla.oidc_backend.generate_username"
 OIDC_AUTHENTICATION_BACKEND = "horilla.oidc_backend.HorillaOIDCBackend"
 OIDC_STORE_ACCESS_TOKEN = True
 OIDC_STORE_ID_TOKEN = True
-OIDC_REDIRECT_BASE_URL = env("OIDC_REDIRECT_BASE_URL", default="http://100.71.141.71:8765")
+OIDC_REDIRECT_BASE_URL = env("OIDC_REDIRECT_BASE_URL", default="https://qlns.hnhtravel.work")
+
+# Trust Cloudflare/nginx reverse proxy HTTPS headers
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+USE_X_FORWARDED_HOST = True
 # ────────────────────────────────────────────────────────────────────
 
 AUTHENTICATION_BACKENDS = [
