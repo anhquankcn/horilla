@@ -36,12 +36,18 @@ SSH_HOST="100.88.75.106"          # Tailscale IP — dùng cho SSH
 ADMIN_USER="naquan"
 LOCATION="southeastasia"
 
-# Key .pem — tự nhận biết Git Bash (/d/) hay WSL (/mnt/d/)
-if [ -d "/mnt/d" ]; then
-  SSH_KEY="/mnt/d/HNH2026/Cloud/naquan.pem"   # WSL
-else
-  SSH_KEY="/d/HNH2026/Cloud/naquan.pem"        # Git Bash
+# Key .pem — copy sang ~/.ssh/ để tránh lỗi NTFS permissions trên WSL
+_KEY_SRC=""
+if   [ -f "/mnt/d/HNH2026/Cloud/naquan.pem" ]; then _KEY_SRC="/mnt/d/HNH2026/Cloud/naquan.pem"
+elif [ -f "/d/HNH2026/Cloud/naquan.pem" ];     then _KEY_SRC="/d/HNH2026/Cloud/naquan.pem"
+elif [ -f "$HOME/.ssh/naquan.pem" ];            then _KEY_SRC="$HOME/.ssh/naquan.pem"
 fi
+SSH_KEY="$HOME/.ssh/naquan.pem"
+if [ -n "$_KEY_SRC" ] && [ "$_KEY_SRC" != "$SSH_KEY" ]; then
+  mkdir -p "$HOME/.ssh"
+  cp "$_KEY_SRC" "$SSH_KEY"
+fi
+chmod 600 "$SSH_KEY" 2>/dev/null || true
 
 # Data disk & backup
 DISK_NAME="disk-hnh-data"
