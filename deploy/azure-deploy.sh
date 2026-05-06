@@ -36,8 +36,12 @@ SSH_HOST="100.88.75.106"          # Tailscale IP — dùng cho SSH
 ADMIN_USER="naquan"
 LOCATION="southeastasia"
 
-# Key .pem (Git Bash path: D:\HNH2026\Cloud\naquan.pem → /d/HNH2026/Cloud/naquan.pem)
-SSH_KEY="/d/HNH2026/Cloud/naquan.pem"
+# Key .pem — tự nhận biết Git Bash (/d/) hay WSL (/mnt/d/)
+if [ -d "/mnt/d" ]; then
+  SSH_KEY="/mnt/d/HNH2026/Cloud/naquan.pem"   # WSL
+else
+  SSH_KEY="/d/HNH2026/Cloud/naquan.pem"        # Git Bash
+fi
 
 # Data disk & backup
 DISK_NAME="disk-hnh-data"
