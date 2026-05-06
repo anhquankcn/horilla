@@ -36,8 +36,8 @@ SSH_HOST="100.88.75.106"          # Tailscale IP — dùng cho SSH
 ADMIN_USER="naquan"
 LOCATION="southeastasia"
 
-# Key .pem (Git Bash path: D:\ → /d/)
-SSH_KEY_DIR="/d/HNH2026/Cloud"
+# Key .pem (Git Bash path: D:\HNH2026\Cloud\naquan.pem → /d/HNH2026/Cloud/naquan.pem)
+SSH_KEY="/d/HNH2026/Cloud/naquan.pem"
 
 # Data disk & backup
 DISK_NAME="disk-hnh-data"
@@ -82,14 +82,9 @@ ok "Azure CLI: $(az version --query '"azure-cli"' -o tsv 2>/dev/null)"
 command -v ssh >/dev/null 2>&1 || err "ssh không tìm thấy trong PATH"
 ok "SSH: $(ssh -V 2>&1 | head -1)"
 
-# Tìm file .pem trong thư mục key
-if [ ! -d "$SSH_KEY_DIR" ]; then
-  err "Thư mục key không tồn tại: $SSH_KEY_DIR\nKiểm tra lại SSH_KEY_DIR ở đầu script"
-fi
-
-SSH_KEY=$(ls "$SSH_KEY_DIR"/*.pem 2>/dev/null | head -1 || echo "")
-if [ -z "$SSH_KEY" ]; then
-  err "Không tìm thấy file .pem trong $SSH_KEY_DIR"
+# Kiểm tra file key tồn tại
+if [ ! -f "$SSH_KEY" ]; then
+  err "Không tìm thấy file key: $SSH_KEY\nKiểm tra lại đường dẫn SSH_KEY ở đầu script"
 fi
 chmod 600 "$SSH_KEY" 2>/dev/null || true
 ok "SSH key: $SSH_KEY"
