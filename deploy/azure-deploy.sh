@@ -363,20 +363,11 @@ run_on_vm "Khởi động Docker Compose (nền)" "
   echo \"Build bắt đầu (PID \$!) — theo dõi: tail -f /tmp/docker-deploy.log\"
 "
 
-log "Chờ Docker build (tối đa 10 phút)..."
-for i in $(seq 1 30); do
-  sleep 20
-  RESULT=$(timeout 30 ssh \
-    -i "$SSH_KEY" \
-    -o StrictHostKeyChecking=no \
-    -o ConnectTimeout=10 \
-    -o BatchMode=yes \
-    "${ADMIN_USER}@${SSH_HOST}" \
-    "sudo bash -s" <<'POLL' 2>/dev/null || echo "polling...")
-if grep -q '^DONE' /tmp/docker-deploy.log 2>/dev/null; then
+POLL_SCRIPT='
+if grep -q "^DONE" /tmp/docker-deploy.log 2>/dev/null; then
   echo "BUILD_COMPLETE"
   cd /opt/horilla && docker compose -f docker-compose.stage.yml ps 2>/dev/null | head -10
-elif grep -qi 'error\|failed' /tmp/docker-deploy.log 2>/dev/null; then
+elif grep -qi "error\|failed" /tmp/docker-deploy.log 2>/dev/null; then
   echo "BUILD_ERROR"
   tail -5 /tmp/docker-deploy.log
 else
@@ -384,7 +375,18 @@ else
   echo "Building... [${LINES} lines]"
   tail -2 /tmp/docker-deploy.log 2>/dev/null || echo "Starting..."
 fi
-POLL
+'
+
+log "Chờ Docker build (tối đa 10 phút)..."
+for i in $(seq 1 30); do
+  sleep 20
+  RESULT=$(echo "$POLL_SCRIPT" | timeout 30 ssh \
+    -i "$SSH_KEY" \
+    -o StrictHostKeyChecking=no \
+    -o ConnectTimeout=10 \
+    -o BatchMode=yes \
+    "${ADMIN_USER}@${SSH_HOST}" \
+    "sudo bash -s" 2>/dev/null || echo "polling...")
 
   echo "  [$i/30] $RESULT"
   echo "$RESULT" | grep -q "BUILD_COMPLETE" && break
