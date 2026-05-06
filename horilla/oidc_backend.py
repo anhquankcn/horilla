@@ -2,7 +2,11 @@
 Custom OIDC backend for Horilla HRM.
 Maps Keycloak users to existing Horilla users by email or username.
 """
+import logging
+
 from mozilla_django_oidc.auth import OIDCAuthenticationBackend
+
+logger = logging.getLogger(__name__)
 
 
 def generate_username(email):
@@ -23,19 +27,26 @@ class HorillaOIDCBackend(OIDCAuthenticationBackend):
     def filter_users_by_claims(self, claims):
         email = claims.get("email", "")
         kc_username = claims.get("preferred_username", "")
+        logger.warning(
+            "OIDC login attempt — email=%r preferred_username=%r sub=%r",
+            email, kc_username, claims.get("sub", ""),
+        )
 
         # 1. Primary: match by email
         if email:
             users = self.UserModel.objects.filter(email=email, is_active=True)
             if users.exists():
+                logger.warning("OIDC matched user by email: %r", email)
                 return users
 
         # 2. Fallback: KC preferred_username == Horilla username (same convention)
         if kc_username:
             users = self.UserModel.objects.filter(username=kc_username, is_active=True)
             if users.exists():
+                logger.warning("OIDC matched user by username: %r", kc_username)
                 return users
 
+        logger.warning("OIDC no matching user — email=%r username=%r", email, kc_username)
         return self.UserModel.objects.none()
 
     def create_user(self, claims):
