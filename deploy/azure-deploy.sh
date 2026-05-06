@@ -1,10 +1,11 @@
 #!/bin/bash
 # =============================================================================
 # deploy/azure-deploy.sh
-# Triển khai Horilla HRM (HNH Travel) — Xóa VM aqtech, tạo VM hnhstage mới
-# Tài khoản: anhquankcn2412@gmail.com
-# VM mới: hnhstage (Standard_B2s, Ubuntu 22.04, southeastasia)
-# Chạy trên máy local (có Azure CLI), không cần SSH vào VM
+# Triển khai Horilla HRM (HNH Travel) lên VM hnhstage đã có sẵn
+# Tài khoản Azure: anhquankcn2412@gmail.com
+# VM: hnhstage · Resource group: hnhwork · IP: 13.67.32.245
+# SSH user: naquan · Key: D:\HNH2026\Cloud\*.pem
+# Chạy từ Git Bash hoặc WSL trên Windows
 # =============================================================================
 set -euo pipefail
 
@@ -28,18 +29,14 @@ AZURE_USER="anhquankcn2412@gmail.com"
 TENANT_ID="a499a8e6-294d-45bf-9b71-82a072ec4cf0"
 SUBSCRIPTION_ID="00a26b28-80c6-4562-ac0c-a6d2b18387cb"
 
-# VM cũ cần xóa
-OLD_VM_NAME="aqtech"
-OLD_PUBLIC_IP_NAME="aqtech-ip"
-
-# VM mới
-RESOURCE_GROUP="AQTECH_GROUP"
+RESOURCE_GROUP="hnhwork"
 VM_NAME="hnhstage"
-VM_SIZE="Standard_B2s"          # 2 vCPU, 4GB RAM ~$30/tháng
-VM_IMAGE="Ubuntu2204"
-ADMIN_USER="azureuser"
+PUBLIC_IP="13.67.32.245"
+ADMIN_USER="naquan"
 LOCATION="southeastasia"
-PUBLIC_IP_NAME="hnhstage-ip"
+
+# Key .pem (Git Bash path: D:\ → /d/)
+SSH_KEY_DIR="/d/HNH2026/Cloud"
 
 # Data disk & backup
 DISK_NAME="disk-hnh-data"
@@ -57,42 +54,21 @@ generate_password() {
   tr -dc 'A-Za-z0-9@#$%' < /dev/urandom | head -c 24
 }
 
-# Chạy lệnh trên VM qua Azure Run Command, có timeout phía client
-# $1 = mô tả, $2 = script, $3 = timeout giây (mặc định 300)
+# Chạy script trên VM qua SSH
+# $1 = mô tả, $2 = script bash, $3 = timeout giây (mặc định 300)
 run_on_vm() {
   local description="$1"
   local script="$2"
   local timeout_sec="${3:-300}"
   log "$description..."
-  local output
-  output=$(timeout "$timeout_sec" az vm run-command invoke \
-    --resource-group "$RESOURCE_GROUP" \
-    --name "$VM_NAME" \
-    --command-id RunShellScript \
-    --scripts "$script" \
-    --query "value[0].message" -o tsv 2>/dev/null || echo "TIMEOUT_OR_ERROR")
-  echo "$output" | grep -v "^\[stdout\]\|^\[stderr\]" | grep -v "^$" | head -10 || true
-  if [[ "$output" == *"TIMEOUT_OR_ERROR"* ]]; then
-    warn "$description — timeout/lỗi (script tiếp tục)"
-    return 1
-  fi
-  return 0
-}
-
-wait_for_vm() {
-  local retries=0
-  echo -n "  Chờ VM sẵn sàng"
-  while [ $retries -lt 60 ]; do
-    STATUS=$(az vm get-instance-view \
-      --resource-group "$RESOURCE_GROUP" \
-      --name "$VM_NAME" \
-      --query "instanceView.statuses[1].displayStatus" -o tsv 2>/dev/null || echo "")
-    [ "$STATUS" = "VM running" ] && echo " ✔" && return 0
-    echo -n "."
-    retries=$((retries + 1))
-    sleep 5
-  done
-  err "VM không sẵn sàng sau 5 phút"
+  echo "$script" | timeout "$timeout_sec" ssh \
+    -i "$SSH_KEY" \
+    -o StrictHostKeyChecking=no \
+    -o ConnectTimeout=15 \
+    -o ServerAliveInterval=30 \
+    -o BatchMode=yes \
+    "${ADMIN_USER}@${PUBLIC_IP}" \
+    "sudo bash -s"
 }
 
 # ─── BƯỚC 0: Kiểm tra prerequisites ──────────────────────────────────────────
@@ -101,6 +77,34 @@ section "BƯỚC 0 — Kiểm tra môi trường"
 command -v az >/dev/null 2>&1 \
   || err "Azure CLI chưa cài. Tải: https://aka.ms/installazurecliwindows"
 ok "Azure CLI: $(az version --query '"azure-cli"' -o tsv 2>/dev/null)"
+
+command -v ssh >/dev/null 2>&1 || err "ssh không tìm thấy trong PATH"
+ok "SSH: $(ssh -V 2>&1 | head -1)"
+
+# Tìm file .pem trong thư mục key
+if [ ! -d "$SSH_KEY_DIR" ]; then
+  err "Thư mục key không tồn tại: $SSH_KEY_DIR\nKiểm tra lại SSH_KEY_DIR ở đầu script"
+fi
+
+SSH_KEY=$(ls "$SSH_KEY_DIR"/*.pem 2>/dev/null | head -1 || echo "")
+if [ -z "$SSH_KEY" ]; then
+  err "Không tìm thấy file .pem trong $SSH_KEY_DIR"
+fi
+chmod 600 "$SSH_KEY" 2>/dev/null || true
+ok "SSH key: $SSH_KEY"
+
+# Kiểm tra kết nối SSH đến VM
+log "Kiểm tra kết nối SSH đến $PUBLIC_IP..."
+if ! timeout 15 ssh \
+    -i "$SSH_KEY" \
+    -o StrictHostKeyChecking=no \
+    -o ConnectTimeout=10 \
+    -o BatchMode=yes \
+    "${ADMIN_USER}@${PUBLIC_IP}" \
+    "echo SSH_OK" 2>/dev/null | grep -q "SSH_OK"; then
+  err "Không kết nối được SSH: ${ADMIN_USER}@${PUBLIC_IP}\nKiểm tra NSG Azure cho phép port 22 từ IP của bạn"
+fi
+ok "SSH đến hnhstage OK"
 
 # ─── BƯỚC 1: Đăng nhập Azure ─────────────────────────────────────────────────
 section "BƯỚC 1 — Đăng nhập Azure"
@@ -117,7 +121,7 @@ else
 fi
 
 az account set --subscription "$SUBSCRIPTION_ID" --output none
-ok "Subscription: $(az account show --query name -o tsv) ($SUBSCRIPTION_ID)"
+ok "Subscription: $(az account show --query name -o tsv)"
 
 # ─── BƯỚC 2: Thu thập bí mật ─────────────────────────────────────────────────
 section "BƯỚC 2 — Cấu hình bí mật"
@@ -161,155 +165,57 @@ CLOUDFLARE_TOKEN=$CLOUDFLARE_TOKEN
 OIDC_RP_CLIENT_SECRET=$OIDC_SECRET
 ADMIN_EMAIL=$ADMIN_EMAIL
 ADMIN_PASSWORD=$ADMIN_PASS
+VM_PUBLIC_IP=$PUBLIC_IP
+SSH_CMD=ssh -i "$SSH_KEY" ${ADMIN_USER}@${PUBLIC_IP}
 ENVEOF
 chmod 600 "$SCRIPT_DIR/.env.generated"
 ok "Bí mật lưu tại deploy/.env.generated (không commit)"
 
-# ─── BƯỚC 3: Xóa VM aqtech cũ ────────────────────────────────────────────────
-section "BƯỚC 3 — Xóa VM aqtech cũ"
+# ─── BƯỚC 3: Gắn data disk (Azure CLI) ───────────────────────────────────────
+section "BƯỚC 3 — Data disk 64GB"
 
-if az vm show --resource-group "$RESOURCE_GROUP" --name "$OLD_VM_NAME" &>/dev/null; then
-  echo -e "${YELLOW}"
-  echo "  Sắp xóa VM '$OLD_VM_NAME' và các tài nguyên liên quan:"
-  echo "    • VM:       $OLD_VM_NAME"
-  echo "    • OS disk:  (tự động lấy)"
-  echo "    • NIC:      (tự động lấy)"
-  echo "    • Public IP: $OLD_PUBLIC_IP_NAME (nếu tồn tại)"
-  echo -e "${NC}"
-  read -rp "  Xác nhận xóa? (yes/no): " CONFIRM_DELETE
-  if [ "$CONFIRM_DELETE" != "yes" ]; then
-    warn "Bỏ qua bước xóa — tiếp tục tạo VM mới"
-  else
-    # Lấy IDs trước khi xóa
-    log "Lấy thông tin tài nguyên liên quan..."
-    OS_DISK_ID=$(az vm show \
-      --resource-group "$RESOURCE_GROUP" --name "$OLD_VM_NAME" \
-      --query "storageProfile.osDisk.managedDisk.id" -o tsv 2>/dev/null || echo "")
-    NIC_IDS=$(az vm show \
-      --resource-group "$RESOURCE_GROUP" --name "$OLD_VM_NAME" \
-      --query "networkProfile.networkInterfaces[].id" -o tsv 2>/dev/null || echo "")
-
-    # Xóa VM
-    log "Xóa VM $OLD_VM_NAME..."
-    az vm delete \
-      --resource-group "$RESOURCE_GROUP" \
-      --name "$OLD_VM_NAME" \
-      --yes --output none
-    ok "VM $OLD_VM_NAME đã xóa"
-
-    # Xóa OS disk
-    if [ -n "$OS_DISK_ID" ]; then
-      log "Xóa OS disk..."
-      az disk delete --ids "$OS_DISK_ID" --yes --no-wait --output none 2>/dev/null || true
-      ok "OS disk đã xóa"
-    fi
-
-    # Xóa NIC
-    if [ -n "$NIC_IDS" ]; then
-      log "Xóa NIC..."
-      for NIC_ID in $NIC_IDS; do
-        az network nic delete --ids "$NIC_ID" --no-wait 2>/dev/null || true
-      done
-      ok "NIC đã xóa"
-    fi
-
-    # Xóa public IP cũ
-    if az network public-ip show \
-        --resource-group "$RESOURCE_GROUP" \
-        --name "$OLD_PUBLIC_IP_NAME" &>/dev/null; then
-      log "Xóa public IP $OLD_PUBLIC_IP_NAME..."
-      az network public-ip delete \
-        --resource-group "$RESOURCE_GROUP" \
-        --name "$OLD_PUBLIC_IP_NAME" \
-        --output none 2>/dev/null || true
-      ok "Public IP $OLD_PUBLIC_IP_NAME đã xóa"
-    fi
-
-    ok "Hoàn tất xóa VM $OLD_VM_NAME"
-  fi
-else
-  warn "VM '$OLD_VM_NAME' không tồn tại — bỏ qua bước xóa"
-fi
-
-# ─── BƯỚC 4: Tạo VM hnhstage mới ─────────────────────────────────────────────
-section "BƯỚC 4 — Tạo VM $VM_NAME mới (Ubuntu 22.04, $VM_SIZE)"
-
-if az vm show --resource-group "$RESOURCE_GROUP" --name "$VM_NAME" &>/dev/null; then
-  ok "VM '$VM_NAME' đã tồn tại — bỏ qua tạo mới"
-else
-  log "Tạo VM $VM_NAME (~3-5 phút)..."
-  az vm create \
-    --resource-group "$RESOURCE_GROUP" \
-    --name "$VM_NAME" \
-    --image "$VM_IMAGE" \
-    --size "$VM_SIZE" \
-    --admin-username "$ADMIN_USER" \
-    --generate-ssh-keys \
-    --public-ip-address "$PUBLIC_IP_NAME" \
-    --public-ip-sku Standard \
-    --public-ip-address-allocation Static \
-    --nsg "${VM_NAME}-nsg" \
-    --nsg-rule SSH \
-    --location "$LOCATION" \
-    --output none
-  ok "VM $VM_NAME tạo xong"
-fi
-
-# Lấy public IP
-PUBLIC_IP=$(az vm show \
-  --resource-group "$RESOURCE_GROUP" --name "$VM_NAME" \
-  --show-details --query publicIps -o tsv 2>/dev/null || echo "")
-ok "Public IP mới: $PUBLIC_IP"
-
-# Cập nhật .env.generated với VM info
-echo "VM_PUBLIC_IP=$PUBLIC_IP" >> "$SCRIPT_DIR/.env.generated"
-echo "SSH_CMD=ssh $ADMIN_USER@$PUBLIC_IP" >> "$SCRIPT_DIR/.env.generated"
-
-# Chờ VM boot xong
-wait_for_vm
-
-# Chờ thêm 30s cho cloud-init và SSH daemon khởi động
-log "Chờ cloud-init hoàn tất..."
-sleep 30
-
-# ─── BƯỚC 5: Gắn và chuẩn bị data disk ──────────────────────────────────────
-section "BƯỚC 5 — Data disk 64GB"
+# Kiểm tra resource group hnhwork có tồn tại không
+az group show --name "$RESOURCE_GROUP" --output none 2>/dev/null \
+  || err "Resource group '$RESOURCE_GROUP' không tồn tại. Kiểm tra lại Azure Portal."
 
 if az disk show --resource-group "$RESOURCE_GROUP" --name "$DISK_NAME" &>/dev/null; then
-  # Kiểm tra disk đã attach vào VM nào chưa
-  ATTACHED_VM=$(az disk show \
+  ATTACHED=$(az disk show \
     --resource-group "$RESOURCE_GROUP" --name "$DISK_NAME" \
     --query "managedBy" -o tsv 2>/dev/null || echo "")
-  if [ -n "$ATTACHED_VM" ]; then
-    warn "Data disk '$DISK_NAME' đang gắn vào VM khác — tạo disk mới"
+  if [ -n "$ATTACHED" ] && [[ "$ATTACHED" == *"$VM_NAME"* ]]; then
+    ok "Data disk '$DISK_NAME' đã gắn vào $VM_NAME"
+  elif [ -n "$ATTACHED" ]; then
+    warn "Data disk đang gắn vào VM khác — tạo disk mới: disk-hnh-data-2"
     DISK_NAME="disk-hnh-data-2"
+    az disk create \
+      --resource-group "$RESOURCE_GROUP" --name "$DISK_NAME" \
+      --size-gb "$DISK_SIZE_GB" --sku StandardSSD_LRS \
+      --location "$LOCATION" --output none
+    az vm disk attach \
+      --resource-group "$RESOURCE_GROUP" --vm-name "$VM_NAME" \
+      --name "$DISK_NAME" --output none
+    ok "Data disk $DISK_NAME gắn OK"
   else
-    ok "Data disk '$DISK_NAME' đã tồn tại, chưa gắn — tái sử dụng"
+    log "Gắn disk $DISK_NAME vào $VM_NAME..."
+    az vm disk attach \
+      --resource-group "$RESOURCE_GROUP" --vm-name "$VM_NAME" \
+      --name "$DISK_NAME" --output none
+    ok "Data disk gắn OK"
   fi
-fi
-
-if ! az disk show --resource-group "$RESOURCE_GROUP" --name "$DISK_NAME" &>/dev/null; then
+else
   log "Tạo data disk $DISK_SIZE_GB GB ($DISK_NAME)..."
   az disk create \
-    --resource-group "$RESOURCE_GROUP" \
-    --name "$DISK_NAME" \
-    --size-gb "$DISK_SIZE_GB" \
-    --sku StandardSSD_LRS \
-    --location "$LOCATION" \
-    --output none
+    --resource-group "$RESOURCE_GROUP" --name "$DISK_NAME" \
+    --size-gb "$DISK_SIZE_GB" --sku StandardSSD_LRS \
+    --location "$LOCATION" --output none
+  az vm disk attach \
+    --resource-group "$RESOURCE_GROUP" --vm-name "$VM_NAME" \
+    --name "$DISK_NAME" --output none
+  ok "Data disk tạo và gắn OK"
 fi
 
-# Gắn vào VM mới
-log "Gắn data disk vào $VM_NAME..."
-az vm disk attach \
-  --resource-group "$RESOURCE_GROUP" \
-  --vm-name "$VM_NAME" \
-  --name "$DISK_NAME" \
-  --output none
-ok "Data disk gắn OK"
-
-# ─── BƯỚC 6: Tạo storage account backup ──────────────────────────────────────
-section "BƯỚC 6 — Storage account backup"
+# ─── BƯỚC 4: Storage account backup (Azure CLI) ───────────────────────────────
+section "BƯỚC 4 — Storage account backup"
 
 if az storage account show \
     --name "$STORAGE_ACCOUNT" \
@@ -334,7 +240,7 @@ else
     --account-name "$STORAGE_ACCOUNT" \
     --account-key "$STORAGE_KEY_TMP" \
     --output none
-  ok "Storage account: $STORAGE_ACCOUNT"
+  ok "Storage account $STORAGE_ACCOUNT OK"
 fi
 
 STORAGE_KEY=$(az storage account keys list \
@@ -342,13 +248,13 @@ STORAGE_KEY=$(az storage account keys list \
   --resource-group "$RESOURCE_GROUP" \
   --query "[0].value" -o tsv 2>/dev/null || echo "")
 
-# ─── BƯỚC 7: Cài Docker trên VM mới ──────────────────────────────────────────
-section "BƯỚC 7 — Cài Docker & mount data disk"
+# ─── BƯỚC 5: Cài Docker, mount data disk ─────────────────────────────────────
+section "BƯỚC 5 — Cài Docker & mount data disk"
 
-run_on_vm "Giải phóng APT lock và cài Docker" '
+run_on_vm "Giải phóng APT lock, cài Docker" '
   export DEBIAN_FRONTEND=noninteractive
 
-  # Dừng unattended-upgrades (thường giữ dpkg lock ngay sau boot)
+  # Dừng unattended-upgrades (giữ dpkg lock sau boot)
   systemctl stop unattended-upgrades apt-daily.service apt-daily-upgrade.service 2>/dev/null || true
   systemctl kill --kill-who=all apt-daily.service apt-daily-upgrade.service 2>/dev/null || true
   for _i in $(seq 1 15); do
@@ -360,26 +266,22 @@ run_on_vm "Giải phóng APT lock và cài Docker" '
   dpkg --configure -a --force-confold 2>/dev/null || true
 
   apt-get update -qq
-  apt-get install -y -qq git curl htop ncdu
+  apt-get install -y -qq git curl htop ncdu fuse
 
-  # Cài Docker
   if ! command -v docker &>/dev/null; then
     curl -fsSL https://get.docker.com | sh
     systemctl enable docker
     systemctl start docker
   fi
   echo "Docker: $(docker --version)"
-
-  # Thêm user vào docker group
-  usermod -aG docker azureuser 2>/dev/null || true
+  usermod -aG docker naquan 2>/dev/null || true
   echo "Docker setup OK"
 ' 600
 
-run_on_vm "Format và mount data disk" '
+run_on_vm "Format và mount data disk tại /data" '
   if mountpoint -q /data 2>/dev/null; then
     echo "/data đã mount — bỏ qua"
   else
-    # Tìm disk chưa có filesystem
     DISK=""
     for d in /dev/sdc /dev/sdb /dev/sdd /dev/sde; do
       if [ -b "$d" ] && ! blkid "$d" &>/dev/null; then
@@ -396,18 +298,18 @@ run_on_vm "Format và mount data disk" '
       mount -a
       echo "Mount OK: $(df -h /data | tail -1)"
     else
-      echo "Không tìm thấy disk mới — kiểm tra Azure Portal"
+      echo "Không tìm thấy disk chưa format:"
       lsblk
     fi
   fi
 
   mkdir -p /data/postgres /data/redis /data/media /data/backup
   chmod 777 /data/postgres /data/redis /data/media /data/backup
-  echo "Thư mục /data sẵn sàng"
+  echo "/data sẵn sàng"
 '
 
-# ─── BƯỚC 8: Clone repo và tạo .env.stage ────────────────────────────────────
-section "BƯỚC 8 — Clone repo, tạo .env.stage"
+# ─── BƯỚC 6: Clone repo và tạo .env.stage ────────────────────────────────────
+section "BƯỚC 6 — Clone repo, tạo .env.stage"
 
 run_on_vm "Clone repository $REPO_BRANCH" "
   if [ -d '${APP_DIR}/.git' ]; then
@@ -418,11 +320,11 @@ run_on_vm "Clone repository $REPO_BRANCH" "
     cd '${APP_DIR}' && git checkout '${REPO_BRANCH}'
   fi
   echo \"Branch: \$(git -C '${APP_DIR}' branch --show-current)\"
-  echo \"Commit: \$(git -C '${APP_DIR}' log --oneline -1)\"
+  echo \"Commit:  \$(git -C '${APP_DIR}' log --oneline -1)\"
 "
 
 run_on_vm "Tạo .env.stage" "
-cat > '${APP_DIR}/.env.stage' <<'ENVFILE'
+cat > '${APP_DIR}/.env.stage' << 'ENVFILE'
 DEBUG=False
 SECRET_KEY=${SECRET_KEY}
 
@@ -450,8 +352,8 @@ chmod 600 '${APP_DIR}/.env.stage'
 echo '.env.stage OK'
 "
 
-# ─── BƯỚC 9: Docker build & start ────────────────────────────────────────────
-section "BƯỚC 9 — Docker build & start"
+# ─── BƯỚC 7: Docker build & start ────────────────────────────────────────────
+section "BƯỚC 7 — Docker build & start"
 
 run_on_vm "Khởi động Docker Compose (nền)" "
   cd '${APP_DIR}'
@@ -461,37 +363,42 @@ run_on_vm "Khởi động Docker Compose (nền)" "
       > /tmp/docker-deploy.log 2>&1
     echo DONE >> /tmp/docker-deploy.log
   ' &
-  echo \"Build PID: \$! — log: /tmp/docker-deploy.log\"
+  disown
+  echo \"Build bắt đầu (PID \$!) — theo dõi: tail -f /tmp/docker-deploy.log\"
 "
 
-log "Polling Docker build (tối đa 10 phút)..."
+log "Chờ Docker build (tối đa 10 phút)..."
 for i in $(seq 1 30); do
   sleep 20
-  RESULT=$(timeout 60 az vm run-command invoke \
-    --resource-group "$RESOURCE_GROUP" --name "$VM_NAME" \
-    --command-id RunShellScript \
-    --scripts "
-      if grep -q '^DONE' /tmp/docker-deploy.log 2>/dev/null; then
-        echo BUILD_COMPLETE
-        cd '${APP_DIR}' && docker compose -f docker-compose.stage.yml ps 2>/dev/null | head -10
-      elif grep -qi 'error\|failed' /tmp/docker-deploy.log 2>/dev/null; then
-        echo BUILD_ERROR
-        tail -5 /tmp/docker-deploy.log
-      else
-        echo \"Building... [\$(wc -l < /tmp/docker-deploy.log 2>/dev/null || echo 0) lines]\"
-        tail -2 /tmp/docker-deploy.log 2>/dev/null || echo 'Đang build...'
-      fi
-    " \
-    --query "value[0].message" -o tsv 2>/dev/null | \
-    grep -v "^\[stdout\]\|^\[stderr\]" | grep -v "^$" | head -5 || echo "polling...")
+  RESULT=$(timeout 30 ssh \
+    -i "$SSH_KEY" \
+    -o StrictHostKeyChecking=no \
+    -o ConnectTimeout=10 \
+    -o BatchMode=yes \
+    "${ADMIN_USER}@${PUBLIC_IP}" \
+    "sudo bash -s" <<'POLL' 2>/dev/null || echo "polling...")
+if grep -q '^DONE' /tmp/docker-deploy.log 2>/dev/null; then
+  echo "BUILD_COMPLETE"
+  cd /opt/horilla && docker compose -f docker-compose.stage.yml ps 2>/dev/null | head -10
+elif grep -qi 'error\|failed' /tmp/docker-deploy.log 2>/dev/null; then
+  echo "BUILD_ERROR"
+  tail -5 /tmp/docker-deploy.log
+else
+  LINES=$(wc -l < /tmp/docker-deploy.log 2>/dev/null || echo 0)
+  echo "Building... [${LINES} lines]"
+  tail -2 /tmp/docker-deploy.log 2>/dev/null || echo "Starting..."
+fi
+POLL
 
   echo "  [$i/30] $RESULT"
   echo "$RESULT" | grep -q "BUILD_COMPLETE" && break
-  echo "$RESULT" | grep -q "BUILD_ERROR" && warn "Build có lỗi — kiểm tra /tmp/docker-deploy.log" && break
+  echo "$RESULT" | grep -q "BUILD_ERROR" \
+    && warn "Build lỗi — SSH vào VM kiểm tra: tail -f /tmp/docker-deploy.log" \
+    && break
 done
 
-# ─── BƯỚC 10: Migrate và setup dữ liệu ───────────────────────────────────────
-section "BƯỚC 10 — Migrate, setup dữ liệu HNH"
+# ─── BƯỚC 8: Migrate và setup dữ liệu ────────────────────────────────────────
+section "BƯỚC 8 — Migrate, setup dữ liệu HNH"
 
 run_on_vm "Chờ PostgreSQL và migrate" "
   cd '${APP_DIR}'
@@ -500,9 +407,12 @@ run_on_vm "Chờ PostgreSQL và migrate" "
       pg_isready -U horilla -d horilla_stage 2>/dev/null && break
     echo \"Chờ DB... (\$i/30)\"; sleep 5
   done
-  docker compose -f docker-compose.stage.yml exec -T web python manage.py migrate --noinput
-  docker compose -f docker-compose.stage.yml exec -T web python manage.py setup_hnh_company
-  docker compose -f docker-compose.stage.yml exec -T web python manage.py collectstatic --noinput
+  docker compose -f docker-compose.stage.yml exec -T web \
+    python manage.py migrate --noinput
+  docker compose -f docker-compose.stage.yml exec -T web \
+    python manage.py setup_hnh_company
+  docker compose -f docker-compose.stage.yml exec -T web \
+    python manage.py collectstatic --noinput
   echo 'Migrate + setup HNH OK'
 " 600
 
@@ -521,15 +431,15 @@ else:
   \"
 "
 
-# ─── BƯỚC 11: Backup tự động ─────────────────────────────────────────────────
-section "BƯỚC 11 — Backup tự động"
+# ─── BƯỚC 9: Backup tự động ──────────────────────────────────────────────────
+section "BƯỚC 9 — Backup tự động"
 
-run_on_vm "Cài Azure CLI + cron backup" "
+run_on_vm "Cài Azure CLI + cron backup 2:00 sáng" "
   if ! command -v az &>/dev/null; then
     curl -sL https://aka.ms/InstallAzureCLIDeb | bash 2>/dev/null
   fi
 
-  cat > /opt/backup-db.sh <<'BACKUP'
+  cat > /opt/backup-db.sh << 'BACKUP'
 #!/bin/bash
 set -euo pipefail
 DATE=\$(date +%Y%m%d_%H%M)
@@ -551,8 +461,8 @@ BACKUP
   echo 'Cron backup: 2:00 sáng mỗi ngày'
 " 600
 
-# ─── BƯỚC 12: Tailscale ───────────────────────────────────────────────────────
-section "BƯỚC 12 — Tailscale cho SSH management"
+# ─── BƯỚC 10: Tailscale ───────────────────────────────────────────────────────
+section "BƯỚC 10 — Tailscale cho SSH management"
 
 run_on_vm "Cài Tailscale" '
   if command -v tailscale &>/dev/null; then
@@ -572,22 +482,17 @@ echo -e "${BOLD}╔════════════════════�
 echo -e "${BOLD}║     DEPLOY THÀNH CÔNG — HNH Travel HRM              ║${NC}"
 echo -e "${BOLD}╠══════════════════════════════════════════════════════╣${NC}"
 echo -e "${BOLD}║${NC}  Ứng dụng : https://hrm.hnhtravel.work               ${BOLD}║${NC}"
-echo -e "${BOLD}║${NC}  VM       : $VM_NAME ($PUBLIC_IP)              ${BOLD}║${NC}"
-echo -e "${BOLD}║${NC}  SSH      : ssh $ADMIN_USER@$PUBLIC_IP         ${BOLD}║${NC}"
-echo -e "${BOLD}║${NC}  Admin    : $ADMIN_EMAIL                       ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}  VM       : hnhstage ($PUBLIC_IP)                ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}  SSH      : ssh -i $SSH_KEY ${ADMIN_USER}@${PUBLIC_IP}  ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}  Admin    : $ADMIN_EMAIL                         ${BOLD}║${NC}"
 echo -e "${BOLD}╠══════════════════════════════════════════════════════╣${NC}"
-echo -e "${BOLD}║  Chi phí/tháng (VM mới):                             ║${NC}"
-echo -e "${BOLD}║${NC}  VM Standard_B2s:     ~\$30/tháng (~750k VNĐ)      ${BOLD}║${NC}"
-echo -e "${BOLD}║${NC}  Data disk 64GB SSD:  ~\$5/tháng                   ${BOLD}║${NC}"
-echo -e "${BOLD}║${NC}  Storage backup:      ~\$0.5/tháng                  ${BOLD}║${NC}"
-echo -e "${BOLD}║${NC}  Tổng:                ~\$35.5/tháng (~888k VNĐ)     ${BOLD}║${NC}"
-echo -e "${BOLD}╠══════════════════════════════════════════════════════╣${NC}"
-echo -e "${BOLD}║  Việc cần làm thủ công:                               ║${NC}"
-echo -e "${BOLD}║${NC}  1. Cloudflare Zero Trust → Tunnels → Public Hostname  ${BOLD}║${NC}"
-echo -e "${BOLD}║${NC}     hrm.hnhtravel.work → nginx:80                 ${BOLD}║${NC}"
-echo -e "${BOLD}║${NC}  2. (nếu token trống): ssh → nano .env.stage      ${BOLD}║${NC}"
+echo -e "${BOLD}║  Việc cần làm thủ công sau deploy:                   ║${NC}"
+echo -e "${BOLD}║${NC}  1. Cloudflare Zero Trust → Tunnels → Public Hostname ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}     hrm.hnhtravel.work → nginx:80                ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}  2. Nếu CLOUDFLARE_TOKEN trống:                   ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}     ssh → nano /opt/horilla/.env.stage            ${BOLD}║${NC}"
 echo -e "${BOLD}║${NC}     → docker compose restart cloudflared          ${BOLD}║${NC}"
-echo -e "${BOLD}║${NC}  3. sudo tailscale up --authkey=<key>  (trên VM)  ${BOLD}║${NC}"
-echo -e "${BOLD}║${NC}  4. Bí mật: deploy/.env.generated (KHÔNG commit)  ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}  3. sudo tailscale up --authkey=<key>  (trên VM) ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}  4. Bí mật: deploy/.env.generated (KHÔNG commit) ${BOLD}║${NC}"
 echo -e "${BOLD}╚══════════════════════════════════════════════════════╝${NC}"
 echo ""
