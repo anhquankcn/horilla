@@ -31,7 +31,8 @@ SUBSCRIPTION_ID="00a26b28-80c6-4562-ac0c-a6d2b18387cb"
 
 RESOURCE_GROUP="hnhwork"
 VM_NAME="hnhstage"
-PUBLIC_IP="13.67.32.245"
+PUBLIC_IP="13.67.32.245"         # Azure public IP (chỉ để hiển thị)
+SSH_HOST="100.88.75.106"          # Tailscale IP — dùng cho SSH
 ADMIN_USER="naquan"
 LOCATION="southeastasia"
 
@@ -67,7 +68,7 @@ run_on_vm() {
     -o ConnectTimeout=15 \
     -o ServerAliveInterval=30 \
     -o BatchMode=yes \
-    "${ADMIN_USER}@${PUBLIC_IP}" \
+    "${ADMIN_USER}@${SSH_HOST}" \
     "sudo bash -s"
 }
 
@@ -94,15 +95,15 @@ chmod 600 "$SSH_KEY" 2>/dev/null || true
 ok "SSH key: $SSH_KEY"
 
 # Kiểm tra kết nối SSH đến VM
-log "Kiểm tra kết nối SSH đến $PUBLIC_IP..."
+log "Kiểm tra kết nối SSH qua Tailscale ($SSH_HOST)..."
 if ! timeout 15 ssh \
     -i "$SSH_KEY" \
     -o StrictHostKeyChecking=no \
     -o ConnectTimeout=10 \
     -o BatchMode=yes \
-    "${ADMIN_USER}@${PUBLIC_IP}" \
+    "${ADMIN_USER}@${SSH_HOST}" \
     "echo SSH_OK" 2>/dev/null | grep -q "SSH_OK"; then
-  err "Không kết nối được SSH: ${ADMIN_USER}@${PUBLIC_IP}\nKiểm tra NSG Azure cho phép port 22 từ IP của bạn"
+  err "Không kết nối được SSH: ${ADMIN_USER}@${SSH_HOST}\nKiểm tra Tailscale đang chạy trên cả 2 máy"
 fi
 ok "SSH đến hnhstage OK"
 
@@ -166,7 +167,7 @@ OIDC_RP_CLIENT_SECRET=$OIDC_SECRET
 ADMIN_EMAIL=$ADMIN_EMAIL
 ADMIN_PASSWORD=$ADMIN_PASS
 VM_PUBLIC_IP=$PUBLIC_IP
-SSH_CMD=ssh -i "$SSH_KEY" ${ADMIN_USER}@${PUBLIC_IP}
+SSH_CMD=ssh -i "$SSH_KEY" ${ADMIN_USER}@${SSH_HOST}
 ENVEOF
 chmod 600 "$SCRIPT_DIR/.env.generated"
 ok "Bí mật lưu tại deploy/.env.generated (không commit)"
@@ -375,7 +376,7 @@ for i in $(seq 1 30); do
     -o StrictHostKeyChecking=no \
     -o ConnectTimeout=10 \
     -o BatchMode=yes \
-    "${ADMIN_USER}@${PUBLIC_IP}" \
+    "${ADMIN_USER}@${SSH_HOST}" \
     "sudo bash -s" <<'POLL' 2>/dev/null || echo "polling...")
 if grep -q '^DONE' /tmp/docker-deploy.log 2>/dev/null; then
   echo "BUILD_COMPLETE"
@@ -483,7 +484,7 @@ echo -e "${BOLD}║     DEPLOY THÀNH CÔNG — HNH Travel HRM              ║$
 echo -e "${BOLD}╠══════════════════════════════════════════════════════╣${NC}"
 echo -e "${BOLD}║${NC}  Ứng dụng : https://hrm.hnhtravel.work               ${BOLD}║${NC}"
 echo -e "${BOLD}║${NC}  VM       : hnhstage ($PUBLIC_IP)                ${BOLD}║${NC}"
-echo -e "${BOLD}║${NC}  SSH      : ssh -i $SSH_KEY ${ADMIN_USER}@${PUBLIC_IP}  ${BOLD}║${NC}"
+echo -e "${BOLD}║${NC}  SSH      : ssh -i $SSH_KEY ${ADMIN_USER}@${SSH_HOST}   ${BOLD}║${NC}"
 echo -e "${BOLD}║${NC}  Admin    : $ADMIN_EMAIL                         ${BOLD}║${NC}"
 echo -e "${BOLD}╠══════════════════════════════════════════════════════╣${NC}"
 echo -e "${BOLD}║  Việc cần làm thủ công sau deploy:                   ║${NC}"
