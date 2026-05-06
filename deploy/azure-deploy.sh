@@ -365,7 +365,7 @@ run_on_vm "Khởi động Docker Compose (nền)" "
   cd '${APP_DIR}'
   rm -f /tmp/docker-deploy.log
   nohup bash -c '
-    docker compose -f docker-compose.stage.yml up -d --build \
+    docker compose --env-file .env.stage -f docker-compose.stage.yml up -d --build \
       > /tmp/docker-deploy.log 2>&1
     echo DONE >> /tmp/docker-deploy.log
   ' &
@@ -376,7 +376,7 @@ run_on_vm "Khởi động Docker Compose (nền)" "
 POLL_SCRIPT='
 if grep -q "^DONE" /tmp/docker-deploy.log 2>/dev/null; then
   echo "BUILD_COMPLETE"
-  cd /opt/horilla && docker compose -f docker-compose.stage.yml ps 2>/dev/null | head -10
+  cd /opt/horilla && docker compose --env-file .env.stage -f docker-compose.stage.yml ps 2>/dev/null | head -10
 elif grep -qi "error\|failed" /tmp/docker-deploy.log 2>/dev/null; then
   echo "BUILD_ERROR"
   tail -5 /tmp/docker-deploy.log
@@ -411,22 +411,22 @@ section "BƯỚC 8 — Migrate, setup dữ liệu HNH"
 run_on_vm "Chờ PostgreSQL và migrate" "
   cd '${APP_DIR}'
   for i in \$(seq 1 30); do
-    docker compose -f docker-compose.stage.yml exec -T db \
+    docker compose --env-file .env.stage -f docker-compose.stage.yml exec -T db \
       pg_isready -U horilla -d horilla_stage 2>/dev/null && break
     echo \"Chờ DB... (\$i/30)\"; sleep 5
   done
-  docker compose -f docker-compose.stage.yml exec -T web \
+  docker compose --env-file .env.stage -f docker-compose.stage.yml exec -T web \
     python manage.py migrate --noinput
-  docker compose -f docker-compose.stage.yml exec -T web \
+  docker compose --env-file .env.stage -f docker-compose.stage.yml exec -T web \
     python manage.py setup_hnh_company
-  docker compose -f docker-compose.stage.yml exec -T web \
+  docker compose --env-file .env.stage -f docker-compose.stage.yml exec -T web \
     python manage.py collectstatic --noinput
   echo 'Migrate + setup HNH OK'
 " 600
 
 run_on_vm "Tạo Django superuser" "
   cd '${APP_DIR}'
-  docker compose -f docker-compose.stage.yml exec -T web bash -c \"
+  docker compose --env-file .env.stage -f docker-compose.stage.yml exec -T web bash -c \"
     python manage.py shell -c \\\"
 from django.contrib.auth import get_user_model
 U = get_user_model()
@@ -452,7 +452,7 @@ run_on_vm "Cài Azure CLI + cron backup 2:00 sáng" "
 set -euo pipefail
 DATE=\$(date +%Y%m%d_%H%M)
 FILE=\"/data/backup/horilla_\${DATE}.sql.gz\"
-docker compose -f /opt/horilla/docker-compose.stage.yml exec -T db \\
+docker compose --env-file /opt/horilla/.env.stage -f /opt/horilla/docker-compose.stage.yml exec -T db \\
   pg_dump -U horilla horilla_stage | gzip > \"\$FILE\"
 az storage blob upload \\
   --account-name ${STORAGE_ACCOUNT} \\
