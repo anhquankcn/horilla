@@ -4,7 +4,9 @@ Maps Keycloak users to existing Horilla users by email or username.
 """
 import logging
 
+from django.core.exceptions import SuspiciousOperation
 from mozilla_django_oidc.auth import OIDCAuthenticationBackend
+from mozilla_django_oidc.views import OIDCAuthenticationCallbackView
 
 logger = logging.getLogger(__name__)
 
@@ -63,3 +65,18 @@ class HorillaOIDCBackend(OIDCAuthenticationBackend):
             user.last_name = kc_last
         user.save()
         return user
+
+
+class HorillaOIDCCallbackView(OIDCAuthenticationCallbackView):
+    """Override: redirect to login instead of 400 on state mismatch."""
+
+    @property
+    def failure_url(self):
+        return "/login/"
+
+    def get(self, request):
+        try:
+            return super().get(request)
+        except SuspiciousOperation as exc:
+            logger.warning("OIDC state mismatch — redirecting to login: %s", exc)
+            return self.login_failure()

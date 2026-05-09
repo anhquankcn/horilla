@@ -19,10 +19,12 @@ from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import include, path, re_path
 from django.views.i18n import JavaScriptCatalog
+from mozilla_django_oidc.views import OIDCAuthenticationRequestView, OIDCLogoutView
 
 import notifications.urls
 
 from . import settings
+from .oidc_backend import HorillaOIDCCallbackView
 
 
 def health_check(request):
@@ -31,7 +33,10 @@ def health_check(request):
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("oidc/", include("mozilla_django_oidc.urls")),
+    # OIDC — callback uses custom view that redirects to login on state mismatch
+    path("oidc/callback/", HorillaOIDCCallbackView.as_view(), name="oidc_authentication_callback"),
+    path("oidc/authenticate/", OIDCAuthenticationRequestView.as_view(), name="oidc_authentication_init"),
+    path("oidc/logout/", OIDCLogoutView.as_view(), name="oidc_logout"),
     path("accounts/", include("django.contrib.auth.urls")),
     path("accounts/", include("django.contrib.auth.urls")),
     path("", include("base.urls")),
