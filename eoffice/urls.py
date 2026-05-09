@@ -1,10 +1,12 @@
 """eoffice/urls.py"""
 
+from django.shortcuts import redirect
 from django.urls import path
 
 from . import views
 
 urlpatterns = [
+    path("", lambda r: redirect("eoffice-board")),
     path("board/", views.board, name="eoffice-board"),
     path("task/create/", views.task_create, name="eoffice-task-create"),
     path("task/<int:pk>/edit/", views.task_edit, name="eoffice-task-edit"),

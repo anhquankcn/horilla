@@ -346,4 +346,3 @@ urlpatterns.append(path("payroll/", lambda request: redirect("view-payroll-dashb
 urlpatterns.append(path("pms/", lambda request: redirect("dashboard-view")))
 urlpatterns.append(path("asset/", lambda request: redirect("asset-dashboard")))
 urlpatterns.append(path("project/", lambda request: redirect("project-dashboard-view")))
-urlpatterns.append(path("eoffice/", lambda request: redirect("eoffice-board")))
