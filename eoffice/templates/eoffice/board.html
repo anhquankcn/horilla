@@ -1,0 +1,183 @@
+{% extends 'index.html' %}
+{% load static i18n %}
+
+{% block content %}
+{% include "generic/components.html" %}
+
+<style>
+  :root { --hnh-primary: #c0222b; --hnh-primary-dark: #9a1a21; --hnh-primary-light: rgba(192,34,43,0.10); }
+  .eoffice-board { display: grid; grid-template-columns: repeat(4, minmax(240px, 1fr)); gap: 14px; align-items: start; }
+  @media (max-width: 768px) { .eoffice-board { grid-template-columns: repeat(4, minmax(240px, 1fr)); overflow-x: auto; -webkit-overflow-scrolling: touch; } }
+  .eo-col { background: #f8fafc; border-radius: 10px; border: 1px solid #e5e7eb; overflow: hidden; }
+  .eo-col-header { padding: 10px 14px; display: flex; align-items: center; gap: 8px; background: white; border-bottom: 1px solid #e5e7eb; }
+  .eo-col-header.todo { border-top: 3px solid #06b6d4; }
+  .eo-col-header.inprogress { border-top: 3px solid #3b82f6; }
+  .eo-col-header.blocked { border-top: 3px solid #f97316; }
+  .eo-col-header.done { border-top: 3px solid #22c55e; }
+  .eo-col-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .eo-col-title { font-size: 13px; font-weight: 700; color: #374151; flex: 1; }
+  .eo-col-count { background: #e5e7eb; color: #6b7280; font-size: 11px; font-weight: 700; border-radius: 10px; padding: 1px 7px; }
+  .eo-col-body { padding: 8px; display: flex; flex-direction: column; gap: 6px; min-height: 80px; }
+  .eo-card { background: white; border-radius: 8px; border: 1px solid #e5e7eb; padding: 10px; position: relative; }
+  .eo-card:hover { box-shadow: 0 4px 10px rgba(0,0,0,.07); }
+  .eo-card.overdue { border-left: 3px solid #ef4444; }
+  .eo-card.blocked-card { border-left: 3px solid #f97316; background: #fff7ed; }
+  .eo-card-title { font-size: 13px; font-weight: 600; color: #111827; margin-bottom: 6px; line-height: 1.4; }
+  .eo-card-meta { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 6px; }
+  .eo-badge { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 20px; font-size: 10px; font-weight: 700; }
+  .eo-badge-urgent { background: #fee2e2; color: #b91c1c; }
+  .eo-badge-high { background: #ffedd5; color: #c2410c; }
+  .eo-badge-normal { background: #eff6ff; color: #1d4ed8; }
+  .eo-badge-low { background: #f0fdf4; color: #15803d; }
+  .eo-badge-overdue { background: #fee2e2; color: #b91c1c; }
+  .eo-badge-due-today { background: #fef3c7; color: #92400e; }
+  .eo-badge-due-ok { background: #f0fdf4; color: #166534; }
+  .eo-card-footer { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+  .eo-avatar { width: 22px; height: 22px; border-radius: 50%; background: var(--hnh-primary); color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 9px; font-weight: 700; flex-shrink: 0; }
+  .eo-assignee-name { font-size: 11px; color: #6b7280; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .eo-status-form select { font-size: 11px; padding: 2px 4px; border: 1px solid #d1d5db; border-radius: 4px; background: white; cursor: pointer; }
+  .eo-blocked-reason { font-size: 11px; color: #92400e; background: #fef3c7; border-radius: 4px; padding: 3px 6px; margin-bottom: 5px; border-left: 2px solid #f59e0b; }
+  .eo-add-btn { display: flex; align-items: center; gap: 5px; width: 100%; padding: 7px 8px; border: 1px dashed #d1d5db; border-radius: 6px; background: transparent; color: #9ca3af; font-size: 12px; cursor: pointer; text-decoration: none; margin-top: 3px; justify-content: center; }
+  .eo-add-btn:hover { border-color: var(--hnh-primary); color: var(--hnh-primary); }
+  .eo-chip { display: inline-flex; align-items: center; gap: 4px; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; border: 1.5px solid #e5e7eb; background: white; color: #374151; cursor: pointer; text-decoration: none; }
+  .eo-chip:hover { border-color: var(--hnh-primary); color: var(--hnh-primary); }
+  .eo-chip.active { background: var(--hnh-primary-light); border-color: var(--hnh-primary); color: var(--hnh-primary); }
+  .eo-chip-badge { background: var(--hnh-primary); color: white; border-radius: 10px; padding: 0 5px; font-size: 10px; }
+  .eo-empty { text-align: center; padding: 18px 8px; color: #9ca3af; font-size: 12px; }
+  .done-card { opacity: .72; }
+  .done-card .eo-card-title { text-decoration: line-through; color: #6b7280; }
+  .eo-done-ts { font-size: 10px; color: #9ca3af; margin-top: 2px; }
+</style>
+
+<main :class="sidebarOpen ? 'oh-main__sidebar-visible' : ''">
+
+  {% if messages %}
+  <div class="oh-alert-container">
+    {% for message in messages %}
+      <div class="oh-alert oh-alert--animated {{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <!-- Top bar -->
+  <section class="oh-wrapper oh-main__topbar">
+    <div class="oh-main__titlebar oh-main__titlebar--left">
+      <h1 class="oh-main__titlebar-title fw-bold">{% trans "Bảng Công việc" %}</h1>
+    </div>
+    <div class="oh-main__titlebar oh-main__titlebar--right">
+      <a href="{% url 'eoffice-task-create' %}" class="oh-btn oh-btn--primary">
+        <ion-icon name="add-outline" class="me-1"></ion-icon>
+        {% trans "Tạo công việc" %}
+      </a>
+    </div>
+  </section>
+
+  <!-- Filter chips -->
+  <section class="oh-wrapper" style="padding-top: 8px; padding-bottom: 8px;">
+    <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+      <a href="{% url 'eoffice-board' %}" class="eo-chip {% if filter_by == 'all' %}active{% endif %}">
+        {% trans "Tất cả" %}
+      </a>
+      <a href="{% url 'eoffice-board' %}?filter=overdue" class="eo-chip {% if filter_by == 'overdue' %}active{% endif %}">
+        {% trans "Đang trễ" %}
+        {% if overdue_count > 0 %}<span class="eo-chip-badge">{{ overdue_count }}</span>{% endif %}
+      </a>
+      <a href="{% url 'eoffice-board' %}?filter=blocked" class="eo-chip {% if filter_by == 'blocked' %}active{% endif %}">
+        {% trans "Bị chặn" %}
+        {% if blocked_count > 0 %}<span class="eo-chip-badge">{{ blocked_count }}</span>{% endif %}
+      </a>
+      <a href="{% url 'eoffice-board' %}?filter=mine" class="eo-chip {% if filter_by == 'mine' %}active{% endif %}">
+        {% trans "Của tôi" %}
+      </a>
+    </div>
+  </section>
+
+  <!-- Kanban board -->
+  <section class="oh-wrapper" style="overflow-x: auto; -webkit-overflow-scrolling: touch;">
+    <div class="eoffice-board">
+
+      {% with tasks_by_status.to_do as col_tasks %}
+      <div class="eo-col">
+        <div class="eo-col-header todo">
+          <span class="eo-col-dot" style="background:#06b6d4;"></span>
+          <span class="eo-col-title">{% trans "Cần làm" %}</span>
+          <span class="eo-col-count">{{ col_tasks|length }}</span>
+        </div>
+        <div class="eo-col-body">
+          {% for task in col_tasks %}
+            {% include "eoffice/partials/task_card.html" %}
+          {% empty %}
+            <div class="eo-empty">{% trans "Chưa có công việc" %}<br><small>{% trans "Nhấn để giao việc đầu tiên" %}</small></div>
+          {% endfor %}
+          <a href="{% url 'eoffice-task-create' %}" class="eo-add-btn">
+            <ion-icon name="add-outline"></ion-icon> {% trans "Thêm công việc" %}
+          </a>
+        </div>
+      </div>
+      {% endwith %}
+
+      {% with tasks_by_status.in_progress as col_tasks %}
+      <div class="eo-col">
+        <div class="eo-col-header inprogress">
+          <span class="eo-col-dot" style="background:#3b82f6;"></span>
+          <span class="eo-col-title">{% trans "Đang làm" %}</span>
+          <span class="eo-col-count">{{ col_tasks|length }}</span>
+        </div>
+        <div class="eo-col-body">
+          {% for task in col_tasks %}
+            {% include "eoffice/partials/task_card.html" %}
+          {% empty %}
+            <div class="eo-empty">{% trans "Không có công việc đang làm" %}</div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endwith %}
+
+      {% with tasks_by_status.blocked as col_tasks %}
+      <div class="eo-col">
+        <div class="eo-col-header blocked">
+          <span class="eo-col-dot" style="background:#f97316;"></span>
+          <span class="eo-col-title">{% trans "Bị chặn" %}</span>
+          <span class="eo-col-count">{{ col_tasks|length }}</span>
+        </div>
+        <div class="eo-col-body">
+          {% for task in col_tasks %}
+            {% include "eoffice/partials/task_card.html" %}
+          {% empty %}
+            <div class="eo-empty">{% trans "Không có công việc bị chặn" %}</div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endwith %}
+
+      {% with tasks_by_status.done as col_tasks %}
+      <div class="eo-col">
+        <div class="eo-col-header done">
+          <span class="eo-col-dot" style="background:#22c55e;"></span>
+          <span class="eo-col-title">{% trans "Hoàn thành" %}</span>
+          <span class="eo-col-count">{{ col_tasks|length }}</span>
+        </div>
+        <div class="eo-col-body">
+          {% for task in col_tasks %}
+            <div class="eo-card done-card">
+              <div class="eo-card-title">{{ task.title }}</div>
+              {% if task.completed_at %}
+                <div class="eo-done-ts">{{ task.completed_at|date:"d/m/Y H:i" }}</div>
+              {% endif %}
+              <div class="eo-card-footer">
+                <div class="eo-avatar">{{ task.assigned_to.employee_first_name|first|upper }}{{ task.assigned_to.employee_last_name|first|upper }}</div>
+                <span class="eo-assignee-name">{{ task.assigned_to.get_full_name }}</span>
+              </div>
+            </div>
+          {% empty %}
+            <div class="eo-empty">{% trans "Chưa hoàn thành công việc nào" %}</div>
+          {% endfor %}
+        </div>
+      </div>
+      {% endwith %}
+
+    </div>
+  </section>
+
+</main>
+{% endblock %}

@@ -1,0 +1,220 @@
+{% extends 'index.html' %}
+{% load static i18n %}
+
+{% block content %}
+{% include "generic/components.html" %}
+
+<style>
+  :root { --hnh-primary: #c0222b; --hnh-primary-dark: #9a1a21; --hnh-primary-light: rgba(192,34,43,0.10); }
+  .eo-form-card { background: white; border-radius: 10px; border: 1px solid #e5e7eb; max-width: 680px; margin: 0 auto; }
+  .eo-form-header { padding: 16px 24px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: 10px; }
+  .eo-form-title { font-size: 16px; font-weight: 700; color: #111827; }
+  .eo-form-body { padding: 20px 24px; display: flex; flex-direction: column; gap: 14px; }
+  .eo-field label { font-size: 12px; font-weight: 600; color: #374151; display: block; margin-bottom: 4px; }
+  .eo-field input, .eo-field select, .eo-field textarea { width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; color: #111827; font-family: inherit; }
+  .eo-field input:focus, .eo-field select:focus, .eo-field textarea:focus { outline: none; border-color: var(--hnh-primary); box-shadow: 0 0 0 3px var(--hnh-primary-light); }
+  .eo-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .eo-field-hint { font-size: 11px; color: #9ca3af; margin-top: 3px; }
+  .eo-field-error { font-size: 11px; color: #dc2626; font-weight: 600; margin-top: 3px; }
+  .eo-form-footer { padding: 14px 24px; border-top: 1px solid #e5e7eb; display: flex; gap: 10px; justify-content: flex-end; align-items: center; }
+  .eo-status-bar { padding: 10px 24px; background: #f9fafb; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .eo-status-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 12px; font-weight: 700; }
+  .eo-status-to_do { background: #ecfeff; color: #0e7490; border: 1.5px solid #06b6d4; }
+  .eo-status-in_progress { background: #eff6ff; color: #1d4ed8; border: 1.5px solid #3b82f6; }
+  .eo-status-blocked { background: #fff7ed; color: #c2410c; border: 1.5px solid #f97316; }
+  .eo-status-done { background: #f0fdf4; color: #166534; border: 1.5px solid #22c55e; }
+  .eo-comments { margin-top: 24px; border-top: 1px solid #e5e7eb; padding-top: 16px; }
+  .eo-comments-title { font-size: 13px; font-weight: 700; color: #374151; margin-bottom: 10px; }
+  .eo-comment { display: flex; gap: 10px; margin-bottom: 10px; }
+  .eo-comment-avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--hnh-primary); color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+  .eo-comment-body { flex: 1; background: #f9fafb; border-radius: 8px; padding: 8px 12px; }
+  .eo-comment-author { font-size: 12px; font-weight: 700; color: #111827; margin-bottom: 2px; }
+  .eo-comment-text { font-size: 13px; color: #374151; line-height: 1.5; white-space: pre-wrap; }
+  .eo-comment-meta { font-size: 11px; color: #9ca3af; margin-top: 3px; }
+  .eo-status-change { margin-top: 16px; background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; }
+  .eo-status-change-title { font-size: 12px; font-weight: 700; color: #374151; margin-bottom: 8px; }
+</style>
+
+<main :class="sidebarOpen ? 'oh-main__sidebar-visible' : ''">
+
+  {% if messages %}
+  <div class="oh-alert-container">
+    {% for message in messages %}
+      <div class="oh-alert oh-alert--animated {{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <section class="oh-wrapper oh-main__topbar">
+    <div class="oh-main__titlebar oh-main__titlebar--left">
+      <h1 class="oh-main__titlebar-title fw-bold">{{ title }}</h1>
+    </div>
+    <div class="oh-main__titlebar oh-main__titlebar--right">
+      <a href="{% url 'eoffice-board' %}" class="oh-btn oh-btn--secondary">
+        <ion-icon name="arrow-back-outline" class="me-1"></ion-icon>
+        {% trans "Quay lại bảng" %}
+      </a>
+    </div>
+  </section>
+
+  <section class="oh-wrapper">
+    <div class="eo-form-card">
+
+      {% if task %}
+      <div class="eo-status-bar">
+        <span style="font-size:12px;color:#6b7280;">{% trans "Trạng thái:" %}</span>
+        <span class="eo-status-chip eo-status-{{ task.status }}">{{ task.get_status_display }}</span>
+        {% if task.is_overdue %}
+          <span style="font-size:11px;font-weight:700;color:#dc2626;margin-left:4px;">⚠️ {% trans "Trễ" %} {{ task.overdue_days }} {% trans "ngày" %}</span>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      <div class="eo-form-header">
+        <ion-icon name="clipboard-outline" style="color:var(--hnh-primary);font-size:18px;"></ion-icon>
+        <span class="eo-form-title">{{ title }}</span>
+      </div>
+
+      <form method="post">
+        {% csrf_token %}
+        <div class="eo-form-body">
+
+          {# Title #}
+          <div class="eo-field">
+            <label for="{{ form.title.id_for_label }}">{{ form.title.label }} <span style="color:var(--hnh-primary);">*</span></label>
+            {{ form.title }}
+            {% if form.title.errors %}<div class="eo-field-error">{{ form.title.errors.0 }}</div>{% endif %}
+          </div>
+
+          {# Assigned to + Department #}
+          <div class="eo-field-row">
+            <div class="eo-field">
+              <label for="{{ form.assigned_to.id_for_label }}">{{ form.assigned_to.label }} <span style="color:var(--hnh-primary);">*</span></label>
+              {{ form.assigned_to }}
+              {% if form.assigned_to.errors %}<div class="eo-field-error">{{ form.assigned_to.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="eo-field">
+              <label for="{{ form.department.id_for_label }}">{{ form.department.label }} <span style="color:var(--hnh-primary);">*</span></label>
+              {{ form.department }}
+              {% if form.department.errors %}<div class="eo-field-error">{{ form.department.errors.0 }}</div>{% endif %}
+            </div>
+          </div>
+
+          {# Priority + Due date #}
+          <div class="eo-field-row">
+            <div class="eo-field">
+              <label for="{{ form.priority.id_for_label }}">{{ form.priority.label }} <span style="color:var(--hnh-primary);">*</span></label>
+              {{ form.priority }}
+              {% if form.priority.errors %}<div class="eo-field-error">{{ form.priority.errors.0 }}</div>{% endif %}
+            </div>
+            <div class="eo-field">
+              <label for="{{ form.due_date.id_for_label }}">{{ form.due_date.label }}</label>
+              {{ form.due_date }}
+              {% if form.due_date.errors %}<div class="eo-field-error">{{ form.due_date.errors.0 }}</div>{% endif %}
+            </div>
+          </div>
+
+          {# Recurrence + Parent task #}
+          <div class="eo-field-row">
+            <div class="eo-field">
+              <label for="{{ form.recurrence_rule.id_for_label }}">{{ form.recurrence_rule.label }}</label>
+              {{ form.recurrence_rule }}
+              <div class="eo-field-hint">{% trans "Bắt buộc chọn Deadline khi có lặp lại" %}</div>
+            </div>
+            <div class="eo-field">
+              <label for="{{ form.parent_task.id_for_label }}">{{ form.parent_task.label }}</label>
+              {{ form.parent_task }}
+              <div class="eo-field-hint">{% trans "Tùy chọn. Tối đa 1 cấp." %}</div>
+            </div>
+          </div>
+
+          {# Description #}
+          <div class="eo-field">
+            <label for="{{ form.description.id_for_label }}">{{ form.description.label }}</label>
+            {{ form.description }}
+          </div>
+
+          {# Non-field errors #}
+          {% if form.non_field_errors %}
+            <div class="eo-field-error">{{ form.non_field_errors }}</div>
+          {% endif %}
+
+        </div>
+
+        <div class="eo-form-footer">
+          {% if task %}
+            <a href="{% url 'eoffice-task-archive' task.pk %}"
+               class="oh-btn oh-btn--danger-outline"
+               style="margin-right:auto;"
+               onclick="return confirm('{% trans "Lưu trữ công việc này?" %}')">
+              {% trans "Lưu trữ" %}
+            </a>
+          {% endif %}
+          <a href="{% url 'eoffice-board' %}" class="oh-btn oh-btn--secondary">{% trans "Hủy" %}</a>
+          <button type="submit" name="save_task" class="oh-btn oh-btn--primary">
+            <ion-icon name="checkmark-outline" class="me-1"></ion-icon>
+            {{ submit_label }}
+          </button>
+        </div>
+      </form>
+
+      {# Status change section (edit only) #}
+      {% if task and task.status != 'done' %}
+      <div style="padding: 0 24px 20px;">
+        <div class="eo-status-change">
+          <div class="eo-status-change-title">{% trans "Đổi trạng thái" %}</div>
+          <form method="post" action="{% url 'eoffice-task-status' task.pk %}">
+            {% csrf_token %}
+            <div style="display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap;">
+              <select name="status" class="eo-field" style="width:auto;flex:1;min-width:150px;padding:7px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+                <option value="to_do" {% if task.status == 'to_do' %}selected{% endif %}>{% trans "Cần làm" %}</option>
+                <option value="in_progress" {% if task.status == 'in_progress' %}selected{% endif %}>{% trans "Đang làm" %}</option>
+                <option value="blocked" {% if task.status == 'blocked' %}selected{% endif %}>{% trans "Bị chặn" %}</option>
+                <option value="done" {% if task.status == 'done' %}selected{% endif %}>{% trans "Hoàn thành" %}</option>
+              </select>
+              <div style="flex:2;min-width:200px;">
+                <textarea name="reason" rows="2" placeholder="{% trans 'Lý do bị chặn (bắt buộc khi chọn Bị chặn)' %}" style="width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;font-family:inherit;resize:vertical;"></textarea>
+              </div>
+              <button type="submit" class="oh-btn oh-btn--secondary" style="align-self:flex-start;">{% trans "Cập nhật" %}</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      {% endif %}
+
+      {# Comments section (edit only) #}
+      {% if task %}
+      <div style="padding: 0 24px 24px;">
+        <div class="eo-comments">
+          <div class="eo-comments-title">{% trans "Bình luận" %} ({{ comments|length }})</div>
+
+          {% for comment in comments %}
+          <div class="eo-comment">
+            <div class="eo-comment-avatar">
+              {% if comment.author %}{{ comment.author.employee_first_name|first|upper }}{{ comment.author.employee_last_name|first|upper }}{% else %}?{% endif %}
+            </div>
+            <div class="eo-comment-body">
+              <div class="eo-comment-author">{{ comment.author.get_full_name|default:"—" }}</div>
+              <div class="eo-comment-text">{{ comment.body }}</div>
+              <div class="eo-comment-meta">{{ comment.created_at|date:"d/m/Y H:i" }}</div>
+            </div>
+          </div>
+          {% empty %}
+            <p style="font-size:12px;color:#9ca3af;">{% trans "Chưa có bình luận nào." %}</p>
+          {% endfor %}
+
+          <form method="post" action="{% url 'eoffice-comment-create' task.pk %}" style="margin-top:12px;">
+            {% csrf_token %}
+            <div style="display:flex;gap:8px;align-items:flex-start;">
+              <textarea name="body" rows="2" placeholder="{% trans 'Thêm bình luận (văn bản thuần)...' %}" style="flex:1;padding:8px 12px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;font-family:inherit;resize:vertical;" required></textarea>
+              <button type="submit" class="oh-btn oh-btn--primary" style="align-self:flex-start;">{% trans "Gửi" %}</button>
+            </div>
+          </form>
+        </div>
+      </div>
+      {% endif %}
+
+    </div>
+  </section>
+</main>
+{% endblock %}

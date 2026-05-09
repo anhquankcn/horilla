@@ -1,0 +1,182 @@
+{% extends 'index.html' %}
+{% load static i18n %}
+
+{% block content %}
+{% include "generic/components.html" %}
+
+<style>
+  :root { --hnh-primary: #c0222b; --hnh-primary-light: rgba(192,34,43,0.10); }
+  .eo-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
+  @media (max-width: 768px) { .eo-stats-grid { grid-template-columns: repeat(2, 1fr); } }
+  .eo-stat-card { background: white; border-radius: 10px; border: 1px solid #e5e7eb; padding: 16px 18px; }
+  .eo-stat-label { font-size: 11px; font-weight: 600; color: #9ca3af; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+  .eo-stat-value { font-size: 30px; font-weight: 800; color: #111827; line-height: 1; margin-bottom: 4px; }
+  .eo-stat-sub { font-size: 12px; color: #6b7280; }
+  .eo-two-col { display: grid; grid-template-columns: 1fr 360px; gap: 16px; }
+  @media (max-width: 900px) { .eo-two-col { grid-template-columns: 1fr; } }
+  .eo-panel { background: white; border-radius: 10px; border: 1px solid #e5e7eb; overflow: hidden; }
+  .eo-panel-header { padding: 12px 18px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; justify-content: space-between; }
+  .eo-panel-title { font-size: 14px; font-weight: 700; color: #111827; }
+  .eo-panel-sub { font-size: 12px; color: #9ca3af; }
+  .eo-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .eo-table th { background: #f9fafb; padding: 8px 14px; text-align: left; font-size: 11px; font-weight: 600; color: #6b7280; text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid #e5e7eb; }
+  .eo-table td { padding: 9px 14px; border-bottom: 1px solid #f3f4f6; color: #374151; }
+  .eo-table tr:last-child td { border-bottom: none; }
+  .eo-table tr:hover td { background: #f9fafb; }
+  .eo-bar-wrap { height: 6px; background: #e5e7eb; border-radius: 3px; width: 70px; display: inline-block; vertical-align: middle; }
+  .eo-bar { height: 6px; border-radius: 3px; background: #3b82f6; display: block; }
+  .eo-pill { display: inline-block; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600; }
+  .eo-pill-red { background: #fee2e2; color: #b91c1c; }
+  .eo-pill-yellow { background: #fef3c7; color: #92400e; }
+  .eo-pill-green { background: #dcfce7; color: #166534; }
+  .eo-overdue-list { display: flex; flex-direction: column; }
+  .eo-overdue-item { padding: 10px 14px; border-bottom: 1px solid #f3f4f6; display: flex; align-items: flex-start; gap: 10px; }
+  .eo-overdue-item:last-child { border-bottom: none; }
+  .eo-overdue-days { flex-shrink: 0; background: #fee2e2; color: #b91c1c; border-radius: 6px; padding: 3px 8px; font-size: 11px; font-weight: 700; text-align: center; min-width: 52px; }
+  .eo-overdue-task { font-size: 13px; font-weight: 600; color: #111827; margin-bottom: 2px; }
+  .eo-overdue-meta { font-size: 11px; color: #9ca3af; }
+</style>
+
+<main :class="sidebarOpen ? 'oh-main__sidebar-visible' : ''">
+
+  {% if messages %}
+  <div class="oh-alert-container">
+    {% for message in messages %}
+      <div class="oh-alert oh-alert--animated {{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <section class="oh-wrapper oh-main__topbar">
+    <div class="oh-main__titlebar oh-main__titlebar--left">
+      <h1 class="oh-main__titlebar-title fw-bold">{% trans "Tổng quan Công việc" %}</h1>
+      <small style="color:#9ca3af;margin-left:8px;">{% trans "Cập nhật" %}: {{ today|date:"d/m/Y" }}</small>
+    </div>
+    <div class="oh-main__titlebar oh-main__titlebar--right">
+      <form method="get" style="display:inline-flex;gap:8px;align-items:center;">
+        <label style="font-size:13px;color:#6b7280;">{% trans "Hiển thị" %}:</label>
+        <select name="days" onchange="this.form.submit()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:13px;">
+          <option value="30" {% if window_days == 30 %}selected{% endif %}>{% trans "30 ngày" %}</option>
+          <option value="60" {% if window_days == 60 %}selected{% endif %}>{% trans "60 ngày" %}</option>
+          <option value="90" {% if window_days == 90 %}selected{% endif %}>{% trans "90 ngày" %}</option>
+        </select>
+      </form>
+    </div>
+  </section>
+
+  <section class="oh-wrapper">
+
+    <!-- Stat cards -->
+    <div class="eo-stats-grid">
+      <div class="eo-stat-card">
+        <div class="eo-stat-label">{% trans "Tổng công việc" %}</div>
+        <div class="eo-stat-value">{{ totals.total|default:0 }}</div>
+        <div class="eo-stat-sub">{% trans "trong" %} {{ window_days }} {% trans "ngày qua" %}</div>
+      </div>
+      <div class="eo-stat-card">
+        <div class="eo-stat-label">{% trans "Đang trễ deadline" %}</div>
+        <div class="eo-stat-value" style="color:#dc2626;">{{ totals.overdue_count|default:0 }}</div>
+        <div class="eo-stat-sub" style="color:#dc2626;">{% trans "Cần xử lý ngay" %}</div>
+      </div>
+      <div class="eo-stat-card">
+        <div class="eo-stat-label">{% trans "Đang bị chặn" %}</div>
+        <div class="eo-stat-value" style="color:#d97706;">{{ totals.blocked_count|default:0 }}</div>
+        <div class="eo-stat-sub">{% trans "Chờ giải quyết" %}</div>
+      </div>
+      <div class="eo-stat-card">
+        <div class="eo-stat-label">{% trans "Hoàn thành" %}</div>
+        <div class="eo-stat-value" style="color:#16a34a;">{{ totals.done_count|default:0 }}</div>
+        <div class="eo-stat-sub" style="color:#16a34a;">
+          {% if totals.total > 0 %}
+            {% widthratio totals.done_count totals.total 100 %}%
+          {% else %}—{% endif %}
+          {% trans "tỷ lệ hoàn thành" %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Department table + Overdue panel -->
+    <div class="eo-two-col">
+
+      <!-- Department breakdown -->
+      <div class="eo-panel">
+        <div class="eo-panel-header">
+          <div>
+            <div class="eo-panel-title">{% trans "Theo phòng ban" %}</div>
+            <div class="eo-panel-sub">{% trans "Tiến độ công việc" %}</div>
+          </div>
+          <a href="{% url 'eoffice-board' %}" style="font-size:12px;color:var(--hnh-primary);font-weight:600;">{% trans "Xem bảng →" %}</a>
+        </div>
+        <table class="eo-table">
+          <thead>
+            <tr>
+              <th>{% trans "Phòng ban" %}</th>
+              <th>{% trans "Tổng" %}</th>
+              <th>{% trans "Trễ" %}</th>
+              <th>{% trans "Chặn" %}</th>
+              <th>{% trans "Xong" %}</th>
+              <th>{% trans "Trạng thái" %}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for dept in dept_stats %}
+            <tr>
+              <td style="font-weight:600;">{{ dept.department__department|default:"—" }}</td>
+              <td>{{ dept.total }}</td>
+              <td>
+                {% if dept.overdue > 0 %}
+                  <span style="color:#dc2626;font-weight:700;">{{ dept.overdue }}</span>
+                {% else %}0{% endif %}
+              </td>
+              <td>{{ dept.blocked }}</td>
+              <td>{{ dept.done }}</td>
+              <td>
+                {% if dept.overdue > 0 %}
+                  <span class="eo-pill eo-pill-yellow">{% trans "Cần chú ý" %}</span>
+                {% else %}
+                  <span class="eo-pill eo-pill-green">{% trans "Tốt" %}</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="6" style="text-align:center;color:#9ca3af;padding:16px;">{% trans "Chưa có dữ liệu." %}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Overdue tasks panel -->
+      <div class="eo-panel">
+        <div class="eo-panel-header">
+          <div>
+            <div class="eo-panel-title" style="color:#dc2626;">{% trans "Đang trễ deadline" %}</div>
+            <div class="eo-panel-sub">{{ overdue_tasks|length }} {% trans "công việc cần xử lý" %}</div>
+          </div>
+        </div>
+        <div class="eo-overdue-list">
+          {% for task in overdue_tasks %}
+          <div class="eo-overdue-item">
+            <div class="eo-overdue-days">
+              {% trans "Trễ" %}<br>{{ task.overdue_days }}&nbsp;{% trans "ngày" %}
+            </div>
+            <div>
+              <div class="eo-overdue-task">
+                <a href="{% url 'eoffice-task-edit' task.pk %}" style="color:inherit;text-decoration:none;">{{ task.title|truncatechars:50 }}</a>
+              </div>
+              <div class="eo-overdue-meta">
+                {{ task.department.department|default:"—" }} &middot; {{ task.assigned_to.get_full_name }}
+              </div>
+            </div>
+          </div>
+          {% empty %}
+          <div style="text-align:center;padding:20px;color:#9ca3af;font-size:13px;">
+            ✅ {% trans "Không có công việc trễ. Rất tốt!" %}
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+    </div>
+  </section>
+</main>
+{% endblock %}

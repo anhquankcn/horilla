@@ -1,0 +1,72 @@
+{% load i18n %}
+{% comment %}
+  Partial: single task card for the kanban board.
+  Context variables expected: task, today
+{% endcomment %}
+<div class="eo-card {% if task.is_overdue %}overdue{% elif task.status == 'blocked' %}blocked-card{% endif %}">
+
+  {# Blocked reason snippet #}
+  {% if task.status == 'blocked' %}
+    {% with task.comments.filter|last as last_blocked %}
+      {% with task.comments.all|last as latest_comment %}
+        {% if latest_comment %}
+          <div class="eo-blocked-reason">🔒 {{ latest_comment.body|truncatechars:80 }}</div>
+        {% endif %}
+      {% endwith %}
+    {% endwith %}
+  {% endif %}
+
+  <a href="{% url 'eoffice-task-edit' task.pk %}" style="text-decoration:none;color:inherit;">
+    <div class="eo-card-title">{{ task.title }}</div>
+  </a>
+
+  <div class="eo-card-meta">
+    {# Priority badge #}
+    {% if task.priority == 'urgent' %}
+      <span class="eo-badge eo-badge-urgent">🔴 {% trans "Khẩn cấp" %}</span>
+    {% elif task.priority == 'high' %}
+      <span class="eo-badge eo-badge-high">{% trans "Cao" %}</span>
+    {% elif task.priority == 'low' %}
+      <span class="eo-badge eo-badge-low">{% trans "Thấp" %}</span>
+    {% else %}
+      <span class="eo-badge eo-badge-normal">{% trans "Bình thường" %}</span>
+    {% endif %}
+
+    {# Due date badge #}
+    {% if task.due_date %}
+      {% if task.is_overdue %}
+        <span class="eo-badge eo-badge-overdue">⚠️ {% trans "Trễ" %} {{ task.overdue_days }} {% trans "ngày" %}</span>
+      {% elif task.due_date == today %}
+        <span class="eo-badge eo-badge-due-today">📅 {% trans "Hôm nay" %}</span>
+      {% else %}
+        <span class="eo-badge eo-badge-due-ok">📅 {{ task.due_date|date:"d/m" }}</span>
+      {% endif %}
+    {% endif %}
+
+    {# Subtask indicator #}
+    {% if task.subtasks.count > 0 %}
+      <span class="eo-badge" style="background:#f3f4f6;color:#6b7280;">
+        ≡ {{ task.subtasks.count }} {% trans "con" %}
+      </span>
+    {% endif %}
+  </div>
+
+  <div class="eo-card-footer">
+    <div class="eo-avatar">{{ task.assigned_to.employee_first_name|first|upper }}{{ task.assigned_to.employee_last_name|first|upper }}</div>
+    <span class="eo-assignee-name">{{ task.assigned_to.get_full_name }}</span>
+
+    {# Quick status change — only for non-done tasks #}
+    {% if task.status != 'done' %}
+      <form method="post" action="{% url 'eoffice-task-status' task.pk %}" class="eo-status-form" style="margin:0;">
+        {% csrf_token %}
+        <input type="hidden" name="reason" value="">
+        <select name="status" onchange="this.form.submit()" title="{% trans 'Đổi trạng thái' %}">
+          <option value="to_do" {% if task.status == 'to_do' %}selected{% endif %}>{% trans "Cần làm" %}</option>
+          <option value="in_progress" {% if task.status == 'in_progress' %}selected{% endif %}>{% trans "Đang làm" %}</option>
+          <option value="done" {% if task.status == 'done' %}selected{% endif %}>{% trans "Hoàn thành" %}</option>
+        </select>
+      </form>
+    {% endif %}
+  </div>
+
+</div>
