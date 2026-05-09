@@ -18,12 +18,15 @@ def generate_username(email):
 
 class HorillaOIDCBackend(OIDCAuthenticationBackend):
     """
-    Custom OIDC backend:
-    - Tìm user Horilla theo email (primary — no hardcoded map needed)
-    - Fallback: tìm theo KC preferred_username == Horilla username
-    - Không tự tạo user mới (admin phải tạo trước)
+    Custom OIDC backend — matching priority:
+    1. KC email  → Horilla email       (Microsoft SSO: email='quan.na@hnh.com')
+    2. KC email  → Horilla username    (KC direct:    email='quan.na@hongngocha.com', username='quan.na@hongngocha.com')
+    3. KC preferred_username → Horilla username  (fallback)
 
-    Admin creates the Horilla account first; Keycloak email must match.
+    Quy tắc setup user mới:
+    - Horilla email   = email Microsoft (dùng cho Microsoft SSO identity)
+    - Horilla username = email KC direct (dùng cho KC local identity)
+    - Không tự tạo user — admin phải tạo trước.
     """
 
     def filter_users_by_claims(self, claims):
@@ -34,21 +37,27 @@ class HorillaOIDCBackend(OIDCAuthenticationBackend):
             email, kc_username, claims.get("sub", ""),
         )
 
-        # 1. Primary: match by email
         if email:
+            # 1. KC email → Horilla email (Microsoft SSO)
             users = self.UserModel.objects.filter(email=email, is_active=True)
             if users.exists():
-                logger.warning("OIDC matched user by email: %r", email)
+                logger.warning("OIDC matched by email field: %r", email)
                 return users
 
-        # 2. Fallback: KC preferred_username == Horilla username (same convention)
+            # 2. KC email → Horilla username (KC direct local account)
+            users = self.UserModel.objects.filter(username=email, is_active=True)
+            if users.exists():
+                logger.warning("OIDC matched by username=email: %r", email)
+                return users
+
+        # 3. KC preferred_username → Horilla username (fallback)
         if kc_username:
             users = self.UserModel.objects.filter(username=kc_username, is_active=True)
             if users.exists():
-                logger.warning("OIDC matched user by username: %r", kc_username)
+                logger.warning("OIDC matched by preferred_username: %r", kc_username)
                 return users
 
-        logger.warning("OIDC no matching user — email=%r username=%r", email, kc_username)
+        logger.warning("OIDC no matching user — email=%r kc_username=%r", email, kc_username)
         return self.UserModel.objects.none()
 
     def create_user(self, claims):
