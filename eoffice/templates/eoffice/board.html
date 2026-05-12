@@ -89,6 +89,10 @@
       <a href="{% url 'eoffice-board' %}?filter=mine" class="eo-chip {% if filter_by == 'mine' %}active{% endif %}">
         {% trans "Của tôi" %}
       </a>
+      <div style="margin-left:auto;display:inline-flex;border:1.5px solid #e5e7eb;border-radius:8px;overflow:hidden;">
+        <a href="{% url 'eoffice-board' %}{% if filter_by != 'all' %}?filter={{ filter_by }}{% endif %}" style="padding:5px 10px;font-size:13px;background:var(--hnh-primary-light);color:var(--hnh-primary);text-decoration:none;display:flex;align-items:center;" title="{% trans 'Bảng Kanban' %}">⠿</a>
+        <a href="{% url 'eoffice-task-list' %}{% if filter_by != 'all' %}?filter={{ filter_by }}{% endif %}" style="padding:5px 10px;font-size:13px;background:white;color:#9ca3af;border-left:1.5px solid #e5e7eb;text-decoration:none;display:flex;align-items:center;" title="{% trans 'Danh sách' %}">☰</a>
+      </div>
     </div>
   </section>
 

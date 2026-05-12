@@ -86,7 +86,14 @@ def board(request):
 @login_required
 def task_create(request):
     employee = _get_employee(request)
-    form = WorkTaskForm(request.POST or None, request=request)
+    initial = {}
+    parent_pk = request.GET.get("parent")
+    if parent_pk:
+        try:
+            initial["parent_task"] = int(parent_pk)
+        except (ValueError, TypeError):
+            pass
+    form = WorkTaskForm(request.POST or None, request=request, initial=initial)
 
     if request.method == "POST" and form.is_valid():
         task = form.save(commit=False)
@@ -118,23 +125,27 @@ def task_edit(request, pk):
     employee = _get_employee(request)
     comments = TaskComment.objects.filter(task=task, is_active=True).select_related("author")
     comment_form = TaskCommentForm()
+    subtasks = WorkTask.objects.filter(parent_task=task, is_active=True).select_related(
+        "assigned_to", "department"
+    )
+    sidebar_tasks = _board_queryset(request, employee).order_by("-updated_at")[:20]
 
     form = WorkTaskForm(request.POST or None, instance=task, request=request)
     if request.method == "POST" and "save_task" in request.POST and form.is_valid():
         try:
             form.save()
             messages.success(request, _("Công việc đã được cập nhật."))
-            return redirect("eoffice-board")
+            return redirect("eoffice-task-edit", pk=pk)
         except Exception as exc:
             messages.error(request, str(exc))
 
-    return render(request, "eoffice/task_form.html", {
+    return render(request, "eoffice/task_detail.html", {
         "form": form,
         "task": task,
         "comments": comments,
         "comment_form": comment_form,
-        "title": _("Chỉnh sửa công việc"),
-        "submit_label": _("Lưu thay đổi"),
+        "subtasks": subtasks,
+        "sidebar_tasks": sidebar_tasks,
         "today": timezone.localdate(),
     })
 
@@ -193,10 +204,94 @@ def comment_create(request, pk):
     return redirect("eoffice-task-edit", pk=pk)
 
 
+# ─── Task list ────────────────────────────────────────────────────────────────
+
+@login_required
+def task_list(request):
+    employee = _get_employee(request)
+    qs = _board_queryset(request, employee)
+
+    filter_by = request.GET.get("filter", "all")
+    filter_status = request.GET.get("status", "")
+    filter_priority = request.GET.get("priority", "")
+    today = timezone.localdate()
+    tomorrow = today + timedelta(days=1)
+    next_week_end = today + timedelta(days=7)
+
+    if filter_by == "mine" and employee:
+        qs = qs.filter(assigned_to=employee)
+    elif filter_by == "overdue":
+        qs = qs.filter(due_date__lt=today, status__in=["to_do", "in_progress"])
+    elif filter_by == "blocked":
+        qs = qs.filter(status="blocked")
+
+    if filter_status:
+        qs = qs.filter(status=filter_status)
+    if filter_priority:
+        qs = qs.filter(priority=filter_priority)
+
+    active_qs = qs.exclude(status="done")
+    groups = [
+        {
+            "key": "past",
+            "label": _("Trước đây"),
+            "tasks": list(active_qs.filter(due_date__lt=today).order_by("due_date", "-priority")),
+            "default_open": True,
+        },
+        {
+            "key": "today",
+            "label": _("Hôm nay"),
+            "tasks": list(active_qs.filter(due_date=today).order_by("-priority")),
+            "default_open": True,
+        },
+        {
+            "key": "tomorrow",
+            "label": _("Ngày mai"),
+            "tasks": list(active_qs.filter(due_date=tomorrow).order_by("-priority")),
+            "default_open": True,
+        },
+        {
+            "key": "this_week",
+            "label": _("Tuần này"),
+            "tasks": list(active_qs.filter(due_date__gt=tomorrow, due_date__lte=next_week_end).order_by("due_date", "-priority")),
+            "default_open": True,
+        },
+        {
+            "key": "later",
+            "label": _("Sau này"),
+            "tasks": list(active_qs.filter(due_date__gt=next_week_end).order_by("due_date")),
+            "default_open": False,
+        },
+        {
+            "key": "no_date",
+            "label": _("Không có thời hạn"),
+            "tasks": list(active_qs.filter(due_date__isnull=True).order_by("-priority")),
+            "default_open": False,
+        },
+    ]
+    done_tasks = list(qs.filter(status="done").order_by("-completed_at")[:30])
+
+    context = {
+        "groups": groups,
+        "done_tasks": done_tasks,
+        "filter_by": filter_by,
+        "filter_status": filter_status,
+        "filter_priority": filter_priority,
+        "today": today,
+        "employee": employee,
+    }
+    return render(request, "eoffice/task_list.html", context)
+
+
 # ─── Dashboard ────────────────────────────────────────────────────────────────
 
 @login_required
 def dashboard(request):
+    employee = _get_employee(request)
+    is_manager = request.user.is_superuser or request.user.has_perm("eoffice.change_worktask")
+    if not is_manager:
+        return redirect("eoffice-board")
+
     # Record visit for Phase 1b gate criterion
     DashboardVisit.objects.create(user=request.user)
 

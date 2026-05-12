@@ -1,0 +1,415 @@
+{% extends 'index.html' %}
+{% load static i18n %}
+
+{% block content %}
+{% include "generic/components.html" %}
+
+<style>
+  :root { --hnh-primary: #c0222b; --hnh-primary-dark: #9a1a21; --hnh-primary-light: rgba(192,34,43,0.10); }
+
+  /* ── Layout ─────────────────────────────────────────────── */
+  .eo-detail-shell { display: flex; height: calc(100vh - 56px); overflow: hidden; }
+
+  /* Left sidebar — task list */
+  .eo-detail-nav { width: 220px; flex-shrink: 0; border-right: 1px solid #e5e7eb; display: flex; flex-direction: column; background: #f9fafb; overflow: hidden; }
+  .eo-detail-nav-head { padding: 10px 12px 8px; border-bottom: 1px solid #e5e7eb; display: flex; align-items: center; gap: 6px; }
+  .eo-detail-nav-back { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: #6b7280; text-decoration: none; }
+  .eo-detail-nav-back:hover { color: var(--hnh-primary); }
+  .eo-detail-nav-title { font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: .05em; padding: 8px 12px 4px; }
+  .eo-detail-nav-list { flex: 1; overflow-y: auto; }
+  .eo-detail-nav-item { display: flex; align-items: flex-start; gap: 8px; padding: 8px 12px; border-left: 3px solid transparent; text-decoration: none; cursor: pointer; }
+  .eo-detail-nav-item:hover { background: #f3f4f6; }
+  .eo-detail-nav-item.active { background: white; border-left-color: var(--hnh-primary); }
+  .eo-detail-nav-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+  .eo-detail-nav-dot--to_do { background: #06b6d4; }
+  .eo-detail-nav-dot--in_progress { background: #3b82f6; }
+  .eo-detail-nav-dot--blocked { background: #f97316; }
+  .eo-detail-nav-dot--done { background: #22c55e; }
+  .eo-detail-nav-text { font-size: 12px; color: #374151; line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .eo-detail-nav-item.active .eo-detail-nav-text { font-weight: 600; color: #111827; }
+  .eo-detail-nav-due { font-size: 10px; color: #9ca3af; margin-top: 2px; }
+  .eo-detail-nav-due.overdue { color: #dc2626; font-weight: 700; }
+
+  /* Center — main content */
+  .eo-detail-main { flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-width: 0; }
+  .eo-detail-content { flex: 1; padding: 20px 24px; max-width: 780px; width: 100%; }
+
+  /* Right sidebar — metadata */
+  .eo-detail-meta { width: 240px; flex-shrink: 0; border-left: 1px solid #e5e7eb; background: white; overflow-y: auto; padding: 16px; }
+  @media (max-width: 1100px) { .eo-detail-meta { width: 200px; } }
+  @media (max-width: 860px) { .eo-detail-nav { display: none; } .eo-detail-meta { width: 180px; } }
+
+  /* ── Breadcrumb ─────────────────────────────────────────── */
+  .eo-breadcrumb { display: flex; align-items: center; gap: 6px; font-size: 12px; color: #9ca3af; margin-bottom: 12px; flex-wrap: wrap; }
+  .eo-breadcrumb a { color: #6b7280; text-decoration: none; }
+  .eo-breadcrumb a:hover { color: var(--hnh-primary); }
+  .eo-breadcrumb span { color: #d1d5db; }
+
+  /* ── Title ──────────────────────────────────────────────── */
+  .eo-detail-title { font-size: 20px; font-weight: 800; color: #111827; line-height: 1.3; margin-bottom: 10px; }
+  .eo-detail-title-done { text-decoration: line-through; color: #9ca3af; }
+
+  /* ── Date + assignee strip ──────────────────────────────── */
+  .eo-detail-strip { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; font-size: 12px; color: #6b7280; }
+  .eo-detail-strip-item { display: flex; align-items: center; gap: 5px; }
+  .eo-detail-strip-item strong { color: #374151; }
+
+  /* ── Status buttons ─────────────────────────────────────── */
+  .eo-status-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 20px; }
+  .eo-status-btn { padding: 6px 14px; border-radius: 20px; font-size: 12px; font-weight: 700; border: 1.5px solid transparent; cursor: pointer; background: none; }
+  .eo-status-btn--to_do { border-color: #06b6d4; color: #0e7490; background: #ecfeff; }
+  .eo-status-btn--in_progress { border-color: #3b82f6; color: #1d4ed8; background: #eff6ff; }
+  .eo-status-btn--blocked { border-color: #f97316; color: #c2410c; background: #fff7ed; }
+  .eo-status-btn--done { border-color: #22c55e; color: #166534; background: #f0fdf4; }
+  .eo-status-btn.current { box-shadow: 0 0 0 3px rgba(0,0,0,.08); font-size: 13px; padding: 7px 18px; }
+  .eo-status-btn--done.current { background: #22c55e; color: white; border-color: #22c55e; }
+  .eo-status-btn--in_progress.current { background: #3b82f6; color: white; border-color: #3b82f6; }
+  .eo-status-btn--to_do.current { background: #06b6d4; color: white; border-color: #06b6d4; }
+  .eo-status-btn--blocked.current { background: #f97316; color: white; border-color: #f97316; }
+  .eo-overdue-badge { display: inline-flex; align-items: center; gap: 4px; background: #fee2e2; color: #b91c1c; border-radius: 20px; padding: 4px 10px; font-size: 12px; font-weight: 700; }
+
+  /* ── Sections ───────────────────────────────────────────── */
+  .eo-section { margin-bottom: 20px; }
+  .eo-section-header { font-size: 11px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+  .eo-section-header::after { content: ''; flex: 1; height: 1px; background: #e5e7eb; }
+
+  /* Description */
+  .eo-desc-text { font-size: 14px; color: #374151; line-height: 1.7; white-space: pre-wrap; background: #f9fafb; border-radius: 8px; padding: 12px 14px; border: 1px solid #e5e7eb; min-height: 80px; }
+  .eo-desc-empty { font-size: 13px; color: #d1d5db; font-style: italic; }
+  .eo-desc-form textarea { width: 100%; padding: 10px 12px; border: 1.5px solid var(--hnh-primary); border-radius: 8px; font-size: 14px; color: #111827; font-family: inherit; resize: vertical; min-height: 120px; }
+  .eo-desc-form textarea:focus { outline: none; box-shadow: 0 0 0 3px var(--hnh-primary-light); }
+  .eo-desc-actions { display: flex; gap: 6px; margin-top: 6px; }
+
+  /* Subtasks */
+  .eo-subtask-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; border: 1px solid #e5e7eb; background: white; margin-bottom: 6px; }
+  .eo-subtask-item:hover { border-color: #d1d5db; background: #fafafa; }
+  .eo-subtask-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .eo-subtask-title { flex: 1; font-size: 13px; color: #374151; text-decoration: none; }
+  .eo-subtask-title:hover { color: var(--hnh-primary); }
+  .eo-subtask-pill { font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 10px; }
+  .eo-subtask-pill--to_do { background: #ecfeff; color: #0e7490; }
+  .eo-subtask-pill--in_progress { background: #eff6ff; color: #1d4ed8; }
+  .eo-subtask-pill--blocked { background: #fff7ed; color: #c2410c; }
+  .eo-subtask-pill--done { background: #f0fdf4; color: #166534; text-decoration: line-through; }
+  .eo-subtask-due { font-size: 11px; color: #9ca3af; white-space: nowrap; }
+  .eo-subtask-due.overdue { color: #dc2626; font-weight: 700; }
+  .eo-add-subtask { display: flex; align-items: center; gap: 5px; width: 100%; padding: 8px 10px; border: 1.5px dashed #d1d5db; border-radius: 8px; background: transparent; color: #9ca3af; font-size: 12px; cursor: pointer; text-decoration: none; font-weight: 600; }
+  .eo-add-subtask:hover { border-color: var(--hnh-primary); color: var(--hnh-primary); }
+
+  /* Comments */
+  .eo-comment { display: flex; gap: 10px; margin-bottom: 12px; }
+  .eo-comment-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--hnh-primary); color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; flex-shrink: 0; }
+  .eo-comment-body { flex: 1; }
+  .eo-comment-bubble { background: #f3f4f6; border-radius: 0 8px 8px 8px; padding: 8px 12px; }
+  .eo-comment-author { font-size: 12px; font-weight: 700; color: #111827; margin-bottom: 2px; }
+  .eo-comment-text { font-size: 13px; color: #374151; line-height: 1.5; white-space: pre-wrap; }
+  .eo-comment-meta { font-size: 11px; color: #9ca3af; margin-top: 4px; }
+  .eo-comment-input { display: flex; gap: 8px; align-items: flex-start; margin-top: 10px; }
+  .eo-comment-input textarea { flex: 1; padding: 8px 12px; border: 1.5px solid #e5e7eb; border-radius: 8px; font-size: 13px; font-family: inherit; resize: none; }
+  .eo-comment-input textarea:focus { outline: none; border-color: var(--hnh-primary); }
+
+  /* ── Right metadata panel ───────────────────────────────── */
+  .eo-meta-section { margin-bottom: 16px; }
+  .eo-meta-label { font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+  .eo-meta-value { font-size: 13px; color: #374151; font-weight: 600; }
+  .eo-meta-avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--hnh-primary); color: white; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 700; margin-right: 6px; flex-shrink: 0; }
+  .eo-meta-person { display: flex; align-items: center; font-size: 13px; font-weight: 600; color: #111827; }
+  .eo-meta-field { margin-bottom: 12px; }
+  .eo-meta-field label { font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; display: block; margin-bottom: 3px; }
+  .eo-meta-field select, .eo-meta-field input { width: 100%; padding: 5px 8px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 12px; color: #374151; }
+  .eo-meta-field select:focus, .eo-meta-field input:focus { outline: none; border-color: var(--hnh-primary); }
+  .eo-meta-divider { height: 1px; background: #f3f4f6; margin: 14px 0; }
+  .eo-meta-save { width: 100%; padding: 8px; background: var(--hnh-primary); color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .eo-meta-save:hover { background: var(--hnh-primary-dark); }
+  .eo-meta-archive { width: 100%; padding: 7px; background: white; color: #dc2626; border: 1.5px solid #fca5a5; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; margin-top: 6px; text-decoration: none; display: block; text-align: center; }
+  .eo-meta-archive:hover { background: #fee2e2; }
+</style>
+
+<main :class="sidebarOpen ? 'oh-main__sidebar-visible' : ''" style="padding:0!important;">
+
+  {% if messages %}
+  <div class="oh-alert-container" style="position:fixed;top:60px;right:16px;z-index:9999;width:320px;">
+    {% for message in messages %}
+      <div class="oh-alert oh-alert--animated {{ message.tags }}">{{ message }}</div>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <div class="eo-detail-shell">
+
+    {# ── Left sidebar — mini task list ────────────────────── #}
+    <div class="eo-detail-nav">
+      <div class="eo-detail-nav-head">
+        <a href="{% url 'eoffice-task-list' %}" class="eo-detail-nav-back">← {% trans "Danh sách" %}</a>
+      </div>
+      <div class="eo-detail-nav-title">{% trans "Công việc" %}</div>
+      <div class="eo-detail-nav-list">
+        {% for t in sidebar_tasks %}
+        <a href="{% url 'eoffice-task-edit' t.pk %}" class="eo-detail-nav-item {% if t.pk == task.pk %}active{% endif %}">
+          <span class="eo-detail-nav-dot eo-detail-nav-dot--{{ t.status }}"></span>
+          <div>
+            <div class="eo-detail-nav-text">{{ t.title }}</div>
+            {% if t.due_date %}
+              <div class="eo-detail-nav-due {% if t.is_overdue %}overdue{% endif %}">
+                {{ t.due_date|date:"d/m/Y" }}{% if t.is_overdue %} ⚠{% endif %}
+              </div>
+            {% endif %}
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+    </div>
+
+    {# ── Center — task detail ─────────────────────────────── #}
+    <div class="eo-detail-main">
+      <div class="eo-detail-content">
+
+        {# Breadcrumb #}
+        <div class="eo-breadcrumb">
+          <a href="{% url 'eoffice-board' %}">{% trans "Bảng" %}</a>
+          <span>›</span>
+          {% if task.department %}<span>{{ task.department.department }}</span><span>›</span>{% endif %}
+          {% if task.parent_task %}
+            <a href="{% url 'eoffice-task-edit' task.parent_task.pk %}">{{ task.parent_task.title|truncatechars:40 }}</a>
+            <span>›</span>
+          {% endif %}
+          <span style="color:#374151;">{{ task.title|truncatechars:50 }}</span>
+        </div>
+
+        {# Title #}
+        <h2 class="eo-detail-title {% if task.status == 'done' %}eo-detail-title-done{% endif %}">
+          {{ task.title }}
+        </h2>
+
+        {# Date + assignee strip #}
+        <div class="eo-detail-strip">
+          <div class="eo-detail-strip-item">
+            <span>📅</span>
+            <span>{% trans "Tạo" %}: <strong>{{ task.created_at|date:"d/m/Y" }}</strong></span>
+          </div>
+          {% if task.due_date %}
+          <div class="eo-detail-strip-item">
+            <span>⏰</span>
+            <span>{% trans "Hạn" %}: <strong {% if task.is_overdue %}style="color:#dc2626;"{% endif %}>{{ task.due_date|date:"d/m/Y" }}</strong></span>
+          </div>
+          {% endif %}
+          <div class="eo-detail-strip-item">
+            <span>👤</span>
+            <span><strong>{{ task.assigned_to.get_full_name }}</strong></span>
+          </div>
+          {% if task.recurrence_rule != 'none' %}
+          <div class="eo-detail-strip-item">
+            <span>🔄</span>
+            <span>{{ task.get_recurrence_rule_display }}</span>
+          </div>
+          {% endif %}
+        </div>
+
+        {# Status buttons #}
+        <div class="eo-status-row">
+          {% if task.is_overdue %}
+            <span class="eo-overdue-badge">⚠ {% trans "Trễ" %} {{ task.overdue_days }} {% trans "ngày" %}</span>
+          {% endif %}
+          {% for val, label in task.STATUS_CHOICES %}
+          <form method="post" action="{% url 'eoffice-task-status' task.pk %}" style="display:inline;">
+            {% csrf_token %}
+            <input type="hidden" name="status" value="{{ val }}">
+            <input type="hidden" name="reason" value="">
+            <button type="submit"
+              class="eo-status-btn eo-status-btn--{{ val }} {% if task.status == val %}current{% endif %}"
+              {% if task.status == val %}disabled{% endif %}>
+              {% if val == 'done' %}✓ {% elif val == 'in_progress' %}● {% elif val == 'blocked' %}⛔ {% else %}○ {% endif %}
+              {{ label }}
+            </button>
+          </form>
+          {% endfor %}
+        </div>
+
+        {# ── MÔ TẢ CÔNG VIỆC ───────────────────────────────── #}
+        <div class="eo-section">
+          <div class="eo-section-header">{% trans "Mô tả công việc" %}</div>
+          {% if task.description %}
+            <div class="eo-desc-text">{{ task.description }}</div>
+          {% else %}
+            <div class="eo-desc-text eo-desc-empty">{% trans "Chưa có mô tả. Nhấn "Sửa" để thêm." %}</div>
+          {% endif %}
+        </div>
+
+        {# ── CÔNG VIỆC CON ──────────────────────────────────── #}
+        <div class="eo-section">
+          <div class="eo-section-header">
+            {% trans "Công việc con" %}
+            {% if subtasks %}<span style="font-size:11px;font-weight:700;background:#e5e7eb;color:#6b7280;border-radius:10px;padding:1px 7px;">{{ subtasks|length }}</span>{% endif %}
+          </div>
+          {% for sub in subtasks %}
+          <div class="eo-subtask-item">
+            <form method="post" action="{% url 'eoffice-task-status' sub.pk %}" style="display:inline;">
+              {% csrf_token %}
+              <input type="hidden" name="status" value="{% if sub.status == 'done' %}to_do{% else %}done{% endif %}">
+              <input type="hidden" name="reason" value="">
+              <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;">
+                {% if sub.status == 'done' %}
+                  <span style="color:#22c55e;font-size:15px;">✓</span>
+                {% else %}
+                  <span class="eo-subtask-dot eo-detail-nav-dot--{{ sub.status }}"></span>
+                {% endif %}
+              </button>
+            </form>
+            <a href="{% url 'eoffice-task-edit' sub.pk %}" class="eo-subtask-title {% if sub.status == 'done' %}eo-task-done{% endif %}" style="{% if sub.status == 'done' %}text-decoration:line-through;color:#9ca3af;{% endif %}">
+              {{ sub.title|truncatechars:60 }}
+            </a>
+            <span class="eo-subtask-pill eo-subtask-pill--{{ sub.status }}">{{ sub.get_status_display }}</span>
+            {% if sub.due_date %}
+              <span class="eo-subtask-due {% if sub.is_overdue %}overdue{% endif %}">{{ sub.due_date|date:"d/m" }}</span>
+            {% endif %}
+          </div>
+          {% empty %}
+          <p style="font-size:12px;color:#d1d5db;margin-bottom:8px;">{% trans "Chưa có công việc con." %}</p>
+          {% endfor %}
+
+          {# Add subtask shortcut #}
+          <a href="{% url 'eoffice-task-create' %}?parent={{ task.pk }}" class="eo-add-subtask">
+            + {% trans "Thêm công việc con" %}
+          </a>
+        </div>
+
+        {# ── BÌNH LUẬN ──────────────────────────────────────── #}
+        <div class="eo-section">
+          <div class="eo-section-header">{% trans "Bình luận" %} {% if comments %}<span style="font-size:11px;font-weight:700;background:#e5e7eb;color:#6b7280;border-radius:10px;padding:1px 7px;">{{ comments|length }}</span>{% endif %}</div>
+
+          {% for comment in comments %}
+          <div class="eo-comment">
+            <div class="eo-comment-avatar">
+              {% if comment.author %}{{ comment.author.employee_first_name|first|upper }}{% if comment.author.employee_last_name %}{{ comment.author.employee_last_name|first|upper }}{% endif %}{% else %}?{% endif %}
+            </div>
+            <div class="eo-comment-body">
+              <div class="eo-comment-bubble">
+                <div class="eo-comment-author">{{ comment.author.get_full_name|default:"—" }}</div>
+                <div class="eo-comment-text">{{ comment.body }}</div>
+              </div>
+              <div class="eo-comment-meta">{{ comment.created_at|date:"d/m/Y H:i" }}</div>
+            </div>
+          </div>
+          {% empty %}
+          <p style="font-size:12px;color:#9ca3af;margin-bottom:10px;">{% trans "Chưa có bình luận nào." %}</p>
+          {% endfor %}
+
+          <form method="post" action="{% url 'eoffice-comment-create' task.pk %}">
+            {% csrf_token %}
+            <div class="eo-comment-input">
+              <textarea name="body" rows="2" placeholder="{% trans 'Thêm bình luận...' %}" required></textarea>
+              <button type="submit" class="oh-btn oh-btn--primary oh-btn--sm" style="align-self:flex-start;">{% trans "Gửi" %}</button>
+            </div>
+          </form>
+        </div>
+
+      </div>
+    </div>
+
+    {# ── Right panel — metadata ───────────────────────────── #}
+    <div class="eo-detail-meta">
+
+      {# Assignee display #}
+      <div class="eo-meta-section">
+        <div class="eo-meta-label">{% trans "Người thực hiện" %}</div>
+        <div class="eo-meta-person">
+          <span class="eo-meta-avatar">{{ task.assigned_to.get_full_name|first|upper }}</span>
+          {{ task.assigned_to.get_full_name|truncatechars:22 }}
+        </div>
+      </div>
+
+      {% if task.assigned_by %}
+      <div class="eo-meta-section">
+        <div class="eo-meta-label">{% trans "Người giao" %}</div>
+        <div class="eo-meta-person">
+          <span class="eo-meta-avatar" style="background:#6b7280;">{{ task.assigned_by.get_full_name|first|upper }}</span>
+          {{ task.assigned_by.get_full_name|truncatechars:22 }}
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="eo-meta-divider"></div>
+
+      {# Edit form #}
+      <form method="post">
+        {% csrf_token %}
+
+        <div class="eo-meta-field">
+          <label>{% trans "Tiêu đề" %} *</label>
+          {{ form.title }}
+          {% if form.title.errors %}<div style="font-size:10px;color:#dc2626;">{{ form.title.errors.0 }}</div>{% endif %}
+        </div>
+
+        <div class="eo-meta-field">
+          <label>{% trans "Giao cho" %} *</label>
+          {{ form.assigned_to }}
+        </div>
+
+        <div class="eo-meta-field">
+          <label>{% trans "Phòng ban" %} *</label>
+          {{ form.department }}
+        </div>
+
+        <div class="eo-meta-field">
+          <label>{% trans "Ưu tiên" %}</label>
+          {{ form.priority }}
+        </div>
+
+        <div class="eo-meta-field">
+          <label>{% trans "Deadline" %}</label>
+          {{ form.due_date }}
+        </div>
+
+        <div class="eo-meta-field">
+          <label>{% trans "Lặp lại" %}</label>
+          {{ form.recurrence_rule }}
+        </div>
+
+        <div class="eo-meta-field">
+          <label>{% trans "Thuộc công việc cha" %}</label>
+          {{ form.parent_task }}
+        </div>
+
+        <div class="eo-meta-field">
+          <label>{% trans "Mô tả" %}</label>
+          {{ form.description }}
+        </div>
+
+        {% if form.non_field_errors %}
+          <div style="font-size:11px;color:#dc2626;margin-bottom:8px;">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <div class="eo-meta-divider"></div>
+
+        <button type="submit" name="save_task" class="eo-meta-save">{% trans "Lưu thay đổi" %}</button>
+      </form>
+
+      <a href="{% url 'eoffice-task-archive' task.pk %}"
+         class="eo-meta-archive"
+         onclick="return confirm('{% trans "Lưu trữ công việc này?" %}')">
+        {% trans "Lưu trữ" %}
+      </a>
+
+      <div class="eo-meta-divider"></div>
+
+      {# Meta info #}
+      <div class="eo-meta-section">
+        <div class="eo-meta-label">{% trans "Tạo lúc" %}</div>
+        <div class="eo-meta-value" style="font-size:12px;font-weight:400;color:#6b7280;">{{ task.created_at|date:"d/m/Y H:i" }}</div>
+      </div>
+      <div class="eo-meta-section">
+        <div class="eo-meta-label">{% trans "Cập nhật" %}</div>
+        <div class="eo-meta-value" style="font-size:12px;font-weight:400;color:#6b7280;">{{ task.updated_at|date:"d/m/Y H:i" }}</div>
+      </div>
+      {% if task.completed_at %}
+      <div class="eo-meta-section">
+        <div class="eo-meta-label">{% trans "Hoàn thành" %}</div>
+        <div class="eo-meta-value" style="font-size:12px;font-weight:600;color:#166534;">{{ task.completed_at|date:"d/m/Y H:i" }}</div>
+      </div>
+      {% endif %}
+
+    </div>
+
+  </div>{# .eo-detail-shell #}
+</main>
+{% endblock %}

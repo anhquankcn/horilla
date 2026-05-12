@@ -13,5 +13,6 @@ urlpatterns = [
     path("task/<int:pk>/archive/", views.task_archive, name="eoffice-task-archive"),
     path("task/<int:pk>/status/", views.task_status_change, name="eoffice-task-status"),
     path("task/<int:pk>/comment/", views.comment_create, name="eoffice-comment-create"),
+    path("tasks/", views.task_list, name="eoffice-task-list"),
     path("dashboard/", views.dashboard, name="eoffice-dashboard"),
 ]
