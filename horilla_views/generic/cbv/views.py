@@ -2370,6 +2370,22 @@ class HorillaProfileView(DetailView):
             cls.tabs.index(index, tab)
 
     @classmethod
+    def register_tab_urls(cls, urlpatterns):
+        """Register URL patterns for all subclass tabs at startup."""
+        from django.urls import path
+        from django.utils import translation
+
+        for subclass in cls.__subclasses__():
+            url_prefix = subclass.__name__.lower()
+            for tab in subclass.tabs:
+                if not tab.get("url"):
+                    with translation.override("en"):
+                        slug = str(tab["title"])
+                    url = f"{url_prefix}-{slug}"
+                    urlpatterns.append(path(url + "/<int:pk>/", tab["view"]))
+                    tab["url"] = "/" + url + "/{pk}/"
+
+    @classmethod
     def as_view(cls, **initkwargs):
         def view(request, *args, **kwargs):
             # Inject URL params into initkwargs

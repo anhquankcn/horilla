@@ -52,5 +52,22 @@ urlpatterns = [
     path("health/", health_check),
 ]
 
+
+def _register_profile_tabs_once(sender, **kwargs):
+    """Register all HorillaProfileView tab URLs on the first request,
+    after every AppConfig.ready() has run and all add_tab() calls are done."""
+    from django.core.signals import request_started
+
+    request_started.disconnect(_register_profile_tabs_once)
+
+    from horilla_views.generic.cbv.views import HorillaProfileView
+
+    HorillaProfileView.register_tab_urls(urlpatterns)
+
+
+from django.core.signals import request_started
+
+request_started.connect(_register_profile_tabs_once)
+
 # if settings.DEBUG:
 #     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
