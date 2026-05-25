@@ -289,6 +289,7 @@ OIDC_REDIRECT_BASE_URL = env("OIDC_REDIRECT_BASE_URL", default="https://qlns.hnh
 # Trust Cloudflare/nginx reverse proxy HTTPS headers
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True
+USE_X_FORWARDED_PORT = True
 # ────────────────────────────────────────────────────────────────────
 
 AUTHENTICATION_BACKENDS = [

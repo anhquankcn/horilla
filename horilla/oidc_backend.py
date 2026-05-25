@@ -3,12 +3,27 @@ Custom OIDC backend for Horilla HRM.
 Maps Keycloak users to existing Horilla users by email or username.
 """
 import logging
+from urllib.parse import urljoin
 
+from django.conf import settings
 from django.core.exceptions import SuspiciousOperation
+from mozilla_django_oidc import utils as oidc_utils
 from mozilla_django_oidc.auth import OIDCAuthenticationBackend
 from mozilla_django_oidc.views import OIDCAuthenticationCallbackView
 
 logger = logging.getLogger(__name__)
+
+
+def _patched_absolutify(request, path):
+    """Use OIDC_REDIRECT_BASE_URL to build callback URL, avoiding port mismatch
+    behind reverse proxies (Cloudflare → nginx:80 → Django sees port 80)."""
+    base = getattr(settings, "OIDC_REDIRECT_BASE_URL", "")
+    if base:
+        return urljoin(base.rstrip("/") + "/", path.lstrip("/"))
+    return request.build_absolute_uri(path)
+
+
+oidc_utils.absolutify = _patched_absolutify
 
 
 def generate_username(email):
@@ -89,3 +104,6 @@ class HorillaOIDCCallbackView(OIDCAuthenticationCallbackView):
         except SuspiciousOperation as exc:
             logger.warning("OIDC state mismatch — redirecting to login: %s", exc)
             return self.login_failure()
+        except Exception as exc:
+            logger.error("OIDC callback error: %s", exc, exc_info=True)
+            raise
