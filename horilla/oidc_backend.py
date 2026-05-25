@@ -123,7 +123,7 @@ class HorillaOIDCCallbackView(OIDCAuthenticationCallbackView):
 
     @property
     def failure_url(self):
-        return "/login/"
+        return "/login/?sso_error=1"
 
     def get(self, request):
         try:

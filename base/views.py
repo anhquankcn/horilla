@@ -603,13 +603,17 @@ def initialize_job_position_delete(request, obj_id):
 def login_user(request):
     """
     Handles user login and authentication.
+    Normal users are redirected to SSO.  Append ?local=1 for admin backdoor.
     """
-    if request.method == "POST":
+    allow_local = request.GET.get("local") == "1"
+
+    if request.method == "POST" and allow_local:
         username = request.POST.get("username")
         password = request.POST.get("password")
         next_url = request.GET.get("next", "/")
         query_params = request.GET.dict()
         query_params.pop("next", None)
+        query_params.pop("local", None)
         params = urlencode(query_params)
 
         user = authenticate(request, username=username, password=password)
@@ -620,7 +624,7 @@ def login_user(request):
                 messages.warning(request, _("Access Denied: Your account is blocked."))
             else:
                 messages.error(request, _("Invalid username or password."))
-            return redirect("login")
+            return redirect("/login/?local=1")
 
         employee = getattr(user, "employee_get", None)
         if employee is None:
@@ -628,7 +632,7 @@ def login_user(request):
                 request,
                 _("An employee related to this user's credentials does not exist."),
             )
-            return redirect("login")
+            return redirect("/login/?local=1")
         if not employee.is_active:
             messages.warning(
                 request,
@@ -636,13 +640,12 @@ def login_user(request):
                     "This user is archived. Please contact the manager for more information."
                 ),
             )
-            return redirect("login")
+            return redirect("/login/?local=1")
 
         login(request, user)
 
         messages.success(request, _("Login successful."))
 
-        # Ensure `next_url` is a safe local URL
         if not url_has_allowed_host_and_scheme(
             next_url, allowed_hosts={request.get_host()}
         ):
@@ -652,8 +655,18 @@ def login_user(request):
             next_url += f"?{params}"
         return redirect(next_url)
 
+    if allow_local:
+        return render(
+            request,
+            "login.html",
+            {"initialize_database": initialize_database_condition(), "local_login": True},
+        )
+
+    sso_error = request.GET.get("sso_error")
     return render(
-        request, "login.html", {"initialize_database": initialize_database_condition()}
+        request,
+        "login.html",
+        {"initialize_database": initialize_database_condition(), "sso_error": sso_error},
     )
 
 
