@@ -347,7 +347,7 @@ TIME_ZONE=Asia/Ho_Chi_Minh
 LANGUAGE_CODE=vi
 
 OIDC_RP_CLIENT_SECRET=${OIDC_SECRET}
-OIDC_KC_BASE=https://kc.hnhtravel.work/realms/HNHTravel-SGN
+OIDC_KC_BASE=https://sso.hnhtravel.work/realms/HNHTravel-SGN
 OIDC_RP_CLIENT_ID=horilla-hrm
 OIDC_VERIFY_SSL=True
 OIDC_REDIRECT_BASE_URL=https://hrm.hnhtravel.work
