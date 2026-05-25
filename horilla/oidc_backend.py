@@ -2,9 +2,11 @@
 Custom OIDC backend for Horilla HRM.
 Maps Keycloak users to existing Horilla users by email or username.
 """
+import datetime
 import logging
 from urllib.parse import urljoin
 
+import jwt as pyjwt
 from django.conf import settings
 from django.core.exceptions import SuspiciousOperation
 from mozilla_django_oidc import auth as oidc_auth
@@ -47,6 +49,27 @@ class HorillaOIDCBackend(OIDCAuthenticationBackend):
     - Horilla username = email KC direct (dùng cho KC local identity)
     - Không tự tạo user — admin phải tạo trước.
     """
+
+    def _verify_jws(self, payload, key):
+        """Allow up to 5 min clock skew between server and Keycloak."""
+        jws = pyjwt.get_unverified_header(payload)
+        alg = jws.get("alg")
+        if not alg:
+            raise SuspiciousOperation("No alg value found in header")
+        if alg != self.OIDC_RP_SIGN_ALGO:
+            raise SuspiciousOperation(
+                f"The provider algorithm {alg!r} does not match OIDC_RP_SIGN_ALGO."
+            )
+        try:
+            return pyjwt.decode(
+                payload,
+                key,
+                algorithms=[alg],
+                options={"verify_aud": False},
+                leeway=datetime.timedelta(minutes=5),
+            )
+        except pyjwt.DecodeError:
+            raise SuspiciousOperation("JWS token verification failed.")
 
     def filter_users_by_claims(self, claims):
         email = claims.get("email", "")
