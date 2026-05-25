@@ -7,7 +7,9 @@ from urllib.parse import urljoin
 
 from django.conf import settings
 from django.core.exceptions import SuspiciousOperation
+from mozilla_django_oidc import auth as oidc_auth
 from mozilla_django_oidc import utils as oidc_utils
+from mozilla_django_oidc import views as oidc_views
 from mozilla_django_oidc.auth import OIDCAuthenticationBackend
 from mozilla_django_oidc.views import OIDCAuthenticationCallbackView
 
@@ -24,6 +26,8 @@ def _patched_absolutify(request, path):
 
 
 oidc_utils.absolutify = _patched_absolutify
+oidc_auth.absolutify = _patched_absolutify
+oidc_views.absolutify = _patched_absolutify
 
 
 def generate_username(email):
