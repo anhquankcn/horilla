@@ -2307,9 +2307,13 @@ class HorillaProfileView(DetailView):
 
         from horilla.urls import path, urlpatterns
 
+        from django.utils import translation
+
         for tab in self.tabs:
             if not tab.get("url"):
-                url = f"{self.url_prefix}-{tab['title']}"
+                with translation.override("en"):
+                    slug = str(tab["title"])
+                url = f"{self.url_prefix}-{slug}"
                 urlpatterns.append(
                     path(
                         url + "/<int:pk>/",
