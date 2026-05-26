@@ -1,0 +1,227 @@
+{% extends "index.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block content %}
+<main :class="sidebarOpen ? 'oh-main__sidebar-visible' : ''">
+<div class="oh-wrapper oh-wrapper--full-width py-4 px-3" style="max-width:960px;">
+
+  <!-- Breadcrumb -->
+  <div class="mb-3">
+    <a href="{% url 'trial-contract-list' %}" style="color:#c0222b;font-size:13px;">
+      ← Danh sách Hợp đồng UAT PM
+    </a>
+  </div>
+
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-start mb-4">
+    <div class="oh-profile">
+      <div class="oh-profile__avatar">
+        <img src="{{ contract.employee_id.get_avatar }}"
+             class="oh-profile__image me-3"
+             style="width:56px;height:56px;border-radius:50%;object-fit:cover;"
+             alt="{{ contract.employee_id }}">
+      </div>
+      <div>
+        <h2 class="oh-inner-sidebar-content__title mb-0">{{ contract.contract_name }}</h2>
+        <p class="mb-0" style="font-size:14px;color:#6c757d;">
+          {{ contract.employee_id }}
+          {% with wi=contract.employee_id.employee_work_info %}
+          {% if wi.department_id or wi.job_position_id %}
+          &nbsp;·&nbsp; {{ wi.department_id }} / {{ wi.job_position_id }}
+          {% endif %}
+          {% endwith %}
+        </p>
+      </div>
+    </div>
+    <div class="d-flex gap-2 flex-shrink-0 ms-3">
+      <a href="{% url 'trial-contract-update' contract.pk %}" class="oh-btn oh-btn--light-bkg">
+        <ion-icon name="create-outline" class="me-1"></ion-icon>Sửa
+      </a>
+      <form method="post" action="{% url 'trial-contract-delete' contract.pk %}"
+            onsubmit="return confirm('Xóa hợp đồng này và toàn bộ Phụ lục 1?')">
+        {% csrf_token %}
+        <button type="submit" class="oh-btn oh-btn--danger">
+          <ion-icon name="trash-outline" class="me-1"></ion-icon>Xóa
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Messages -->
+  {% if messages %}
+  {% for msg in messages %}
+  <div class="oh-alert-container mb-3">
+    <div class="oh-alert oh-alert--animated {{ msg.tags }}">{{ msg }}</div>
+  </div>
+  {% endfor %}
+  {% endif %}
+
+  <!-- Summary stats (Horilla oh-timeoff-modal__stats style adapted) -->
+  <div class="oh-card oh-card--margin mb-3">
+    <div class="oh-card__body">
+      <div class="row g-3">
+        <div class="col-6 col-md-3">
+          <div class="oh-timeoff-modal__stat">
+            <span class="oh-timeoff-modal__stat-title">Trạng thái</span>
+            <span class="oh-timeoff-modal__stat-count">
+              {% if contract.contract_status == "active" %}<span style="color:#198754;font-weight:700;">Hiệu lực</span>
+              {% elif contract.contract_status == "draft" %}<span style="color:#fd7e14;font-weight:700;">Nháp</span>
+              {% elif contract.contract_status == "expired" %}<span style="color:#6c757d;font-weight:700;">Hết hạn</span>
+              {% else %}<span style="color:#dc3545;font-weight:700;">Chấm dứt</span>
+              {% endif %}
+            </span>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="oh-timeoff-modal__stat">
+            <span class="oh-timeoff-modal__stat-title">Lương cơ bản</span>
+            <span class="oh-timeoff-modal__stat-count" style="color:#c0222b;font-weight:700;">
+              {{ contract.wage|floatformat:"0" }}đ
+            </span>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="oh-timeoff-modal__stat">
+            <span class="oh-timeoff-modal__stat-title">Lương hiệu suất</span>
+            <span class="oh-timeoff-modal__stat-count" style="font-weight:700;">
+              {{ contract.base_salary|floatformat:"0" }}đ
+            </span>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="oh-timeoff-modal__stat">
+            <span class="oh-timeoff-modal__stat-title">% UAT</span>
+            <span class="oh-timeoff-modal__stat-count" style="font-weight:700;">
+              {{ contract.trial_wage_pct }}%
+            </span>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="oh-timeoff-modal__stat">
+            <span class="oh-timeoff-modal__stat-title">Ngày bắt đầu</span>
+            <span class="oh-timeoff-modal__stat-count dateformat_changer">{{ contract.contract_start_date }}</span>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="oh-timeoff-modal__stat">
+            <span class="oh-timeoff-modal__stat-title">Ngày kết thúc</span>
+            <span class="oh-timeoff-modal__stat-count dateformat_changer">
+              {{ contract.contract_end_date|default:"—" }}
+            </span>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="oh-timeoff-modal__stat">
+            <span class="oh-timeoff-modal__stat-title">Số ngày UAT</span>
+            <span class="oh-timeoff-modal__stat-count">{{ contract.probation_days }} ngày</span>
+          </div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="oh-timeoff-modal__stat">
+            <span class="oh-timeoff-modal__stat-title">Phụ lục 3</span>
+            <span class="oh-timeoff-modal__stat-count">
+              {% if contract.consent_agreed %}
+                <span style="color:#198754;font-weight:700;">Đã ký</span>
+                {% if contract.consent_date %}<br><small class="text-muted">{{ contract.consent_date }}</small>{% endif %}
+              {% else %}
+                <span style="color:#dc3545;">Chưa ký</span>
+              {% endif %}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phu luc 1 -->
+  <div class="oh-card oh-card--margin mb-3">
+    <div class="oh-card__header d-flex justify-content-between align-items-center">
+      <span class="oh-card__title oh-card__title--sm">Phụ lục 1 — KPI &amp; Thu nhập</span>
+      <a href="{% url 'trial-kpi-appendix-create' contract.pk %}"
+         class="oh-btn oh-btn--secondary oh-btn--sm">+ Thêm năm</a>
+    </div>
+    <div class="oh-card__body p-0">
+      {% if appendices %}
+      <table class="oh-table oh-table--bordered" style="font-size:12px;">
+        <thead class="table-light">
+          <tr>
+            <th>Năm</th>
+            <th>Vị trí</th>
+            <th class="text-end">Thu nhập năm min</th>
+            <th class="text-end">Thu nhập năm max</th>
+            <th class="text-end">Tạm ứng/tháng</th>
+            <th class="text-center">KPI 90-100%</th>
+            <th class="text-center">KPI 75-89%</th>
+            <th class="text-center">KPI 60-74%</th>
+            <th class="text-center">KPI &lt;60%</th>
+            <th class="text-center">Xóa</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in appendices %}
+          <tr>
+            <td class="fw-bold">{{ a.year }}</td>
+            <td>{{ a.position|default:"—" }}</td>
+            <td class="text-end">{{ a.annual_income_min|floatformat:"0" }}</td>
+            <td class="text-end">{{ a.annual_income_max|floatformat:"0" }}</td>
+            <td class="text-end">{{ a.monthly_performance_advance|floatformat:"0" }}</td>
+            <td class="text-center">{{ a.kpi_pct_90_100 }}%</td>
+            <td class="text-center">{{ a.kpi_pct_75_89 }}%</td>
+            <td class="text-center">{{ a.kpi_pct_60_74 }}%</td>
+            <td class="text-center">{{ a.kpi_below_60 }}%</td>
+            <td class="text-center">
+              <form method="post" action="{% url 'kpi-appendix-delete' a.pk %}"
+                    style="display:inline;"
+                    onsubmit="return confirm('Xóa Phụ lục 1 năm {{ a.year }}?')">
+                {% csrf_token %}
+                <button type="submit" class="oh-btn oh-btn--danger oh-btn--sm">Xóa</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="p-3 text-center text-muted" style="font-size:13px;">
+        Chưa có Phụ lục 1.
+        <a href="{% url 'trial-kpi-appendix-create' contract.pk %}" style="color:#c0222b;">Thêm ngay</a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Phu luc 2 -->
+  <div class="oh-card oh-card--margin mb-3">
+    <div class="oh-card__header">
+      <span class="oh-card__title oh-card__title--sm">Phụ lục 2 — Phụ cấp &amp; Khoản trừ</span>
+    </div>
+    <div class="oh-card__body">
+      <div class="row">
+        <div class="col-md-6">
+          <strong style="font-size:13px;">Phụ cấp:</strong>
+          <ul style="font-size:13px;margin-top:4px;">
+            {% for a in contract.allowances.all %}
+            <li>{{ a.name }}</li>
+            {% empty %}
+            <li class="text-muted">Chưa cấu hình</li>
+            {% endfor %}
+          </ul>
+        </div>
+        <div class="col-md-6">
+          <strong style="font-size:13px;">Khoản trừ:</strong>
+          <ul style="font-size:13px;margin-top:4px;">
+            {% for d in contract.deductions.all %}
+            <li>{{ d.name }}</li>
+            {% empty %}
+            <li class="text-muted">Chưa cấu hình</li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</main>
+{% endblock %}

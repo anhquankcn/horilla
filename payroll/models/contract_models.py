@@ -2,19 +2,18 @@
 contract_models.py
 
 3-tier contract system for HNH Travel:
-  - TrialContract       (Hop dong Thu viec)
+  - TrialContract       (Hop dong UAT PM)
   - OfficialContract    (Hop dong Chinh thuc)
-  - PerformanceContract (Hop dong Hieu suat) + ContractKPIAppendix
+  - PerformanceContract (Hop dong Hieu suat)
 
-Each type shares a common abstract base (ContractBase) with:
-  - Phu luc 2: M2M to existing Allowance / Deduction models
-  - Phu luc 3: consent_agreed / consent_date boolean+date
+All types share ContractBase (abstract). Both TrialContract and
+PerformanceContract support Phu luc 1 via ContractKPIAppendix (two
+nullable FKs — exactly one is set per row).
 """
 
 from decimal import Decimal
 
 from django.db import models
-from django.utils.translation import gettext_lazy as _
 
 from base.models import JobPosition
 from employee.models import Employee
@@ -68,7 +67,7 @@ class ContractBase(HorillaModel):
 
 
 class TrialContract(ContractBase):
-    """Hợp đồng UAT PM — dùng để test và nghiệm thu công thức, tính năng, batch trước khi áp dụng chính thức."""
+    """Hợp đồng UAT PM — test và nghiệm thu công thức, tính năng, batch trước khi áp dụng chính thức."""
 
     probation_days = models.IntegerField(
         default=60, verbose_name="Số ngày chạy UAT"
@@ -78,6 +77,9 @@ class TrialContract(ContractBase):
         decimal_places=2,
         default=Decimal("100.00"),
         verbose_name="% lương áp dụng UAT",
+    )
+    base_salary = models.FloatField(
+        default=0, verbose_name="Lương hiệu suất (VND/tháng)"
     )
 
     # Phu luc 2
@@ -127,7 +129,7 @@ class PerformanceContract(ContractBase):
     """Hợp đồng Hiệu suất (KPI-based). Phu luc 1 via ContractKPIAppendix FK."""
 
     base_salary = models.FloatField(
-        default=0, verbose_name="Lương cơ bản (VND/tháng)"
+        default=0, verbose_name="Lương hiệu suất (VND/tháng)"
     )
 
     # Phu luc 2
@@ -151,14 +153,29 @@ class PerformanceContract(ContractBase):
 
 
 class ContractKPIAppendix(HorillaModel):
-    """Phụ lục 1: Thu nhập năm & KPI — chỉ dành cho PerformanceContract."""
+    """Phụ lục 1: Thu nhập năm & KPI.
 
-    contract = models.ForeignKey(
+    Dùng cho cả TrialContract và PerformanceContract.
+    Đúng một trong hai FK (trial_contract, performance_contract) được set.
+    """
+
+    trial_contract = models.ForeignKey(
+        TrialContract,
+        on_delete=models.CASCADE,
+        related_name="kpi_appendices",
+        verbose_name="Hợp đồng UAT PM",
+        null=True,
+        blank=True,
+    )
+    performance_contract = models.ForeignKey(
         PerformanceContract,
         on_delete=models.CASCADE,
         related_name="kpi_appendices",
         verbose_name="Hợp đồng Hiệu suất",
+        null=True,
+        blank=True,
     )
+
     year = models.IntegerField(verbose_name="Năm áp dụng")
     position = models.ForeignKey(
         JobPosition,
@@ -175,7 +192,6 @@ class ContractKPIAppendix(HorillaModel):
     )
     kpi_description = models.TextField(blank=True, verbose_name="Mô tả chỉ số KPI")
 
-    # Muc luong theo % KPI dat duoc
     kpi_pct_90_100 = models.FloatField(
         default=100.0, verbose_name="Bonus rate khi KPI 90-100% (%)"
     )
@@ -197,8 +213,24 @@ class ContractKPIAppendix(HorillaModel):
     class Meta:
         verbose_name = "Phụ lục 1 — KPI & Thu nhập"
         verbose_name_plural = "Phụ lục 1 — KPI & Thu nhập"
-        unique_together = [("contract", "year")]
         ordering = ["year"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["performance_contract", "year"],
+                condition=models.Q(performance_contract__isnull=False),
+                name="uq_perf_contract_year",
+            ),
+            models.UniqueConstraint(
+                fields=["trial_contract", "year"],
+                condition=models.Q(trial_contract__isnull=False),
+                name="uq_trial_contract_year",
+            ),
+        ]
 
     def __str__(self):
-        return f"Phụ lục 1 — {self.contract} — Năm {self.year}"
+        contract = self.trial_contract or self.performance_contract
+        return f"Phụ lục 1 — {contract} — Năm {self.year}"
+
+    @property
+    def contract(self):
+        return self.trial_contract or self.performance_contract

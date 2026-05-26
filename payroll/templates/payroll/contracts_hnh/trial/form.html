@@ -2,10 +2,21 @@
 {% load i18n %}
 
 {% block content %}
-<div class="oh-wrapper oh-wrapper--full-width py-4 px-3" style="max-width:860px;">
+<main :class="sidebarOpen ? 'oh-main__sidebar-visible' : ''">
+<div class="oh-wrapper oh-wrapper--full-width py-4 px-3" style="max-width:900px;">
+
   <div class="mb-3">
-    <a href="{% url 'trial-contract-list' %}" style="color:#c0222b;font-size:13px;">← Danh sách hợp đồng UAT PM</a>
+    {% if contract %}
+    <a href="{% url 'trial-contract-detail' contract.pk %}" style="color:#c0222b;font-size:13px;">
+      ← Chi tiết hợp đồng
+    </a>
+    {% else %}
+    <a href="{% url 'trial-contract-list' %}" style="color:#c0222b;font-size:13px;">
+      ← Danh sách Hợp đồng UAT PM
+    </a>
+    {% endif %}
   </div>
+
   <h2 class="oh-inner-sidebar-content__title mb-4">
     {% if contract %}Cập nhật{% else %}Tạo mới{% endif %} Hợp đồng UAT PM
   </h2>
@@ -13,21 +24,28 @@
   <form method="post">
     {% csrf_token %}
     {% if errors %}
-    <div class="alert alert-danger" style="font-size:13px;">
-      {% for field, msg in errors.items %}<div>{{ msg }}</div>{% endfor %}
+    <div class="oh-alert-container mb-3">
+      <div class="oh-alert oh-alert--animated danger" style="font-size:13px;">
+        {% for field, msg in errors.items %}<div>{{ msg }}</div>{% endfor %}
+      </div>
     </div>
     {% endif %}
 
+    <!-- Thong tin co ban -->
     <div class="oh-card oh-card--margin mb-3">
-      <div class="oh-card__header"><span class="oh-card__title oh-card__title--sm">Thông tin cơ bản</span></div>
+      <div class="oh-card__header">
+        <span class="oh-card__title oh-card__title--sm">Thông tin cơ bản</span>
+      </div>
       <div class="oh-card__body">
         <div class="row g-3">
           <div class="col-md-6">
             <label class="oh-label oh-label--required">Nhân viên</label>
-            <select name="employee_id" class="oh-input" required>
+            <select name="employee_id" class="oh-select w-100" required>
               <option value="">-- Chọn nhân viên --</option>
               {% for emp in employees %}
-              <option value="{{ emp.pk }}" {% if contract and contract.employee_id_id == emp.pk %}selected{% elif post.employee_id == emp.pk|stringformat:"s" %}selected{% endif %}>
+              <option value="{{ emp.pk }}"
+                {% if contract and contract.employee_id_id == emp.pk %}selected
+                {% elif post.employee_id == emp.pk|stringformat:"s" %}selected{% endif %}>
                 {{ emp }}
               </option>
               {% endfor %}
@@ -35,43 +53,59 @@
           </div>
           <div class="col-md-6">
             <label class="oh-label oh-label--required">Tên hợp đồng</label>
-            <input type="text" name="contract_name" class="oh-input" required
-              value="{{ contract.contract_name|default:'' }}">
+            <input type="text" name="contract_name" class="oh-input w-100" required
+                   value="{% if contract %}{{ contract.contract_name }}{% elif post.contract_name %}{{ post.contract_name }}{% endif %}">
           </div>
           <div class="col-md-4">
             <label class="oh-label oh-label--required">Ngày bắt đầu</label>
-            <input type="date" name="contract_start_date" class="oh-input" required
-              value="{{ contract.contract_start_date|default:'' }}">
+            <input type="date" name="contract_start_date" class="oh-input w-100" required
+                   value="{% if contract %}{{ contract.contract_start_date|date:'Y-m-d' }}{% elif post.contract_start_date %}{{ post.contract_start_date }}{% endif %}">
           </div>
           <div class="col-md-4">
             <label class="oh-label">Ngày kết thúc</label>
-            <input type="date" name="contract_end_date" class="oh-input"
-              value="{{ contract.contract_end_date|default:'' }}">
+            <input type="date" name="contract_end_date" class="oh-input w-100"
+                   value="{% if contract %}{{ contract.contract_end_date|date:'Y-m-d' }}{% elif post.contract_end_date %}{{ post.contract_end_date }}{% endif %}">
           </div>
           <div class="col-md-4">
             <label class="oh-label">Trạng thái</label>
-            <select name="contract_status" class="oh-input">
-              {% for val, label in contract.get_contract_status_display|default:""|cut:""  %}{% endfor %}
+            <select name="contract_status" class="oh-select w-100">
               <option value="draft" {% if not contract or contract.contract_status == "draft" %}selected{% endif %}>Nháp</option>
               <option value="active" {% if contract.contract_status == "active" %}selected{% endif %}>Hiệu lực</option>
               <option value="expired" {% if contract.contract_status == "expired" %}selected{% endif %}>Hết hạn</option>
               <option value="terminated" {% if contract.contract_status == "terminated" %}selected{% endif %}>Chấm dứt</option>
             </select>
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Luong -->
+    <div class="oh-card oh-card--margin mb-3">
+      <div class="oh-card__header">
+        <span class="oh-card__title oh-card__title--sm">Lương &amp; UAT</span>
+      </div>
+      <div class="oh-card__body">
+        <div class="row g-3">
           <div class="col-md-4">
-            <label class="oh-label">Lương cơ bản (VND/tháng)</label>
-            <input type="number" name="wage" class="oh-input" min="0" step="100000"
-              value="{{ contract.wage|default:'0' }}">
+            <label class="oh-label">Lương cơ bản (đ/tháng)</label>
+            <input type="number" name="wage" class="oh-input w-100" min="0" step="500000"
+                   value="{% if contract %}{{ contract.wage|floatformat:"0" }}{% elif post.wage %}{{ post.wage }}{% else %}0{% endif %}">
           </div>
           <div class="col-md-4">
-            <label class="oh-label">Số ngày chạy UAT</label>
-            <input type="number" name="probation_days" class="oh-input" min="1"
-              value="{{ contract.probation_days|default:'60' }}">
+            <label class="oh-label">Lương hiệu suất (đ/tháng)</label>
+            <input type="number" name="base_salary" class="oh-input w-100" min="0" step="500000"
+                   value="{% if contract %}{{ contract.base_salary|floatformat:"0" }}{% elif post.base_salary %}{{ post.base_salary }}{% else %}0{% endif %}">
           </div>
-          <div class="col-md-4">
-            <label class="oh-label">% Lương áp dụng UAT</label>
-            <input type="number" name="trial_wage_pct" class="oh-input" min="0" max="100" step="0.5"
-              value="{{ contract.trial_wage_pct|default:'85' }}">
+          <div class="col-md-2">
+            <label class="oh-label">Số ngày UAT</label>
+            <input type="number" name="probation_days" class="oh-input w-100" min="1"
+                   value="{% if contract %}{{ contract.probation_days }}{% elif post.probation_days %}{{ post.probation_days }}{% else %}90{% endif %}">
+          </div>
+          <div class="col-md-2">
+            <label class="oh-label">% Lương UAT</label>
+            <input type="number" name="trial_wage_pct" class="oh-input w-100"
+                   min="0" max="100" step="1"
+                   value="{% if contract %}{{ contract.trial_wage_pct }}{% elif post.trial_wage_pct %}{{ post.trial_wage_pct }}{% else %}100{% endif %}">
           </div>
         </div>
       </div>
@@ -79,23 +113,31 @@
 
     <!-- Phu luc 2 -->
     <div class="oh-card oh-card--margin mb-3">
-      <div class="oh-card__header"><span class="oh-card__title oh-card__title--sm">Phụ lục 2 — Phụ cấp & Khoản trừ</span></div>
+      <div class="oh-card__header">
+        <span class="oh-card__title oh-card__title--sm">Phụ lục 2 — Phụ cấp &amp; Khoản trừ</span>
+      </div>
       <div class="oh-card__body">
         <div class="row g-3">
           <div class="col-md-6">
             <label class="oh-label">Phụ cấp</label>
-            <select name="allowances" multiple class="oh-input" style="height:140px;">
+            <select name="allowances" multiple class="oh-select w-100" style="height:140px;">
               {% for a in allowances %}
-              <option value="{{ a.pk }}" {% if contract and a in contract.allowances.all %}selected{% endif %}>{{ a.name }}</option>
+              <option value="{{ a.pk }}"
+                {% if contract and a in contract.allowances.all %}selected{% endif %}>
+                {{ a.name }}
+              </option>
               {% endfor %}
             </select>
             <small class="text-muted">Giữ Ctrl để chọn nhiều</small>
           </div>
           <div class="col-md-6">
             <label class="oh-label">Khoản trừ</label>
-            <select name="deductions" multiple class="oh-input" style="height:140px;">
+            <select name="deductions" multiple class="oh-select w-100" style="height:140px;">
               {% for d in deductions %}
-              <option value="{{ d.pk }}" {% if contract and d in contract.deductions.all %}selected{% endif %}>{{ d.name }}</option>
+              <option value="{{ d.pk }}"
+                {% if contract and d in contract.deductions.all %}selected{% endif %}>
+                {{ d.name }}
+              </option>
               {% endfor %}
             </select>
           </div>
@@ -105,18 +147,20 @@
 
     <!-- Phu luc 3 -->
     <div class="oh-card oh-card--margin mb-3">
-      <div class="oh-card__header"><span class="oh-card__title oh-card__title--sm">Phụ lục 3 — Đồng ý bảo mật dữ liệu</span></div>
+      <div class="oh-card__header">
+        <span class="oh-card__title oh-card__title--sm">Phụ lục 3 — Đồng ý bảo mật dữ liệu</span>
+      </div>
       <div class="oh-card__body">
         <div class="row g-3">
           <div class="col-md-6 d-flex align-items-center gap-2">
             <input type="checkbox" name="consent_agreed" id="consent_agreed"
-              {% if contract and contract.consent_agreed %}checked{% endif %}>
+                   {% if contract and contract.consent_agreed %}checked{% endif %}>
             <label for="consent_agreed" class="oh-label mb-0">Nhân viên đã ký Phụ lục 3</label>
           </div>
           <div class="col-md-6">
             <label class="oh-label">Ngày ký Phụ lục 3</label>
-            <input type="date" name="consent_date" class="oh-input"
-              value="{{ contract.consent_date|default:'' }}">
+            <input type="date" name="consent_date" class="oh-input w-100"
+                   value="{% if contract %}{{ contract.consent_date|date:'Y-m-d' }}{% endif %}">
           </div>
         </div>
       </div>
@@ -126,8 +170,14 @@
       <button type="submit" class="oh-btn oh-btn--secondary">
         {% if contract %}Lưu thay đổi{% else %}Tạo hợp đồng{% endif %}
       </button>
+      {% if contract %}
+      <a href="{% url 'trial-contract-detail' contract.pk %}" class="oh-btn oh-btn--light-bkg">Hủy</a>
+      {% else %}
       <a href="{% url 'trial-contract-list' %}" class="oh-btn oh-btn--light-bkg">Hủy</a>
+      {% endif %}
     </div>
   </form>
+
 </div>
+</main>
 {% endblock %}

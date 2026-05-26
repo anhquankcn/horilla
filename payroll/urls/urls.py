@@ -205,8 +205,10 @@ urlpatterns = [
     # Trial Contract (Hop dong Thu viec)
     path("hnh/trial/", contract_hnh_views.trial_contract_list, name="trial-contract-list"),
     path("hnh/trial/create/", contract_hnh_views.trial_contract_create, name="trial-contract-create"),
+    path("hnh/trial/<int:pk>/", contract_hnh_views.trial_contract_detail, name="trial-contract-detail"),
     path("hnh/trial/<int:pk>/edit/", contract_hnh_views.trial_contract_update, name="trial-contract-update"),
     path("hnh/trial/<int:pk>/delete/", contract_hnh_views.trial_contract_delete, name="trial-contract-delete"),
+    path("hnh/trial/<int:contract_pk>/kpi/add/", contract_hnh_views.trial_kpi_appendix_create, name="trial-kpi-appendix-create"),
     # Official Contract (Hop dong Chinh thuc)
     path("hnh/official/", contract_hnh_views.official_contract_list, name="official-contract-list"),
     path("hnh/official/create/", contract_hnh_views.official_contract_create, name="official-contract-create"),
