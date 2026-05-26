@@ -4,10 +4,10 @@
 {% block content %}
 <div class="oh-wrapper oh-wrapper--full-width py-4 px-3" style="max-width:860px;">
   <div class="mb-3">
-    <a href="{% url 'trial-contract-list' %}" style="color:#c0222b;font-size:13px;">← Danh sách hợp đồng thử việc</a>
+    <a href="{% url 'trial-contract-list' %}" style="color:#c0222b;font-size:13px;">← Danh sách hợp đồng UAT PM</a>
   </div>
   <h2 class="oh-inner-sidebar-content__title mb-4">
-    {% if contract %}Cập nhật{% else %}Tạo mới{% endif %} Hợp đồng Thử việc
+    {% if contract %}Cập nhật{% else %}Tạo mới{% endif %} Hợp đồng UAT PM
   </h2>
 
   <form method="post">
@@ -64,12 +64,12 @@
               value="{{ contract.wage|default:'0' }}">
           </div>
           <div class="col-md-4">
-            <label class="oh-label">Thời gian thử việc (ngày)</label>
+            <label class="oh-label">Số ngày chạy UAT</label>
             <input type="number" name="probation_days" class="oh-input" min="1"
               value="{{ contract.probation_days|default:'60' }}">
           </div>
           <div class="col-md-4">
-            <label class="oh-label">% Lương thử việc</label>
+            <label class="oh-label">% Lương áp dụng UAT</label>
             <input type="number" name="trial_wage_pct" class="oh-input" min="0" max="100" step="0.5"
               value="{{ contract.trial_wage_pct|default:'85' }}">
           </div>

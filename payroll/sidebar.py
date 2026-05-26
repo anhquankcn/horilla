@@ -64,7 +64,7 @@ SUBMENUS = [
         "accessibility": "payroll.sidebar.pit_accessibility",
     },
     {
-        "menu": "Hợp đồng Thử việc",
+        "menu": "Hợp đồng UAT PM",
         "redirect": reverse("trial-contract-list"),
         "accessibility": "payroll.sidebar.trial_contract_accessibility",
     },

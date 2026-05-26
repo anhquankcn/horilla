@@ -68,16 +68,16 @@ class ContractBase(HorillaModel):
 
 
 class TrialContract(ContractBase):
-    """Hợp đồng Thử việc."""
+    """Hợp đồng UAT PM — dùng để test và nghiệm thu công thức, tính năng, batch trước khi áp dụng chính thức."""
 
     probation_days = models.IntegerField(
-        default=60, verbose_name="Thời gian thử việc (ngày)"
+        default=60, verbose_name="Số ngày chạy UAT"
     )
     trial_wage_pct = models.DecimalField(
         max_digits=5,
         decimal_places=2,
-        default=Decimal("85.00"),
-        verbose_name="% lương trong thời gian thử việc",
+        default=Decimal("100.00"),
+        verbose_name="% lương áp dụng UAT",
     )
 
     # Phu luc 2
@@ -95,8 +95,8 @@ class TrialContract(ContractBase):
     )
 
     class Meta:
-        verbose_name = "Hợp đồng Thử việc"
-        verbose_name_plural = "Hợp đồng Thử việc"
+        verbose_name = "Hợp đồng UAT PM"
+        verbose_name_plural = "Hợp đồng UAT PM"
         ordering = ["-contract_start_date"]
 
 

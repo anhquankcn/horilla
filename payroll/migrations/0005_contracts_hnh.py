@@ -37,8 +37,8 @@ class Migration(migrations.Migration):
                 )),
                 ("consent_agreed", models.BooleanField(default=False, verbose_name="Đã ký Phụ lục 3 (đồng ý bảo mật dữ liệu)")),
                 ("consent_date", models.DateField(blank=True, null=True, verbose_name="Ngày ký Phụ lục 3")),
-                ("probation_days", models.IntegerField(default=60, verbose_name="Thời gian thử việc (ngày)")),
-                ("trial_wage_pct", models.DecimalField(decimal_places=2, default=Decimal("85.00"), max_digits=5, verbose_name="% lương trong thời gian thử việc")),
+                ("probation_days", models.IntegerField(default=60, verbose_name="Số ngày chạy UAT")),
+                ("trial_wage_pct", models.DecimalField(decimal_places=2, default=Decimal("100.00"), max_digits=5, verbose_name="% lương áp dụng UAT")),
                 ("employee_id", models.ForeignKey(
                     on_delete=django.db.models.deletion.PROTECT,
                     related_name="trialcontract_set",
@@ -61,8 +61,8 @@ class Migration(migrations.Migration):
                 )),
             ],
             options={
-                "verbose_name": "Hợp đồng Thử việc",
-                "verbose_name_plural": "Hợp đồng Thử việc",
+                "verbose_name": "Hợp đồng UAT PM",
+                "verbose_name_plural": "Hợp đồng UAT PM",
                 "ordering": ["-contract_start_date"],
             },
         ),

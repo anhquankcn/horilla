@@ -130,7 +130,7 @@ def trial_contract_create(request):
             selected_deductions = request.POST.getlist("deductions")
             obj.allowances.set(selected_allowances)
             obj.deductions.set(selected_deductions)
-            messages.success(request, f"Đã tạo hợp đồng thử việc: {obj.contract_name}")
+            messages.success(request, f"Đã tạo hợp đồng UAT PM: {obj.contract_name}")
             return redirect("trial-contract-list")
 
         return render(request, "payroll/contracts_hnh/trial/form.html", {
@@ -175,7 +175,7 @@ def trial_contract_update(request, pk):
             obj.save()
             obj.allowances.set(request.POST.getlist("allowances"))
             obj.deductions.set(request.POST.getlist("deductions"))
-            messages.success(request, "Đã cập nhật hợp đồng thử việc.")
+            messages.success(request, "Đã cập nhật hợp đồng UAT PM.")
             return redirect("trial-contract-list")
 
         return render(request, "payroll/contracts_hnh/trial/form.html", {
@@ -194,7 +194,7 @@ def trial_contract_delete(request, pk):
     obj = get_object_or_404(TrialContract, pk=pk)
     if request.method == "POST":
         obj.delete()
-        messages.success(request, "Đã xóa hợp đồng thử việc.")
+        messages.success(request, "Đã xóa hợp đồng UAT PM.")
     return redirect("trial-contract-list")
 
 
