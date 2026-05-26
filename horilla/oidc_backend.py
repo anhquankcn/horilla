@@ -1,6 +1,7 @@
 """
 Custom OIDC backend for Horilla HRM.
 Maps Keycloak users to existing Horilla users by email or username.
+When no Horilla user matches a valid KC login, redirects to /oidc/signup/.
 """
 import datetime
 import logging
@@ -9,11 +10,14 @@ from urllib.parse import urljoin
 import jwt as pyjwt
 from django.conf import settings
 from django.core.exceptions import SuspiciousOperation
+from django.shortcuts import redirect
 from mozilla_django_oidc import auth as oidc_auth
 from mozilla_django_oidc import utils as oidc_utils
 from mozilla_django_oidc import views as oidc_views
 from mozilla_django_oidc.auth import OIDCAuthenticationBackend
 from mozilla_django_oidc.views import OIDCAuthenticationCallbackView
+
+from horilla.horilla_middlewares import _thread_locals
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +104,8 @@ class HorillaOIDCBackend(OIDCAuthenticationBackend):
                 return users
 
         logger.warning("OIDC no matching user — email=%r kc_username=%r", email, kc_username)
+        # Signal to the callback view that signup is available for this KC identity
+        _thread_locals.oidc_pending_claims = claims
         return self.UserModel.objects.none()
 
     def create_user(self, claims):
@@ -119,18 +125,37 @@ class HorillaOIDCBackend(OIDCAuthenticationBackend):
 
 
 class HorillaOIDCCallbackView(OIDCAuthenticationCallbackView):
-    """Override: redirect to login instead of 400 on state mismatch."""
+    """
+    Override:
+    - Redirect to login (instead of 400) on state mismatch.
+    - Redirect to /oidc/signup/ when KC auth succeeds but no Horilla user found.
+    """
 
     @property
     def failure_url(self):
         return "/login/?sso_error=1"
+
+    def login_failure(self):
+        pending = getattr(_thread_locals, "oidc_pending_claims", None)
+        if pending:
+            _thread_locals.oidc_pending_claims = None
+            self.request.session["oidc_pending_signup"] = {
+                "email": pending.get("email", ""),
+                "first_name": pending.get("given_name", ""),
+                "last_name": pending.get("family_name", ""),
+                "sub": pending.get("sub", ""),
+                "preferred_username": pending.get("preferred_username", ""),
+            }
+            return redirect("/oidc/signup/")
+        return super().login_failure()
 
     def get(self, request):
         try:
             return super().get(request)
         except SuspiciousOperation as exc:
             logger.warning("OIDC state mismatch — redirecting to login: %s", exc)
-            return self.login_failure()
+            _thread_locals.oidc_pending_claims = None
+            return super().login_failure()
         except Exception as exc:
             logger.error("OIDC callback error: %s", exc, exc_info=True)
             raise

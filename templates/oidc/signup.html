@@ -1,0 +1,108 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Đăng ký tài khoản — HNH Travel HRM</title>
+  <link rel="icon" type="image/png" sizes="32x32" href="{% static 'favicons/favicon-32x32.png' %}">
+  <link rel="stylesheet" href="{% static '/build/css/style.min.css' %}" />
+</head>
+
+<body>
+  <div id="main">
+    <div class="oh-alert-container">
+      {% for message in messages %}
+      <div class="oh-alert oh-alert--animated {{ message.tags }}">{{ message }}</div>
+      {% endfor %}
+    </div>
+
+    <main class="oh-auth">
+      <div class="oh-auth-card mb-4">
+
+        <div class="text-center mb-3">
+          <img src="{% static 'images/ui/hnh-logo.png' %}"
+               alt="Hồng Ngọc Hà Travel"
+               style="max-width:160px; height:80px; object-fit:contain;" />
+        </div>
+
+        <h1 class="oh-onboarding-card__title oh-onboarding-card__title--h2 text-center my-3">
+          Tạo tài khoản HRM
+        </h1>
+        <p class="text-muted text-center mb-4" style="font-size:14px;">
+          Tài khoản Keycloak của bạn đã xác thực thành công.<br>
+          Vui lòng điền thêm thông tin để hoàn tất đăng ký.
+        </p>
+
+        <form method="post" action="/oidc/signup/" class="oh-form-group">
+          {% csrf_token %}
+
+          <div class="oh-input-group mb-3">
+            <label class="oh-label" for="first_name">Họ và tên <span style="color:#c0222b">*</span></label>
+            <input type="text" id="first_name" name="first_name"
+                   class="oh-input w-100 {% if errors.first_name %}is-invalid{% endif %}"
+                   value="{{ form.first_name|default:claims.first_name }}"
+                   placeholder="Nhập họ và tên" required />
+            {% if errors.first_name %}
+            <div class="invalid-feedback" style="color:#c0222b;font-size:13px;">{{ errors.first_name }}</div>
+            {% endif %}
+          </div>
+
+          <div class="oh-input-group mb-3">
+            <label class="oh-label" for="last_name">Tên đệm / tên riêng</label>
+            <input type="text" id="last_name" name="last_name"
+                   class="oh-input w-100"
+                   value="{{ form.last_name|default:claims.last_name }}"
+                   placeholder="Nhập tên riêng (nếu có)" />
+          </div>
+
+          <div class="oh-input-group mb-3">
+            <label class="oh-label" for="email">Email <span style="color:#c0222b">*</span></label>
+            <input type="email" id="email" name="email"
+                   class="oh-input w-100 {% if errors.email %}is-invalid{% endif %}"
+                   value="{{ form.email|default:claims.email }}"
+                   placeholder="Email công ty"
+                   {% if claims.email %}readonly style="background:#f5f5f5;"{% endif %}
+                   required />
+            {% if errors.email %}
+            <div class="invalid-feedback" style="color:#c0222b;font-size:13px;">{{ errors.email }}</div>
+            {% endif %}
+          </div>
+
+          <div class="oh-input-group mb-4">
+            <label class="oh-label" for="phone">Số điện thoại <span style="color:#c0222b">*</span></label>
+            <input type="tel" id="phone" name="phone"
+                   class="oh-input w-100 {% if errors.phone %}is-invalid{% endif %}"
+                   value="{{ form.phone|default:'' }}"
+                   placeholder="VD: 0901234567" required />
+            {% if errors.phone %}
+            <div class="invalid-feedback" style="color:#c0222b;font-size:13px;">{{ errors.phone }}</div>
+            {% endif %}
+          </div>
+
+          <button type="submit"
+                  class="oh-btn oh-onboarding-card__button oh-btn--secondary oh-btn--shadow w-100 mb-3"
+                  style="background:#c0222b;border-color:#c0222b;color:#fff;"
+                  role="button">
+            Đăng ký và vào hệ thống
+          </button>
+        </form>
+
+        <div class="text-center mt-2">
+          <a href="/login/" class="oh-link" style="font-size:13px;color:#666;">
+            ← Quay lại đăng nhập
+          </a>
+        </div>
+
+        <p class="text-muted text-center mt-4" style="font-size:12px;">
+          Vai trò mặc định: <strong>Nhân Viên</strong>. Quản trị viên có thể thay đổi sau khi tạo xong.
+        </p>
+
+      </div>
+    </main>
+  </div>
+</body>
+
+</html>

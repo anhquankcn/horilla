@@ -25,6 +25,7 @@ import notifications.urls
 
 from . import settings
 from .oidc_backend import HorillaOIDCCallbackView
+from .oidc_signup_views import oidc_signup_view
 
 
 def health_check(request):
@@ -37,6 +38,7 @@ urlpatterns = [
     path("oidc/callback/", HorillaOIDCCallbackView.as_view(), name="oidc_authentication_callback"),
     path("oidc/authenticate/", OIDCAuthenticationRequestView.as_view(), name="oidc_authentication_init"),
     path("oidc/logout/", OIDCLogoutView.as_view(), name="oidc_logout"),
+    path("oidc/signup/", oidc_signup_view, name="oidc_signup"),
     path("accounts/", include("django.contrib.auth.urls")),
     path("accounts/", include("django.contrib.auth.urls")),
     path("", include("base.urls")),
