@@ -1,0 +1,160 @@
+{% extends "index.html" %}
+{% load i18n %}
+{% load payrollfilters %}
+
+{% block content %}
+<div class="oh-wrapper oh-wrapper--full-width py-4 px-3">
+
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <h2 class="oh-inner-sidebar-content__title mb-0">
+      Bảng Lương Tổng Công Ty — Tháng {{ current_month }}/{{ current_year }}
+    </h2>
+    <div class="d-flex gap-2 align-items-center">
+      <a href="?month={% if current_month == 1 %}12{% else %}{{ current_month|add:"-1" }}{% endif %}&year={% if current_month == 1 %}{{ current_year|add:"-1" }}{% else %}{{ current_year }}{% endif %}&dept={{ dept_filter }}&type={{ type_filter }}"
+         class="oh-btn oh-btn--light-bkg oh-btn--sm">‹ Trước</a>
+      <span style="font-size:13px;color:#6c757d;">{{ current_month }}/{{ current_year }}</span>
+      <a href="?month={% if current_month == 12 %}1{% else %}{{ current_month|add:"1" }}{% endif %}&year={% if current_month == 12 %}{{ current_year|add:"1" }}{% else %}{{ current_year }}{% endif %}&dept={{ dept_filter }}&type={{ type_filter }}"
+         class="oh-btn oh-btn--light-bkg oh-btn--sm">Sau ›</a>
+    </div>
+  </div>
+
+  <!-- Summary Cards -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <div class="oh-card oh-card--margin text-center" style="padding:18px 12px;">
+        <div style="font-size:11px;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;">Tổng quỹ lương NLĐ</div>
+        <div style="font-size:18px;font-weight:700;color:#c0222b;margin-top:6px;">{{ total_wage|vnd }}đ</div>
+        <div style="font-size:11px;color:#6c757d;margin-top:2px;">{{ total_employees }} nhân viên</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="oh-card oh-card--margin text-center" style="padding:18px 12px;">
+        <div style="font-size:11px;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;">Khoản trừ BH (NLĐ)</div>
+        <div style="font-size:18px;font-weight:700;color:#fd7e14;margin-top:6px;">{{ total_employee_deductions|vnd }}đ</div>
+        <div style="font-size:11px;color:#6c757d;margin-top:2px;">BHXH + BHYT + BHTN</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="oh-card oh-card--margin text-center" style="padding:18px 12px;">
+        <div style="font-size:11px;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;">Thực lĩnh ước tính</div>
+        <div style="font-size:18px;font-weight:700;color:#198754;margin-top:6px;">{{ total_net|vnd }}đ</div>
+        <div style="font-size:11px;color:#6c757d;margin-top:2px;">Chưa trừ thuế TNCN</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="oh-card oh-card--margin text-center" style="padding:18px 12px;">
+        <div style="font-size:11px;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;">Chi phí BH (NSDLĐ)</div>
+        <div style="font-size:18px;font-weight:700;color:#6c757d;margin-top:6px;">{{ total_employer_bhxh|vnd }}đ</div>
+        <div style="font-size:11px;color:#6c757d;margin-top:2px;">~21.5% lương (không gồm KPCĐ)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filter -->
+  <form method="get" class="mb-3 d-flex flex-wrap gap-2 align-items-center">
+    <input type="hidden" name="month" value="{{ current_month }}">
+    <input type="hidden" name="year" value="{{ current_year }}">
+
+    <select name="dept" class="oh-input oh-input--small" style="max-width:220px;" onchange="this.form.submit()">
+      <option value="">-- Tất cả phòng ban --</option>
+      {% for d in departments %}
+      <option value="{{ d.pk }}" {% if dept_filter == d.pk|stringformat:"s" %}selected{% endif %}>{{ d.department }}</option>
+      {% endfor %}
+    </select>
+
+    <select name="type" class="oh-input oh-input--small" style="max-width:180px;" onchange="this.form.submit()">
+      <option value="">-- Tất cả loại HĐ --</option>
+      <option value="Trial"       {% if type_filter == "Trial" %}selected{% endif %}>Hợp đồng UAT PM</option>
+      <option value="Official"    {% if type_filter == "Official" %}selected{% endif %}>Hợp đồng Chính thức</option>
+      <option value="Performance" {% if type_filter == "Performance" %}selected{% endif %}>Hợp đồng Hiệu suất</option>
+    </select>
+
+    {% if dept_filter or type_filter %}
+    <a href="?month={{ current_month }}&year={{ current_year }}" class="oh-btn oh-btn--light-bkg oh-btn--sm">✕ Xóa filter</a>
+    {% endif %}
+
+    <span style="font-size:12px;color:#6c757d;margin-left:auto;">
+      Hiển thị {{ rows|length }} bản ghi
+    </span>
+  </form>
+
+  <!-- Table -->
+  <div class="oh-card oh-card--margin">
+    <div class="oh-card__body p-0">
+      {% if rows %}
+      <div style="overflow-x:auto;">
+      <table class="oh-table oh-table--bordered" style="font-size:12px;min-width:900px;">
+        <thead class="table-light">
+          <tr>
+            <th>Nhân viên</th>
+            <th>Phòng ban</th>
+            <th>Vị trí</th>
+            <th class="text-center">Loại HĐ</th>
+            <th class="text-end">Lương gross</th>
+            <th class="text-end">Khoản trừ BH</th>
+            <th class="text-end">Thực lĩnh ước tính</th>
+            <th class="text-end">Tạm ứng HSnăng</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+          <tr>
+            <td>
+              <div style="font-weight:600;">{{ r.employee.get_full_name }}</div>
+              <div style="font-size:11px;color:#6c757d;">{{ r.contract.contract_name }}</div>
+            </td>
+            <td style="font-size:12px;">{{ r.dept|default:"—" }}</td>
+            <td style="font-size:12px;">{{ r.pos|default:"—" }}</td>
+            <td class="text-center">
+              {% if r.contract_type == "Trial" %}
+                <span class="oh-badge" style="background:#0d6efd22;color:#0d6efd;font-size:11px;">UAT PM</span>
+              {% elif r.contract_type == "Official" %}
+                <span class="oh-badge" style="background:#6c757d22;color:#495057;font-size:11px;">Chính thức</span>
+              {% elif r.contract_type == "Performance" %}
+                <span class="oh-badge oh-badge--success" style="font-size:11px;">Hiệu suất</span>
+              {% else %}
+                <span class="oh-badge" style="font-size:11px;">{{ r.contract_type }}</span>
+              {% endif %}
+            </td>
+            <td class="text-end">{{ r.wage|vnd }}đ</td>
+            <td class="text-end">
+              {{ r.total_deductions|vnd }}đ
+              <div style="font-size:10px;color:#6c757d;">
+                {% for title, amount in r.ded_detail.items %}
+                  {{ title }}: {{ amount|vnd }}đ<br>
+                {% endfor %}
+              </div>
+            </td>
+            <td class="text-end" style="font-weight:600;color:#198754;">{{ r.net_estimated|vnd }}đ</td>
+            <td class="text-end">
+              {% if r.advance %}
+                {{ r.advance|vnd }}đ
+              {% else %}
+                <span style="color:#adb5bd;">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot style="background:#f8f9fa;font-weight:700;border-top:2px solid #dee2e6;">
+          <tr>
+            <td colspan="4" class="text-end" style="font-size:12px;">Tổng cộng:</td>
+            <td class="text-end" style="color:#c0222b;">{{ total_wage|vnd }}đ</td>
+            <td class="text-end" style="color:#fd7e14;">{{ total_employee_deductions|vnd }}đ</td>
+            <td class="text-end" style="color:#198754;">{{ total_net|vnd }}đ</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+      </div>
+      {% else %}
+      <div class="p-5 text-center" style="color:#6c757d;font-size:13px;">
+        Không có hợp đồng active trong tháng {{ current_month }}/{{ current_year }}.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

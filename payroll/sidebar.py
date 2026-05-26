@@ -64,6 +64,11 @@ SUBMENUS = [
         "accessibility": "payroll.sidebar.pit_accessibility",
     },
     {
+        "menu": "Bảng Lương Tổng Công Ty",
+        "redirect": reverse("hnh-payroll-overview"),
+        "accessibility": "payroll.sidebar.payroll_overview_accessibility",
+    },
+    {
         "menu": "Hợp đồng UAT PM",
         "redirect": reverse("trial-contract-list"),
         "accessibility": "payroll.sidebar.trial_contract_accessibility",
@@ -123,3 +128,11 @@ def official_contract_accessibility(request, submenu, user_perms, *args, **kwarg
 
 def performance_contract_accessibility(request, submenu, user_perms, *args, **kwargs):
     return request.user.has_perm("payroll.view_performancecontract")
+
+
+def payroll_overview_accessibility(request, submenu, user_perms, *args, **kwargs):
+    return (
+        request.user.has_perm("payroll.view_trialcontract")
+        or request.user.has_perm("payroll.view_officialcontract")
+        or request.user.has_perm("payroll.view_performancecontract")
+    )

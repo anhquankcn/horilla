@@ -6,6 +6,7 @@ HR-facing CRUD views for HNH's 3 contract types:
   - ContractKPIAppendix (Phu luc 1, for both Trial and Performance)
 """
 
+import calendar
 import json
 import logging
 from datetime import date
@@ -19,6 +20,7 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from base.models import Department, JobPosition
 from employee.models import Employee
+from payroll.models.bhxh_models import BHXHConfig
 from payroll.models.contract_models import (
     ContractKPIAppendix,
     OfficialContract,
@@ -590,6 +592,147 @@ def hnh_positions_api(request):
             "monthly_advance": monthly_advance,
         })
     return JsonResponse({"positions": data})
+
+
+@login_required
+def hnh_payroll_overview(request):
+    """Bảng lương tổng công ty — gom 3 loại hợp đồng, filter theo tháng/phòng ban."""
+    today = date.today()
+    try:
+        current_month = int(request.GET.get("month", today.month))
+        current_year  = int(request.GET.get("year",  today.year))
+        if not (1 <= current_month <= 12):
+            current_month = today.month
+        if not (2020 <= current_year <= 2100):
+            current_year = today.year
+    except (ValueError, TypeError):
+        current_month, current_year = today.month, today.year
+
+    period_start = date(current_year, current_month, 1)
+    period_end   = date(current_year, current_month,
+                        calendar.monthrange(current_year, current_month)[1])
+
+    def _active_in_period(qs):
+        return qs.filter(
+            contract_status="active",
+            contract_start_date__lte=period_end,
+        ).filter(
+            models.Q(contract_end_date__isnull=True) |
+            models.Q(contract_end_date__gte=period_start)
+        )
+
+    common_select = (
+        "employee_id__employee_work_info__job_position_id",
+        "employee_id__employee_work_info__department_id",
+    )
+
+    trial_qs = (
+        _active_in_period(TrialContract.objects)
+        .select_related(*common_select)
+        .prefetch_related("deductions", "kpi_appendices")
+    )
+    official_qs = (
+        _active_in_period(OfficialContract.objects)
+        .select_related(*common_select)
+        .prefetch_related("deductions")
+    )
+    perf_qs = (
+        _active_in_period(PerformanceContract.objects)
+        .select_related(*common_select)
+        .prefetch_related("deductions", "kpi_appendices")
+    )
+
+    # Employer BH rate từ BHXHConfig (không hardcode)
+    bhxh_cfg = BHXHConfig.objects.filter(is_active=True).first()
+    if bhxh_cfg:
+        er_rate = (
+            float(bhxh_cfg.bhxh_rate_er or 17.5)
+            + float(bhxh_cfg.bhyt_rate_er or 3.0)
+            + float(bhxh_cfg.bhtn_rate_er or 1.0)
+        ) / 100
+        bhxh_bhyt_cap = float(bhxh_cfg.luong_co_so) * 20
+        bhtn_cap       = float(bhxh_cfg.luong_toi_thieu_vung) * 20
+    else:
+        er_rate       = 0.215
+        bhxh_bhyt_cap = 46_800_000.0
+        bhtn_cap       = 99_200_000.0
+
+    def _compute_deductions(contract):
+        total = 0.0
+        detail = {}
+        for d in contract.deductions.all():
+            amount = contract.wage * float(d.rate) / 100.0
+            if d.has_max_limit and d.maximum_amount:
+                amount = min(amount, float(d.maximum_amount))
+            detail[d.title] = amount
+            total += amount
+        return total, detail
+
+    def _employer_bh(wage):
+        capped_wage = min(wage, bhxh_bhyt_cap)
+        return capped_wage * er_rate
+
+    _CONTRACT_LABELS = {
+        "TrialContract": "Trial",
+        "OfficialContract": "Official",
+        "PerformanceContract": "Performance",
+    }
+
+    rows = []
+    for c in list(trial_qs) + list(official_qs) + list(perf_qs):
+        wi   = getattr(c.employee_id, "employee_work_info", None)
+        dept = wi.department_id if wi else None
+        pos  = wi.job_position_id if wi else None
+        total_ded, ded_detail = _compute_deductions(c)
+
+        advance = None
+        if hasattr(c, "kpi_appendices"):
+            kpi = c.kpi_appendices.filter(year=current_year).first()
+            if kpi:
+                advance = kpi.monthly_performance_advance
+
+        ctype = type(c).__name__
+        rows.append({
+            "contract":         c,
+            "employee":         c.employee_id,
+            "dept":             dept,
+            "pos":              pos,
+            "contract_type":    _CONTRACT_LABELS.get(ctype, ctype),
+            "wage":             c.wage,
+            "total_deductions": total_ded,
+            "ded_detail":       ded_detail,
+            "net_estimated":    c.wage - total_ded,
+            "advance":          advance,
+        })
+
+    dept_filter = request.GET.get("dept", "").strip()
+    type_filter = request.GET.get("type", "").strip()
+    if dept_filter:
+        rows = [r for r in rows if str(getattr(r["dept"], "pk", "")) == dept_filter]
+    if type_filter:
+        rows = [r for r in rows if r["contract_type"] == type_filter]
+
+    total_wage         = sum(r["wage"] for r in rows)
+    total_employee_ded = sum(r["total_deductions"] for r in rows)
+    total_net          = sum(r["net_estimated"] for r in rows)
+    total_employer_bh  = sum(_employer_bh(r["wage"]) for r in rows)
+
+    departments = Department.objects.all().order_by("department")
+
+    return render(request, "payroll/contracts_hnh/payroll_overview.html", {
+        "rows":                     rows,
+        "total_wage":               total_wage,
+        "total_employee_deductions": total_employee_ded,
+        "total_net":                total_net,
+        "total_employer_bhxh":      total_employer_bh,
+        "total_employees":          len(rows),
+        "departments":              departments,
+        "dept_filter":              dept_filter,
+        "type_filter":              type_filter,
+        "current_month":            current_month,
+        "current_year":             current_year,
+        "now":                      today,
+    })
 
 
 @login_required

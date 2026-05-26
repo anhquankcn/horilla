@@ -225,6 +225,8 @@ urlpatterns = [
     path("hnh/kpi/<int:pk>/delete/", contract_hnh_views.kpi_appendix_delete, name="kpi-appendix-delete"),
     # JSON API for cascading department → position selector
     path("hnh/api/positions/", contract_hnh_views.hnh_positions_api, name="hnh-positions-api"),
+    # Company-wide payroll overview (all 3 contract types)
+    path("hnh/payroll-overview/", contract_hnh_views.hnh_payroll_overview, name="hnh-payroll-overview"),
     path(
         "contract-bulk-delete",
         views.contract_bulk_delete,
