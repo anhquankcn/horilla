@@ -6,7 +6,7 @@ Employee-facing: submit dependents from profile tab.
 HR-facing: review and approve/reject panel.
 """
 
-import contextlib
+import logging
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required, permission_required
@@ -20,6 +20,8 @@ from employee.models import Employee
 from horilla.decorators import hx_request_required
 from notifications.signals import notify
 from payroll.models.dependent import EmployeeDependent
+
+logger = logging.getLogger(__name__)
 
 
 def _hr_users():
@@ -120,7 +122,7 @@ def dependent_create(request, employee_id):
                 dep.document = document
             dep.save()
 
-            with contextlib.suppress(Exception):
+            try:
                 hr_users = list(_hr_users())
                 if hr_users:
                     notify.send(
@@ -130,6 +132,8 @@ def dependent_create(request, employee_id):
                         description=f"{dep.full_name} ({dep.get_relationship_display()})",
                         icon="people-circle",
                     )
+            except Exception as exc:
+                logger.warning("NPT notify HR failed: %s", exc)
 
             messages.success(
                 request,
@@ -225,14 +229,18 @@ def dependent_approve(request, dep_id):
     dep.reject_reason = None
     dep.save()
 
-    with contextlib.suppress(Exception):
-        notify.send(
-            sender=request.user,
-            recipient=[dep.employee.employee_user_id],
-            verb="Người phụ thuộc của bạn đã được phê duyệt",
-            description=f"{dep.full_name} ({dep.get_relationship_display()})",
-            icon="checkmark-circle",
-        )
+    employee_user = dep.employee.employee_user_id
+    if employee_user:
+        try:
+            notify.send(
+                sender=request.user,
+                recipient=[employee_user],
+                verb="Người phụ thuộc của bạn đã được phê duyệt",
+                description=f"{dep.full_name} ({dep.get_relationship_display()})",
+                icon="checkmark-circle",
+            )
+        except Exception as exc:
+            logger.warning("NPT approve notify failed for %s: %s", dep.employee, exc)
 
     messages.success(
         request,
@@ -261,14 +269,18 @@ def dependent_reject(request, dep_id):
     dep.reject_reason = reason or None
     dep.save()
 
-    with contextlib.suppress(Exception):
-        notify.send(
-            sender=request.user,
-            recipient=[dep.employee.employee_user_id],
-            verb="Người phụ thuộc của bạn đã bị từ chối",
-            description=f"{dep.full_name}: {reason}" if reason else dep.full_name,
-            icon="close-circle",
-        )
+    employee_user = dep.employee.employee_user_id
+    if employee_user:
+        try:
+            notify.send(
+                sender=request.user,
+                recipient=[employee_user],
+                verb="Người phụ thuộc của bạn đã bị từ chối",
+                description=f"{dep.full_name}: {reason}" if reason else dep.full_name,
+                icon="close-circle",
+            )
+        except Exception as exc:
+            logger.warning("NPT reject notify failed for %s: %s", dep.employee, exc)
 
     messages.warning(
         request,

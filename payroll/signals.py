@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime
 
 from django.apps import apps
@@ -8,6 +9,8 @@ from django.utils import timezone
 from employee.models import EmployeeWorkInformation
 from payroll.methods.deductions import create_deductions
 from payroll.models.models import Allowance, Contract, Deduction, LoanAccount, Payslip
+
+logger = logging.getLogger(__name__)
 
 NPT_AMOUNT = 4_400_000.0
 NPT_DEDUCTION_TITLE = "Giảm trừ người phụ thuộc"
@@ -38,11 +41,7 @@ def sync_npt_deduction(sender, instance, **kwargs):
         return
 
     if existing is None:
-        template = Deduction.objects.filter(
-            title=NPT_DEDUCTION_TITLE,
-            include_active_employees=False,
-            specific_employees__isnull=True,
-        ).first()
+        company = employee.get_company()
         new_ded = Deduction(
             title=NPT_DEDUCTION_TITLE,
             is_pretax=True,
@@ -50,7 +49,7 @@ def sync_npt_deduction(sender, instance, **kwargs):
             is_fixed=True,
             amount=new_amount,
             employer_rate=0.0,
-            company_id=template.company_id if template else None,
+            company_id=company,
             if_condition="gt",
             if_amount=0.0,
             if_choice="basic_pay",
