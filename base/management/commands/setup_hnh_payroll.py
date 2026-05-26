@@ -25,7 +25,38 @@ Chạy: python manage.py setup_hnh_payroll
 from django.core.management.base import BaseCommand
 
 from base.models import Company
+from horilla import horilla_middlewares
 from payroll.models.models import Allowance, Deduction, FilingStatus
+
+
+class _MockSession:
+    def get(self, key, default=None):
+        return default
+
+
+class _MockUser:
+    is_authenticated = False
+    is_anonymous = True
+
+
+class _MockRequest:
+    """Stub request so Allowance/Deduction.save() + HorillaModel.save() don't crash."""
+    session = _MockSession()
+    user = _MockUser()
+
+
+def _goc(model_class, lookup, defaults, force=False):
+    """get_or_create compatible with models whose save() has no *args/**kwargs."""
+    obj = model_class.objects.filter(**lookup).first()
+    if obj is None:
+        obj = model_class(**{**lookup, **defaults})
+        obj.save()
+        return obj, True
+    if force:
+        for k, v in defaults.items():
+            setattr(obj, k, v)
+        obj.save()
+    return obj, False
 
 
 # ─── Hằng số bảo hiểm xã hội 2024 ─────────────────────────────────────────────
@@ -133,16 +164,24 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         force = options["force"]
+        # Allowance/Deduction.save() accesses request.session — provide a stub
+        horilla_middlewares._thread_locals.request = _MockRequest()
 
-        company = Company.objects.filter(company="Công ty Du lịch Hồng Ngọc Hà").first()
+        company = (
+            Company.objects.filter(company="Công ty Du lịch Hồng Ngọc Hà").first()
+            or Company.objects.filter(company__icontains="Hồng Ngọc Hà").first()
+            or Company.objects.filter(company__icontains="HNH").first()
+            or Company.objects.first()
+        )
         if not company:
             self.stdout.write(
                 self.style.ERROR(
-                    "❌ Không tìm thấy công ty 'Công ty Du lịch Hồng Ngọc Hà'.\n"
+                    "❌ Không tìm thấy công ty nào trong hệ thống.\n"
                     "   Hãy chạy 'python manage.py setup_hnh_company' trước."
                 )
             )
             return
+        self.stdout.write(f"  Công ty: {company.company}")
 
         # ── 1. FilingStatus — Thuế TNCN ──────────────────────────────────────
         self.stdout.write(self.style.MIGRATE_HEADING("\n[1/5] Cấu hình thuế TNCN"))
@@ -255,14 +294,7 @@ class Command(BaseCommand):
             if cfg["has_max_limit"] and cfg["maximum_amount"] is not None:
                 defaults["maximum_amount"] = cfg["maximum_amount"]
 
-            ded, created = Deduction.objects.get_or_create(
-                title=cfg["title"],
-                defaults=defaults,
-            )
-            if not created and force:
-                for k, v in defaults.items():
-                    setattr(ded, k, v)
-                ded.save()
+            ded, created = _goc(Deduction, {"title": cfg["title"]}, defaults, force)
             self._log(created, force, cfg["title"] + (f"  ({cfg['note']})" if not created else ""))
 
         # ── 3. Allowances cho tất cả NV ─────────────────────────────────────
@@ -278,11 +310,7 @@ class Command(BaseCommand):
                 "if_condition": "gt",
                 "if_amount": 0.0,
             }
-            alw, created = Allowance.objects.get_or_create(title=title, defaults=defaults)
-            if not created and force:
-                for k, v in defaults.items():
-                    setattr(alw, k, v)
-                alw.save()
+            alw, created = _goc(Allowance, {"title": title}, defaults, force)
             taxable_label = "chịu thuế" if is_taxable else "miễn thuế"
             self._log(created, force, f"{title} ({amount:,.0f} VND, {taxable_label})")
             if not created:
@@ -305,12 +333,7 @@ class Command(BaseCommand):
                 "if_condition": "gt",
                 "if_amount": 0.0,
             }
-            alw, created = Allowance.objects.get_or_create(title=title, defaults=defaults)
-            if not created and force:
-                for k, v in defaults.items():
-                    if k != "include_active_employees":
-                        setattr(alw, k, v)
-                alw.save()
+            alw, created = _goc(Allowance, {"title": title}, defaults, force)
             taxable_label = "chịu thuế" if is_taxable else "miễn thuế"
             mark = "✔" if created else " "
             self.stdout.write(f"  {mark} {title} ({taxable_label})")
@@ -336,12 +359,7 @@ class Command(BaseCommand):
                 "if_amount": 0.0,
                 "if_choice": "basic_pay",
             }
-            ded, created = Deduction.objects.get_or_create(title=title, defaults=defaults)
-            if not created and force:
-                for k, v in defaults.items():
-                    if k != "include_active_employees":
-                        setattr(ded, k, v)
-                ded.save()
+            ded, created = _goc(Deduction, {"title": title}, defaults, force)
             pretax_label = "pre-tax" if is_pretax else "post-tax"
             mark = "✔" if created else " "
             self.stdout.write(f"  {mark} {title} ({pretax_label})")
