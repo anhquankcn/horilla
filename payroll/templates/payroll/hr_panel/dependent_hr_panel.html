@@ -1,0 +1,157 @@
+{% extends "index.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block content %}
+<meta name="csrf-token" content="{{ csrf_token }}">
+
+<div class="oh-wrapper oh-wrapper--full-width py-4 px-3">
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <div>
+      <h2 class="oh-inner-sidebar-content__title mb-0">
+        Phê duyệt Người Phụ Thuộc NPT
+      </h2>
+      <p class="text-muted mb-0" style="font-size:13px;">
+        Quản lý đăng ký giảm trừ người phụ thuộc của nhân viên (4.400.000đ/người/tháng)
+      </p>
+    </div>
+    <a href="/payroll/dependent-export/"
+       class="oh-btn oh-btn--secondary"
+       style="font-size:13px;background:#c0222b;border-color:#c0222b;color:#fff;">
+      <ion-icon name="download-outline" style="font-size:14px;vertical-align:middle;"></ion-icon>
+      Xuất CSV (đã duyệt)
+    </a>
+  </div>
+
+  <!-- Status filter tabs -->
+  <div class="oh-card oh-card--margin mb-3">
+    <div class="oh-card__body py-2 px-3">
+      <div class="d-flex gap-2 flex-wrap" style="font-size:13px;">
+        <a href="?status=all"
+           class="oh-btn {% if status_filter == 'all' %}oh-btn--secondary{% else %}oh-btn--light{% endif %}"
+           style="font-size:12px;padding:4px 12px;">Tất cả</a>
+        <a href="?status=pending"
+           class="oh-btn {% if status_filter == 'pending' %}oh-btn--secondary{% else %}oh-btn--light{% endif %}"
+           style="font-size:12px;padding:4px 12px;{% if status_filter == 'pending' %}background:#c0222b;border-color:#c0222b;color:#fff;{% endif %}">
+           Chờ duyệt
+        </a>
+        <a href="?status=approved"
+           class="oh-btn {% if status_filter == 'approved' %}oh-btn--secondary{% else %}oh-btn--light{% endif %}"
+           style="font-size:12px;padding:4px 12px;">Đã duyệt</a>
+        <a href="?status=rejected"
+           class="oh-btn {% if status_filter == 'rejected' %}oh-btn--secondary{% else %}oh-btn--light{% endif %}"
+           style="font-size:12px;padding:4px 12px;">Từ chối</a>
+        <a href="?status=inactive"
+           class="oh-btn {% if status_filter == 'inactive' %}oh-btn--secondary{% else %}oh-btn--light{% endif %}"
+           style="font-size:12px;padding:4px 12px;">Ngừng HH</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dependents table -->
+  <div class="oh-card oh-card--margin">
+    <div class="oh-card__body p-0">
+      {% if dependents %}
+      <div class="table-responsive">
+        <table class="oh-table oh-table--bordered oh-table--hover" style="font-size:13px;">
+          <thead class="table-light">
+            <tr>
+              <th>Nhân viên</th>
+              <th>Họ và tên NPT</th>
+              <th>Ngày sinh</th>
+              <th>Quan hệ</th>
+              <th>MST NPT</th>
+              <th>Ngày hiệu lực</th>
+              <th>Tài liệu</th>
+              <th>Ghi chú</th>
+              <th>Trạng thái</th>
+              <th>Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for dep in dependents %}
+            <tr>
+              <td>
+                <a href="/employee/{{ dep.employee.id }}/" style="color:#c0222b;text-decoration:none;">
+                  {{ dep.employee }}
+                </a>
+              </td>
+              <td><strong>{{ dep.full_name }}</strong></td>
+              <td>{{ dep.dob|date:"d/m/Y" }}</td>
+              <td>{{ dep.get_relationship_display }}</td>
+              <td>
+                {{ dep.mst_npt|default:"—" }}
+                {% if not dep.mst_npt %}
+                <span title="Thiếu MST — cần bổ sung trước quyết toán" style="color:#e67e22;">⚠</span>
+                {% endif %}
+              </td>
+              <td>{{ dep.start_date|date:"d/m/Y" }}</td>
+              <td>
+                {% if dep.document %}
+                <a href="{{ dep.document.url }}" target="_blank" style="color:#c0222b;font-size:12px;">
+                  <ion-icon name="document-outline" style="font-size:14px;vertical-align:middle;"></ion-icon>
+                  Xem
+                </a>
+                {% else %}
+                <span class="text-muted">—</span>
+                {% endif %}
+              </td>
+              <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+                  {% if dep.note %}title="{{ dep.note }}"{% endif %}>
+                {{ dep.note|default:"—"|truncatechars:40 }}
+              </td>
+              <td>
+                {% if dep.status == "pending" %}
+                <span class="oh-badge oh-badge--warning" style="font-size:11px;">Chờ duyệt</span>
+                {% elif dep.status == "approved" %}
+                <span class="oh-badge oh-badge--success" style="font-size:11px;">Đã duyệt</span>
+                {% elif dep.status == "rejected" %}
+                <span class="oh-badge oh-badge--danger"
+                      style="font-size:11px;"
+                      {% if dep.reject_reason %}title="{{ dep.reject_reason }}"{% endif %}>
+                  Từ chối
+                </span>
+                {% else %}
+                <span class="oh-badge" style="font-size:11px;background:#6c757d;color:#fff;">Ngừng HH</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if dep.status == "pending" %}
+                <div class="d-flex gap-1">
+                  <a href="/payroll/dependent-approve/{{ dep.id }}/?status={{ status_filter }}"
+                     class="oh-btn oh-btn--success"
+                     style="font-size:11px;padding:3px 10px;"
+                     onclick="return confirm('Duyệt người phụ thuộc \'{{ dep.full_name }}\'?')">
+                    Duyệt
+                  </a>
+                  <a href="/payroll/dependent-reject/{{ dep.id }}/"
+                     class="oh-btn oh-btn--danger-outline"
+                     style="font-size:11px;padding:3px 10px;">
+                    Từ chối
+                  </a>
+                </div>
+                {% elif dep.status == "approved" %}
+                <a href="/payroll/dependent-reject/{{ dep.id }}/"
+                   class="oh-btn oh-btn--light"
+                   style="font-size:11px;padding:3px 10px;">
+                  Ngừng HH
+                </a>
+                {% else %}
+                <span class="text-muted" style="font-size:11px;">—</span>
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="p-4 text-center text-muted" style="font-size:13px;">
+        Không có đăng ký nào ở trạng thái
+        {% for v, l in status_choices %}{% if v == status_filter %}"{{ l }}"{% endif %}{% endfor %}.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

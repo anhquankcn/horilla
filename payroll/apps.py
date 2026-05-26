@@ -26,4 +26,18 @@ class PayrollConfig(AppConfig):
         urlpatterns.append(
             path("payroll/", include("payroll.urls.urls")),
         )
+
+        from employee.cbv.employee_profile import EmployeeProfileView
+        from payroll.views.dependent_views import dependent_tab
+
+        EmployeeProfileView.add_tab(
+            tabs=[
+                {
+                    "title": "Người Phụ Thuộc",
+                    "view": dependent_tab,
+                    "url": "/payroll/dependent-tab/{pk}/",
+                }
+            ]
+        )
+
         return ready

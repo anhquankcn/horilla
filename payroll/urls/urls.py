@@ -8,7 +8,7 @@ from django.urls import include, path
 
 from payroll.cbv import contracts, dashboard, payslip_automation
 from payroll.models.models import Contract, Payslip
-from payroll.views import views
+from payroll.views import dependent_views, views
 
 urlpatterns = [
     path("", include("payroll.urls.component_urls")),
@@ -144,6 +144,42 @@ urlpatterns = [
         name="update-batch-group-name",
     ),
     path("contract-export", views.contract_export, name="contract-export"),
+    # ===========================Người Phụ Thuộc NPT================================
+    path(
+        "dependent-tab/<int:pk>/",
+        dependent_views.dependent_tab,
+        name="dependent-tab",
+    ),
+    path(
+        "dependent-create/<int:employee_id>/",
+        dependent_views.dependent_create,
+        name="dependent-create",
+    ),
+    path(
+        "dependent-delete/<int:dep_id>/",
+        dependent_views.dependent_delete,
+        name="dependent-delete",
+    ),
+    path(
+        "dependent-hr-panel/",
+        dependent_views.dependent_hr_panel,
+        name="dependent-hr-panel",
+    ),
+    path(
+        "dependent-approve/<int:dep_id>/",
+        dependent_views.dependent_approve,
+        name="dependent-approve",
+    ),
+    path(
+        "dependent-reject/<int:dep_id>/",
+        dependent_views.dependent_reject,
+        name="dependent-reject",
+    ),
+    path(
+        "dependent-export/",
+        dependent_views.dependent_export_csv,
+        name="dependent-export",
+    ),
     path(
         "contract-bulk-delete",
         views.contract_bulk_delete,

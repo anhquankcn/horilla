@@ -1,0 +1,106 @@
+{% load i18n %}
+{% load static %}
+<div class="oh-card oh-card--margin" id="dependent-tab-container">
+  <div class="oh-card__header d-flex justify-content-between align-items-center">
+    <span class="oh-card__title oh-card__title--sm fw-bold me-2">
+      Người Phụ Thuộc (NPT — Giảm trừ TNCN)
+    </span>
+    {% if can_add %}
+    <button
+      class="oh-btn oh-btn--secondary oh-btn--shadow"
+      style="background:#c0222b;border-color:#c0222b;color:#fff;font-size:13px;padding:4px 12px;"
+      hx-get="/payroll/dependent-create/{{ employee.id }}/"
+      hx-target="#dependent-modal-container"
+      hx-swap="innerHTML"
+    >
+      <ion-icon name="add-circle-outline" style="font-size:15px;vertical-align:middle;"></ion-icon>
+      Thêm NPT
+    </button>
+    {% endif %}
+  </div>
+
+  <div id="dependent-modal-container"></div>
+
+  <div class="oh-card__body mt-2">
+    {% if dependents %}
+    <div class="table-responsive">
+      <table class="oh-table oh-table--bordered oh-table--hover" style="font-size:13px;">
+        <thead>
+          <tr>
+            <th>Họ và tên</th>
+            <th>Ngày sinh</th>
+            <th>Quan hệ</th>
+            <th>MST NPT</th>
+            <th>Ngày hiệu lực</th>
+            <th>Trạng thái</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for dep in dependents %}
+          <tr>
+            <td>{{ dep.full_name }}</td>
+            <td>{{ dep.dob|date:"d/m/Y" }}</td>
+            <td>{{ dep.get_relationship_display }}</td>
+            <td>
+              {{ dep.mst_npt|default:"—" }}
+              {% if not dep.mst_npt %}
+              <span title="Thiếu MST — cần bổ sung trước quyết toán thuế" style="color:#c0222b;cursor:help;">⚠</span>
+              {% endif %}
+            </td>
+            <td>{{ dep.start_date|date:"d/m/Y" }}</td>
+            <td>
+              {% if dep.status == "pending" %}
+              <span class="oh-badge oh-badge--warning" style="font-size:11px;">Chờ duyệt</span>
+              {% elif dep.status == "approved" %}
+              <span class="oh-badge oh-badge--success" style="font-size:11px;">Đã duyệt</span>
+              {% elif dep.status == "rejected" %}
+              <span class="oh-badge oh-badge--danger"
+                    style="font-size:11px;"
+                    {% if dep.reject_reason %}title="{{ dep.reject_reason }}"{% endif %}>
+                Từ chối
+              </span>
+              {% else %}
+              <span class="oh-badge" style="font-size:11px;background:#6c757d;color:#fff;">Ngừng HH</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if dep.status == "pending" %}
+              <button
+                class="oh-btn oh-btn--danger-outline"
+                style="font-size:11px;padding:2px 8px;"
+                hx-post="/payroll/dependent-delete/{{ dep.id }}/"
+                hx-target="#dependent-tab-container"
+                hx-swap="outerHTML"
+                hx-confirm="Xóa người phụ thuộc '{{ dep.full_name }}'?"
+                hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+              >Xóa</button>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-muted" style="font-size:13px;">Chưa có người phụ thuộc nào được đăng ký.</p>
+    {% endif %}
+
+    {% with count=dependents|length approved=employee.dependents.all %}
+    {% with approved_count=employee.dependents.count %}
+    {% endwith %}
+    {% endwith %}
+    {% comment %}Show approved count + deduction amount{% endcomment %}
+    {% with approved_deps=employee.dependents.all %}
+    {% if approved_deps %}
+    <div class="mt-3 p-2" style="background:#f8f9fa;border-radius:6px;font-size:13px;border-left:3px solid #c0222b;">
+      <strong>Giảm trừ NPT tháng này:</strong>
+      <span style="color:#c0222b;">
+        {{ employee.dependents.count }} NPT
+      </span>
+      — dựa trên số NPT đã duyệt, tự động cập nhật vào bảng lương.
+    </div>
+    {% endif %}
+    {% endwith %}
+  </div>
+</div>

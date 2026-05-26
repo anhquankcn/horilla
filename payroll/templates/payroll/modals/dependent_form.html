@@ -1,0 +1,108 @@
+{% load i18n %}
+<div class="oh-card oh-card--margin" style="border:1px solid #dee2e6;margin-top:12px;">
+  <div class="oh-card__header d-flex justify-content-between align-items-center">
+    <span class="oh-card__title oh-card__title--sm fw-bold">
+      Đăng ký Người Phụ Thuộc mới
+    </span>
+    <button type="button"
+            class="btn-close"
+            onclick="document.getElementById('dependent-modal-container').innerHTML='';"
+            style="font-size:12px;"></button>
+  </div>
+  <div class="oh-card__body">
+    <form method="post"
+          action="/payroll/dependent-create/{{ employee.id }}/"
+          enctype="multipart/form-data"
+          hx-post="/payroll/dependent-create/{{ employee.id }}/"
+          hx-target="#dependent-tab-container"
+          hx-swap="outerHTML"
+          hx-encoding="multipart/form-data">
+      {% csrf_token %}
+
+      <div class="row">
+        <div class="col-md-6 mb-3">
+          <label class="oh-label" for="dep-full-name">Họ và tên NPT <span style="color:#c0222b">*</span></label>
+          <input type="text" id="dep-full-name" name="full_name"
+                 class="oh-input w-100 {% if errors.full_name %}is-invalid{% endif %}"
+                 value="{{ form.full_name|default:'' }}"
+                 placeholder="Nguyễn Văn A" required />
+          {% if errors.full_name %}
+          <div style="color:#c0222b;font-size:12px;">{{ errors.full_name }}</div>
+          {% endif %}
+        </div>
+
+        <div class="col-md-6 mb-3">
+          <label class="oh-label" for="dep-dob">Ngày sinh <span style="color:#c0222b">*</span></label>
+          <input type="date" id="dep-dob" name="dob"
+                 class="oh-input w-100 {% if errors.dob %}is-invalid{% endif %}"
+                 value="{{ form.dob|default:'' }}" required />
+          {% if errors.dob %}
+          <div style="color:#c0222b;font-size:12px;">{{ errors.dob }}</div>
+          {% endif %}
+        </div>
+
+        <div class="col-md-6 mb-3">
+          <label class="oh-label" for="dep-relationship">Quan hệ <span style="color:#c0222b">*</span></label>
+          <select id="dep-relationship" name="relationship"
+                  class="oh-input oh-input--select w-100 {% if errors.relationship %}is-invalid{% endif %}" required>
+            <option value="">-- Chọn quan hệ --</option>
+            {% for value, label in relationship_choices %}
+            <option value="{{ value }}" {% if form.relationship == value %}selected{% endif %}>{{ label }}</option>
+            {% endfor %}
+          </select>
+          {% if errors.relationship %}
+          <div style="color:#c0222b;font-size:12px;">{{ errors.relationship }}</div>
+          {% endif %}
+        </div>
+
+        <div class="col-md-6 mb-3">
+          <label class="oh-label" for="dep-mst">MST Người Phụ Thuộc</label>
+          <input type="text" id="dep-mst" name="mst_npt"
+                 class="oh-input w-100"
+                 value="{{ form.mst_npt|default:'' }}"
+                 placeholder="VD: 0123456789 (nếu có)" />
+          <small class="text-muted" style="font-size:11px;">
+            ⚠ Cần có MST để nộp quyết toán thuế. Trẻ dưới 6 tuổi có thể để trống.
+          </small>
+        </div>
+
+        <div class="col-md-6 mb-3">
+          <label class="oh-label" for="dep-start-date">Ngày đăng ký hiệu lực <span style="color:#c0222b">*</span></label>
+          <input type="date" id="dep-start-date" name="start_date"
+                 class="oh-input w-100 {% if errors.start_date %}is-invalid{% endif %}"
+                 value="{{ form.start_date|default:'' }}" required />
+          {% if errors.start_date %}
+          <div style="color:#c0222b;font-size:12px;">{{ errors.start_date }}</div>
+          {% endif %}
+        </div>
+
+        <div class="col-md-6 mb-3">
+          <label class="oh-label" for="dep-document">Giấy tờ đính kèm</label>
+          <input type="file" id="dep-document" name="document"
+                 class="oh-input w-100"
+                 accept=".pdf,.jpg,.jpeg,.png" />
+          <small class="text-muted" style="font-size:11px;">Giấy khai sinh, hôn thú... (PDF/ảnh)</small>
+        </div>
+
+        <div class="col-12 mb-3">
+          <label class="oh-label" for="dep-note">Ghi chú</label>
+          <textarea id="dep-note" name="note" class="oh-input w-100" rows="2"
+                    placeholder="Ghi chú thêm nếu cần...">{{ form.note|default:'' }}</textarea>
+        </div>
+      </div>
+
+      <div class="d-flex gap-2 justify-content-end">
+        <button type="button"
+                class="oh-btn oh-btn--light"
+                onclick="document.getElementById('dependent-modal-container').innerHTML='';">
+          Hủy
+        </button>
+        <button type="submit"
+                class="oh-btn oh-btn--secondary oh-btn--shadow"
+                style="background:#c0222b;border-color:#c0222b;color:#fff;">
+          Gửi đăng ký
+        </button>
+      </div>
+    </form>
+  </div>
+</div>

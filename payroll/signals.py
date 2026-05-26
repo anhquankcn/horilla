@@ -3,10 +3,65 @@ from datetime import datetime
 from django.apps import apps
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
+from django.utils import timezone
 
 from employee.models import EmployeeWorkInformation
 from payroll.methods.deductions import create_deductions
 from payroll.models.models import Allowance, Contract, Deduction, LoanAccount, Payslip
+
+NPT_AMOUNT = 4_400_000.0
+NPT_DEDUCTION_TITLE = "Giảm trừ người phụ thuộc"
+
+
+@receiver(post_save, sender="payroll.EmployeeDependent")
+def sync_npt_deduction(sender, instance, **kwargs):
+    from horilla.horilla_middlewares import _thread_locals
+
+    if not getattr(_thread_locals, "request", None):
+        from base.management.commands.setup_hnh_payroll import _MockRequest
+
+        _thread_locals.request = _MockRequest()
+
+    employee = instance.employee
+    user_obj = employee.employee_user_id
+    approved_count = employee.dependents.filter(status="approved").count()
+    new_amount = NPT_AMOUNT * approved_count
+
+    existing = Deduction.objects.filter(
+        title=NPT_DEDUCTION_TITLE,
+        specific_employees=user_obj,
+        include_active_employees=False,
+    ).first()
+
+    if approved_count == 0:
+        if existing:
+            existing.delete()
+        return
+
+    if existing is None:
+        template = Deduction.objects.filter(
+            title=NPT_DEDUCTION_TITLE,
+            include_active_employees=False,
+            specific_employees__isnull=True,
+        ).first()
+        new_ded = Deduction(
+            title=NPT_DEDUCTION_TITLE,
+            is_pretax=True,
+            is_tax=False,
+            is_fixed=True,
+            amount=new_amount,
+            employer_rate=0.0,
+            company_id=template.company_id if template else None,
+            if_condition="gt",
+            if_amount=0.0,
+            if_choice="basic_pay",
+            include_active_employees=False,
+        )
+        new_ded.save()
+        new_ded.specific_employees.set([user_obj])
+    else:
+        existing.amount = new_amount
+        existing.save()
 
 
 @receiver(pre_save, sender=EmployeeWorkInformation)
