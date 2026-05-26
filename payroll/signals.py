@@ -2,6 +2,7 @@ import logging
 from datetime import datetime
 
 from django.apps import apps
+from django.db.models import Q
 from django.db.models.signals import post_save, pre_save
 from django.dispatch import receiver
 from django.utils import timezone
@@ -26,7 +27,12 @@ def sync_npt_deduction(sender, instance, **kwargs):
         _thread_locals.request = _MockRequest()
 
     employee = instance.employee
-    approved_count = employee.dependents.filter(status="approved").count()
+    today = timezone.localdate()
+    approved_count = employee.dependents.filter(
+        status="approved",
+    ).filter(
+        Q(end_date__isnull=True) | Q(end_date__gte=today)
+    ).count()
     new_amount = NPT_AMOUNT * approved_count
 
     existing = Deduction.objects.filter(

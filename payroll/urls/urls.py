@@ -176,6 +176,11 @@ urlpatterns = [
         name="dependent-reject",
     ),
     path(
+        "dependent-deactivate/<int:dep_id>/",
+        dependent_views.dependent_deactivate,
+        name="dependent-deactivate",
+    ),
+    path(
         "dependent-export/",
         dependent_views.dependent_export_csv,
         name="dependent-export",

@@ -15,7 +15,6 @@ from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from base.methods import get_key_instances
 from employee.models import Employee
 from horilla.decorators import hx_request_required
 from notifications.signals import notify
@@ -44,8 +43,18 @@ def _hr_users():
 @login_required
 @hx_request_required
 def dependent_tab(request, pk, **kwargs):
+    from django.db.models import Q
+    from django.utils import timezone
+
     employee = get_object_or_404(Employee, pk=pk)
     dependents = employee.dependents.all().order_by("status", "full_name")
+    today = timezone.localdate()
+    approved_count = employee.dependents.filter(
+        status="approved",
+    ).filter(
+        Q(end_date__isnull=True) | Q(end_date__gte=today)
+    ).count()
+    npt_amount = 4_400_000
     return render(
         request,
         "payroll/tabs/dependent_tab.html",
@@ -53,6 +62,8 @@ def dependent_tab(request, pk, **kwargs):
             "employee": employee,
             "dependents": dependents,
             "can_add": True,
+            "approved_count": approved_count,
+            "npt_deduction": approved_count * npt_amount,
         },
     )
 
@@ -287,6 +298,40 @@ def dependent_reject(request, dep_id):
         f"Đã từ chối người phụ thuộc '{dep.full_name}' của {dep.employee}.",
     )
     status_filter = request.GET.get("status", "pending")
+    return redirect(f"/payroll/dependent-hr-panel/?status={status_filter}")
+
+
+@login_required
+@permission_required("payroll.change_employeedependent")
+def dependent_deactivate(request, dep_id):
+    dep = get_object_or_404(EmployeeDependent, pk=dep_id)
+    if dep.status != EmployeeDependent.StatusChoice.APPROVED:
+        messages.error(request, "Chỉ có thể ngừng hiệu lực NPT đang được duyệt.")
+        return redirect("/payroll/dependent-hr-panel/")
+
+    dep.status = EmployeeDependent.StatusChoice.INACTIVE
+    dep.approved_by = request.user
+    dep.approved_at = timezone.now()
+    dep.save()
+
+    employee_user = dep.employee.employee_user_id
+    if employee_user:
+        try:
+            notify.send(
+                sender=request.user,
+                recipient=[employee_user],
+                verb="Người phụ thuộc của bạn đã bị ngừng hiệu lực",
+                description=dep.full_name,
+                icon="close-circle",
+            )
+        except Exception as exc:
+            logger.warning("NPT deactivate notify failed for %s: %s", dep.employee, exc)
+
+    messages.warning(
+        request,
+        f"Đã ngừng hiệu lực người phụ thuộc '{dep.full_name}' của {dep.employee}.",
+    )
+    status_filter = request.GET.get("status", "approved")
     return redirect(f"/payroll/dependent-hr-panel/?status={status_filter}")
 
 

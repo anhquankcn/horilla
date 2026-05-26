@@ -131,9 +131,10 @@
                   </a>
                 </div>
                 {% elif dep.status == "approved" %}
-                <a href="/payroll/dependent-reject/{{ dep.id }}/"
+                <a href="/payroll/dependent-deactivate/{{ dep.id }}/?status={{ status_filter }}"
                    class="oh-btn oh-btn--light"
-                   style="font-size:11px;padding:3px 10px;">
+                   style="font-size:11px;padding:3px 10px;"
+                   onclick="return confirm('Ngừng hiệu lực NPT \'{{ dep.full_name }}\'?')">
                   Ngừng HH
                 </a>
                 {% else %}
