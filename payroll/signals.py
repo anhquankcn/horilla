@@ -23,13 +23,12 @@ def sync_npt_deduction(sender, instance, **kwargs):
         _thread_locals.request = _MockRequest()
 
     employee = instance.employee
-    user_obj = employee.employee_user_id
     approved_count = employee.dependents.filter(status="approved").count()
     new_amount = NPT_AMOUNT * approved_count
 
     existing = Deduction.objects.filter(
         title=NPT_DEDUCTION_TITLE,
-        specific_employees=user_obj,
+        specific_employees=employee,
         include_active_employees=False,
     ).first()
 
@@ -58,7 +57,7 @@ def sync_npt_deduction(sender, instance, **kwargs):
             include_active_employees=False,
         )
         new_ded.save()
-        new_ded.specific_employees.set([user_obj])
+        new_ded.specific_employees.set([employee])
     else:
         existing.amount = new_amount
         existing.save()
