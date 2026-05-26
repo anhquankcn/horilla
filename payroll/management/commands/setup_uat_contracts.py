@@ -18,7 +18,7 @@ from datetime import date
 from django.core.management.base import BaseCommand
 
 from employee.models import Employee
-from payroll.models.contract_models import ContractKPIAppendix, TrialContract
+from payroll.models.contract_models import TrialContract
 
 logger = logging.getLogger(__name__)
 
@@ -294,7 +294,6 @@ class Command(BaseCommand):
 
             try:
                 if existing and force:
-                    existing.kpi_appendices.all().delete()
                     existing.delete()
 
                 contract = TrialContract.objects.create(
@@ -308,25 +307,6 @@ class Command(BaseCommand):
                     consent_agreed=False,
                 )
 
-                # Phu luc 1 — KPI & thu nhap nam
-                ContractKPIAppendix.objects.create(
-                    contract=contract,
-                    year=UAT_YEAR,
-                    position=pos_obj,
-                    annual_income_min=annual_min,
-                    annual_income_max=annual_max,
-                    kpi_description=(
-                        f"UAT PM — Nghiem thu cong thuc tinh luong, BHXH, TNCN cho vi tri "
-                        f"{pos_name} ({dept}). "
-                        f"Thu nhap nganh du lich/lu hanh VN 2025-2026."
-                    ),
-                    kpi_pct_90_100=100.0,
-                    kpi_pct_75_89=85.0,
-                    kpi_pct_60_74=70.0,
-                    kpi_below_60=0.0,
-                    monthly_performance_advance=monthly_mid,
-                )
-
                 if force and existing:
                     self.stdout.write(
                         f"  [UPDATE] {emp.get_full_name()} | {pos_name} | {monthly_mid:,}d/thang"
@@ -334,8 +314,7 @@ class Command(BaseCommand):
                     updated += 1
                 else:
                     self.stdout.write(
-                        f"  [OK] {emp.get_full_name()} | {pos_name} | {monthly_mid:,}d/thang | "
-                        f"nam {UAT_YEAR}: [{annual_min:,} – {annual_max:,}]"
+                        f"  [OK] {emp.get_full_name()} | {pos_name} | {monthly_mid:,}d/thang"
                     )
                     created += 1
 
