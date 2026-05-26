@@ -60,7 +60,10 @@
           <input type="text" id="dep-mst" name="mst_npt"
                  class="oh-input w-100 {% if errors.mst_npt %}is-invalid{% endif %}"
                  value="{{ form.mst_npt|default:'' }}"
-                 placeholder="VD: 0123456789 (nếu có)" />
+                 placeholder="VD: 0123456789"
+                 pattern="[0-9]{10}"
+                 maxlength="10"
+                 title="MST phải gồm đúng 10 chữ số" />
           {% if errors.mst_npt %}
           <div style="color:#c0222b;font-size:12px;margin-top:4px;">
             <strong>Lỗi:</strong> {{ errors.mst_npt }}

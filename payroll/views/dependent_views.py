@@ -97,7 +97,9 @@ def dependent_create(request, employee_id):
         if not start_date:
             errors["start_date"] = "Vui lòng nhập ngày đăng ký hiệu lực."
 
-        if mst_npt:
+        if mst_npt and (not mst_npt.isdigit() or len(mst_npt) != 10):
+            errors["mst_npt"] = "MST phải gồm đúng 10 chữ số."
+        elif mst_npt:
             conflict = (
                 EmployeeDependent.objects.filter(mst_npt=mst_npt)
                 .exclude(employee=employee)
@@ -150,6 +152,12 @@ def dependent_create(request, employee_id):
                 request,
                 f"Đã gửi đăng ký người phụ thuộc '{full_name}' — chờ HR phê duyệt.",
             )
+            from django.db.models import Q as _Q
+
+            today = timezone.localdate()
+            approved_count = employee.dependents.filter(status="approved").filter(
+                _Q(end_date__isnull=True) | _Q(end_date__gte=today)
+            ).count()
             return render(
                 request,
                 "payroll/tabs/dependent_tab.html",
@@ -157,18 +165,33 @@ def dependent_create(request, employee_id):
                     "employee": employee,
                     "dependents": employee.dependents.all().order_by("status", "full_name"),
                     "can_add": True,
+                    "approved_count": approved_count,
+                    "npt_deduction": approved_count * 4_400_000,
                 },
             )
 
+        # On validation error: return the full tab with the form embedded so the
+        # HTMX outerHTML swap of #dependent-tab-container keeps the tab structure.
+        from django.db.models import Q as _Q
+
+        today = timezone.localdate()
+        approved_count = employee.dependents.filter(status="approved").filter(
+            _Q(end_date__isnull=True) | _Q(end_date__gte=today)
+        ).count()
         return render(
             request,
-            "payroll/modals/dependent_form.html",
+            "payroll/tabs/dependent_tab.html",
             {
                 "employee": employee,
+                "dependents": employee.dependents.all().order_by("status", "full_name"),
+                "can_add": True,
+                "approved_count": approved_count,
+                "npt_deduction": approved_count * 4_400_000,
+                "show_form": True,
+                "form_errors": errors,
+                "form_warnings": warnings,
+                "form_data": request.POST,
                 "relationship_choices": EmployeeDependent.RelationshipChoice.choices,
-                "errors": errors,
-                "warnings": warnings,
-                "form": request.POST,
             },
         )
 
@@ -199,6 +222,12 @@ def dependent_delete(request, dep_id):
 
     dep.delete()
     messages.success(request, "Đã xóa người phụ thuộc.")
+    from django.db.models import Q as _Q
+
+    today = timezone.localdate()
+    approved_count = employee.dependents.filter(status="approved").filter(
+        _Q(end_date__isnull=True) | _Q(end_date__gte=today)
+    ).count()
     return render(
         request,
         "payroll/tabs/dependent_tab.html",
@@ -206,6 +235,8 @@ def dependent_delete(request, dep_id):
             "employee": employee,
             "dependents": employee.dependents.all().order_by("status", "full_name"),
             "can_add": True,
+            "approved_count": approved_count,
+            "npt_deduction": approved_count * 4_400_000,
         },
     )
 
@@ -213,7 +244,12 @@ def dependent_delete(request, dep_id):
 @login_required
 @permission_required("payroll.change_employeedependent")
 def dependent_hr_panel(request):
+    from django.db.models import Count
+
     status_filter = request.GET.get("status", "pending")
+    counts_qs = EmployeeDependent.objects.values("status").annotate(n=Count("id"))
+    count_by_status = {row["status"]: row["n"] for row in counts_qs}
+
     dependents = EmployeeDependent.objects.select_related("employee", "approved_by")
     if status_filter and status_filter != "all":
         dependents = dependents.filter(status=status_filter)
@@ -226,6 +262,7 @@ def dependent_hr_panel(request):
             "dependents": dependents,
             "status_filter": status_filter,
             "status_choices": EmployeeDependent.StatusChoice.choices,
+            "count_by_status": count_by_status,
         },
     )
 
@@ -258,7 +295,12 @@ def dependent_approve(request, dep_id):
         f"Đã duyệt người phụ thuộc '{dep.full_name}' của {dep.employee}.",
     )
     status_filter = request.GET.get("status", "pending")
-    return redirect(f"/payroll/dependent-hr-panel/?status={status_filter}")
+    redirect_url = f"/payroll/dependent-hr-panel/?status={status_filter}"
+    if request.headers.get("HX-Request"):
+        response = HttpResponse()
+        response["HX-Redirect"] = redirect_url
+        return response
+    return redirect(redirect_url)
 
 
 @login_required
@@ -266,10 +308,11 @@ def dependent_approve(request, dep_id):
 def dependent_reject(request, dep_id):
     if request.method != "POST":
         dep = get_object_or_404(EmployeeDependent, pk=dep_id)
+        status_filter = request.GET.get("status", "pending")
         return render(
             request,
             "payroll/modals/dependent_reject_form.html",
-            {"dep": dep},
+            {"dep": dep, "status_filter": status_filter},
         )
 
     dep = get_object_or_404(EmployeeDependent, pk=dep_id)
@@ -298,7 +341,12 @@ def dependent_reject(request, dep_id):
         f"Đã từ chối người phụ thuộc '{dep.full_name}' của {dep.employee}.",
     )
     status_filter = request.GET.get("status", "pending")
-    return redirect(f"/payroll/dependent-hr-panel/?status={status_filter}")
+    redirect_url = f"/payroll/dependent-hr-panel/?status={status_filter}"
+    if request.headers.get("HX-Request"):
+        response = HttpResponse()
+        response["HX-Redirect"] = redirect_url
+        return response
+    return redirect(redirect_url)
 
 
 @login_required
@@ -332,7 +380,12 @@ def dependent_deactivate(request, dep_id):
         f"Đã ngừng hiệu lực người phụ thuộc '{dep.full_name}' của {dep.employee}.",
     )
     status_filter = request.GET.get("status", "approved")
-    return redirect(f"/payroll/dependent-hr-panel/?status={status_filter}")
+    redirect_url = f"/payroll/dependent-hr-panel/?status={status_filter}"
+    if request.headers.get("HX-Request"):
+        response = HttpResponse()
+        response["HX-Redirect"] = redirect_url
+        return response
+    return redirect(redirect_url)
 
 
 @login_required

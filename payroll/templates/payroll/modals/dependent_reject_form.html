@@ -1,16 +1,23 @@
 {% load i18n %}
-<div class="oh-card oh-card--margin" style="max-width:500px;margin:0 auto;border:1px solid #dee2e6;">
-  <div class="oh-card__header">
+<div class="oh-card oh-card--margin" style="max-width:500px;border:1px solid #dee2e6;">
+  <div class="oh-card__header d-flex justify-content-between align-items-center">
     <span class="oh-card__title oh-card__title--sm fw-bold">
       Từ chối người phụ thuộc
     </span>
+    <button type="button"
+            class="btn-close"
+            onclick="document.getElementById('hr-modal-container').innerHTML='';"
+            style="font-size:12px;"></button>
   </div>
   <div class="oh-card__body">
     <p style="font-size:13px;">
       <strong>{{ dep.full_name }}</strong> ({{ dep.get_relationship_display }})
       — {{ dep.employee }}
     </p>
-    <form method="post" action="/payroll/dependent-reject/{{ dep.id }}/">
+    <form method="post"
+          action="/payroll/dependent-reject/{{ dep.id }}/?status={{ status_filter }}"
+          hx-post="/payroll/dependent-reject/{{ dep.id }}/?status={{ status_filter }}"
+          hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
       {% csrf_token %}
       <div class="mb-3">
         <label class="oh-label" for="reject-reason">Lý do từ chối</label>
@@ -18,7 +25,11 @@
                   placeholder="Nhập lý do để thông báo cho nhân viên..."></textarea>
       </div>
       <div class="d-flex gap-2 justify-content-end">
-        <a href="/payroll/dependent-hr-panel/" class="oh-btn oh-btn--light">Hủy</a>
+        <button type="button"
+                class="oh-btn oh-btn--light"
+                onclick="document.getElementById('hr-modal-container').innerHTML='';">
+          Hủy
+        </button>
         <button type="submit"
                 class="oh-btn oh-btn--danger oh-btn--shadow">
           Xác nhận từ chối

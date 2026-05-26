@@ -23,6 +23,9 @@
     </a>
   </div>
 
+  <!-- Inline modal container for reject form -->
+  <div id="hr-modal-container" class="mb-3"></div>
+
   <!-- Status filter tabs -->
   <div class="oh-card oh-card--margin mb-3">
     <div class="oh-card__body py-2 px-3">
@@ -34,10 +37,18 @@
            class="oh-btn {% if status_filter == 'pending' %}oh-btn--secondary{% else %}oh-btn--light{% endif %}"
            style="font-size:12px;padding:4px 12px;{% if status_filter == 'pending' %}background:#c0222b;border-color:#c0222b;color:#fff;{% endif %}">
            Chờ duyệt
+           {% if count_by_status.pending %}
+           <span style="background:#fff;color:#c0222b;border-radius:10px;padding:1px 6px;font-size:11px;font-weight:700;margin-left:4px;">{{ count_by_status.pending }}</span>
+           {% endif %}
         </a>
         <a href="?status=approved"
            class="oh-btn {% if status_filter == 'approved' %}oh-btn--secondary{% else %}oh-btn--light{% endif %}"
-           style="font-size:12px;padding:4px 12px;">Đã duyệt</a>
+           style="font-size:12px;padding:4px 12px;">
+           Đã duyệt
+           {% if count_by_status.approved %}
+           <span style="background:#198754;color:#fff;border-radius:10px;padding:1px 6px;font-size:11px;margin-left:4px;">{{ count_by_status.approved }}</span>
+           {% endif %}
+        </a>
         <a href="?status=rejected"
            class="oh-btn {% if status_filter == 'rejected' %}oh-btn--secondary{% else %}oh-btn--light{% endif %}"
            style="font-size:12px;padding:4px 12px;">Từ chối</a>
@@ -118,25 +129,32 @@
               <td>
                 {% if dep.status == "pending" %}
                 <div class="d-flex gap-1">
-                  <a href="/payroll/dependent-approve/{{ dep.id }}/?status={{ status_filter }}"
-                     class="oh-btn oh-btn--success"
-                     style="font-size:11px;padding:3px 10px;"
-                     onclick="return confirm('Duyệt người phụ thuộc \'{{ dep.full_name }}\'?')">
+                  <button
+                    class="oh-btn oh-btn--success"
+                    style="font-size:11px;padding:3px 10px;"
+                    hx-post="/payroll/dependent-approve/{{ dep.id }}/?status={{ status_filter }}"
+                    hx-confirm="Duyệt người phụ thuộc '{{ dep.full_name }}'?"
+                    hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
                     Duyệt
-                  </a>
-                  <a href="/payroll/dependent-reject/{{ dep.id }}/"
-                     class="oh-btn oh-btn--danger-outline"
-                     style="font-size:11px;padding:3px 10px;">
+                  </button>
+                  <button
+                    class="oh-btn oh-btn--danger-outline"
+                    style="font-size:11px;padding:3px 10px;"
+                    hx-get="/payroll/dependent-reject/{{ dep.id }}/?status={{ status_filter }}"
+                    hx-target="#hr-modal-container"
+                    hx-swap="innerHTML">
                     Từ chối
-                  </a>
+                  </button>
                 </div>
                 {% elif dep.status == "approved" %}
-                <a href="/payroll/dependent-deactivate/{{ dep.id }}/?status={{ status_filter }}"
-                   class="oh-btn oh-btn--light"
-                   style="font-size:11px;padding:3px 10px;"
-                   onclick="return confirm('Ngừng hiệu lực NPT \'{{ dep.full_name }}\'?')">
+                <button
+                  class="oh-btn oh-btn--light"
+                  style="font-size:11px;padding:3px 10px;"
+                  hx-post="/payroll/dependent-deactivate/{{ dep.id }}/?status={{ status_filter }}"
+                  hx-confirm="Ngừng hiệu lực NPT '{{ dep.full_name }}'?"
+                  hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
                   Ngừng HH
-                </a>
+                </button>
                 {% else %}
                 <span class="text-muted" style="font-size:11px;">—</span>
                 {% endif %}
