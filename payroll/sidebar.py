@@ -48,7 +48,16 @@ SUBMENUS = [
         "redirect": reverse("filing-status-view"),
         "accessibility": "payroll.sidebar.federal_tax_accessibility",
     },
+    {
+        "menu": "Người Phụ Thuộc (NPT)",
+        "redirect": reverse("dependent-hr-panel"),
+        "accessibility": "payroll.sidebar.dependent_accessibility",
+    },
 ]
+
+
+def dependent_accessibility(request, submenu, user_perms, *args, **kwargs):
+    return request.user.has_perm("payroll.change_employeedependent")
 
 
 def dasbhoard_accessibility(request, submenu, user_perms, *args, **kwargs):
