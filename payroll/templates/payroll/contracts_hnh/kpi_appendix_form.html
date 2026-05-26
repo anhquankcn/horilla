@@ -1,0 +1,107 @@
+{% extends "index.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="oh-wrapper oh-wrapper--full-width py-4 px-3" style="max-width:720px;">
+  <div class="mb-3">
+    <a href="{% url 'performance-contract-detail' contract.pk %}" style="color:#c0222b;font-size:13px;">← {{ contract.contract_name }}</a>
+  </div>
+  <h2 class="oh-inner-sidebar-content__title mb-1">Thêm Phụ lục 1 — KPI & Thu nhập</h2>
+  <p class="text-muted mb-4" style="font-size:13px;">{{ contract.employee_id }}</p>
+
+  <form method="post">
+    {% csrf_token %}
+    {% if errors %}
+    <div class="alert alert-danger" style="font-size:13px;">
+      {% for field, msg in errors.items %}<div>{{ msg }}</div>{% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="oh-card oh-card--margin mb-3">
+      <div class="oh-card__header"><span class="oh-card__title oh-card__title--sm">Thông tin năm áp dụng</span></div>
+      <div class="oh-card__body">
+        <div class="row g-3">
+          <div class="col-md-4">
+            <label class="oh-label oh-label--required">Năm áp dụng</label>
+            <input type="number" name="year" class="oh-input" required
+              value="{{ post.year|default:'2026' }}" min="2020" max="2099">
+          </div>
+          <div class="col-md-8">
+            <label class="oh-label">Vị trí áp dụng</label>
+            <select name="position" class="oh-input">
+              <option value="">-- Tất cả vị trí --</option>
+              {% for pos in positions %}
+              <option value="{{ pos.pk }}" {% if post.position == pos.pk|stringformat:"s" %}selected{% endif %}>{{ pos.job_position }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-6">
+            <label class="oh-label oh-label--required">Thu nhập năm tối thiểu (VND)</label>
+            <input type="number" name="annual_income_min" class="oh-input" min="0" step="1000000"
+              value="{{ post.annual_income_min|default:'0' }}" required>
+          </div>
+          <div class="col-md-6">
+            <label class="oh-label oh-label--required">Thu nhập năm tối đa (VND)</label>
+            <input type="number" name="annual_income_max" class="oh-input" min="0" step="1000000"
+              value="{{ post.annual_income_max|default:'0' }}" required>
+          </div>
+          <div class="col-md-12">
+            <label class="oh-label">Mô tả chỉ số KPI</label>
+            <textarea name="kpi_description" class="oh-input" rows="3" placeholder="Mô tả KPI, mục tiêu, cách đánh giá...">{{ post.kpi_description|default:'' }}</textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="oh-card oh-card--margin mb-3">
+      <div class="oh-card__header"><span class="oh-card__title oh-card__title--sm">Mức lương hiệu suất theo % KPI đạt được</span></div>
+      <div class="oh-card__body">
+        <table style="width:100%;font-size:13px;">
+          <tr style="background:#f8f9fa;">
+            <td style="padding:8px;"><strong>KPI 90-100%</strong> (hoàn thành xuất sắc)</td>
+            <td style="padding:8px;text-align:right;width:140px;">
+              <input type="number" name="kpi_pct_90_100" class="oh-input" min="0" max="200" step="0.5"
+                value="{{ post.kpi_pct_90_100|default:'100' }}" style="text-align:right;">
+              <span>%</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:8px;"><strong>KPI 75-89%</strong> (hoàn thành tốt)</td>
+            <td style="padding:8px;text-align:right;">
+              <input type="number" name="kpi_pct_75_89" class="oh-input" min="0" max="200" step="0.5"
+                value="{{ post.kpi_pct_75_89|default:'75' }}" style="text-align:right;">
+              <span>%</span>
+            </td>
+          </tr>
+          <tr style="background:#f8f9fa;">
+            <td style="padding:8px;"><strong>KPI 60-74%</strong> (đạt yêu cầu)</td>
+            <td style="padding:8px;text-align:right;">
+              <input type="number" name="kpi_pct_60_74" class="oh-input" min="0" max="200" step="0.5"
+                value="{{ post.kpi_pct_60_74|default:'50' }}" style="text-align:right;">
+              <span>%</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:8px;"><strong>KPI dưới 60%</strong> (không đạt)</td>
+            <td style="padding:8px;text-align:right;">
+              <input type="number" name="kpi_below_60" class="oh-input" min="0" max="200" step="0.5"
+                value="{{ post.kpi_below_60|default:'0' }}" style="text-align:right;">
+              <span>%</span>
+            </td>
+          </tr>
+        </table>
+        <div class="mt-3">
+          <label class="oh-label">Tạm ứng lương hiệu suất tháng (VND)</label>
+          <input type="number" name="monthly_performance_advance" class="oh-input" min="0" step="500000"
+            value="{{ post.monthly_performance_advance|default:'0' }}" style="max-width:240px;">
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex gap-2">
+      <button type="submit" class="oh-btn oh-btn--secondary">Lưu Phụ lục 1</button>
+      <a href="{% url 'performance-contract-detail' contract.pk %}" class="oh-btn oh-btn--light-bkg">Hủy</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -8,7 +8,7 @@ from django.urls import include, path
 
 from payroll.cbv import contracts, dashboard, payslip_automation
 from payroll.models.models import Contract, Payslip
-from payroll.views import bhxh_views, dependent_views, pit_views, views
+from payroll.views import bhxh_views, contract_hnh_views, dependent_views, pit_views, views
 
 urlpatterns = [
     path("", include("payroll.urls.component_urls")),
@@ -201,6 +201,26 @@ urlpatterns = [
     path("pit/compute/", pit_views.pit_compute_month, name="pit-compute"),
     path("pit/export/", pit_views.pit_export_csv, name="pit-export"),
     path("pit/employee/<int:employee_id>/<int:year>/<int:month>/", pit_views.pit_employee_detail, name="pit-employee-detail"),
+    # ───────── HNH Contract Types ────────────────────────────────────────────
+    # Trial Contract (Hop dong Thu viec)
+    path("hnh/trial/", contract_hnh_views.trial_contract_list, name="trial-contract-list"),
+    path("hnh/trial/create/", contract_hnh_views.trial_contract_create, name="trial-contract-create"),
+    path("hnh/trial/<int:pk>/edit/", contract_hnh_views.trial_contract_update, name="trial-contract-update"),
+    path("hnh/trial/<int:pk>/delete/", contract_hnh_views.trial_contract_delete, name="trial-contract-delete"),
+    # Official Contract (Hop dong Chinh thuc)
+    path("hnh/official/", contract_hnh_views.official_contract_list, name="official-contract-list"),
+    path("hnh/official/create/", contract_hnh_views.official_contract_create, name="official-contract-create"),
+    path("hnh/official/<int:pk>/edit/", contract_hnh_views.official_contract_update, name="official-contract-update"),
+    path("hnh/official/<int:pk>/delete/", contract_hnh_views.official_contract_delete, name="official-contract-delete"),
+    # Performance Contract (Hop dong Hieu suat)
+    path("hnh/performance/", contract_hnh_views.performance_contract_list, name="performance-contract-list"),
+    path("hnh/performance/create/", contract_hnh_views.performance_contract_create, name="performance-contract-create"),
+    path("hnh/performance/<int:pk>/", contract_hnh_views.performance_contract_detail, name="performance-contract-detail"),
+    path("hnh/performance/<int:pk>/edit/", contract_hnh_views.performance_contract_update, name="performance-contract-update"),
+    path("hnh/performance/<int:pk>/delete/", contract_hnh_views.performance_contract_delete, name="performance-contract-delete"),
+    # KPI Appendix (Phu luc 1)
+    path("hnh/performance/<int:contract_pk>/kpi/add/", contract_hnh_views.kpi_appendix_create, name="kpi-appendix-create"),
+    path("hnh/kpi/<int:pk>/delete/", contract_hnh_views.kpi_appendix_delete, name="kpi-appendix-delete"),
     path(
         "contract-bulk-delete",
         views.contract_bulk_delete,

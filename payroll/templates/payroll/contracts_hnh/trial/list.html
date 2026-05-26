@@ -1,0 +1,84 @@
+{% extends "index.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="oh-wrapper oh-wrapper--full-width py-4 px-3">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="oh-inner-sidebar-content__title mb-0">Hợp đồng Thử việc</h2>
+    <a href="{% url 'trial-contract-create' %}" class="oh-btn oh-btn--secondary">
+      + Tạo mới
+    </a>
+  </div>
+
+  <!-- Filter -->
+  <form method="get" class="mb-3 d-flex gap-2 align-items-center">
+    <select name="status" class="oh-input oh-input--small" style="max-width:200px;" onchange="this.form.submit()">
+      <option value="">-- Tất cả trạng thái --</option>
+      <option value="draft" {% if status_filter == "draft" %}selected{% endif %}>Nháp</option>
+      <option value="active" {% if status_filter == "active" %}selected{% endif %}>Hiệu lực</option>
+      <option value="expired" {% if status_filter == "expired" %}selected{% endif %}>Hết hạn</option>
+      <option value="terminated" {% if status_filter == "terminated" %}selected{% endif %}>Chấm dứt</option>
+    </select>
+  </form>
+
+  <div class="oh-card oh-card--margin">
+    <div class="oh-card__body p-0">
+      {% if contracts %}
+      <table class="oh-table oh-table--bordered" style="font-size:13px;">
+        <thead class="table-light">
+          <tr>
+            <th>Nhân viên</th>
+            <th>Tên hợp đồng</th>
+            <th class="text-end">Lương (VND)</th>
+            <th class="text-end">% TW</th>
+            <th class="text-center">Bắt đầu</th>
+            <th class="text-center">Kết thúc</th>
+            <th class="text-center">Trạng thái</th>
+            <th class="text-center">PL3</th>
+            <th class="text-center">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in contracts %}
+          <tr>
+            <td>{{ c.employee_id }}</td>
+            <td>{{ c.contract_name }}</td>
+            <td class="text-end">{{ c.wage|floatformat:"0" }}</td>
+            <td class="text-end">{{ c.trial_wage_pct }}%</td>
+            <td class="text-center">{{ c.contract_start_date }}</td>
+            <td class="text-center">{{ c.contract_end_date|default:"-" }}</td>
+            <td class="text-center">
+              {% if c.contract_status == "active" %}
+                <span class="oh-badge oh-badge--success">Hiệu lực</span>
+              {% elif c.contract_status == "draft" %}
+                <span class="oh-badge oh-badge--warning">Nháp</span>
+              {% elif c.contract_status == "expired" %}
+                <span class="oh-badge">Hết hạn</span>
+              {% else %}
+                <span class="oh-badge oh-badge--danger">Chấm dứt</span>
+              {% endif %}
+            </td>
+            <td class="text-center">
+              {% if c.consent_agreed %}<span style="color:#198754;">✓</span>{% else %}<span style="color:#adb5bd;">—</span>{% endif %}
+            </td>
+            <td class="text-center">
+              <a href="{% url 'trial-contract-update' c.pk %}" class="oh-btn oh-btn--light-bkg oh-btn--sm">Sửa</a>
+              <form method="post" action="{% url 'trial-contract-delete' c.pk %}" style="display:inline;" onsubmit="return confirm('Xóa hợp đồng này?')">
+                {% csrf_token %}
+                <button type="submit" class="oh-btn oh-btn--danger oh-btn--sm">Xóa</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="p-4 text-center text-muted" style="font-size:13px;">
+        Chưa có hợp đồng thử việc nào.
+        <a href="{% url 'trial-contract-create' %}" style="color:#c0222b;">Tạo mới ngay</a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

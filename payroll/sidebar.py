@@ -63,6 +63,21 @@ SUBMENUS = [
         "redirect": reverse("pit-report"),
         "accessibility": "payroll.sidebar.pit_accessibility",
     },
+    {
+        "menu": "Hợp đồng Thử việc",
+        "redirect": reverse("trial-contract-list"),
+        "accessibility": "payroll.sidebar.trial_contract_accessibility",
+    },
+    {
+        "menu": "Hợp đồng Chính thức",
+        "redirect": reverse("official-contract-list"),
+        "accessibility": "payroll.sidebar.official_contract_accessibility",
+    },
+    {
+        "menu": "Hợp đồng Hiệu suất",
+        "redirect": reverse("performance-contract-list"),
+        "accessibility": "payroll.sidebar.performance_contract_accessibility",
+    },
 ]
 
 
@@ -96,3 +111,15 @@ def bhxh_accessibility(request, submenu, user_perms, *args, **kwargs):
 
 def pit_accessibility(request, submenu, user_perms, *args, **kwargs):
     return request.user.has_perm("payroll.change_pitconfig")
+
+
+def trial_contract_accessibility(request, submenu, user_perms, *args, **kwargs):
+    return request.user.has_perm("payroll.view_trialcontract")
+
+
+def official_contract_accessibility(request, submenu, user_perms, *args, **kwargs):
+    return request.user.has_perm("payroll.view_officialcontract")
+
+
+def performance_contract_accessibility(request, submenu, user_perms, *args, **kwargs):
+    return request.user.has_perm("payroll.view_performancecontract")

@@ -19,6 +19,12 @@ from payroll.models.models import (
     ReimbursementrequestComment,
 )
 from payroll.models.tax_models import PayrollSettings, TaxBracket
+from payroll.models.contract_models import (
+    ContractKPIAppendix,
+    OfficialContract,
+    PerformanceContract,
+    TrialContract,
+)
 
 # Register your models here.
 admin.site.register(FilingStatus)
@@ -33,3 +39,9 @@ admin.site.register(Reimbursement)
 admin.site.register(ReimbursementrequestComment)
 admin.site.register(MultipleCondition)
 admin.site.register(PayslipAutoGenerate)
+
+# HNH contract types
+admin.site.register(TrialContract)
+admin.site.register(OfficialContract)
+admin.site.register(PerformanceContract)
+admin.site.register(ContractKPIAppendix)

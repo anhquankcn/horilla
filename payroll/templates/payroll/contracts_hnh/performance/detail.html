@@ -1,0 +1,132 @@
+{% extends "index.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="oh-wrapper oh-wrapper--full-width py-4 px-3" style="max-width:900px;">
+  <div class="mb-3">
+    <a href="{% url 'performance-contract-list' %}" style="color:#c0222b;font-size:13px;">← Danh sách hợp đồng hiệu suất</a>
+  </div>
+
+  <div class="d-flex justify-content-between align-items-start mb-3">
+    <div>
+      <h2 class="oh-inner-sidebar-content__title mb-1">{{ contract.contract_name }}</h2>
+      <p class="text-muted mb-0" style="font-size:13px;">{{ contract.employee_id }}</p>
+    </div>
+    <div class="d-flex gap-2">
+      <a href="{% url 'performance-contract-update' contract.pk %}" class="oh-btn oh-btn--light-bkg">Sửa hợp đồng</a>
+      <form method="post" action="{% url 'performance-contract-delete' contract.pk %}" onsubmit="return confirm('Xóa hợp đồng này và toàn bộ Phụ lục 1?')">
+        {% csrf_token %}
+        <button type="submit" class="oh-btn oh-btn--danger">Xóa</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Summary cards -->
+  <div class="row mb-3">
+    <div class="col-md-3">
+      <div class="oh-card oh-card--margin text-center" style="padding:16px;">
+        <div style="font-size:11px;color:#6c757d;">Trạng thái</div>
+        <div style="font-size:15px;font-weight:700;margin-top:4px;">
+          {% if contract.contract_status == "active" %}<span style="color:#198754;">Hiệu lực</span>
+          {% elif contract.contract_status == "draft" %}<span style="color:#fd7e14;">Nháp</span>
+          {% else %}{{ contract.get_contract_status_display }}{% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="oh-card oh-card--margin text-center" style="padding:16px;">
+        <div style="font-size:11px;color:#6c757d;">Lương cơ bản</div>
+        <div style="font-size:15px;font-weight:700;margin-top:4px;color:#c0222b;">{{ contract.base_salary|floatformat:"0" }}đ</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="oh-card oh-card--margin text-center" style="padding:16px;">
+        <div style="font-size:11px;color:#6c757d;">Bắt đầu</div>
+        <div style="font-size:15px;font-weight:700;margin-top:4px;">{{ contract.contract_start_date }}</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="oh-card oh-card--margin text-center" style="padding:16px;">
+        <div style="font-size:11px;color:#6c757d;">Phụ lục 3 bảo mật</div>
+        <div style="font-size:15px;font-weight:700;margin-top:4px;">
+          {% if contract.consent_agreed %}<span style="color:#198754;">Đã ký</span>{% else %}<span style="color:#dc3545;">Chưa ký</span>{% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Phu luc 1 -->
+  <div class="oh-card oh-card--margin mb-3">
+    <div class="oh-card__header d-flex justify-content-between align-items-center">
+      <span class="oh-card__title oh-card__title--sm">Phụ lục 1 — KPI & Thu nhập</span>
+      <a href="{% url 'kpi-appendix-create' contract.pk %}" class="oh-btn oh-btn--secondary oh-btn--sm">+ Thêm năm</a>
+    </div>
+    <div class="oh-card__body p-0">
+      {% if appendices %}
+      <table class="oh-table oh-table--bordered" style="font-size:12px;">
+        <thead class="table-light">
+          <tr>
+            <th>Năm</th>
+            <th>Vị trí</th>
+            <th class="text-end">Thu nhập năm min</th>
+            <th class="text-end">Thu nhập năm max</th>
+            <th class="text-end">Tạm ứng/tháng</th>
+            <th class="text-center">KPI 90-100%</th>
+            <th class="text-center">KPI 75-89%</th>
+            <th class="text-center">KPI 60-74%</th>
+            <th class="text-center">KPI &lt;60%</th>
+            <th class="text-center">Xóa</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in appendices %}
+          <tr>
+            <td class="fw-bold">{{ a.year }}</td>
+            <td>{{ a.position|default:"-" }}</td>
+            <td class="text-end">{{ a.annual_income_min|floatformat:"0" }}</td>
+            <td class="text-end">{{ a.annual_income_max|floatformat:"0" }}</td>
+            <td class="text-end">{{ a.monthly_performance_advance|floatformat:"0" }}</td>
+            <td class="text-center">{{ a.kpi_pct_90_100 }}%</td>
+            <td class="text-center">{{ a.kpi_pct_75_89 }}%</td>
+            <td class="text-center">{{ a.kpi_pct_60_74 }}%</td>
+            <td class="text-center">{{ a.kpi_below_60 }}%</td>
+            <td class="text-center">
+              <form method="post" action="{% url 'kpi-appendix-delete' a.pk %}" style="display:inline;" onsubmit="return confirm('Xóa Phụ lục 1 năm {{ a.year }}?')">
+                {% csrf_token %}
+                <button type="submit" class="oh-btn oh-btn--danger oh-btn--sm">Xóa</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <div class="p-3 text-center text-muted" style="font-size:13px;">
+        Chưa có Phụ lục 1. <a href="{% url 'kpi-appendix-create' contract.pk %}" style="color:#c0222b;">Thêm ngay</a>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Phu luc 2 -->
+  <div class="oh-card oh-card--margin mb-3">
+    <div class="oh-card__header"><span class="oh-card__title oh-card__title--sm">Phụ lục 2 — Phụ cấp & Khoản trừ</span></div>
+    <div class="oh-card__body">
+      <div class="row">
+        <div class="col-md-6">
+          <strong style="font-size:13px;">Phụ cấp:</strong>
+          <ul style="font-size:13px;margin-top:4px;">
+            {% for a in contract.allowances.all %}<li>{{ a.name }}</li>{% empty %}<li class="text-muted">Chưa cấu hình</li>{% endfor %}
+          </ul>
+        </div>
+        <div class="col-md-6">
+          <strong style="font-size:13px;">Khoản trừ:</strong>
+          <ul style="font-size:13px;margin-top:4px;">
+            {% for d in contract.deductions.all %}<li>{{ d.name }}</li>{% empty %}<li class="text-muted">Chưa cấu hình</li>{% endfor %}
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
