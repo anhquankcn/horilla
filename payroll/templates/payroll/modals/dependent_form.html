@@ -58,12 +58,22 @@
         <div class="col-md-6 mb-3">
           <label class="oh-label" for="dep-mst">MST Người Phụ Thuộc</label>
           <input type="text" id="dep-mst" name="mst_npt"
-                 class="oh-input w-100"
+                 class="oh-input w-100 {% if errors.mst_npt %}is-invalid{% endif %}"
                  value="{{ form.mst_npt|default:'' }}"
                  placeholder="VD: 0123456789 (nếu có)" />
+          {% if errors.mst_npt %}
+          <div style="color:#c0222b;font-size:12px;margin-top:4px;">
+            <strong>Lỗi:</strong> {{ errors.mst_npt }}
+          </div>
+          {% elif warnings.mst_npt %}
+          <div style="color:#e67e22;font-size:12px;margin-top:4px;">
+            <strong>Lưu ý:</strong> {{ warnings.mst_npt }}
+          </div>
+          {% else %}
           <small class="text-muted" style="font-size:11px;">
             ⚠ Cần có MST để nộp quyết toán thuế. Trẻ dưới 6 tuổi có thể để trống.
           </small>
+          {% endif %}
         </div>
 
         <div class="col-md-6 mb-3">

@@ -74,6 +74,7 @@ def dependent_create(request, employee_id):
         document = request.FILES.get("document")
 
         errors = {}
+        warnings = {}
         if not full_name:
             errors["full_name"] = "Vui lòng nhập họ và tên."
         if not dob:
@@ -82,6 +83,27 @@ def dependent_create(request, employee_id):
             errors["relationship"] = "Vui lòng chọn quan hệ."
         if not start_date:
             errors["start_date"] = "Vui lòng nhập ngày đăng ký hiệu lực."
+
+        if mst_npt:
+            conflict = (
+                EmployeeDependent.objects.filter(mst_npt=mst_npt)
+                .exclude(employee=employee)
+                .exclude(status=EmployeeDependent.StatusChoice.REJECTED)
+                .select_related("employee")
+                .first()
+            )
+            if conflict:
+                if conflict.status == EmployeeDependent.StatusChoice.APPROVED:
+                    errors["mst_npt"] = (
+                        f"MST '{mst_npt}' đã được duyệt cho nhân viên khác "
+                        f"({conflict.employee}). Theo quy định TNCN, mỗi NPT chỉ được "
+                        "khai báo tại một người nộp thuế."
+                    )
+                else:
+                    warnings["mst_npt"] = (
+                        f"MST '{mst_npt}' đang chờ duyệt ở nhân viên khác "
+                        f"({conflict.employee}). HR sẽ kiểm tra khi phê duyệt."
+                    )
 
         if not errors:
             dep = EmployeeDependent(
@@ -130,6 +152,7 @@ def dependent_create(request, employee_id):
                 "employee": employee,
                 "relationship_choices": EmployeeDependent.RelationshipChoice.choices,
                 "errors": errors,
+                "warnings": warnings,
                 "form": request.POST,
             },
         )
@@ -140,6 +163,8 @@ def dependent_create(request, employee_id):
         {
             "employee": employee,
             "relationship_choices": EmployeeDependent.RelationshipChoice.choices,
+            "errors": {},
+            "warnings": {},
         },
     )
 
