@@ -1,0 +1,134 @@
+{% extends "index.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="oh-wrapper oh-wrapper--full-width py-4 px-3" style="max-width:800px;">
+  <div class="mb-3">
+    <a href="/payroll/pit/report/?year={{ year }}&month={{ month }}" style="color:#c0222b;font-size:13px;">
+      ← Danh sách tháng {{ month }}/{{ year }}
+    </a>
+  </div>
+
+  <h2 class="oh-inner-sidebar-content__title mb-1">Chi tiết Thuế TNCN</h2>
+  <p class="text-muted mb-4" style="font-size:13px;">
+    {{ employee }} — Tháng {{ month }}/{{ year }}
+  </p>
+
+  {% if calc %}
+  <!-- Tóm tắt -->
+  <div class="row mb-3">
+    <div class="col-md-6">
+      <div class="oh-card oh-card--margin">
+        <div class="oh-card__header"><span class="oh-card__title oh-card__title--sm">Thu nhập & Giảm trừ</span></div>
+        <div class="oh-card__body">
+          <table style="width:100%;font-size:13px;border-collapse:collapse;">
+            <tr style="border-bottom:1px solid #f0f0f0;">
+              <td class="py-1">Thu nhập chịu thuế (gross)</td>
+              <td class="text-end py-1 fw-bold">{{ calc.gross_income|floatformat:"0" }}đ</td>
+            </tr>
+            <tr style="border-bottom:1px solid #f0f0f0;">
+              <td class="py-1" style="color:#6c757d;">− Trừ BHXH NLĐ (10.5%)</td>
+              <td class="text-end py-1" style="color:#6c757d;">{{ calc.bhxh_deduction|floatformat:"0" }}đ</td>
+            </tr>
+            <tr style="border-bottom:1px solid #f0f0f0;">
+              <td class="py-1" style="color:#6c757d;">− Giảm trừ bản thân</td>
+              <td class="text-end py-1" style="color:#6c757d;">{{ calc.personal_deduction|floatformat:"0" }}đ</td>
+            </tr>
+            <tr style="border-bottom:1px solid #f0f0f0;">
+              <td class="py-1" style="color:#6c757d;">
+                − Giảm trừ NPT ({{ calc.npt_count }} người)
+              </td>
+              <td class="text-end py-1" style="color:#6c757d;">{{ calc.npt_deduction_total|floatformat:"0" }}đ</td>
+            </tr>
+            <tr style="border-bottom:1px solid #dee2e6;background:#f8f9fa;">
+              <td class="py-1 fw-bold">Tổng giảm trừ</td>
+              <td class="text-end py-1 fw-bold">{{ calc.total_deductions|floatformat:"0" }}đ</td>
+            </tr>
+            <tr>
+              <td class="py-1 fw-bold" style="color:#0d6efd;">Thu nhập tính thuế (TNTT)</td>
+              <td class="text-end py-1 fw-bold" style="color:#0d6efd;">{{ calc.taxable_income|floatformat:"0" }}đ</td>
+            </tr>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="oh-card oh-card--margin h-100" style="border-left:3px solid #c0222b;">
+        <div class="oh-card__body d-flex flex-column justify-content-center align-items-center" style="height:100%;min-height:160px;">
+          <div style="font-size:13px;color:#6c757d;">Thuế TNCN phải nộp tháng {{ month }}/{{ year }}</div>
+          <div style="font-size:32px;font-weight:700;color:#c0222b;margin:8px 0;">
+            {{ calc.pit_amount|floatformat:"0" }}đ
+          </div>
+          <div style="font-size:12px;color:#6c757d;">
+            Thu nhập thực nhận ≈ {{ calc.net_income|floatformat:"0" }}đ
+          </div>
+          {% if calc.config %}
+          <div style="font-size:11px;color:#adb5bd;margin-top:6px;">
+            Cấu hình: {{ calc.config }}
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bảng bậc thuế -->
+  {% if bracket_breakdown %}
+  <div class="oh-card oh-card--margin">
+    <div class="oh-card__header">
+      <span class="oh-card__title oh-card__title--sm">Chi tiết tính thuế theo bậc lũy tiến</span>
+    </div>
+    <div class="oh-card__body p-0">
+      <table class="oh-table oh-table--bordered" style="font-size:12px;">
+        <thead class="table-light">
+          <tr>
+            <th>Bậc</th>
+            <th class="text-end">Khoảng TNTT</th>
+            <th class="text-end">Thu nhập trong bậc</th>
+            <th class="text-end">Thuế suất</th>
+            <th class="text-end">Thuế trong bậc</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for b in bracket_breakdown %}
+          <tr>
+            <td>Bậc {{ forloop.counter }}</td>
+            <td class="text-end">
+              {{ b.lower|floatformat:"0" }}đ –
+              {% if b.upper %}{{ b.upper|floatformat:"0" }}đ{% else %}trên{% endif %}
+            </td>
+            <td class="text-end">{{ b.income_in_bracket|floatformat:"0" }}đ</td>
+            <td class="text-end fw-bold" style="color:#c0222b;">{{ b.rate }}%</td>
+            <td class="text-end fw-bold">{{ b.tax_in_bracket|floatformat:"0" }}đ</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot class="table-light fw-bold">
+          <tr>
+            <td colspan="4" class="text-end">Tổng thuế TNCN</td>
+            <td class="text-end" style="color:#c0222b;">{{ calc.pit_amount|floatformat:"0" }}đ</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <div class="oh-card oh-card--margin">
+    <div class="oh-card__body p-3 text-center text-muted" style="font-size:13px;">
+      Thu nhập tính thuế = 0đ — không phát sinh thuế TNCN.
+    </div>
+  </div>
+  {% endif %}
+
+  {% else %}
+  <div class="oh-card oh-card--margin">
+    <div class="oh-card__body p-4 text-center text-muted" style="font-size:13px;">
+      Chưa có dữ liệu Thuế TNCN của {{ employee }} cho tháng {{ month }}/{{ year }}.
+      <br>
+      <a href="/payroll/pit/report/?year={{ year }}&month={{ month }}" style="color:#c0222b;">Quay lại báo cáo</a>
+      để tính toán.
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

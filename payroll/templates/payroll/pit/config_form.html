@@ -1,0 +1,72 @@
+{% extends "index.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="oh-wrapper oh-wrapper--full-width py-4 px-3" style="max-width:700px;">
+  <div class="mb-3">
+    <a href="/payroll/pit/config/" style="color:#c0222b;font-size:13px;">← Danh sách cấu hình</a>
+  </div>
+  <h2 class="oh-inner-sidebar-content__title mb-1">{{ action }} Cấu hình Thuế TNCN</h2>
+  <p class="text-muted mb-4" style="font-size:13px;">Mức giảm trừ theo Nghị quyết 110/2025/UBTVQH15 (hiệu lực 01/01/2026).</p>
+
+  <div class="oh-card oh-card--margin">
+    <div class="oh-card__body">
+      <form method="post" action="">
+        {% csrf_token %}
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="oh-label">Hiệu lực từ ngày <span style="color:#c0222b">*</span></label>
+            <input type="date" name="effective_from" class="oh-input w-100 {% if errors.effective_from %}is-invalid{% endif %}"
+                   value="{{ form_data.effective_from|default:'' }}" required />
+            {% if errors.effective_from %}<div style="color:#c0222b;font-size:12px;">{{ errors.effective_from }}</div>{% endif %}
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="oh-label">Công ty (để trống = tất cả)</label>
+            <select name="company_id" class="oh-input oh-input--select w-100">
+              <option value="">-- Tất cả --</option>
+              {% for company in companies %}
+              <option value="{{ company.id }}" {% if form_data.company_id == company.id|stringformat:"s" %}selected{% endif %}>{{ company }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="col-md-6 mb-3">
+            <label class="oh-label">Giảm trừ bản thân (VND/tháng)</label>
+            <input type="number" name="personal_deduction" step="100000" min="0"
+                   class="oh-input w-100" value="{{ form_data.personal_deduction|default:'15500000' }}" />
+            <small class="text-muted" style="font-size:11px;">NQ 110/2025: 15,500,000đ/tháng (từ 01/01/2026)</small>
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="oh-label">Giảm trừ NPT (VND/người/tháng)</label>
+            <input type="number" name="npt_deduction" step="100000" min="0"
+                   class="oh-input w-100" value="{{ form_data.npt_deduction|default:'6200000' }}" />
+            <small class="text-muted" style="font-size:11px;">NQ 110/2025: 6,200,000đ/người (từ 01/01/2026)</small>
+          </div>
+
+          <div class="col-12 mb-3">
+            <div class="form-check">
+              <input type="checkbox" name="is_active" id="is_active" class="form-check-input"
+                     {% if form_data.is_active %}checked{% endif %} />
+              <label class="form-check-label oh-label" for="is_active">Đang hiệu lực</label>
+            </div>
+          </div>
+
+          <div class="col-12 mb-3">
+            <label class="oh-label">Ghi chú</label>
+            <textarea name="note" class="oh-input w-100" rows="2"
+                      placeholder="VD: Theo Nghị quyết 954/2020/UBTVQH14...">{{ form_data.note|default:'' }}</textarea>
+          </div>
+        </div>
+
+        <div class="d-flex gap-2 justify-content-end">
+          <a href="/payroll/pit/config/" class="oh-btn oh-btn--light">Hủy</a>
+          <button type="submit" class="oh-btn oh-btn--secondary oh-btn--shadow"
+                  style="background:#c0222b;border-color:#c0222b;color:#fff;">
+            Lưu cấu hình
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

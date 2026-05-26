@@ -1,0 +1,120 @@
+{% extends "index.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="oh-wrapper oh-wrapper--full-width py-4 px-3">
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <div>
+      <h2 class="oh-inner-sidebar-content__title mb-0">Cấu hình Thuế TNCN</h2>
+      <p class="text-muted mb-0" style="font-size:13px;">
+        Mức giảm trừ bản thân và NPT theo quy định hiện hành.
+      </p>
+    </div>
+    <a href="/payroll/pit/config/create/"
+       class="oh-btn oh-btn--secondary"
+       style="font-size:13px;background:#c0222b;border-color:#c0222b;color:#fff;">
+      <ion-icon name="add-circle-outline" style="font-size:14px;vertical-align:middle;"></ion-icon>
+      Thêm cấu hình mới
+    </a>
+  </div>
+
+  <div class="row mb-3">
+    <div class="col-md-6">
+      <div class="oh-card oh-card--margin">
+        <div class="oh-card__header">
+          <span class="oh-card__title oh-card__title--sm fw-bold">Biểu thuế lũy tiến từng phần (từ 01/01/2026)</span>
+        </div>
+        <div class="oh-card__body p-0">
+          <table class="oh-table oh-table--bordered" style="font-size:12px;">
+            <thead class="table-light">
+              <tr>
+                <th>Bậc</th>
+                <th class="text-end">Thu nhập tính thuế/tháng</th>
+                <th class="text-end">Thuế suất</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for upper, rate in brackets %}
+              <tr>
+                <td>Bậc {{ forloop.counter }}</td>
+                <td class="text-end">
+                  {% if upper %}≤ {{ upper|floatformat:"0" }}đ{% else %}Trên 80,000,000đ{% endif %}
+                </td>
+                <td class="text-end fw-bold" style="color:#c0222b;">{{ rate }}%</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="oh-card__body py-2 px-3">
+          <small class="text-muted" style="font-size:11px;">
+            Luật Thuế TNCN 2025 &amp; Nghị quyết 110/2025/UBTVQH15. Hiệu lực từ 01/01/2026.
+          </small>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="oh-card oh-card--margin h-100" style="border-left:3px solid #c0222b;">
+        <div class="oh-card__body">
+          <h6 style="font-size:13px;font-weight:700;">Công thức tính thuế TNCN</h6>
+          <div style="font-size:12px;font-family:monospace;background:#f8f9fa;padding:10px;border-radius:4px;line-height:1.8;">
+            TNCT = Lương gross<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;− BHXH NLĐ (10.5%)<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;− Giảm trừ bản thân (15,500,000đ)<br>
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;− Giảm trừ NPT (6,200,000đ × số NPT)<br>
+            <br>
+            Thuế TNCN = Áp bảng lũy tiến lên TNCT
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="oh-card oh-card--margin">
+    <div class="oh-card__body p-0">
+      {% if configs %}
+      <div class="table-responsive">
+        <table class="oh-table oh-table--bordered oh-table--hover" style="font-size:13px;">
+          <thead class="table-light">
+            <tr>
+              <th>Hiệu lực từ</th>
+              <th>Trạng thái</th>
+              <th class="text-end">Giảm trừ bản thân</th>
+              <th class="text-end">Giảm trừ NPT/người</th>
+              <th>Ghi chú</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for cfg in configs %}
+            <tr {% if cfg.is_active %}style="background:#fff8f8;"{% endif %}>
+              <td><strong>{{ cfg.effective_from|date:"d/m/Y" }}</strong></td>
+              <td>
+                {% if cfg.is_active %}
+                <span class="oh-badge oh-badge--success" style="font-size:11px;">Đang áp dụng</span>
+                {% else %}
+                <span class="oh-badge" style="font-size:11px;background:#6c757d;color:#fff;">Không hoạt động</span>
+                {% endif %}
+              </td>
+              <td class="text-end">{{ cfg.personal_deduction|floatformat:"0" }}đ</td>
+              <td class="text-end">{{ cfg.npt_deduction|floatformat:"0" }}đ</td>
+              <td style="font-size:12px;color:#6c757d;">{{ cfg.note|truncatechars:60|default:"—" }}</td>
+              <td>
+                <a href="/payroll/pit/config/{{ cfg.id }}/edit/"
+                   class="oh-btn oh-btn--light" style="font-size:11px;padding:2px 8px;">Sửa</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="p-4 text-center text-muted" style="font-size:13px;">
+        Chưa có cấu hình thuế TNCN.
+        <a href="/payroll/pit/config/create/" style="color:#c0222b;">Tạo cấu hình đầu tiên</a>.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

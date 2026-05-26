@@ -58,6 +58,11 @@ SUBMENUS = [
         "redirect": reverse("bhxh-report"),
         "accessibility": "payroll.sidebar.bhxh_accessibility",
     },
+    {
+        "menu": "Thuế TNCN",
+        "redirect": reverse("pit-report"),
+        "accessibility": "payroll.sidebar.pit_accessibility",
+    },
 ]
 
 
@@ -87,3 +92,7 @@ def federal_tax_accessibility(request, submenu, user_perms, *args, **kwargs):
 
 def bhxh_accessibility(request, submenu, user_perms, *args, **kwargs):
     return request.user.has_perm("payroll.change_bhxhconfig")
+
+
+def pit_accessibility(request, submenu, user_perms, *args, **kwargs):
+    return request.user.has_perm("payroll.change_pitconfig")

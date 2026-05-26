@@ -8,7 +8,7 @@ from django.urls import include, path
 
 from payroll.cbv import contracts, dashboard, payslip_automation
 from payroll.models.models import Contract, Payslip
-from payroll.views import bhxh_views, dependent_views, views
+from payroll.views import bhxh_views, dependent_views, pit_views, views
 
 urlpatterns = [
     path("", include("payroll.urls.component_urls")),
@@ -193,6 +193,14 @@ urlpatterns = [
     path("bhxh/compute/", bhxh_views.bhxh_compute_month, name="bhxh-compute"),
     path("bhxh/export/", bhxh_views.bhxh_export_csv, name="bhxh-export"),
     path("bhxh/employee/<int:employee_id>/info/", bhxh_views.bhxh_employee_info, name="bhxh-employee-info"),
+    # Thuế TNCN (PIT)
+    path("pit/config/", pit_views.pit_config_list, name="pit-config-list"),
+    path("pit/config/create/", pit_views.pit_config_create, name="pit-config-create"),
+    path("pit/config/<int:config_id>/edit/", pit_views.pit_config_update, name="pit-config-update"),
+    path("pit/report/", pit_views.pit_report, name="pit-report"),
+    path("pit/compute/", pit_views.pit_compute_month, name="pit-compute"),
+    path("pit/export/", pit_views.pit_export_csv, name="pit-export"),
+    path("pit/employee/<int:employee_id>/<int:year>/<int:month>/", pit_views.pit_employee_detail, name="pit-employee-detail"),
     path(
         "contract-bulk-delete",
         views.contract_bulk_delete,

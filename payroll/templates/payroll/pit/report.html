@@ -1,0 +1,174 @@
+{% extends "index.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="oh-wrapper oh-wrapper--full-width py-4 px-3">
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <div>
+      <h2 class="oh-inner-sidebar-content__title mb-0">Báo cáo Thuế TNCN</h2>
+      <p class="text-muted mb-0" style="font-size:13px;">{{ period_label }}</p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="/payroll/pit/config/" class="oh-btn oh-btn--light" style="font-size:13px;">
+        <ion-icon name="settings-outline" style="font-size:14px;vertical-align:middle;"></ion-icon>
+        Cấu hình
+      </a>
+      <a href="/payroll/pit/export/?year={{ year }}&month={{ month }}"
+         class="oh-btn oh-btn--light" style="font-size:13px;">
+        <ion-icon name="download-outline" style="font-size:14px;vertical-align:middle;"></ion-icon>
+        Xuất CSV
+      </a>
+    </div>
+  </div>
+
+  <!-- Bộ lọc kỳ -->
+  <form method="get" class="oh-card oh-card--margin mb-3">
+    <div class="oh-card__body">
+      <div class="row g-2 align-items-end">
+        <div class="col-auto">
+          <label class="oh-label mb-1" style="font-size:12px;">Tháng</label>
+          <select name="month" class="oh-input oh-input--select" style="width:120px;">
+            {% for m_val, m_label in months %}
+            <option value="{{ m_val }}" {% if m_val == month %}selected{% endif %}>{{ m_label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-auto">
+          <label class="oh-label mb-1" style="font-size:12px;">Năm</label>
+          <select name="year" class="oh-input oh-input--select" style="width:100px;">
+            {% for y in years %}
+            <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-auto">
+          <button type="submit" class="oh-btn oh-btn--secondary" style="background:#c0222b;border-color:#c0222b;color:#fff;font-size:13px;">
+            Xem
+          </button>
+        </div>
+        <div class="col-auto ms-2">
+          <form method="post" action="/payroll/pit/compute/" style="display:inline;">
+            {% csrf_token %}
+            <input type="hidden" name="year" value="{{ year }}">
+            <input type="hidden" name="month" value="{{ month }}">
+            <button type="submit" class="oh-btn oh-btn--secondary oh-btn--shadow"
+                    style="background:#c0222b;border-color:#c0222b;color:#fff;font-size:13px;"
+                    onclick="return confirm('Tính lại Thuế TNCN tháng {{ month }}/{{ year }}?')">
+              <ion-icon name="calculator-outline" style="font-size:14px;vertical-align:middle;"></ion-icon>
+              Tính TNCN
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </form>
+
+  <!-- Tổng hợp -->
+  {% if calculations %}
+  <div class="row mb-3">
+    <div class="col-md-3 col-6 mb-2">
+      <div class="oh-card oh-card--margin text-center" style="border-top:3px solid #c0222b;">
+        <div class="oh-card__body py-2">
+          <div style="font-size:11px;color:#6c757d;">Tổng thu nhập chịu thuế</div>
+          <div style="font-size:16px;font-weight:700;">{{ totals.gross_income|floatformat:"0" }}đ</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 col-6 mb-2">
+      <div class="oh-card oh-card--margin text-center" style="border-top:3px solid #6c757d;">
+        <div class="oh-card__body py-2">
+          <div style="font-size:11px;color:#6c757d;">Tổng giảm trừ</div>
+          <div style="font-size:16px;font-weight:700;">{{ totals.total_deductions|floatformat:"0" }}đ</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 col-6 mb-2">
+      <div class="oh-card oh-card--margin text-center" style="border-top:3px solid #0d6efd;">
+        <div class="oh-card__body py-2">
+          <div style="font-size:11px;color:#6c757d;">Tổng thu nhập tính thuế</div>
+          <div style="font-size:16px;font-weight:700;">{{ totals.taxable_income|floatformat:"0" }}đ</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 col-6 mb-2">
+      <div class="oh-card oh-card--margin text-center" style="border-top:3px solid #dc3545;">
+        <div class="oh-card__body py-2">
+          <div style="font-size:11px;color:#6c757d;">Tổng thuế TNCN phải nộp</div>
+          <div style="font-size:18px;font-weight:700;color:#c0222b;">{{ totals.pit_amount|floatformat:"0" }}đ</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bảng chi tiết -->
+  <div class="oh-card oh-card--margin">
+    <div class="oh-card__body p-0">
+      <div class="table-responsive">
+        <table class="oh-table oh-table--bordered oh-table--hover" style="font-size:12px;">
+          <thead class="table-light">
+            <tr>
+              <th>STT</th>
+              <th>Nhân viên</th>
+              <th class="text-end">Thu nhập chịu thuế</th>
+              <th class="text-end">Trừ BHXH</th>
+              <th class="text-end">Giảm trừ BT</th>
+              <th class="text-end">NPT</th>
+              <th class="text-end">Giảm trừ NPT</th>
+              <th class="text-end">Tổng giảm trừ</th>
+              <th class="text-end">TNTT</th>
+              <th class="text-end" style="color:#c0222b;">Thuế TNCN</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in calculations %}
+            <tr>
+              <td>{{ forloop.counter }}</td>
+              <td>
+                <strong style="font-size:12px;">{{ c.employee }}</strong>
+                <div style="font-size:11px;color:#6c757d;">{{ c.employee.employee_work_email|default:"" }}</div>
+              </td>
+              <td class="text-end">{{ c.gross_income|floatformat:"0" }}</td>
+              <td class="text-end">{{ c.bhxh_deduction|floatformat:"0" }}</td>
+              <td class="text-end">{{ c.personal_deduction|floatformat:"0" }}</td>
+              <td class="text-end">{{ c.npt_count }}</td>
+              <td class="text-end">{{ c.npt_deduction_total|floatformat:"0" }}</td>
+              <td class="text-end">{{ c.total_deductions|floatformat:"0" }}</td>
+              <td class="text-end">{{ c.taxable_income|floatformat:"0" }}</td>
+              <td class="text-end fw-bold" style="color:#c0222b;">{{ c.pit_amount|floatformat:"0" }}</td>
+              <td>
+                <a href="/payroll/pit/employee/{{ c.employee.id }}/{{ year }}/{{ month }}/"
+                   class="oh-btn oh-btn--light" style="font-size:11px;padding:2px 8px;">Chi tiết</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot class="table-light fw-bold">
+            <tr>
+              <td colspan="2">Tổng cộng</td>
+              <td class="text-end">{{ totals.gross_income|floatformat:"0" }}</td>
+              <td class="text-end">{{ totals.bhxh_deduction|floatformat:"0" }}</td>
+              <td class="text-end">{{ totals.personal_deduction|floatformat:"0" }}</td>
+              <td></td>
+              <td class="text-end">{{ totals.npt_deduction_total|floatformat:"0" }}</td>
+              <td class="text-end">{{ totals.total_deductions|floatformat:"0" }}</td>
+              <td class="text-end">{{ totals.taxable_income|floatformat:"0" }}</td>
+              <td class="text-end" style="color:#c0222b;">{{ totals.pit_amount|floatformat:"0" }}</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {% else %}
+  <div class="oh-card oh-card--margin">
+    <div class="oh-card__body p-4 text-center text-muted" style="font-size:13px;">
+      Chưa có dữ liệu Thuế TNCN cho {{ period_label }}.
+      Nhấn <strong>Tính TNCN</strong> để tính toán cho tháng này.
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
