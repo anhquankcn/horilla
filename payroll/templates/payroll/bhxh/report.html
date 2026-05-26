@@ -1,0 +1,193 @@
+{% extends "index.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block content %}
+<meta name="csrf-token" content="{{ csrf_token }}">
+
+<div class="oh-wrapper oh-wrapper--full-width py-4 px-3">
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <div>
+      <h2 class="oh-inner-sidebar-content__title mb-0">Báo cáo BHXH — {{ period_label }}</h2>
+      <p class="text-muted mb-0" style="font-size:13px;">
+        Tổng hợp đóng BHXH/BHYT/BHTN của toàn bộ nhân viên có hợp đồng.
+      </p>
+    </div>
+    <div class="d-flex gap-2 flex-wrap">
+      <a href="/payroll/bhxh/export/?year={{ year }}&month={{ month }}"
+         class="oh-btn oh-btn--secondary"
+         style="font-size:13px;background:#c0222b;border-color:#c0222b;color:#fff;">
+        <ion-icon name="download-outline" style="font-size:14px;vertical-align:middle;"></ion-icon>
+        Xuất CSV
+      </a>
+      <a href="/payroll/bhxh/config/" class="oh-btn oh-btn--light" style="font-size:13px;">
+        <ion-icon name="settings-outline" style="font-size:14px;vertical-align:middle;"></ion-icon>
+        Cấu hình
+      </a>
+    </div>
+  </div>
+
+  <!-- Period filter -->
+  <div class="oh-card oh-card--margin mb-3">
+    <div class="oh-card__body py-2 px-3">
+      <form method="get" action="/payroll/bhxh/report/" class="d-flex gap-2 align-items-center flex-wrap">
+        <label class="oh-label mb-0" style="font-size:13px;">Kỳ tính:</label>
+        <select name="month" class="oh-input oh-input--select" style="width:140px;font-size:13px;">
+          {% for m, mlabel in months %}
+          <option value="{{ m }}" {% if m == month %}selected{% endif %}>{{ mlabel }}</option>
+          {% endfor %}
+        </select>
+        <select name="year" class="oh-input oh-input--select" style="width:100px;font-size:13px;">
+          {% for y in years %}
+          <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit" class="oh-btn oh-btn--secondary" style="font-size:13px;background:#c0222b;border-color:#c0222b;color:#fff;">Xem</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Compute trigger -->
+  <div class="oh-card oh-card--margin mb-3" style="border-left:3px solid #0066cc;">
+    <div class="oh-card__body py-2 px-3 d-flex align-items-center justify-content-between">
+      <span style="font-size:13px;">
+        <ion-icon name="calculator-outline" style="font-size:14px;vertical-align:middle;color:#0066cc;"></ion-icon>
+        Tính BHXH tự động cho tất cả nhân viên có hợp đồng active trong tháng {{ period_label }}.
+      </span>
+      <form method="post" action="/payroll/bhxh/compute/">
+        {% csrf_token %}
+        <input type="hidden" name="year" value="{{ year }}">
+        <input type="hidden" name="month" value="{{ month }}">
+        <button type="submit" class="oh-btn oh-btn--secondary"
+                style="font-size:12px;padding:4px 14px;background:#0066cc;border-color:#0066cc;color:#fff;"
+                onclick="return confirm('Tính lại BHXH tháng {{ period_label }} cho toàn bộ nhân viên?')">
+          <ion-icon name="refresh-outline" style="font-size:13px;vertical-align:middle;"></ion-icon>
+          Tính / Cập nhật
+        </button>
+      </form>
+    </div>
+  </div>
+
+  {% if contributions %}
+  <!-- Summary totals -->
+  <div class="row mb-3">
+    <div class="col-md-4">
+      <div class="oh-card oh-card--margin h-100" style="border-left:3px solid #c0222b;">
+        <div class="oh-card__body py-2 px-3 text-center">
+          <div style="font-size:11px;color:#6c757d;">Tổng BH NLĐ phải trừ</div>
+          <div style="font-size:20px;font-weight:700;color:#c0222b;">{{ totals.total_ee|floatformat:"0" }}đ</div>
+          <div style="font-size:11px;color:#6c757d;">{{ contributions|length }} nhân viên</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="oh-card oh-card--margin h-100" style="border-left:3px solid #0066cc;">
+        <div class="oh-card__body py-2 px-3 text-center">
+          <div style="font-size:11px;color:#6c757d;">Tổng BH NSDLĐ phải nộp</div>
+          <div style="font-size:20px;font-weight:700;color:#0066cc;">{{ totals.total_er|floatformat:"0" }}đ</div>
+          <div style="font-size:11px;color:#6c757d;">Chi phí doanh nghiệp</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="oh-card oh-card--margin h-100" style="border-left:3px solid #198754;">
+        <div class="oh-card__body py-2 px-3 text-center">
+          <div style="font-size:11px;color:#6c757d;">Tổng nộp BHXH (NLĐ + NSDLĐ)</div>
+          <div style="font-size:20px;font-weight:700;color:#198754;">
+            {% widthratio totals.total_ee 1 1 as ee_val %}
+            {{ totals.total_ee|add:totals.total_er|floatformat:"0" }}đ
+          </div>
+          <div style="font-size:11px;color:#6c757d;">Chuyển cho cơ quan BHXH</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Detail table -->
+  <div class="oh-card oh-card--margin">
+    <div class="oh-card__body p-0">
+      <div class="table-responsive">
+        <table class="oh-table oh-table--bordered oh-table--hover" style="font-size:12px;">
+          <thead class="table-light">
+            <tr>
+              <th rowspan="2">STT</th>
+              <th rowspan="2">Nhân viên</th>
+              <th rowspan="2">Số sổ BHXH</th>
+              <th rowspan="2" class="text-end">Lương đóng BH</th>
+              <th colspan="4" class="text-center" style="background:#fff0f0;color:#c0222b;">NLĐ (trừ vào lương)</th>
+              <th colspan="5" class="text-center" style="background:#f0f4ff;color:#0066cc;">NSDLĐ (chi phí DN)</th>
+              <th rowspan="2" class="text-end">Thao tác</th>
+            </tr>
+            <tr>
+              <th class="text-end" style="background:#fff0f0;">BHXH</th>
+              <th class="text-end" style="background:#fff0f0;">BHYT</th>
+              <th class="text-end" style="background:#fff0f0;">BHTN</th>
+              <th class="text-end" style="background:#fff0f0;font-weight:700;color:#c0222b;">Tổng NLĐ</th>
+              <th class="text-end" style="background:#f0f4ff;">BHXH</th>
+              <th class="text-end" style="background:#f0f4ff;">BHYT</th>
+              <th class="text-end" style="background:#f0f4ff;">BHTN</th>
+              <th class="text-end" style="background:#f0f4ff;">KPCĐ</th>
+              <th class="text-end" style="background:#f0f4ff;font-weight:700;color:#0066cc;">Tổng NSDLĐ</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in contributions %}
+            <tr>
+              <td>{{ forloop.counter }}</td>
+              <td>
+                <a href="/employee/{{ c.employee.id }}/" style="color:#c0222b;text-decoration:none;">
+                  {{ c.employee }}
+                </a>
+              </td>
+              <td style="font-size:11px;color:#6c757d;">
+                {% with info=c.employee.bhxh_info %}
+                {{ info.so_bhxh|default:"—" }}
+                {% endwith %}
+              </td>
+              <td class="text-end">{{ c.luong_dong_bh|floatformat:"0" }}</td>
+              <td class="text-end" style="background:#fff8f8;">{{ c.bhxh_ee|floatformat:"0" }}</td>
+              <td class="text-end" style="background:#fff8f8;">{{ c.bhyt_ee|floatformat:"0" }}</td>
+              <td class="text-end" style="background:#fff8f8;">{{ c.bhtn_ee|floatformat:"0" }}</td>
+              <td class="text-end fw-bold" style="background:#fff8f8;color:#c0222b;">{{ c.total_ee|floatformat:"0" }}</td>
+              <td class="text-end" style="background:#f4f8ff;">{{ c.bhxh_er|floatformat:"0" }}</td>
+              <td class="text-end" style="background:#f4f8ff;">{{ c.bhyt_er|floatformat:"0" }}</td>
+              <td class="text-end" style="background:#f4f8ff;">{{ c.bhtn_er|floatformat:"0" }}</td>
+              <td class="text-end" style="background:#f4f8ff;">{{ c.kpcd_er|floatformat:"0" }}</td>
+              <td class="text-end fw-bold" style="background:#f4f8ff;color:#0066cc;">{{ c.total_er|floatformat:"0" }}</td>
+              <td>
+                <a href="/payroll/bhxh/employee/{{ c.employee.id }}/info/"
+                   class="oh-btn oh-btn--light" style="font-size:11px;padding:2px 6px;">Sửa</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+          <tfoot class="table-light fw-bold">
+            <tr>
+              <td colspan="3" class="text-end">Tổng cộng</td>
+              <td class="text-end">{{ totals.luong_dong_bh|floatformat:"0" }}</td>
+              <td class="text-end" style="background:#fff8f8;">{{ totals.bhxh_ee|floatformat:"0" }}</td>
+              <td class="text-end" style="background:#fff8f8;">{{ totals.bhyt_ee|floatformat:"0" }}</td>
+              <td class="text-end" style="background:#fff8f8;">{{ totals.bhtn_ee|floatformat:"0" }}</td>
+              <td class="text-end" style="background:#fff8f8;color:#c0222b;">{{ totals.total_ee|floatformat:"0" }}</td>
+              <td class="text-end" style="background:#f4f8ff;">{{ totals.bhxh_er|floatformat:"0" }}</td>
+              <td class="text-end" style="background:#f4f8ff;">{{ totals.bhyt_er|floatformat:"0" }}</td>
+              <td class="text-end" style="background:#f4f8ff;">{{ totals.bhtn_er|floatformat:"0" }}</td>
+              <td class="text-end" style="background:#f4f8ff;">{{ totals.kpcd_er|floatformat:"0" }}</td>
+              <td class="text-end" style="background:#f4f8ff;color:#0066cc;">{{ totals.total_er|floatformat:"0" }}</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <div class="oh-card oh-card--margin">
+    <div class="p-4 text-center text-muted" style="font-size:13px;">
+      Chưa có dữ liệu BHXH cho {{ period_label }}.
+      Nhấn <strong>"Tính / Cập nhật"</strong> phía trên để tự động tính cho tất cả nhân viên.
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

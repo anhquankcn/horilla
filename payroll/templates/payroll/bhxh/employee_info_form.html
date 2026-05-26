@@ -1,0 +1,71 @@
+{% extends "index.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="oh-wrapper oh-wrapper--full-width py-4 px-3" style="max-width:600px;">
+  <div class="mb-3">
+    <a href="/payroll/bhxh/report/" style="color:#c0222b;font-size:13px;">← Báo cáo BHXH</a>
+  </div>
+  <h2 class="oh-inner-sidebar-content__title mb-1">Thông tin BHXH — {{ employee }}</h2>
+  <p class="text-muted mb-4" style="font-size:13px;">
+    Cấu hình lương đóng bảo hiểm và số sổ BHXH cho nhân viên này.
+    Để trống "Lương đóng BH" để dùng lương hợp đồng.
+  </p>
+
+  <div class="oh-card oh-card--margin">
+    <div class="oh-card__body">
+      <form method="post" action="/payroll/bhxh/employee/{{ employee.id }}/info/">
+        {% csrf_token %}
+
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="oh-label">Lương đóng BH (VND/tháng)</label>
+            <input type="number" name="luong_dong_bh" class="oh-input w-100"
+                   value="{{ info.luong_dong_bh|default:'' }}"
+                   placeholder="Để trống = dùng lương hợp đồng" />
+            <small class="text-muted" style="font-size:11px;">
+              Cap BHXH/BHYT: 46,800,000đ/tháng. Cap BHTN: 99,200,000đ/tháng.
+            </small>
+          </div>
+
+          <div class="col-md-6 mb-3">
+            <label class="oh-label">Số sổ BHXH</label>
+            <input type="text" name="so_bhxh" class="oh-input w-100"
+                   value="{{ info.so_bhxh }}" placeholder="VD: 0112345678" />
+          </div>
+
+          <div class="col-md-6 mb-3">
+            <label class="oh-label">Mã thẻ BHYT</label>
+            <input type="text" name="ma_bhyt" class="oh-input w-100"
+                   value="{{ info.ma_bhyt }}" placeholder="VD: DN1234567890" />
+          </div>
+
+          <div class="col-12 mb-3">
+            <div class="form-check">
+              <input type="checkbox" name="is_exempt" id="is_exempt" class="form-check-input"
+                     {% if info.is_exempt %}checked{% endif %} />
+              <label class="form-check-label oh-label" for="is_exempt">
+                Miễn đóng BHXH (CTV, thời vụ &lt; 1 tháng...)
+              </label>
+            </div>
+          </div>
+
+          <div class="col-12 mb-3">
+            <label class="oh-label">Lý do miễn (nếu có)</label>
+            <textarea name="exempt_reason" class="oh-input w-100" rows="2"
+                      placeholder="Ghi rõ lý do...">{{ info.exempt_reason }}</textarea>
+          </div>
+        </div>
+
+        <div class="d-flex gap-2 justify-content-end">
+          <a href="/payroll/bhxh/report/" class="oh-btn oh-btn--light">Hủy</a>
+          <button type="submit" class="oh-btn oh-btn--secondary oh-btn--shadow"
+                  style="background:#c0222b;border-color:#c0222b;color:#fff;">
+            Lưu thông tin
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}

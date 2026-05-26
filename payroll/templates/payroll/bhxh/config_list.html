@@ -1,0 +1,128 @@
+{% extends "index.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block content %}
+<meta name="csrf-token" content="{{ csrf_token }}">
+
+<div class="oh-wrapper oh-wrapper--full-width py-4 px-3">
+  <div class="d-flex align-items-center justify-content-between mb-3 flex-wrap gap-2">
+    <div>
+      <h2 class="oh-inner-sidebar-content__title mb-0">Cấu hình BHXH/BHYT/BHTN</h2>
+      <p class="text-muted mb-0" style="font-size:13px;">
+        Tỷ lệ đóng và mức trần theo quy định nhà nước. Cập nhật khi có thay đổi pháp lý.
+      </p>
+    </div>
+    <a href="/payroll/bhxh/config/create/"
+       class="oh-btn oh-btn--secondary"
+       style="font-size:13px;background:#c0222b;border-color:#c0222b;color:#fff;">
+      <ion-icon name="add-circle-outline" style="font-size:14px;vertical-align:middle;"></ion-icon>
+      Thêm cấu hình mới
+    </a>
+  </div>
+
+  <div class="oh-card oh-card--margin">
+    <div class="oh-card__body p-0">
+      {% if configs %}
+      <div class="table-responsive">
+        <table class="oh-table oh-table--bordered oh-table--hover" style="font-size:13px;">
+          <thead class="table-light">
+            <tr>
+              <th>Hiệu lực từ</th>
+              <th>Trạng thái</th>
+              <th class="text-end">BHXH NLĐ</th>
+              <th class="text-end">BHYT NLĐ</th>
+              <th class="text-end">BHTN NLĐ</th>
+              <th class="text-end">Tổng NLĐ</th>
+              <th class="text-end">BHXH NSDLĐ</th>
+              <th class="text-end">BHYT NSDLĐ</th>
+              <th class="text-end">BHTN NSDLĐ</th>
+              <th class="text-end">KPCĐ</th>
+              <th class="text-end">Tổng NSDLĐ</th>
+              <th class="text-end">Cap BHXH/BHYT</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for cfg in configs %}
+            <tr {% if cfg.is_active %}style="background:#fff8f8;"{% endif %}>
+              <td>
+                <strong>{{ cfg.effective_from|date:"d/m/Y" }}</strong>
+                {% if cfg.note %}
+                <div class="text-muted" style="font-size:11px;">{{ cfg.note|truncatechars:50 }}</div>
+                {% endif %}
+              </td>
+              <td>
+                {% if cfg.is_active %}
+                <span class="oh-badge oh-badge--success" style="font-size:11px;">Đang áp dụng</span>
+                {% else %}
+                <span class="oh-badge" style="font-size:11px;background:#6c757d;color:#fff;">Không hoạt động</span>
+                {% endif %}
+              </td>
+              <td class="text-end">{{ cfg.bhxh_rate_ee }}%</td>
+              <td class="text-end">{{ cfg.bhyt_rate_ee }}%</td>
+              <td class="text-end">{{ cfg.bhtn_rate_ee }}%</td>
+              <td class="text-end fw-bold" style="color:#c0222b;">{{ cfg.total_ee_rate }}%</td>
+              <td class="text-end">{{ cfg.bhxh_rate_er }}%</td>
+              <td class="text-end">{{ cfg.bhyt_rate_er }}%</td>
+              <td class="text-end">{{ cfg.bhtn_rate_er }}%</td>
+              <td class="text-end">{{ cfg.kpcd_rate_er }}%</td>
+              <td class="text-end fw-bold" style="color:#0066cc;">{{ cfg.total_er_rate }}%</td>
+              <td class="text-end" style="font-size:11px;">{{ cfg.luong_co_so|floatformat:"0" }}đ × 20</td>
+              <td>
+                <a href="/payroll/bhxh/config/{{ cfg.id }}/edit/"
+                   class="oh-btn oh-btn--light"
+                   style="font-size:11px;padding:2px 8px;">Sửa</a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+      <div class="p-4 text-center text-muted" style="font-size:13px;">
+        Chưa có cấu hình BHXH nào.
+        <a href="/payroll/bhxh/config/create/" style="color:#c0222b;">Tạo cấu hình đầu tiên</a>.
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="oh-card oh-card--margin mt-3">
+    <div class="oh-card__header">
+      <span class="oh-card__title oh-card__title--sm fw-bold">Thông tin tham chiếu (2024)</span>
+    </div>
+    <div class="oh-card__body" style="font-size:13px;">
+      <div class="row">
+        <div class="col-md-6">
+          <table class="table table-sm table-bordered" style="font-size:12px;">
+            <thead class="table-light"><tr><th colspan="3">Tỷ lệ đóng NLĐ (trừ vào lương)</th></tr></thead>
+            <tbody>
+              <tr><td>BHXH</td><td class="text-end">8%</td><td>Hưu trí, tử tuất, ốm đau, thai sản</td></tr>
+              <tr><td>BHYT</td><td class="text-end">1.5%</td><td>Bảo hiểm y tế</td></tr>
+              <tr><td>BHTN</td><td class="text-end">1%</td><td>Bảo hiểm thất nghiệp</td></tr>
+              <tr class="table-warning"><td><strong>Tổng</strong></td><td class="text-end"><strong>10.5%</strong></td><td></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="col-md-6">
+          <table class="table table-sm table-bordered" style="font-size:12px;">
+            <thead class="table-light"><tr><th colspan="3">Tỷ lệ đóng NSDLĐ (chi phí DN)</th></tr></thead>
+            <tbody>
+              <tr><td>BHXH</td><td class="text-end">17.5%</td><td>Hưu trí 14% + TNLĐ 0.5% + ốm đau 3%</td></tr>
+              <tr><td>BHYT</td><td class="text-end">3%</td><td>Bảo hiểm y tế</td></tr>
+              <tr><td>BHTN</td><td class="text-end">1%</td><td>Bảo hiểm thất nghiệp</td></tr>
+              <tr><td>KPCĐ</td><td class="text-end">2%</td><td>Kinh phí công đoàn</td></tr>
+              <tr class="table-info"><td><strong>Tổng</strong></td><td class="text-end"><strong>23.5%</strong></td><td>(chưa KPCĐ: 21.5%)</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <p class="text-muted mb-0" style="font-size:11px;">
+        Mức trần đóng BHXH/BHYT: 20 × lương cơ sở (2,340,000đ) = <strong>46,800,000đ/tháng</strong>.
+        Mức trần BHTN: 20 × lương tối thiểu vùng 1 (4,960,000đ) = <strong>99,200,000đ/tháng</strong>.
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}

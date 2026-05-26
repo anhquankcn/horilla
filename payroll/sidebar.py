@@ -53,6 +53,11 @@ SUBMENUS = [
         "redirect": reverse("dependent-hr-panel"),
         "accessibility": "payroll.sidebar.dependent_accessibility",
     },
+    {
+        "menu": "Bảo Hiểm (BHXH)",
+        "redirect": reverse("bhxh-report"),
+        "accessibility": "payroll.sidebar.bhxh_accessibility",
+    },
 ]
 
 
@@ -78,3 +83,7 @@ def loan_accessibility(request, submenu, user_perms, *args, **kwargs):
 
 def federal_tax_accessibility(request, submenu, user_perms, *args, **kwargs):
     return request.user.has_perm("payroll.view_filingstatus")
+
+
+def bhxh_accessibility(request, submenu, user_perms, *args, **kwargs):
+    return request.user.has_perm("payroll.change_bhxhconfig")

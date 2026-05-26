@@ -8,7 +8,7 @@ from django.urls import include, path
 
 from payroll.cbv import contracts, dashboard, payslip_automation
 from payroll.models.models import Contract, Payslip
-from payroll.views import dependent_views, views
+from payroll.views import bhxh_views, dependent_views, views
 
 urlpatterns = [
     path("", include("payroll.urls.component_urls")),
@@ -185,6 +185,14 @@ urlpatterns = [
         dependent_views.dependent_export_csv,
         name="dependent-export",
     ),
+    # BHXH/BHYT/BHTN
+    path("bhxh/config/", bhxh_views.bhxh_config_list, name="bhxh-config-list"),
+    path("bhxh/config/create/", bhxh_views.bhxh_config_create, name="bhxh-config-create"),
+    path("bhxh/config/<int:config_id>/edit/", bhxh_views.bhxh_config_update, name="bhxh-config-update"),
+    path("bhxh/report/", bhxh_views.bhxh_report, name="bhxh-report"),
+    path("bhxh/compute/", bhxh_views.bhxh_compute_month, name="bhxh-compute"),
+    path("bhxh/export/", bhxh_views.bhxh_export_csv, name="bhxh-export"),
+    path("bhxh/employee/<int:employee_id>/info/", bhxh_views.bhxh_employee_info, name="bhxh-employee-info"),
     path(
         "contract-bulk-delete",
         views.contract_bulk_delete,

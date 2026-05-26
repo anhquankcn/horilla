@@ -1,0 +1,143 @@
+{% extends "index.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="oh-wrapper oh-wrapper--full-width py-4 px-3" style="max-width:800px;">
+  <div class="mb-3">
+    <a href="/payroll/bhxh/config/" style="color:#c0222b;font-size:13px;">
+      ← Danh sách cấu hình
+    </a>
+  </div>
+  <h2 class="oh-inner-sidebar-content__title mb-1">{{ action }} Cấu hình BHXH</h2>
+  <p class="text-muted mb-4" style="font-size:13px;">Tỷ lệ đóng BHXH/BHYT/BHTN theo quy định hiện hành.</p>
+
+  <form method="post" action="">
+    {% csrf_token %}
+    <div class="oh-card oh-card--margin mb-3">
+      <div class="oh-card__header">
+        <span class="oh-card__title oh-card__title--sm fw-bold">Thông tin chung</span>
+      </div>
+      <div class="oh-card__body">
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="oh-label">Hiệu lực từ ngày <span style="color:#c0222b">*</span></label>
+            <input type="date" name="effective_from" class="oh-input w-100 {% if errors.effective_from %}is-invalid{% endif %}"
+                   value="{{ form_data.effective_from|default:'' }}" required />
+            {% if errors.effective_from %}<div style="color:#c0222b;font-size:12px;">{{ errors.effective_from }}</div>{% endif %}
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="oh-label">Công ty (để trống = áp dụng cho tất cả)</label>
+            <select name="company_id" class="oh-input oh-input--select w-100">
+              <option value="">-- Tất cả công ty --</option>
+              {% for company in companies %}
+              <option value="{{ company.id }}" {% if form_data.company_id == company.id|stringformat:"s" %}selected{% endif %}>{{ company }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="col-md-12 mb-3">
+            <div class="form-check">
+              <input type="checkbox" name="is_active" id="is_active" class="form-check-input"
+                     {% if form_data.is_active %}checked{% endif %} />
+              <label class="form-check-label oh-label" for="is_active">Đang hiệu lực (dùng để tính BHXH)</label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="oh-card oh-card--margin mb-3">
+      <div class="oh-card__header">
+        <span class="oh-card__title oh-card__title--sm fw-bold">Tỷ lệ đóng NLĐ (trừ vào lương nhân viên)</span>
+      </div>
+      <div class="oh-card__body">
+        <div class="row">
+          {% for field, label in "bhxh_rate_ee,BHXH NLĐ (%)|bhyt_rate_ee,BHYT NLĐ (%)|bhtn_rate_ee,BHTN NLĐ (%)"|split:"|" %}
+          {% endfor %}
+          <div class="col-md-4 mb-3">
+            <label class="oh-label">BHXH NLĐ (%)</label>
+            <input type="number" name="bhxh_rate_ee" step="0.01" min="0" max="100"
+                   class="oh-input w-100" value="{{ form_data.bhxh_rate_ee|default:'8.00' }}" />
+          </div>
+          <div class="col-md-4 mb-3">
+            <label class="oh-label">BHYT NLĐ (%)</label>
+            <input type="number" name="bhyt_rate_ee" step="0.01" min="0" max="100"
+                   class="oh-input w-100" value="{{ form_data.bhyt_rate_ee|default:'1.50' }}" />
+          </div>
+          <div class="col-md-4 mb-3">
+            <label class="oh-label">BHTN NLĐ (%)</label>
+            <input type="number" name="bhtn_rate_ee" step="0.01" min="0" max="100"
+                   class="oh-input w-100" value="{{ form_data.bhtn_rate_ee|default:'1.00' }}" />
+          </div>
+        </div>
+        <p class="text-muted" style="font-size:12px;">Tổng NLĐ hiện tại: <strong>10.5%</strong> (BHXH 8% + BHYT 1.5% + BHTN 1%)</p>
+      </div>
+    </div>
+
+    <div class="oh-card oh-card--margin mb-3">
+      <div class="oh-card__header">
+        <span class="oh-card__title oh-card__title--sm fw-bold">Tỷ lệ đóng NSDLĐ (chi phí doanh nghiệp)</span>
+      </div>
+      <div class="oh-card__body">
+        <div class="row">
+          <div class="col-md-3 mb-3">
+            <label class="oh-label">BHXH NSDLĐ (%)</label>
+            <input type="number" name="bhxh_rate_er" step="0.01" min="0" max="100"
+                   class="oh-input w-100" value="{{ form_data.bhxh_rate_er|default:'17.50' }}" />
+          </div>
+          <div class="col-md-3 mb-3">
+            <label class="oh-label">BHYT NSDLĐ (%)</label>
+            <input type="number" name="bhyt_rate_er" step="0.01" min="0" max="100"
+                   class="oh-input w-100" value="{{ form_data.bhyt_rate_er|default:'3.00' }}" />
+          </div>
+          <div class="col-md-3 mb-3">
+            <label class="oh-label">BHTN NSDLĐ (%)</label>
+            <input type="number" name="bhtn_rate_er" step="0.01" min="0" max="100"
+                   class="oh-input w-100" value="{{ form_data.bhtn_rate_er|default:'1.00' }}" />
+          </div>
+          <div class="col-md-3 mb-3">
+            <label class="oh-label">KPCĐ NSDLĐ (%)</label>
+            <input type="number" name="kpcd_rate_er" step="0.01" min="0" max="100"
+                   class="oh-input w-100" value="{{ form_data.kpcd_rate_er|default:'2.00' }}" />
+          </div>
+        </div>
+        <p class="text-muted" style="font-size:12px;">Tổng NSDLĐ: <strong>23.5%</strong> (chưa KPCĐ) hoặc <strong>25.5%</strong> (gồm KPCĐ)</p>
+      </div>
+    </div>
+
+    <div class="oh-card oh-card--margin mb-3">
+      <div class="oh-card__header">
+        <span class="oh-card__title oh-card__title--sm fw-bold">Mức trần đóng bảo hiểm</span>
+      </div>
+      <div class="oh-card__body">
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label class="oh-label">Lương cơ sở (VND/tháng)</label>
+            <input type="number" name="luong_co_so" step="1000" min="0"
+                   class="oh-input w-100" value="{{ form_data.luong_co_so|default:'2340000' }}" />
+            <small class="text-muted" style="font-size:11px;">Cap BHXH/BHYT = 20 × lương cơ sở = 46,800,000đ</small>
+          </div>
+          <div class="col-md-6 mb-3">
+            <label class="oh-label">Lương tối thiểu vùng (VND/tháng)</label>
+            <input type="number" name="luong_toi_thieu_vung" step="1000" min="0"
+                   class="oh-input w-100" value="{{ form_data.luong_toi_thieu_vung|default:'4960000' }}" />
+            <small class="text-muted" style="font-size:11px;">Vùng 1 (TP.HCM). Cap BHTN = 20 × lương tối thiểu vùng</small>
+          </div>
+          <div class="col-12 mb-3">
+            <label class="oh-label">Ghi chú</label>
+            <textarea name="note" class="oh-input w-100" rows="2"
+                      placeholder="VD: Cập nhật theo Nghị định số XX/2024/NĐ-CP...">{{ form_data.note|default:'' }}</textarea>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex gap-2 justify-content-end">
+      <a href="/payroll/bhxh/config/" class="oh-btn oh-btn--light">Hủy</a>
+      <button type="submit" class="oh-btn oh-btn--secondary oh-btn--shadow"
+              style="background:#c0222b;border-color:#c0222b;color:#fff;">
+        Lưu cấu hình
+      </button>
+    </div>
+  </form>
+</div>
+{% endblock %}
