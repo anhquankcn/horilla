@@ -1,5 +1,6 @@
 {% extends "index.html" %}
 {% load i18n %}
+{% load payrollfilters %}
 
 {% block content %}
 <div class="oh-wrapper oh-wrapper--full-width py-4 px-3">
@@ -40,7 +41,7 @@
           <tr>
             <td>{{ c.employee_id }}</td>
             <td><a href="{% url 'performance-contract-detail' c.pk %}" style="color:#c0222b;">{{ c.contract_name }}</a></td>
-            <td class="text-end">{{ c.base_salary|floatformat:"0" }}</td>
+            <td class="text-end">{{ c.base_salary|vnd }}đ</td>
             <td class="text-center">{{ c.kpi_appendices.count }} năm</td>
             <td class="text-center">{{ c.contract_start_date }}</td>
             <td class="text-center">{{ c.contract_end_date|default:"-" }}</td>

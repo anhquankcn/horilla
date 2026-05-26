@@ -1,6 +1,7 @@
 {% extends "index.html" %}
 {% load i18n %}
 {% load static %}
+{% load payrollfilters %}
 
 {% block content %}
 <main :class="sidebarOpen ? 'oh-main__sidebar-visible' : ''">
@@ -77,7 +78,7 @@
           <div class="oh-timeoff-modal__stat">
             <span class="oh-timeoff-modal__stat-title">Lương cơ bản</span>
             <span class="oh-timeoff-modal__stat-count" style="color:#c0222b;font-weight:700;">
-              {{ contract.wage|floatformat:"0" }}đ
+              {{ contract.wage|vnd }}đ
             </span>
           </div>
         </div>
@@ -85,7 +86,7 @@
           <div class="oh-timeoff-modal__stat">
             <span class="oh-timeoff-modal__stat-title">Lương hiệu suất</span>
             <span class="oh-timeoff-modal__stat-count" style="font-weight:700;">
-              {{ contract.base_salary|floatformat:"0" }}đ
+              {{ contract.base_salary|vnd }}đ
             </span>
           </div>
         </div>
@@ -163,9 +164,9 @@
           <tr>
             <td class="fw-bold">{{ a.year }}</td>
             <td>{{ a.position|default:"—" }}</td>
-            <td class="text-end">{{ a.annual_income_min|floatformat:"0" }}</td>
-            <td class="text-end">{{ a.annual_income_max|floatformat:"0" }}</td>
-            <td class="text-end">{{ a.monthly_performance_advance|floatformat:"0" }}</td>
+            <td class="text-end">{{ a.annual_income_min|vnd }}đ</td>
+            <td class="text-end">{{ a.annual_income_max|vnd }}đ</td>
+            <td class="text-end">{{ a.monthly_performance_advance|vnd }}đ</td>
             <td class="text-center">{{ a.kpi_pct_90_100 }}%</td>
             <td class="text-center">{{ a.kpi_pct_75_89 }}%</td>
             <td class="text-center">{{ a.kpi_pct_60_74 }}%</td>

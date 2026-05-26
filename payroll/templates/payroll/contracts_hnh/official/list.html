@@ -1,5 +1,6 @@
 {% extends "index.html" %}
 {% load i18n %}
+{% load payrollfilters %}
 
 {% block content %}
 <div class="oh-wrapper oh-wrapper--full-width py-4 px-3">
@@ -39,7 +40,7 @@
           <tr>
             <td>{{ c.employee_id }}</td>
             <td>{{ c.contract_name }}</td>
-            <td class="text-end">{{ c.wage|floatformat:"0" }}</td>
+            <td class="text-end">{{ c.wage|vnd }}đ</td>
             <td class="text-center">{{ c.contract_start_date }}</td>
             <td class="text-center">{{ c.contract_end_date|default:"-" }}</td>
             <td class="text-center">

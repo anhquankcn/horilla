@@ -6,6 +6,7 @@ HR-facing CRUD views for HNH's 3 contract types:
   - ContractKPIAppendix (Phu luc 1, for both Trial and Performance)
 """
 
+import json
 import logging
 from datetime import date
 
@@ -13,9 +14,10 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import models
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
-from base.models import JobPosition
+from base.models import Department, JobPosition
 from employee.models import Employee
 from payroll.models.contract_models import (
     ContractKPIAppendix,
@@ -24,6 +26,7 @@ from payroll.models.contract_models import (
     TrialContract,
 )
 from payroll.models.models import Allowance, Deduction
+from payroll.utils.salary_data import get_annual_salary
 
 logger = logging.getLogger(__name__)
 
@@ -273,7 +276,7 @@ def trial_contract_delete(request, pk):
 @login_required
 def trial_kpi_appendix_create(request, contract_pk):
     contract = get_object_or_404(TrialContract, pk=contract_pk)
-    positions = JobPosition.objects.all().order_by("job_position")
+    departments = Department.objects.order_by("department")
 
     if request.method == "POST":
         errors = {}
@@ -299,11 +302,11 @@ def trial_kpi_appendix_create(request, contract_pk):
 
         return render(request, "payroll/contracts_hnh/kpi_appendix_form.html", {
             "contract": contract, "contract_type": "trial",
-            "positions": positions, "errors": errors, "post": request.POST,
+            "departments": departments, "errors": errors, "post": request.POST,
         })
 
     return render(request, "payroll/contracts_hnh/kpi_appendix_form.html", {
-        "contract": contract, "contract_type": "trial", "positions": positions,
+        "contract": contract, "contract_type": "trial", "departments": departments,
     })
 
 
@@ -534,7 +537,7 @@ def performance_contract_delete(request, pk):
 def kpi_appendix_create(request, contract_pk):
     """KPI appendix for PerformanceContract."""
     contract = get_object_or_404(PerformanceContract, pk=contract_pk)
-    positions = JobPosition.objects.all().order_by("job_position")
+    departments = Department.objects.order_by("department")
 
     if request.method == "POST":
         errors = {}
@@ -557,12 +560,36 @@ def kpi_appendix_create(request, contract_pk):
 
         return render(request, "payroll/contracts_hnh/kpi_appendix_form.html", {
             "contract": contract, "contract_type": "performance",
-            "positions": positions, "errors": errors, "post": request.POST,
+            "departments": departments, "errors": errors, "post": request.POST,
         })
 
     return render(request, "payroll/contracts_hnh/kpi_appendix_form.html", {
-        "contract": contract, "contract_type": "performance", "positions": positions,
+        "contract": contract, "contract_type": "performance", "departments": departments,
     })
+
+
+@login_required
+def hnh_positions_api(request):
+    """JSON API: list positions for a department with salary suggestions.
+
+    GET /payroll/hnh/api/positions/?department_id=<id>
+    Returns: [{id, name, annual_min, annual_max, monthly_advance}, ...]
+    """
+    dept_id = request.GET.get("department_id") or None
+    qs = JobPosition.objects.order_by("job_position")
+    if dept_id:
+        qs = qs.filter(department_id=dept_id)
+    data = []
+    for pos in qs:
+        annual_min, annual_max, monthly_advance = get_annual_salary(pos.job_position)
+        data.append({
+            "id": pos.pk,
+            "name": pos.job_position,
+            "annual_min": annual_min,
+            "annual_max": annual_max,
+            "monthly_advance": monthly_advance,
+        })
+    return JsonResponse({"positions": data})
 
 
 @login_required

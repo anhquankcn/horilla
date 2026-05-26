@@ -1,6 +1,7 @@
 {% extends 'index.html' %}
 {% load i18n %}
 {% load static %}
+{% load payrollfilters %}
 
 {% block content %}
 <main :class="sidebarOpen ? 'oh-main__sidebar-visible' : ''">
@@ -138,7 +139,7 @@
                 </div>
 
                 <div class="oh-sticky-table__td text-end" style="font-variant-numeric:tabular-nums;">
-                  {{ c.wage|floatformat:"0" }}
+                  {{ c.wage|vnd }}đ
                 </div>
 
                 <div class="oh-sticky-table__td text-center">

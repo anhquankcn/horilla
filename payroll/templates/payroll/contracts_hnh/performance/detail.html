@@ -1,5 +1,6 @@
 {% extends "index.html" %}
 {% load i18n %}
+{% load payrollfilters %}
 
 {% block content %}
 <div class="oh-wrapper oh-wrapper--full-width py-4 px-3" style="max-width:900px;">
@@ -36,7 +37,7 @@
     <div class="col-md-3">
       <div class="oh-card oh-card--margin text-center" style="padding:16px;">
         <div style="font-size:11px;color:#6c757d;">Lương cơ bản</div>
-        <div style="font-size:15px;font-weight:700;margin-top:4px;color:#c0222b;">{{ contract.base_salary|floatformat:"0" }}đ</div>
+        <div style="font-size:15px;font-weight:700;margin-top:4px;color:#c0222b;">{{ contract.base_salary|vnd }}đ</div>
       </div>
     </div>
     <div class="col-md-3">
@@ -83,9 +84,9 @@
           <tr>
             <td class="fw-bold">{{ a.year }}</td>
             <td>{{ a.position|default:"-" }}</td>
-            <td class="text-end">{{ a.annual_income_min|floatformat:"0" }}</td>
-            <td class="text-end">{{ a.annual_income_max|floatformat:"0" }}</td>
-            <td class="text-end">{{ a.monthly_performance_advance|floatformat:"0" }}</td>
+            <td class="text-end">{{ a.annual_income_min|vnd }}đ</td>
+            <td class="text-end">{{ a.annual_income_max|vnd }}đ</td>
+            <td class="text-end">{{ a.monthly_performance_advance|vnd }}đ</td>
             <td class="text-center">{{ a.kpi_pct_90_100 }}%</td>
             <td class="text-center">{{ a.kpi_pct_75_89 }}%</td>
             <td class="text-center">{{ a.kpi_pct_60_74 }}%</td>

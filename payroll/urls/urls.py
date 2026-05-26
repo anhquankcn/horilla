@@ -223,6 +223,8 @@ urlpatterns = [
     # KPI Appendix (Phu luc 1)
     path("hnh/performance/<int:contract_pk>/kpi/add/", contract_hnh_views.kpi_appendix_create, name="kpi-appendix-create"),
     path("hnh/kpi/<int:pk>/delete/", contract_hnh_views.kpi_appendix_delete, name="kpi-appendix-delete"),
+    # JSON API for cascading department → position selector
+    path("hnh/api/positions/", contract_hnh_views.hnh_positions_api, name="hnh-positions-api"),
     path(
         "contract-bulk-delete",
         views.contract_bulk_delete,
