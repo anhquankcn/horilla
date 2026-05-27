@@ -245,6 +245,16 @@ class Command(BaseCommand):
     # ─── helpers ────────────────────────────────────────────────────────────
 
     def _ensure_leave_types(self):
+        import horilla_middlewares
+        # Mock request so LeaveType.save() doesn't crash on session access
+        class _FakeSession(dict):
+            def get(self, key, default=None):
+                return default
+        class _FakeRequest:
+            session = _FakeSession()
+            user = None
+        horilla_middlewares._thread_locals.request = _FakeRequest()
+
         defaults = [
             ("Nghỉ phép năm", "#198754", "paid_leave",  12),
             ("Nghỉ ốm",       "#fd7e14", "unpaid_leave", 10),
@@ -254,26 +264,22 @@ class Command(BaseCommand):
         result = {}
         keys   = ["annual", "sick", "business", "absent"]
         for (name, color, payment, count), key in zip(defaults, keys):
-            lt = LeaveType.objects.filter(name=name).first()
-            if not lt:
-                from django.db import connection
-                with connection.cursor() as cur:
-                    cur.execute(
-                        """
-                        INSERT INTO leave_leavetype
-                          (name, color, payment, count, period_in, require_approval,
-                           exclude_company_leave, exclude_holiday, is_active,
-                           limit_leave, reset, is_encashable, is_compensatory_leave,
-                           carryforward_type, total_days, carryforward_max,
-                           carryforward_expire_in, reset_weekend)
-                        VALUES (%s,%s,%s,%s,'days',TRUE,TRUE,TRUE,TRUE,
-                                FALSE,FALSE,FALSE,FALSE,'no_carryforward',0,0,0,FALSE)
-                        """,
-                        [name, color, payment, count],
-                    )
-                lt = LeaveType.objects.get(name=name)
+            lt, created = LeaveType.objects.get_or_create(
+                name=name,
+                defaults={
+                    "color": color,
+                    "payment": payment,
+                    "count": count,
+                    "period_in": "days",
+                    "require_approval": True,
+                    "exclude_company_leave": True,
+                    "exclude_holiday": True,
+                },
+            )
             result[key] = lt
-            self.stdout.write(f"  Leave type: {lt.name} (id={lt.id})")
+            self.stdout.write(f"  Leave type: {lt.name} (id={lt.id}){' [created]' if created else ''}")
+
+        horilla_middlewares._thread_locals.request = None
         return result
 
     def _ensure_available_leave(self, employees, leave_types):
