@@ -29,46 +29,7 @@
         <main class="oh-auth">
             <div class="oh-auth-card mb-4">
 
-                {% if local_login %}
-                {# ── Admin backdoor: local username/password form (?local=1) ── #}
-                <h1 class="oh-onboarding-card__title oh-onboarding-card__title--h2 text-center my-3">
-                    {% trans "Sign In" %} (Admin)
-                </h1>
-                <p class="text-muted text-center">
-                    {% trans "Admin local login" %}
-                </p>
-                <form method="post" action="/login/?local=1" class="oh-form-group">
-                    {% csrf_token %}
-                    <div class="oh-input-group">
-                        <label class="oh-label" for="username">{% trans "Username" %}</label>
-                        <input type="text" id="username" name="username" class="oh-input w-100" />
-                    </div>
-                    <div class="oh-input-group">
-                        <label class="oh-label" for="password">{% trans "Password" %}</label>
-                        <div class="oh-password-input-container">
-                            <input type="password" id="password" name="password"
-                                class="oh-input oh-input--password w-100" />
-                            <button type="button" class="oh-btn oh-btn--transparent oh-password-input--toggle">
-                                <ion-icon class="oh-passowrd-input__show-icon" title="{% trans 'Show Password' %}"
-                                    name="eye-outline"></ion-icon>
-                                <ion-icon class="oh-passowrd-input__hide-icon d-none" title="{% trans 'Hide Password' %}"
-                                    name="eye-off-outline"></ion-icon>
-                            </button>
-                        </div>
-                    </div>
-                    <button type="submit"
-                        class="oh-btn oh-onboarding-card__button mt-4 oh-btn--secondary oh-btn--shadow w-100 mb-4"
-                        role="button">
-                        <ion-icon class="me-2" name="lock-closed-outline"></ion-icon>
-                        {% trans "Secure Sign-in" %}
-                    </button>
-                </form>
-                <div class="mt-3 text-center">
-                    <a href="/login/" class="oh-link oh-link--secondary">{% trans "Back to SSO login" %}</a>
-                </div>
-
-                {% else %}
-                {# ── SSO-only login (default) ── #}
+                {# ── SSO-only login ── #}
                 <div class="text-center">
                     {% if white_label_company.icon %}
                       <img src="{{white_label_company.icon.url}}"
@@ -105,8 +66,6 @@
                     {% trans "Protected by Single Sign-On with OTP verification." %}
                 </p>
 
-                {% endif %}
-
                 {% if initialize_database %}
                     <div>
                         <div class="d-flex gap-2">
@@ -136,13 +95,11 @@
                 {% endif %}
             </div>
 
-            {% if not local_login %}
             <div style="display: contents;">
                 {% if white_label_company and white_label_company.icon %}
                 <p style="font-size:large;color:gray;text-align:center;" class="mt-2">{{white_label_company}}</p>
                 {% endif %}
             </div>
-            {% endif %}
         </main>
     </div>
     <script src="{% static '/build/js/web.frontend.min.js' %}"></script>

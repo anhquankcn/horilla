@@ -605,7 +605,7 @@ def login_user(request):
     Handles user login and authentication.
     Normal users are redirected to SSO.  Append ?local=1 for admin backdoor.
     """
-    allow_local = request.GET.get("local") == "1"
+    allow_local = False  # local login disabled — SSO only
 
     if request.method == "POST" and allow_local:
         username = request.POST.get("username")
