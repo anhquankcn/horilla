@@ -154,3 +154,6 @@ whoosh_index/
 .idea/
 TestDB.sqlite3
 .gstack/
+
+# HNH internal notes (contains secrets)
+logs_note/
