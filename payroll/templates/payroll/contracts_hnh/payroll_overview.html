@@ -126,10 +126,11 @@
         <input type="hidden" name="month" value="{{ current_month }}">
         <input type="hidden" name="year" value="{{ current_year }}">
         <input type="hidden" name="ctype_filter" value="{{ ctype_filter }}">
+        <input type="hidden" name="dept_filter" value="{{ dept_filter }}">
         <button type="submit" class="pl-btn pl-btn--outline"
-                onclick="return confirm('Tạo dòng lương từ hợp đồng active{% if ctype_filter %} ({{ ctype_filter }}){% endif %} tháng {{ current_month }}/{{ current_year }}?')"
-                title="Tạo tự động từ hợp đồng active đang lọc">
-          ⚡ Tạo từ HĐ
+                onclick="return confirm('Tạo dòng lương từ hợp đồng active{% if ctype_filter %} [{{ ctype_filter }}]{% endif %}{% if dept_filter %} — phòng ban đang lọc{% endif %} tháng {{ current_month }}/{{ current_year }}?')"
+                title="Tạo tự động từ hợp đồng active theo bộ lọc đang chọn (loại HĐ + phòng ban)">
+          ⚡ Tạo từ HĐ{% if ctype_filter or dept_filter %} (lọc){% endif %}
         </button>
       </form>
 
@@ -172,8 +173,6 @@
 
   <!-- ── Filter bar ── -->
   <form method="get" class="pl-filter" id="filterForm">
-    <input type="hidden" name="ctype_filter" value="{{ ctype_filter }}">
-
     <!-- Month / Year -->
     <select name="month" onchange="document.getElementById('filterForm').submit()">
       {% for m in months %}
@@ -307,7 +306,7 @@
         {% for r in rows %}
         {% with e=r.entry f=r.f %}
         <input type="hidden" name="entry_id" value="{{ e.pk }}">
-        <tr data-id="{{ e.pk }}">
+        <tr data-id="{{ e.pk }}" {% if not r.validity.contract_ok %}class="pl-row--warn"{% endif %}>
           <!-- A: STT -->
           <td class="pl-cell-info" style="text-align:center;">{{ forloop.counter }}</td>
 
@@ -625,6 +624,8 @@
         <input type="hidden" name="action" value="generate">
         <input type="hidden" name="month" value="{{ current_month }}">
         <input type="hidden" name="year" value="{{ current_year }}">
+        <input type="hidden" name="ctype_filter" value="{{ ctype_filter }}">
+        <input type="hidden" name="dept_filter" value="{{ dept_filter }}">
         <button type="submit" class="pl-btn pl-btn--primary">
           ⚡ Tạo từ hợp đồng active
         </button>
@@ -727,7 +728,7 @@ function recalcRow(id) {
   const V  = Math.round((U / 100) * K);
   const W  = K - V;
   const X  = J + V + T + L;
-  const AB = X + Y + Z + AA;
+  const AB = X + O + Y + Z + AA;
 
   const bhxhBase = Math.min(G, BHXH_CAP);
   const bhtnBase = Math.min(G, BHTN_CAP);

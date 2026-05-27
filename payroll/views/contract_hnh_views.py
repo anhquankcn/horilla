@@ -10,7 +10,7 @@ import calendar
 import io
 import json
 import logging
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal, ROUND_HALF_UP
 
 from django.contrib import messages
@@ -31,7 +31,7 @@ from payroll.models.contract_models import (
     TrialContract,
 )
 from payroll.models.dependent import EmployeeDependent
-from payroll.models.models import Allowance, Deduction
+from payroll.models.models import Allowance, Contract as HorillaContract, Deduction
 from payroll.utils.salary_data import get_annual_salary
 
 logger = logging.getLogger(__name__)
@@ -711,8 +711,6 @@ def _contract_validity(entry: MonthlyPayrollEntry, period_start, period_end) -> 
         c = entry.performance_contract
         ctype_key, ctype_label = "performance", "HNH Hiệu suất"
     else:
-        # No HNH contract — check Horilla native Contract
-        from payroll.models.models import Contract as HorillaContract
         horilla_c = HorillaContract.objects.filter(
             employee_id=entry.employee_id,
             contract_status="active",
@@ -722,7 +720,10 @@ def _contract_validity(entry: MonthlyPayrollEntry, period_start, period_end) -> 
             models.Q(contract_end_date__gte=period_start)
         ).first()
         if horilla_c:
-            return {"ctype_key": "horilla", "ctype_label": "Horilla", "contract": horilla_c, "contract_ok": True, "warnings": []}
+            warnings = []
+            if horilla_c.wage is not None and float(horilla_c.wage) == 0:
+                warnings.append("Lương = 0")
+            return {"ctype_key": "horilla", "ctype_label": "Horilla", "contract": horilla_c, "contract_ok": len(warnings) == 0, "warnings": warnings}
         return {"ctype_key": "no_contract", "ctype_label": "—", "contract": None, "contract_ok": False, "warnings": ["Không có hợp đồng"]}
 
     warnings = []
@@ -733,6 +734,15 @@ def _contract_validity(entry: MonthlyPayrollEntry, period_start, period_end) -> 
         warnings.append("Chưa bắt đầu trong kỳ")
     if c.contract_end_date and c.contract_end_date < period_start:
         warnings.append(f"Hết hạn {c.contract_end_date.strftime('%d/%m/%Y')}")
+    if float(c.wage) == 0:
+        warnings.append("Lương = 0")
+    if ctype_key == "trial" and hasattr(c, "probation_days") and c.contract_start_date:
+        probation_end = c.contract_start_date + timedelta(days=c.probation_days)
+        if probation_end < period_start:
+            warnings.append(f"Quá hạn UAT ({probation_end.strftime('%d/%m/%Y')})")
+    active_count = _count_active_hnh_contracts(entry.employee_id, period_start, period_end)
+    if active_count > 1:
+        warnings.append(f"{active_count} HĐ HNH active trùng kỳ")
 
     return {
         "ctype_key":    ctype_key,
@@ -741,6 +751,21 @@ def _contract_validity(entry: MonthlyPayrollEntry, period_start, period_end) -> 
         "contract_ok":  len(warnings) == 0,
         "warnings":     warnings,
     }
+
+
+def _count_active_hnh_contracts(employee, period_start, period_end) -> int:
+    """Count how many HNH contracts are active and overlap with the period."""
+    count = 0
+    for Model in (TrialContract, OfficialContract, PerformanceContract):
+        count += Model.objects.filter(
+            employee_id=employee,
+            contract_status="active",
+            contract_start_date__lte=period_end,
+        ).filter(
+            models.Q(contract_end_date__isnull=True) |
+            models.Q(contract_end_date__gte=period_start)
+        ).count()
+    return count
 
 
 def _tncn_progressive(taxable: Decimal) -> Decimal:
@@ -804,10 +829,10 @@ def _compute_entry_formulas(e: MonthlyPayrollEntry, bhxh_cap: Decimal, bhtn_cap:
     V = (U * K).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
     # W: Gap KPI LHS = K - V
     W = K - V
-    # X: THỰC LĨNH = J + V + T + L (không có incentive)
+    # X: LCB+LHS+PC = J + V + T + L
     X = J + V + T + L
-    # AB: Gross thực tế = X + Y + Z + AA
-    AB = X + Y + Z + AA
+    # AB: Gross thực tế = X + O + Y + Z + AA
+    AB = X + O + Y + Z + AA
     # BHXH / BHYT / BHTN (NLĐ đóng)
     AC = (min(G, bhxh_cap) * _BHXH_RATE_EE).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
     AD = (min(G, bhxh_cap) * _BHYT_RATE_EE).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
@@ -838,40 +863,79 @@ def _allowance_amount_for_keyword(contract, keyword: str) -> Decimal:
     return total
 
 
-def _build_entry_stub(contract, year: int, month: int, company=None) -> MonthlyPayrollEntry:
-    """Build an unsaved MonthlyPayrollEntry stub from a contract."""
-    ctype = type(contract).__name__
-    # G: LCB BHXH
-    G = Decimal(str(contract.wage))
-    # H: Total Gross
-    if ctype == "TrialContract":
-        H = G + Decimal(str(contract.base_salary))
-    elif ctype == "PerformanceContract":
-        G = Decimal(str(contract.base_salary))
-        H = Decimal(str(contract.wage))
-    else:  # OfficialContract
-        H = G
+def _sum_all_fixed_allowances(contract) -> Decimal:
+    """Sum all fixed allowances attached to a contract."""
+    total = Decimal("0")
+    for a in contract.allowances.all():
+        if a.is_fixed and a.amount:
+            total += Decimal(str(a.amount))
+    return total
 
-    # Allowances
-    pc_cv     = _allowance_amount_for_keyword(contract, "chứcvụ")
-    pc_travel = _allowance_amount_for_keyword(contract, "điLại")
+
+def _extract_allowances(contract) -> tuple[Decimal, Decimal]:
+    """Extract PC Chức vụ and PC Đi lại from contract allowances.
+    Returns (pc_chuc_vu, pc_travel).
+    """
+    pc_cv = _allowance_amount_for_keyword(contract, "chứcvụ")
     if not pc_cv:
         pc_cv = _allowance_amount_for_keyword(contract, "pccv")
+    if not pc_cv:
+        pc_cv = _allowance_amount_for_keyword(contract, "chucvu")
+    pc_travel = _allowance_amount_for_keyword(contract, "đilại")
     if not pc_travel:
         pc_travel = _allowance_amount_for_keyword(contract, "dilai")
+    if not pc_travel:
+        pc_travel = _allowance_amount_for_keyword(contract, "dichuyen")
+    return pc_cv, pc_travel
 
-    # NPT count
+
+def _std_working_days(year: int, month: int) -> int:
+    first_day = date(year, month, 1)
+    last_day  = date(year, month, calendar.monthrange(year, month)[1])
+    return sum(
+        1 for d in range((last_day - first_day).days + 1)
+        if date(year, month, d + 1).weekday() < 5
+    )
+
+
+def _build_entry_stub(contract, year: int, month: int, company=None) -> MonthlyPayrollEntry:
+    """Build an unsaved MonthlyPayrollEntry stub from an HNH contract.
+
+    Salary mapping per contract type:
+      TrialContract (UAT PM):
+        G = wage × trial_wage_pct/100  (LCB BHXH — adjusted for trial %)
+        H = G + base_salary            (Gross = LCB adjusted + LHS)
+      OfficialContract (Chính thức):
+        G = wage                        (LCB BHXH = toàn bộ lương cơ bản)
+        H = wage                        (Gross = LCB; PC tracked in I/L)
+      PerformanceContract (Hiệu suất):
+        G = wage                        (LCB BHXH = lương cơ bản)
+        H = wage + base_salary          (Gross = LCB + lương hiệu suất)
+    """
+    ctype = type(contract).__name__
+    wage = Decimal(str(contract.wage))
+
+    pc_cv, pc_travel = _extract_allowances(contract)
+    total_allowances = _sum_all_fixed_allowances(contract)
+
+    if ctype == "TrialContract":
+        trial_pct = Decimal(str(contract.trial_wage_pct)) / Decimal("100")
+        G = (wage * trial_pct).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+        base_salary = Decimal(str(contract.base_salary))
+        H = G + base_salary
+    elif ctype == "PerformanceContract":
+        G = wage
+        base_salary = Decimal(str(contract.base_salary))
+        H = G + base_salary
+    else:  # OfficialContract — no separate performance pool; I/L tracked separately
+        G = wage
+        H = wage
+
     npt_count = EmployeeDependent.objects.filter(
         employee=contract.employee_id, status="approved"
     ).count()
 
-    # Standard working days (weekdays in month)
-    first_day = date(year, month, 1)
-    last_day  = date(year, month, calendar.monthrange(year, month)[1])
-    std_days  = sum(
-        1 for d in range((last_day - first_day).days + 1)
-        if date(year, month, d + 1).weekday() < 5
-    )
+    std_days = _std_working_days(year, month)
 
     entry = MonthlyPayrollEntry(
         employee_id=contract.employee_id,
@@ -927,8 +991,9 @@ def hnh_payroll_overview(request):
     if request.method == "POST":
         action = request.POST.get("action", "save")
         ctype_post = request.POST.get("ctype_filter", "")
+        dept_post  = request.POST.get("dept_filter", "")
         if action == "generate":
-            return _generate_payroll_stubs(request, current_year, current_month, company, ctype_post)
+            return _generate_payroll_stubs(request, current_year, current_month, company, ctype_post, dept_post)
         return _save_payroll_entries(request, current_year, current_month, company, ctype_post)
 
     # ── Filters ──────────────────────────────────────────────────────────
@@ -1027,12 +1092,12 @@ def hnh_payroll_overview(request):
     })
 
 
-def _generate_payroll_stubs(request, year: int, month: int, company, ctype_filter: str = ""):
+def _generate_payroll_stubs(request, year: int, month: int, company, ctype_filter: str = "", dept_filter: str = ""):
     """Generate MonthlyPayrollEntry rows from active contracts."""
     period_start = date(year, month, 1)
     period_end   = date(year, month, calendar.monthrange(year, month)[1])
 
-    def _active(qs):
+    def _active_hnh(qs):
         q = qs.filter(
             contract_status="active",
             contract_start_date__lte=period_end,
@@ -1042,37 +1107,119 @@ def _generate_payroll_stubs(request, year: int, month: int, company, ctype_filte
         ).select_related("employee_id").prefetch_related("allowances")
         if company:
             q = q.filter(employee_id__employee_work_info__company_id=company)
+        if dept_filter:
+            q = q.filter(employee_id__employee_work_info__department_id=dept_filter)
         return q
 
-    # Select which contract types to generate based on filter
-    contracts_to_generate = []
-    if ctype_filter in ("", "trial"):
-        contracts_to_generate += list(_active(TrialContract.objects))
-    if ctype_filter in ("", "official"):
-        contracts_to_generate += list(_active(OfficialContract.objects))
-    if ctype_filter in ("", "performance"):
-        contracts_to_generate += list(_active(PerformanceContract.objects))
+    def _active_horilla():
+        q = HorillaContract.objects.filter(
+            contract_status="active",
+            contract_start_date__lte=period_end,
+        ).filter(
+            models.Q(contract_end_date__isnull=True) |
+            models.Q(contract_end_date__gte=period_start)
+        ).select_related("employee_id")
+        if company:
+            q = q.filter(employee_id__employee_work_info__company_id=company)
+        if dept_filter:
+            q = q.filter(employee_id__employee_work_info__department_id=dept_filter)
+        return q
 
     created = 0
     skipped = 0
-    for contract in contracts_to_generate:
-        exists = MonthlyPayrollEntry.objects.filter(
-            employee_id=contract.employee_id,
-            year=year, month=month,
-        ).exists()
-        if exists:
-            skipped += 1
-            continue
-        stub = _build_entry_stub(contract, year, month, company)
-        stub.save()
-        created += 1
+    warnings = []
+
+    # HNH contract types
+    if ctype_filter in ("", "trial"):
+        for c in _active_hnh(TrialContract.objects):
+            created, skipped = _try_create_stub(c, year, month, company, created, skipped)
+    if ctype_filter in ("", "official"):
+        for c in _active_hnh(OfficialContract.objects):
+            created, skipped = _try_create_stub(c, year, month, company, created, skipped)
+    if ctype_filter in ("", "performance"):
+        for c in _active_hnh(PerformanceContract.objects):
+            created, skipped = _try_create_stub(c, year, month, company, created, skipped)
+
+    # Horilla native contracts
+    if ctype_filter in ("", "horilla"):
+        hnh_employee_ids = set()
+        for Model in (TrialContract, OfficialContract, PerformanceContract):
+            hnh_employee_ids.update(
+                Model.objects.filter(
+                    contract_status="active",
+                    contract_start_date__lte=period_end,
+                ).filter(
+                    models.Q(contract_end_date__isnull=True) |
+                    models.Q(contract_end_date__gte=period_start)
+                ).values_list("employee_id_id", flat=True)
+            )
+        for hc in _active_horilla():
+            if hc.employee_id_id in hnh_employee_ids:
+                continue
+            if MonthlyPayrollEntry.objects.filter(
+                employee_id=hc.employee_id, year=year, month=month
+            ).exists():
+                skipped += 1
+                continue
+            stub = _build_entry_stub_horilla(hc, year, month, company)
+            stub.save()
+            created += 1
+            if hc.wage is not None and float(hc.wage) == 0:
+                warnings.append(f"{hc.employee_id}: lương HĐ Horilla = 0")
 
     type_label = dict(_CONTRACT_TYPE_CHOICES).get(ctype_filter, "Tất cả")
-    messages.success(request, f"[{type_label}] Đã tạo {created} dòng bảng lương. Bỏ qua {skipped} nhân viên đã có.")
+    dept_label = ""
+    if dept_filter:
+        dept_obj = Department.objects.filter(pk=dept_filter).first()
+        dept_label = f" — {dept_obj.department}" if dept_obj else ""
+    msg = f"[{type_label}{dept_label}] Đã tạo {created} dòng bảng lương. Bỏ qua {skipped} nhân viên đã có."
+    if warnings:
+        msg += f" Cảnh báo: {'; '.join(warnings[:5])}"
+    messages.success(request, msg)
     params = f"month={month}&year={year}"
     if ctype_filter:
         params += f"&ctype={ctype_filter}"
+    if dept_filter:
+        params += f"&dept={dept_filter}"
     return redirect(f"{request.path}?{params}")
+
+
+def _try_create_stub(contract, year, month, company, created, skipped):
+    if MonthlyPayrollEntry.objects.filter(
+        employee_id=contract.employee_id, year=year, month=month
+    ).exists():
+        return created, skipped + 1
+    stub = _build_entry_stub(contract, year, month, company)
+    stub.save()
+    return created + 1, skipped
+
+
+def _build_entry_stub_horilla(contract: "HorillaContract", year: int, month: int, company=None) -> MonthlyPayrollEntry:
+    """Build an unsaved MonthlyPayrollEntry from a Horilla native Contract.
+
+    Horilla Contract only has wage (Basic Salary). G = H = wage.
+    """
+    G = Decimal(str(contract.wage or 0))
+    H = G
+
+    npt_count = EmployeeDependent.objects.filter(
+        employee=contract.employee_id, status="approved"
+    ).count()
+
+    std_days = _std_working_days(year, month)
+
+    return MonthlyPayrollEntry(
+        employee_id=contract.employee_id,
+        year=year,
+        month=month,
+        company=company,
+        standard_days=Decimal(str(std_days)),
+        actual_days=Decimal(str(std_days)),
+        lcb_bhxh=G,
+        total_gross=H,
+        npt=npt_count,
+        night_shift_rate=_NIGHT_SHIFT_RATE_DEFAULT,
+    )
 
 
 def _save_payroll_entries(request, year: int, month: int, company, ctype_filter: str = ""):
