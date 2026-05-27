@@ -33,7 +33,7 @@ Sau khi chạy xong: **Admin > Companies** → upload logo công ty để brandi
 ### Branding (White-label)
 - `horilla/horilla_apps.py` — `WHITE_LABELLING = True`
 - Context var `white_label_company` / `white_label_company_name` inject qua `base/context_processors.py`
-- **Logo fallback**: SVG inline "HNH" đỏ crimson (`#c0222b`) khi chưa upload logo
+- **Logo fallback**: ui-avatars.com khi chưa upload logo (xử lý trong `base/context_processors.py`)
 
 ### Templates ghi đè (theo thứ tự ưu tiên)
 1. `horilla_theme/templates/` — theme chính (sidebar, floating button)
@@ -65,6 +65,53 @@ Keycloak OIDC tích hợp qua `mozilla_django_oidc`:
 - Client: `horilla-hrm`
 - Custom backend: `horilla/oidc_backend.py`
 - Route: `/oidc/` → nút "Đăng nhập qua HNHSSO" trên trang login
+- SSO-only: local login đã tắt, force qua OIDC
+
+## Hệ thống Hợp đồng HNH (3 loại)
+
+Models tại `payroll/models/contract_models.py`, kế thừa `ContractBase`:
+
+| Model | Mô tả | Đặc điểm |
+|-------|--------|----------|
+| `TrialContract` | Hợp đồng UAT PM | `probation_days`, `trial_wage_pct`, `base_salary` |
+| `OfficialContract` | Hợp đồng Chính thức | Chỉ có `wage` (G=H=wage) |
+| `PerformanceContract` | Hợp đồng Hiệu suất | `base_salary`, KPI appendix |
+
+Bảng phụ:
+- `ContractKPIAppendix` — Phụ lục 1: KPI & Thu nhập năm (cho Trial + Performance)
+- `MonthlyPayrollEntry` — Bảng lương tháng, 1 row/employee/month
+
+### Công thức lương theo loại HĐ
+- **Trial**: G = wage × trial_wage_pct/100, H = G + base_salary
+- **Performance**: G = wage, H = wage + base_salary
+- **Official**: G = wage, H = wage
+- **Horilla native**: G = H = wage
+
+## Bảng lương (Payroll Overview)
+
+Views: `payroll/views/contract_hnh_views.py`
+Template: `payroll/templates/payroll/contracts_hnh/payroll_overview.html`
+
+### Tính năng
+- Generate stubs lọc theo **Công ty / Phòng ban / Loại hợp đồng** (Horilla, Trial, Official, Performance)
+- Kiểm tra tình trạng HĐ: wage=0, hết hạn, trial quá probation_days, trùng HĐ active
+- Công thức Python + JavaScript realtime (cột J→AK)
+- Cột chính: E=ngày chuẩn, F=ngày thực, G=LCB BHXH, H=Gross, I=PC chức vụ, K=LHS Pool, L=PC đi lại, O=ca đêm, S/T=OT, V=KPI, AB=Gross thực tế, AC-AF=BHXH/BHYT/BHTN/TNCN, AH=NPT, AI=Net, AK=Thực nhận
+
+## Import chấm công HNH
+
+View: `attendance/views/hnh_import.py`
+- Upload file Excel từ máy chấm công HNH
+- Columns: Mã nhân sự | Tên | Khu vực | Ngày | Giờ vào | Giờ ra | All data | IP
+- Match nhân viên qua `badge_id`, skip ngày vắng, duplicate guard
+
+## Work Level (Cấp bậc nội bộ)
+
+Model: `employee/models.py` → `WorkLevel`
+Views: `employee/work_level_views.py`
+- 8 cấp bậc nội bộ với benefits (nghỉ phép, thưởng, bảo hiểm...)
+- Tab hiển thị trong profile nhân viên
+- Auto-assign theo phòng ban/vị trí
 
 ## Dữ liệu Nghiệp vụ Du lịch
 
@@ -84,19 +131,34 @@ Nghỉ phép năm (12 ngày/năm, có lương), Nghỉ ốm, Nghỉ thai sản (
 Nghỉ kết hôn (3 ngày), Nghỉ tang (3 ngày), **Nghỉ bù Tour/Lễ** (đặc thù du lịch),
 Nghỉ không lương, Nghỉ chăm sóc con ốm
 
+## Deploy Production
+
+```bash
+# SSH vào server
+ssh -i "D:/HNH2026/Cloud/naquan.pem" naquan@100.88.75.106
+
+# Project tại /opt/horilla, dùng docker-compose.stage.yml
+cd /opt/horilla
+sudo git pull
+sudo docker compose -f docker-compose.stage.yml build web
+sudo docker compose -f docker-compose.stage.yml up -d
+sudo docker compose -f docker-compose.stage.yml exec web python manage.py migrate
+```
+
+- `.env` symlink → `.env.stage` (cần thiết cho docker-compose variable substitution)
+- Site: https://qlns.hnhtravel.work (qua Cloudflare tunnel)
+- 5 containers: web, db (postgres:16), redis, nginx, cloudflared
+
 ## Cập nhật bản dịch tiếng Việt
 
 ```bash
-# Trích xuất chuỗi mới cần dịch
 python manage.py makemessages -l vi --ignore=node_modules --ignore=venv
-
-# Sau khi sửa horilla/locale/vi/LC_MESSAGES/django.po
 python manage.py compilemessages -l vi
 ```
 
 Script `auto_translate.py` hỗ trợ dịch tự động các entry còn trống.
 
-## Chạy dự án
+## Chạy dự án (local)
 
 ```bash
 # DB: PostgreSQL tại localhost:5452, DB: horilla_main
@@ -105,9 +167,16 @@ python manage.py setup_hnh_company
 python manage.py runserver 0.0.0.0:8000
 ```
 
+## Scripts tiện ích
+
+| Script | Mô tả |
+|--------|--------|
+| `setup_new_companies.py` | Tạo dữ liệu công ty HNH |
+| `sim_attendance_may.py` | Giả lập chấm công tháng 5/2026 (test data) |
+
 ## Lưu ý khi phát triển
 
-- Không commit file `.env` (chứa secrets OIDC, DB)
+- Không commit file `.env`, `.env.stage`, `logs_note/` (chứa secrets)
 - Migrations mới phải test trên DB staging trước khi deploy production
 - Khi thêm module mới vào `SIDEBARS` trong `horilla_apps.py`, cần reload server
 - Logo công ty upload qua **Admin > Base > Companies** (field `icon`), lưu tại `media/base/`
