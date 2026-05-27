@@ -250,9 +250,12 @@ class Command(BaseCommand):
         class _FakeSession(dict):
             def get(self, key, default=None):
                 return default
+        class _FakeUser:
+            is_authenticated = False
+            pk = None
         class _FakeRequest:
             session = _FakeSession()
-            user = None
+            user = _FakeUser()
         _thread_locals.request = _FakeRequest()
 
         defaults = [
