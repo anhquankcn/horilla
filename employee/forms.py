@@ -865,3 +865,34 @@ class EmployeeGeneralSettingPrefixForm(forms.ModelForm):
             "badge_id_prefix": forms.TextInput(attrs={"class": "oh-input w-100"}),
             "company_id": forms.Select(attrs={"class": "oh-select oh-select-2 w-100"}),
         }
+
+
+class WorkLevelForm(forms.ModelForm):
+    """Form to create/update a WorkLevel instance."""
+
+    class Meta:
+        from employee.models import WorkLevel
+
+        model = WorkLevel
+        fields = [
+            "level_number", "name", "description", "color",
+            "bhxh_salary", "income_min", "income_max",
+            "wfh_days_per_week",
+            "life_insurance_annual",
+            "family_health_insurance", "family_health_insurance_amount",
+            "extra_leave_days",
+            "allowance_position", "allowance_housing", "allowance_transport",
+        ]
+        widgets = {
+            "description": forms.Textarea(attrs={"class": "oh-input w-100", "rows": 2}),
+            "color": forms.TextInput(attrs={"type": "color", "class": "oh-input", "style": "width:60px;height:38px;padding:2px;cursor:pointer;"}),
+            "level_number": forms.NumberInput(attrs={"class": "oh-input w-100", "min": 1, "max": 8}),
+            "name": forms.TextInput(attrs={"class": "oh-input w-100"}),
+            "bhxh_salary": forms.NumberInput(attrs={"class": "oh-input w-100"}),
+            "income_min": forms.NumberInput(attrs={"class": "oh-input w-100"}),
+            "income_max": forms.NumberInput(attrs={"class": "oh-input w-100"}),
+            "wfh_days_per_week": forms.NumberInput(attrs={"class": "oh-input w-100", "min": 0, "max": 5}),
+            "life_insurance_annual": forms.NumberInput(attrs={"class": "oh-input w-100"}),
+            "family_health_insurance_amount": forms.NumberInput(attrs={"class": "oh-input w-100"}),
+            "extra_leave_days": forms.NumberInput(attrs={"class": "oh-input w-100", "min": 0}),
+        }

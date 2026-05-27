@@ -8,7 +8,7 @@ from django.urls import path
 
 from base.templatetags.horillafilters import app_installed
 from base.views import object_delete, object_duplicate
-from employee import not_in_out_dashboard, policies, views
+from employee import not_in_out_dashboard, policies, views, work_level_views
 from employee.cbv import (
     action_type,
     allocations,
@@ -716,3 +716,16 @@ if app_installed("payroll"):
             name="allocation-deduction-list",
         ),
     ]
+
+# ─── Work Level URLs ────────────────────────────────────────────────────────────
+urlpatterns += [
+    path("work-level/", work_level_views.work_level_settings, name="work-level-settings"),
+    path("work-level/create/", work_level_views.work_level_create, name="work-level-create"),
+    path("work-level/<int:pk>/update/", work_level_views.work_level_update, name="work-level-update"),
+    path("work-level/<int:pk>/delete/", work_level_views.work_level_delete, name="work-level-delete"),
+    path("work-level/bulk-auto-assign/", work_level_views.work_level_bulk_auto_assign, name="work-level-bulk-auto-assign"),
+    # Employee profile tab
+    path("work-level/tab/<int:pk>/", work_level_views.work_level_tab, name="work-level-tab"),
+    path("work-level/assign/<int:pk>/", work_level_views.work_level_assign, name="work-level-assign"),
+    path("work-level/auto-assign/<int:pk>/", work_level_views.work_level_auto_assign_emp, name="work-level-auto-assign-emp"),
+]

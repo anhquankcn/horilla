@@ -171,3 +171,17 @@ def history_accessibility(
     ) or check_manager(request.user.employee_get, instance):
         return True
     return False
+
+
+def work_level_accessibility(
+    request, instance: object = None, user_perms: PermWrapper = [], *args, **kwargs
+) -> bool:
+    """Accessibility for Work Level tab — visible to HR and the employee themselves."""
+    if request.user.has_perm("employee.view_worklevel"):
+        return True
+    try:
+        if request.user.employee_get == instance:
+            return True
+    except Exception:
+        pass
+    return False

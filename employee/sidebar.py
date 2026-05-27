@@ -62,6 +62,11 @@ SUBMENUS = [
         "menu": trans("Organization Chart"),
         "redirect": reverse_lazy("organisation-chart"),
     },
+    {
+        "menu": "Cấp bậc nội bộ (Work Level)",
+        "redirect": reverse_lazy("work-level-settings"),
+        "accessibility": "employee.sidebar.work_level_settings_accessibility",
+    },
 ]
 
 
@@ -97,6 +102,10 @@ def rotating_work_type_accessibility(request, submenu, user_perms, *args, **kwar
     return request.user.has_perm(
         "base.view_rotatingworktypeassign"
     ) or is_reportingmanager(request.user)
+
+
+def work_level_settings_accessibility(request, submenu, user_perms, *args, **kwargs):
+    return request.user.has_perm("employee.view_worklevel")
 
 
 def employee_accessibility(request, submenu, user_perms, *args, **kwargs):

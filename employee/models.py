@@ -113,6 +113,14 @@ class Employee(models.Model):
     is_directly_converted = models.BooleanField(
         default=False, null=True, blank=True, editable=False
     )
+    work_level = models.ForeignKey(
+        "WorkLevel",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="employees",
+        verbose_name=_("Cấp bậc"),
+    )
     objects = HorillaCompanyManager(
         related_company_field="employee_work_info__company_id"
     )
@@ -1284,3 +1292,71 @@ ACCESSBILITY_FEATURE.append(("gender_chart", "Can view Gender Chart"))
 ACCESSBILITY_FEATURE.append(("department_chart", "Can view Department Chart"))
 ACCESSBILITY_FEATURE.append(("employees_chart", "Can view Employees Chart"))
 ACCESSBILITY_FEATURE.append(("birthday_view", "Can view Birthdays"))
+
+
+# ─── Work Level ────────────────────────────────────────────────────────────────
+
+class WorkLevel(HorillaModel):
+    """
+    Cấp bậc nội bộ công ty — tối đa 8 cấp, mỗi cấp có bộ quyền lợi riêng.
+    """
+
+    level_number = models.PositiveSmallIntegerField(
+        unique=True, verbose_name="Cấp bậc (1–8)"
+    )
+    name = models.CharField(max_length=100, verbose_name="Tên cấp bậc")
+    description = models.TextField(blank=True, null=True, verbose_name="Mô tả")
+    color = models.CharField(max_length=20, default="#6c757d", verbose_name="Màu")
+
+    # 1. Mức lương BHXH
+    bhxh_salary = models.DecimalField(
+        max_digits=15, decimal_places=0, default=0,
+        verbose_name="Lương đóng BHXH (VNĐ/tháng)"
+    )
+    # 2. Khoảng thu nhập năm
+    income_min = models.DecimalField(
+        max_digits=15, decimal_places=0, default=0,
+        verbose_name="Thu nhập năm tối thiểu (VNĐ)"
+    )
+    income_max = models.DecimalField(
+        max_digits=15, decimal_places=0, default=0,
+        verbose_name="Thu nhập năm tối đa (VNĐ)"
+    )
+    # 3. WFH ngày/tuần
+    wfh_days_per_week = models.PositiveSmallIntegerField(
+        default=0, verbose_name="Số ngày WFH/tuần"
+    )
+    # 4. Bảo hiểm nhân thọ
+    life_insurance_annual = models.DecimalField(
+        max_digits=15, decimal_places=0, default=0,
+        verbose_name="Bảo hiểm nhân thọ (VNĐ/năm)"
+    )
+    # 5. BHYT bổ sung gia đình
+    family_health_insurance = models.BooleanField(
+        default=False, verbose_name="BHYT bổ sung gia đình"
+    )
+    family_health_insurance_amount = models.DecimalField(
+        max_digits=15, decimal_places=0, default=0,
+        verbose_name="Mức BHYT bổ sung (VNĐ/năm)"
+    )
+    # 6. Ngày phép thêm
+    extra_leave_days = models.PositiveSmallIntegerField(
+        default=0, verbose_name="Ngày phép thêm/năm"
+    )
+    # 7. Phụ cấp
+    allowance_position = models.BooleanField(default=False, verbose_name="Phụ cấp chức vụ")
+    allowance_housing = models.BooleanField(default=False, verbose_name="Phụ cấp nhà ở")
+    allowance_transport = models.BooleanField(default=False, verbose_name="Phụ cấp di chuyển")
+
+    company_id = models.ForeignKey(
+        Company, on_delete=models.CASCADE, null=True, blank=True, verbose_name="Công ty"
+    )
+    objects = HorillaCompanyManager("company_id")
+
+    class Meta:
+        ordering = ["level_number"]
+        verbose_name = "Cấp bậc"
+        verbose_name_plural = "Cấp bậc"
+
+    def __str__(self):
+        return f"L{self.level_number} – {self.name}"

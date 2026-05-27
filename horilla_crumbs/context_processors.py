@@ -112,6 +112,7 @@ sidebar_urls = [
     "offboarding-pipeline",
     "pagination-settings-view",
     "organisation-chart",
+    "work-level-settings",
     "disciplinary-actions",
     "view-policies",
     "resignation-requests-view",

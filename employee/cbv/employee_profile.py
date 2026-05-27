@@ -16,7 +16,7 @@ from base.cbv.mail_log_tab import MailLogTabList
 from base.cbv.work_shift_tab import WorkAndShiftTabView
 from base.context_processors import enable_profile_edit
 from base.forms import AddToUserGroupForm
-from employee import views
+from employee import views, work_level_views
 from employee.filters import EmployeeFilter
 from employee.models import Employee
 from horilla import settings
@@ -136,6 +136,11 @@ EmployeeProfileView.add_tab(
             "title": _("History"),
             "view": views.history_tab,
             "accessibility": "employee.cbv.accessibility.history_accessibility",
+        },
+        {
+            "title": _("Work Level"),
+            "view": work_level_views.work_level_tab,
+            "accessibility": "employee.cbv.accessibility.work_level_accessibility",
         },
     ]
 )

@@ -1,0 +1,129 @@
+{% extends "index.html" %}
+{% load i18n %}
+
+{% block content %}
+<div class="oh-wrapper oh-wrapper--full-width py-4 px-3">
+
+  <!-- Header -->
+  <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+    <h2 class="oh-inner-sidebar-content__title mb-0">Thiết lập Cấp bậc nội bộ (Work Level)</h2>
+    <div class="d-flex gap-2 flex-wrap">
+      <form method="post" action="{% url 'work-level-bulk-auto-assign' %}" style="display:inline">
+        {% csrf_token %}
+        <button type="submit" class="oh-btn oh-btn--light-bkg oh-btn--sm"
+                onclick="return confirm('Tự động gán cấp bậc cho TẤT CẢ nhân viên đang hoạt động theo khoảng thu nhập?')">
+          🤖 Gán tự động tất cả nhân viên
+        </button>
+      </form>
+      <button class="oh-btn oh-btn--secondary oh-btn--sm"
+              hx-get="{% url 'work-level-create' %}"
+              hx-target="#genericModalBody"
+              data-toggle="oh-modal-toggle"
+              data-target="#genericModal">
+        + Thêm cấp bậc
+      </button>
+    </div>
+  </div>
+
+  <!-- Info box -->
+  <div class="oh-card oh-card--margin mb-4" style="border-left:4px solid #1a4e8a;background:#f0f4ff;">
+    <div class="oh-card__body py-2 px-3" style="font-size:12px;color:#1a4e8a;">
+      <strong>Hướng dẫn:</strong>
+      Thiết lập tối đa 8 cấp bậc. Mỗi cấp được xác định bởi <em>khoảng thu nhập năm</em> — dùng để gán tự động cho nhân viên.
+      Khoảng thu nhập = lương cơ bản × 12 (tháng). Các cấp không được chồng lấp khoảng thu nhập nhau.
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="oh-card oh-card--margin">
+    <div class="oh-card__body p-0">
+      {% if levels %}
+      <div style="overflow-x:auto;">
+      <table class="oh-table oh-table--bordered" style="font-size:12px;min-width:1100px;">
+        <thead class="table-light">
+          <tr>
+            <th style="width:60px;">Cấp</th>
+            <th>Tên cấp bậc</th>
+            <th class="text-end">Lương BHXH<br><small>(VNĐ/tháng)</small></th>
+            <th class="text-end">Thu nhập năm<br><small>Tối thiểu</small></th>
+            <th class="text-end">Thu nhập năm<br><small>Tối đa</small></th>
+            <th class="text-center">WFH<br><small>ngày/tuần</small></th>
+            <th class="text-end">BHNT<br><small>VNĐ/năm</small></th>
+            <th class="text-center">BHYT<br>gia đình</th>
+            <th class="text-center">Phép thêm<br><small>ngày/năm</small></th>
+            <th class="text-center">Phụ cấp<br><small>CV / NỞ / DC</small></th>
+            <th class="text-center">NV gán</th>
+            <th style="width:80px;"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for lv in levels %}
+          <tr>
+            <td class="text-center">
+              <span style="display:inline-flex;align-items:center;justify-content:center;
+                           width:32px;height:32px;border-radius:50%;
+                           background:{{ lv.color }};color:#fff;font-weight:700;font-size:13px;">
+                {{ lv.level_number }}
+              </span>
+            </td>
+            <td>
+              <div style="font-weight:600;">{{ lv.name }}</div>
+              {% if lv.description %}<div style="font-size:11px;color:#6c757d;">{{ lv.description }}</div>{% endif %}
+            </td>
+            <td class="text-end">{{ lv.bhxh_salary|floatformat:0 }}</td>
+            <td class="text-end">{{ lv.income_min|floatformat:0 }}</td>
+            <td class="text-end">{{ lv.income_max|floatformat:0 }}</td>
+            <td class="text-center">{{ lv.wfh_days_per_week }}</td>
+            <td class="text-end">
+              {% if lv.life_insurance_annual %}{{ lv.life_insurance_annual|floatformat:0 }}{% else %}—{% endif %}
+            </td>
+            <td class="text-center">
+              {% if lv.family_health_insurance %}
+                <span style="color:#198754;font-weight:600;">✓</span>
+                <div style="font-size:10px;color:#6c757d;">{{ lv.family_health_insurance_amount|floatformat:0 }}</div>
+              {% else %}
+                <span style="color:#adb5bd;">—</span>
+              {% endif %}
+            </td>
+            <td class="text-center">+{{ lv.extra_leave_days }}</td>
+            <td class="text-center" style="letter-spacing:2px;">
+              <span {% if lv.allowance_position %}style="color:#198754"{% else %}style="color:#dee2e6"{% endif %} title="Chức vụ">●</span>
+              <span {% if lv.allowance_housing %}style="color:#198754"{% else %}style="color:#dee2e6"{% endif %} title="Nhà ở">●</span>
+              <span {% if lv.allowance_transport %}style="color:#198754"{% else %}style="color:#dee2e6"{% endif %} title="Di chuyển">●</span>
+            </td>
+            <td class="text-center">
+              <span class="oh-badge" style="background:#e9ecef;color:#495057;">
+                {{ lv.employees.count }}
+              </span>
+            </td>
+            <td>
+              <div class="d-flex gap-1 justify-content-center">
+                <button class="oh-btn oh-btn--light-bkg oh-btn--sm px-2"
+                        hx-get="{% url 'work-level-update' lv.pk %}"
+                        hx-target="#genericModalBody"
+                        data-toggle="oh-modal-toggle"
+                        data-target="#genericModal"
+                        title="Chỉnh sửa">✏️</button>
+                <button class="oh-btn oh-btn--light-bkg oh-btn--sm px-2"
+                        hx-get="{% url 'work-level-delete' lv.pk %}"
+                        hx-confirm="Xóa cấp bậc '{{ lv.name }}'? Nhân viên đang ở cấp này sẽ bị bỏ cấp."
+                        hx-target="this"
+                        title="Xóa">🗑️</button>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      {% else %}
+      <div class="p-5 text-center" style="color:#6c757d;">
+        <div style="font-size:40px;">📊</div>
+        <p class="mt-3">Chưa có cấp bậc nào. Nhấn <strong>"Thêm cấp bậc"</strong> để bắt đầu.</p>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+</div>
+{% endblock %}

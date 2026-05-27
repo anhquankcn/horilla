@@ -1,0 +1,209 @@
+{% load static %}{% load i18n %}
+{% if messages %}<script>reloadMessage();</script>{% endif %}
+
+<style>
+.wl-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-weight: 700;
+    font-size: 14px;
+    color: #fff;
+    letter-spacing: .3px;
+}
+.wl-card {
+    background: #fff;
+    border: 1px solid #e9ecef;
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin-bottom: 14px;
+}
+.wl-card__title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .6px;
+    color: #6c757d;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+.wl-benefit-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 7px 0;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 13px;
+}
+.wl-benefit-row:last-child { border-bottom: none; }
+.wl-benefit-label { color: #495057; }
+.wl-benefit-value { font-weight: 600; color: #212529; }
+.wl-check-yes { color: #198754; }
+.wl-check-no  { color: #dc3545; }
+.wl-no-level  { text-align: center; padding: 40px 20px; color: #6c757d; }
+.wl-section-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+}
+@media (max-width: 768px) { .wl-section-grid { grid-template-columns: 1fr; } }
+</style>
+
+<div class="p-3" id="work-level-content">
+
+    <!-- ── Header: current badge + actions ── -->
+    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-2">
+        <div>
+            {% if employee.work_level %}
+                <span class="wl-badge" style="background:{{ employee.work_level.color }};">
+                    L{{ employee.work_level.level_number }} &nbsp; {{ employee.work_level.name }}
+                </span>
+                {% if employee.work_level.description %}
+                    <div class="mt-1" style="font-size:12px;color:#6c757d;">{{ employee.work_level.description }}</div>
+                {% endif %}
+            {% else %}
+                <span class="wl-badge" style="background:#adb5bd;">Chưa xếp cấp bậc</span>
+                {% if suggested %}
+                    <div class="mt-1" style="font-size:12px;color:#fd7e14;">
+                        Gợi ý: <strong>L{{ suggested.level_number }} – {{ suggested.name }}</strong> (dựa theo mức lương)
+                    </div>
+                {% endif %}
+            {% endif %}
+        </div>
+
+        {% if perms.employee.change_employee %}
+        <div class="d-flex gap-2 flex-wrap">
+            <button class="oh-btn oh-btn--light-bkg oh-btn--sm"
+                    onclick="document.getElementById('wl-assign-panel').classList.toggle('d-none')">
+                ✏️ Thay đổi cấp bậc
+            </button>
+            <form hx-post="{% url 'work-level-auto-assign-emp' employee.pk %}"
+                  hx-confirm="Tự động gán cấp bậc theo mức lương?"
+                  style="display:inline">
+                {% csrf_token %}
+                <button type="submit" class="oh-btn oh-btn--light-bkg oh-btn--sm">
+                    🤖 Tự động gán
+                </button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ── Assign panel (toggleable) ── -->
+    {% if perms.employee.change_employee %}
+    <div id="wl-assign-panel" class="wl-card d-none mb-3">
+        <div class="wl-card__title">Gán cấp bậc</div>
+        <form hx-post="{% url 'work-level-assign' employee.pk %}" class="d-flex gap-2 flex-wrap align-items-end">
+            {% csrf_token %}
+            <select name="work_level" class="oh-input oh-input--small" style="min-width:220px;">
+                <option value="">-- Bỏ cấp bậc --</option>
+                {% for lv in levels %}
+                <option value="{{ lv.pk }}"
+                    {% if employee.work_level.pk == lv.pk %}selected{% endif %}
+                    style="font-weight:600;">
+                    L{{ lv.level_number }} – {{ lv.name }}
+                    ({{ lv.income_min|floatformat:0 }}–{{ lv.income_max|floatformat:0 }} VNĐ/năm)
+                </option>
+                {% endfor %}
+            </select>
+            <button type="submit" class="oh-btn oh-btn--secondary oh-btn--sm">Lưu</button>
+            <button type="button" class="oh-btn oh-btn--light-bkg oh-btn--sm"
+                    onclick="document.getElementById('wl-assign-panel').classList.add('d-none')">Hủy</button>
+        </form>
+    </div>
+    {% endif %}
+
+    <!-- ── Benefits detail ── -->
+    {% if employee.work_level %}
+    {% with lv=employee.work_level %}
+    <div class="wl-section-grid">
+
+        <!-- Card 1: Tài chính -->
+        <div class="wl-card">
+            <div class="wl-card__title">💰 Tài chính & Lương</div>
+            <div class="wl-benefit-row">
+                <span class="wl-benefit-label">Lương đóng BHXH</span>
+                <span class="wl-benefit-value">{{ lv.bhxh_salary|floatformat:0 }} đ/tháng</span>
+            </div>
+            <div class="wl-benefit-row">
+                <span class="wl-benefit-label">Thu nhập năm tối thiểu</span>
+                <span class="wl-benefit-value">{{ lv.income_min|floatformat:0 }} đ</span>
+            </div>
+            <div class="wl-benefit-row">
+                <span class="wl-benefit-label">Thu nhập năm tối đa</span>
+                <span class="wl-benefit-value">{{ lv.income_max|floatformat:0 }} đ</span>
+            </div>
+        </div>
+
+        <!-- Card 2: WFH & Phép -->
+        <div class="wl-card">
+            <div class="wl-card__title">🏠 Làm việc linh hoạt & Nghỉ phép</div>
+            <div class="wl-benefit-row">
+                <span class="wl-benefit-label">WFH</span>
+                <span class="wl-benefit-value">{{ lv.wfh_days_per_week }} ngày/tuần</span>
+            </div>
+            <div class="wl-benefit-row">
+                <span class="wl-benefit-label">Ngày phép thêm</span>
+                <span class="wl-benefit-value">+{{ lv.extra_leave_days }} ngày/năm</span>
+            </div>
+        </div>
+
+        <!-- Card 3: Bảo hiểm -->
+        <div class="wl-card">
+            <div class="wl-card__title">🛡️ Bảo hiểm</div>
+            <div class="wl-benefit-row">
+                <span class="wl-benefit-label">Bảo hiểm nhân thọ</span>
+                <span class="wl-benefit-value">{{ lv.life_insurance_annual|floatformat:0 }} đ/năm</span>
+            </div>
+            <div class="wl-benefit-row">
+                <span class="wl-benefit-label">BHYT bổ sung gia đình</span>
+                <span class="wl-benefit-value">
+                    {% if lv.family_health_insurance %}
+                        <span class="wl-check-yes">✓ Có</span>
+                        <span style="font-size:11px;color:#6c757d;"> — {{ lv.family_health_insurance_amount|floatformat:0 }} đ/năm</span>
+                    {% else %}
+                        <span class="wl-check-no">✗ Không</span>
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+
+        <!-- Card 4: Phụ cấp -->
+        <div class="wl-card">
+            <div class="wl-card__title">📎 Phụ cấp</div>
+            <div class="wl-benefit-row">
+                <span class="wl-benefit-label">Phụ cấp chức vụ</span>
+                <span class="wl-benefit-value {% if lv.allowance_position %}wl-check-yes{% else %}wl-check-no{% endif %}">
+                    {% if lv.allowance_position %}✓ Có{% else %}✗ Không{% endif %}
+                </span>
+            </div>
+            <div class="wl-benefit-row">
+                <span class="wl-benefit-label">Phụ cấp nhà ở</span>
+                <span class="wl-benefit-value {% if lv.allowance_housing %}wl-check-yes{% else %}wl-check-no{% endif %}">
+                    {% if lv.allowance_housing %}✓ Có{% else %}✗ Không{% endif %}
+                </span>
+            </div>
+            <div class="wl-benefit-row">
+                <span class="wl-benefit-label">Phụ cấp di chuyển</span>
+                <span class="wl-benefit-value {% if lv.allowance_transport %}wl-check-yes{% else %}wl-check-no{% endif %}">
+                    {% if lv.allowance_transport %}✓ Có{% else %}✗ Không{% endif %}
+                </span>
+            </div>
+        </div>
+
+    </div>
+    {% endwith %}
+    {% else %}
+    <div class="wl-no-level">
+        <div style="font-size:40px;">📊</div>
+        <p class="mt-2">Nhân viên này chưa được xếp cấp bậc nội bộ.</p>
+        {% if suggested %}
+        <p style="font-size:13px;">Hệ thống gợi ý: <strong>L{{ suggested.level_number }} – {{ suggested.name }}</strong></p>
+        {% elif not perms.employee.change_employee %}
+        <p style="font-size:12px;color:#adb5bd;">Vui lòng liên hệ HR để được xếp cấp bậc.</p>
+        {% endif %}
+    </div>
+    {% endif %}
+
+</div>
