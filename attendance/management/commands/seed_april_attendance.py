@@ -20,7 +20,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from attendance.models import Attendance
-from base.models import EmployeeShift, WorkType
+from base.models import EmployeeShift, EmployeeShiftDay, WorkType
 from employee.models import Employee, EmployeeWorkInformation
 from leave.models import AvailableLeave, LeaveRequest, LeaveType
 
@@ -168,6 +168,8 @@ class Command(BaseCommand):
 
         # ── 4. Build attendance records ────────────────────────────────────
         # Mark ~12% emp-days as late, ~6% as early departure
+        shift_days = {sd.day: sd for sd in EmployeeShiftDay.objects.all()}
+
         att_objects = []
         late_emps    = set(rng.sample([e.id for e in employees], int(len(employees) * 0.35)))
         early_emps   = set(rng.sample([e.id for e in employees], int(len(employees) * 0.20)))
@@ -219,12 +221,13 @@ class Command(BaseCommand):
                 worked   = worked_hours(clock_in, clock_out)
                 overtime = overtime_hours(worked, min_hour)
 
+                day_name = day.strftime("%A").lower()
                 att_objects.append(Attendance(
                     employee_id       = emp,
                     attendance_date   = day,
                     shift_id          = shift_obj,
                     work_type_id      = wtype_obj,
-                    attendance_day    = day.strftime("%A").lower(),
+                    attendance_day    = shift_days.get(day_name),
                     attendance_clock_in_date  = day,
                     attendance_clock_in       = fmt_time(clock_in),
                     attendance_clock_out_date = day,
@@ -289,19 +292,17 @@ class Command(BaseCommand):
     def _ensure_available_leave(self, employees, leave_types):
         annual_type = leave_types["annual"]
         sick_type   = leave_types["sick"]
-        bulk = []
+        count = 0
         for emp in employees:
             for lt, days in [(annual_type, 12), (sick_type, 10)]:
-                if not AvailableLeave.objects.filter(employee_id=emp, leave_type_id=lt).exists():
-                    bulk.append(AvailableLeave(
-                        employee_id=emp,
-                        leave_type_id=lt,
-                        available_days=days,
-                        carryforward_days=0,
-                    ))
-        if bulk:
-            AvailableLeave.objects.bulk_create(bulk, batch_size=500, ignore_conflicts=True)
-            self.stdout.write(f"  Created {len(bulk)} AvailableLeave entries")
+                _, created = AvailableLeave.objects.get_or_create(
+                    employee_id=emp,
+                    leave_type_id=lt,
+                    defaults={"available_days": days, "carryforward_days": 0},
+                )
+                if created:
+                    count += 1
+        self.stdout.write(f"  Ensured {count} new AvailableLeave entries")
 
     def _create_leave(self, emp, leave_type, start, end, status, leave_days_by_emp):
         # Skip if overlapping with existing leave for this employee
