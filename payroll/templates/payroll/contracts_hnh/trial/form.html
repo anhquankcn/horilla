@@ -3,181 +3,337 @@
 
 {% block content %}
 <main :class="sidebarOpen ? 'oh-main__sidebar-visible' : ''">
-<div class="oh-wrapper oh-wrapper--full-width py-4 px-3" style="max-width:900px;">
+<style>
+.ct-page { max-width: 960px; margin: 0 auto; padding: 24px 16px 60px; }
+.ct-breadcrumb { font-size: 13px; color: #6c757d; margin-bottom: 20px; }
+.ct-breadcrumb a { color: #c0222b; text-decoration: none; }
+.ct-breadcrumb a:hover { text-decoration: underline; }
+.ct-title { font-size: 22px; font-weight: 700; color: #1a1a2e; margin: 0 0 24px; display: flex; align-items: center; gap: 10px; }
+.ct-title-icon { width: 36px; height: 36px; background: #c0222b; border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 17px; flex-shrink: 0; }
 
-  <div class="mb-3">
+.ct-section { background: #fff; border: 1px solid #e9ecef; border-radius: 12px; margin-bottom: 20px; overflow: hidden; }
+.ct-section__head { padding: 14px 20px; border-bottom: 1px solid #f0f0f0; display: flex; align-items: center; gap: 8px; background: #fafafa; }
+.ct-section__icon { width: 28px; height: 28px; border-radius: 6px; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink: 0; }
+.ct-section__icon--blue   { background: #e7f0ff; }
+.ct-section__icon--green  { background: #e6f9f0; }
+.ct-section__icon--amber  { background: #fff8e1; }
+.ct-section__icon--purple { background: #f3e8ff; }
+.ct-section__icon--teal   { background: #e8f4f8; }
+.ct-section__title { font-size: 13px; font-weight: 700; color: #343a40; text-transform: uppercase; letter-spacing: .5px; }
+.ct-section__body { padding: 20px; }
+
+.ct-label { display: block; font-size: 12px; font-weight: 600; color: #6c757d; margin-bottom: 5px; text-transform: uppercase; letter-spacing: .3px; }
+.ct-label--req::after { content: " *"; color: #c0222b; }
+.ct-input, .ct-select {
+    width: 100%; border: 1px solid #dee2e6; border-radius: 8px;
+    padding: 9px 12px; font-size: 14px; color: #212529;
+    background: #fff; transition: border-color .15s, box-shadow .15s;
+    outline: none; box-sizing: border-box;
+}
+.ct-input:focus, .ct-select:focus {
+    border-color: #c0222b; box-shadow: 0 0 0 3px rgba(192,34,43,.12);
+}
+.ct-input--currency { padding-left: 36px; }
+.ct-input-wrap { position: relative; }
+.ct-input-prefix {
+    position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
+    font-size: 12px; font-weight: 700; color: #6c757d; pointer-events: none;
+}
+.ct-hint { font-size: 11px; color: #adb5bd; margin-top: 4px; }
+
+.ct-wage-summary {
+    background: linear-gradient(135deg, #1a1a2e 0%, #2d1b20 100%);
+    border-radius: 10px; padding: 16px 20px; margin-top: 16px;
+    display: flex; gap: 20px; flex-wrap: wrap; align-items: center;
+}
+.ct-wage-summary__item { flex: 1; min-width: 120px; }
+.ct-wage-summary__label { font-size: 10px; color: rgba(255,255,255,.5); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 3px; }
+.ct-wage-summary__val { font-size: 16px; font-weight: 700; color: #fff; }
+.ct-wage-summary__val--gold { color: #f6c90e; }
+.ct-wage-summary__sep { width: 1px; background: rgba(255,255,255,.15); align-self: stretch; min-height: 36px; }
+
+.ct-check-group { display: flex; flex-wrap: wrap; gap: 8px; }
+.ct-check-pill { display: none; }
+.ct-check-pill + label {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 13px; border: 1.5px solid #dee2e6; border-radius: 20px;
+    font-size: 13px; cursor: pointer; transition: all .15s; user-select: none;
+    color: #495057; background: #fff;
+}
+.ct-check-pill:checked + label {
+    border-color: #c0222b; background: rgba(192,34,43,.08); color: #c0222b; font-weight: 600;
+}
+.ct-check-pill + label:hover { border-color: #c0222b; }
+
+.ct-consent-row { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: #f8f9fa; border-radius: 8px; }
+.ct-toggle { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
+.ct-toggle input { opacity: 0; width: 0; height: 0; }
+.ct-toggle-slider { position: absolute; inset: 0; background: #dee2e6; border-radius: 24px; cursor: pointer; transition: .3s; }
+.ct-toggle-slider:before { content: ""; position: absolute; height: 18px; width: 18px; left: 3px; bottom: 3px; background: #fff; border-radius: 50%; transition: .3s; }
+.ct-toggle input:checked + .ct-toggle-slider { background: #198754; }
+.ct-toggle input:checked + .ct-toggle-slider:before { transform: translateX(20px); }
+
+.ct-alert { background: #fff5f5; border: 1px solid #fca5a5; border-radius: 8px; padding: 12px 16px; margin-bottom: 20px; }
+.ct-alert__title { font-size: 13px; font-weight: 700; color: #dc3545; margin-bottom: 4px; }
+.ct-alert ul { margin: 0; padding-left: 16px; font-size: 13px; color: #dc3545; }
+
+.ct-actions { display: flex; gap: 12px; margin-top: 24px; flex-wrap: wrap; }
+.ct-btn-save {
+    padding: 10px 28px; background: #c0222b; color: #fff; border: none;
+    border-radius: 8px; font-size: 14px; font-weight: 700; cursor: pointer; transition: background .15s;
+}
+.ct-btn-save:hover { background: #9a1a21; }
+.ct-btn-cancel {
+    padding: 10px 20px; background: #fff; color: #495057; border: 1.5px solid #dee2e6;
+    border-radius: 8px; font-size: 14px; font-weight: 600; text-decoration: none; transition: border-color .15s;
+}
+.ct-btn-cancel:hover { border-color: #adb5bd; color: #212529; }
+
+@media (max-width: 576px) {
+  .ct-wage-summary { flex-direction: column; gap: 12px; }
+  .ct-wage-summary__sep { display: none; }
+}
+</style>
+
+<div class="ct-page">
+
+  <div class="ct-breadcrumb">
+    <a href="{% url 'trial-contract-list' %}">Hợp đồng UAT PM</a>
     {% if contract %}
-    <a href="{% url 'trial-contract-detail' contract.pk %}" style="color:#c0222b;font-size:13px;">
-      ← Chi tiết hợp đồng
-    </a>
+    &nbsp;›&nbsp; <a href="{% url 'trial-contract-detail' contract.pk %}">{{ contract.contract_name }}</a>
+    &nbsp;›&nbsp; Chỉnh sửa
     {% else %}
-    <a href="{% url 'trial-contract-list' %}" style="color:#c0222b;font-size:13px;">
-      ← Danh sách Hợp đồng UAT PM
-    </a>
+    &nbsp;›&nbsp; Tạo mới
     {% endif %}
   </div>
 
-  <h2 class="oh-inner-sidebar-content__title mb-4">
-    {% if contract %}Cập nhật{% else %}Tạo mới{% endif %} Hợp đồng UAT PM
-  </h2>
+  <div class="ct-title">
+    <div class="ct-title-icon">📋</div>
+    {% if contract %}Chỉnh sửa Hợp đồng UAT PM{% else %}Tạo Hợp đồng UAT PM mới{% endif %}
+  </div>
 
-  <form method="post">
+  {% if errors %}
+  <div class="ct-alert">
+    <div class="ct-alert__title">Vui lòng kiểm tra lại thông tin:</div>
+    <ul>{% for field, msg in errors.items %}<li>{{ msg }}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+
+  <form method="post" id="ct-form">
     {% csrf_token %}
-    {% if errors %}
-    <div class="oh-alert-container mb-3">
-      <div class="oh-alert oh-alert--animated danger" style="font-size:13px;">
-        {% for field, msg in errors.items %}<div>{{ msg }}</div>{% endfor %}
-      </div>
-    </div>
-    {% endif %}
 
-    <!-- Thong tin co ban -->
-    <div class="oh-card oh-card--margin mb-3">
-      <div class="oh-card__header">
-        <span class="oh-card__title oh-card__title--sm">Thông tin cơ bản</span>
+    <!-- Section 1: Nhân viên & Hợp đồng -->
+    <div class="ct-section">
+      <div class="ct-section__head">
+        <div class="ct-section__icon ct-section__icon--blue">👤</div>
+        <span class="ct-section__title">Nhân viên & Hợp đồng</span>
       </div>
-      <div class="oh-card__body">
+      <div class="ct-section__body">
         <div class="row g-3">
-          <div class="col-md-6">
-            <label class="oh-label oh-label--required">Nhân viên</label>
-            <select name="employee_id" class="oh-select w-100" required>
+          <div class="col-md-7">
+            <label class="ct-label ct-label--req">Nhân viên</label>
+            <select name="employee_id" class="ct-select" required>
               <option value="">-- Chọn nhân viên --</option>
               {% for emp in employees %}
               <option value="{{ emp.pk }}"
                 {% if contract and contract.employee_id_id == emp.pk %}selected
                 {% elif post.employee_id == emp.pk|stringformat:"s" %}selected{% endif %}>
-                {{ emp }}
+                {{ emp.get_full_name }}
               </option>
               {% endfor %}
             </select>
           </div>
-          <div class="col-md-6">
-            <label class="oh-label oh-label--required">Tên hợp đồng</label>
-            <input type="text" name="contract_name" class="oh-input w-100" required
+          <div class="col-md-5">
+            <label class="ct-label">Trạng thái</label>
+            <select name="contract_status" class="ct-select">
+              {% with st=contract.contract_status|default:"draft" %}
+              <option value="draft"       {% if st == "draft"      %}selected{% endif %}>⬜ Nháp</option>
+              <option value="active"      {% if st == "active"     %}selected{% endif %}>🟢 Đang hiệu lực</option>
+              <option value="expired"     {% if st == "expired"    %}selected{% endif %}>🟠 Hết hạn</option>
+              <option value="terminated"  {% if st == "terminated" %}selected{% endif %}>🔴 Đã chấm dứt</option>
+              {% endwith %}
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="ct-label ct-label--req">Tên hợp đồng</label>
+            <input type="text" name="contract_name" class="ct-input" required
+                   placeholder="VD: HĐUATPM-2026-NGUYEN VAN A"
                    value="{% if contract %}{{ contract.contract_name }}{% elif post.contract_name %}{{ post.contract_name }}{% endif %}">
           </div>
-          <div class="col-md-4">
-            <label class="oh-label oh-label--required">Ngày bắt đầu</label>
-            <input type="date" name="contract_start_date" class="oh-input w-100" required
+          <div class="col-md-5">
+            <label class="ct-label ct-label--req">Ngày bắt đầu</label>
+            <input type="date" name="contract_start_date" class="ct-input" required
                    value="{% if contract %}{{ contract.contract_start_date|date:'Y-m-d' }}{% elif post.contract_start_date %}{{ post.contract_start_date }}{% endif %}">
           </div>
-          <div class="col-md-4">
-            <label class="oh-label">Ngày kết thúc</label>
-            <input type="date" name="contract_end_date" class="oh-input w-100"
+          <div class="col-md-5">
+            <label class="ct-label">Ngày kết thúc</label>
+            <input type="date" name="contract_end_date" class="ct-input"
                    value="{% if contract %}{{ contract.contract_end_date|date:'Y-m-d' }}{% elif post.contract_end_date %}{{ post.contract_end_date }}{% endif %}">
           </div>
-          <div class="col-md-4">
-            <label class="oh-label">Trạng thái</label>
-            <select name="contract_status" class="oh-select w-100">
-              <option value="draft" {% if not contract or contract.contract_status == "draft" %}selected{% endif %}>Nháp</option>
-              <option value="active" {% if contract.contract_status == "active" %}selected{% endif %}>Hiệu lực</option>
-              <option value="expired" {% if contract.contract_status == "expired" %}selected{% endif %}>Hết hạn</option>
-              <option value="terminated" {% if contract.contract_status == "terminated" %}selected{% endif %}>Chấm dứt</option>
-            </select>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Luong -->
-    <div class="oh-card oh-card--margin mb-3">
-      <div class="oh-card__header">
-        <span class="oh-card__title oh-card__title--sm">Lương &amp; UAT</span>
-      </div>
-      <div class="oh-card__body">
-        <div class="row g-3">
-          <div class="col-md-4">
-            <label class="oh-label">Lương cơ bản (đ/tháng)</label>
-            <input type="number" name="wage" class="oh-input w-100" min="0" step="500000"
-                   value="{% if contract %}{{ contract.wage|floatformat:"0" }}{% elif post.wage %}{{ post.wage }}{% else %}0{% endif %}">
-          </div>
-          <div class="col-md-4">
-            <label class="oh-label">Lương hiệu suất (đ/tháng)</label>
-            <input type="number" name="base_salary" class="oh-input w-100" min="0" step="500000"
-                   value="{% if contract %}{{ contract.base_salary|floatformat:"0" }}{% elif post.base_salary %}{{ post.base_salary }}{% else %}0{% endif %}">
-          </div>
           <div class="col-md-2">
-            <label class="oh-label">Số ngày UAT</label>
-            <input type="number" name="probation_days" class="oh-input w-100" min="1"
+            <label class="ct-label">Số ngày UAT</label>
+            <input type="number" name="probation_days" class="ct-input" min="1" max="365"
                    value="{% if contract %}{{ contract.probation_days }}{% elif post.probation_days %}{{ post.probation_days }}{% else %}90{% endif %}">
-          </div>
-          <div class="col-md-2">
-            <label class="oh-label">% Lương UAT</label>
-            <input type="number" name="trial_wage_pct" class="oh-input w-100"
-                   min="0" max="100" step="1"
-                   value="{% if contract %}{{ contract.trial_wage_pct }}{% elif post.trial_wage_pct %}{{ post.trial_wage_pct }}{% else %}100{% endif %}">
+            <div class="ct-hint">Mặc định 90 ngày</div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Phu luc 2 -->
-    <div class="oh-card oh-card--margin mb-3">
-      <div class="oh-card__header">
-        <span class="oh-card__title oh-card__title--sm">Phụ lục 2 — Phụ cấp &amp; Khoản trừ</span>
+    <!-- Section 2: Lương & Thu nhập -->
+    <div class="ct-section">
+      <div class="ct-section__head">
+        <div class="ct-section__icon ct-section__icon--green">💰</div>
+        <span class="ct-section__title">Lương & Thu nhập</span>
       </div>
-      <div class="oh-card__body">
+      <div class="ct-section__body">
         <div class="row g-3">
-          <div class="col-md-6">
-            <label class="oh-label">Phụ cấp</label>
-            <select name="allowances" multiple class="oh-select w-100" style="height:140px;">
-              {% for a in allowances %}
-              <option value="{{ a.pk }}"
-                {% if contract and a in contract.allowances.all %}selected{% endif %}>
-                {{ a.name }}
-              </option>
-              {% endfor %}
-            </select>
-            <small class="text-muted">Giữ Ctrl để chọn nhiều</small>
+          <div class="col-md-4">
+            <label class="ct-label">Lương cơ bản (đ/tháng)</label>
+            <div class="ct-input-wrap">
+              <span class="ct-input-prefix">₫</span>
+              <input type="number" name="wage" id="inp-wage" class="ct-input ct-input--currency"
+                     min="0" step="500000" oninput="updateWageSummary()"
+                     value="{% if contract %}{{ contract.wage|floatformat:"0" }}{% elif post.wage %}{{ post.wage }}{% else %}0{% endif %}">
+            </div>
+            <div class="ct-hint">Lương BHXH / lương trên hợp đồng</div>
           </div>
-          <div class="col-md-6">
-            <label class="oh-label">Khoản trừ</label>
-            <select name="deductions" multiple class="oh-select w-100" style="height:140px;">
-              {% for d in deductions %}
-              <option value="{{ d.pk }}"
-                {% if contract and d in contract.deductions.all %}selected{% endif %}>
-                {{ d.name }}
-              </option>
-              {% endfor %}
-            </select>
+          <div class="col-md-4">
+            <label class="ct-label">Lương hiệu suất (đ/tháng)</label>
+            <div class="ct-input-wrap">
+              <span class="ct-input-prefix">₫</span>
+              <input type="number" name="base_salary" id="inp-perf" class="ct-input ct-input--currency"
+                     min="0" step="500000" oninput="updateWageSummary()"
+                     value="{% if contract %}{{ contract.base_salary|floatformat:"0" }}{% elif post.base_salary %}{{ post.base_salary }}{% else %}0{% endif %}">
+            </div>
+            <div class="ct-hint">Phần biến đổi / thưởng KPI</div>
+          </div>
+          <div class="col-md-4">
+            <label class="ct-label">% Lương trong thời gian UAT</label>
+            <div class="ct-input-wrap">
+              <span class="ct-input-prefix">%</span>
+              <input type="number" name="trial_wage_pct" id="inp-pct" class="ct-input ct-input--currency"
+                     min="0" max="100" step="1" oninput="updateWageSummary()"
+                     value="{% if contract %}{{ contract.trial_wage_pct }}{% elif post.trial_wage_pct %}{{ post.trial_wage_pct }}{% else %}100{% endif %}">
+            </div>
+            <div class="ct-hint">Thường 85% – 100%</div>
+          </div>
+        </div>
+        <div class="ct-wage-summary">
+          <div class="ct-wage-summary__item">
+            <div class="ct-wage-summary__label">Lương CB / tháng</div>
+            <div class="ct-wage-summary__val" id="ws-base">—</div>
+          </div>
+          <div class="ct-wage-summary__sep"></div>
+          <div class="ct-wage-summary__item">
+            <div class="ct-wage-summary__label">Thực nhận UAT / tháng</div>
+            <div class="ct-wage-summary__val ct-wage-summary__val--gold" id="ws-trial">—</div>
+          </div>
+          <div class="ct-wage-summary__sep"></div>
+          <div class="ct-wage-summary__item">
+            <div class="ct-wage-summary__label">Thu nhập tổng / tháng</div>
+            <div class="ct-wage-summary__val" id="ws-total">—</div>
+          </div>
+          <div class="ct-wage-summary__sep"></div>
+          <div class="ct-wage-summary__item">
+            <div class="ct-wage-summary__label">Ước tính / năm</div>
+            <div class="ct-wage-summary__val" id="ws-annual">—</div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- Phu luc 3 -->
-    <div class="oh-card oh-card--margin mb-3">
-      <div class="oh-card__header">
-        <span class="oh-card__title oh-card__title--sm">Phụ lục 3 — Đồng ý bảo mật dữ liệu</span>
+    <!-- Section 3: Phụ cấp -->
+    {% if allowances %}
+    <div class="ct-section">
+      <div class="ct-section__head">
+        <div class="ct-section__icon ct-section__icon--amber">➕</div>
+        <span class="ct-section__title">Phụ lục 2A — Phụ cấp</span>
       </div>
-      <div class="oh-card__body">
-        <div class="row g-3">
-          <div class="col-md-6 d-flex align-items-center gap-2">
+      <div class="ct-section__body">
+        <div class="ct-check-group">
+          {% for a in allowances %}
+          <input type="checkbox" name="allowances" id="al-{{ a.pk }}" value="{{ a.pk }}" class="ct-check-pill"
+                 {% if contract and a in contract.allowances.all %}checked{% endif %}>
+          <label for="al-{{ a.pk }}">
+            ＋ {{ a.title }}{% if a.is_fixed and a.amount %} <span style="font-size:11px;color:#888;">({{ a.amount|floatformat:0 }}đ)</span>{% elif a.rate %} <span style="font-size:11px;color:#888;">({{ a.rate }}%)</span>{% endif %}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Section 4: Khoản trừ -->
+    {% if deductions %}
+    <div class="ct-section">
+      <div class="ct-section__head">
+        <div class="ct-section__icon ct-section__icon--purple">➖</div>
+        <span class="ct-section__title">Phụ lục 2B — Khoản khấu trừ</span>
+      </div>
+      <div class="ct-section__body">
+        <div class="ct-check-group">
+          {% for d in deductions %}
+          <input type="checkbox" name="deductions" id="ded-{{ d.pk }}" value="{{ d.pk }}" class="ct-check-pill"
+                 {% if contract and d in contract.deductions.all %}checked{% endif %}>
+          <label for="ded-{{ d.pk }}">
+            ➖ {{ d.title }}{% if d.rate %} <span style="font-size:11px;color:#888;">({{ d.rate }}%)</span>{% elif d.amount %} <span style="font-size:11px;color:#888;">({{ d.amount|floatformat:0 }}đ)</span>{% endif %}
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Section 5: Phụ lục 3 — Bảo mật -->
+    <div class="ct-section">
+      <div class="ct-section__head">
+        <div class="ct-section__icon ct-section__icon--teal">🔒</div>
+        <span class="ct-section__title">Phụ lục 3 — Bảo mật & Đồng ý dữ liệu</span>
+      </div>
+      <div class="ct-section__body">
+        <div class="ct-consent-row">
+          <label class="ct-toggle">
             <input type="checkbox" name="consent_agreed" id="consent_agreed"
-                   {% if contract and contract.consent_agreed %}checked{% endif %}>
-            <label for="consent_agreed" class="oh-label mb-0">Nhân viên đã ký Phụ lục 3</label>
-          </div>
-          <div class="col-md-6">
-            <label class="oh-label">Ngày ký Phụ lục 3</label>
-            <input type="date" name="consent_date" class="oh-input w-100"
-                   value="{% if contract %}{{ contract.consent_date|date:'Y-m-d' }}{% endif %}">
-          </div>
+                   {% if contract and contract.consent_agreed %}checked{% endif %}
+                   onchange="document.getElementById('consent-date-row').style.display=this.checked?'block':'none'">
+            <span class="ct-toggle-slider"></span>
+          </label>
+          <span style="font-size:14px;font-weight:600;color:#212529;">Nhân viên đã ký Phụ lục 3 (cam kết bảo mật dữ liệu cá nhân)</span>
+        </div>
+        <div id="consent-date-row" style="margin-top:14px;{% if not contract or not contract.consent_agreed %}display:none;{% endif %}">
+          <label class="ct-label">Ngày ký Phụ lục 3</label>
+          <input type="date" name="consent_date" class="ct-input" style="max-width:220px;"
+                 value="{% if contract %}{{ contract.consent_date|date:'Y-m-d' }}{% endif %}">
         </div>
       </div>
     </div>
 
-    <div class="d-flex gap-2">
-      <button type="submit" class="oh-btn oh-btn--secondary">
-        {% if contract %}Lưu thay đổi{% else %}Tạo hợp đồng{% endif %}
+    <div class="ct-actions">
+      <button type="submit" class="ct-btn-save">
+        {% if contract %}💾 Lưu thay đổi{% else %}✅ Tạo hợp đồng{% endif %}
       </button>
-      {% if contract %}
-      <a href="{% url 'trial-contract-detail' contract.pk %}" class="oh-btn oh-btn--light-bkg">Hủy</a>
-      {% else %}
-      <a href="{% url 'trial-contract-list' %}" class="oh-btn oh-btn--light-bkg">Hủy</a>
-      {% endif %}
+      <a href="{% if contract %}{% url 'trial-contract-detail' contract.pk %}{% else %}{% url 'trial-contract-list' %}{% endif %}" class="ct-btn-cancel">Hủy</a>
     </div>
   </form>
-
 </div>
-</main>
+
+<script>
+function fmt(n) {
+  if (!n || isNaN(n)) return '—';
+  return new Intl.NumberFormat('vi-VN').format(Math.round(n)) + ' ₫';
+}
+function updateWageSummary() {
+  var wage  = parseFloat(document.getElementById('inp-wage').value)  || 0;
+  var perf  = parseFloat(document.getElementById('inp-perf').value)  || 0;
+  var pct   = parseFloat(document.getElementById('inp-pct').value)   || 100;
+  var trial = wage * pct / 100;
+  var total = trial + perf;
+  document.getElementById('ws-base').textContent   = fmt(wage);
+  document.getElementById('ws-trial').textContent  = fmt(trial);
+  document.getElementById('ws-total').textContent  = fmt(total);
+  document.getElementById('ws-annual').textContent = fmt(total * 12);
+}
+document.addEventListener('DOMContentLoaded', updateWageSummary);
+</script>
 {% endblock %}

@@ -1,223 +1,323 @@
-{% extends "index.html" %}
+{% extends 'index.html' %}
 {% load i18n %}
 {% load static %}
 {% load payrollfilters %}
 
 {% block content %}
 <main :class="sidebarOpen ? 'oh-main__sidebar-visible' : ''">
-<div class="oh-wrapper oh-wrapper--full-width py-4 px-3" style="max-width:960px;">
+<style>
+:root {
+  --cd-red:    #c0222b;
+  --cd-reddark:#9a1a21;
+  --cd-green:  #198754;
+  --cd-amber:  #d97706;
+  --cd-gray:   #6c757d;
+  --cd-slate:  #1a1a2e;
+}
+
+/* ── Page layout ── */
+.cd-page { max-width: 1000px; margin: 0 auto; padding: 24px 16px 60px; }
+
+/* ── Breadcrumb ── */
+.cd-bread { font-size: 13px; margin-bottom: 18px; }
+.cd-bread a { color: var(--cd-red); text-decoration: none; font-weight: 500; }
+.cd-bread a:hover { text-decoration: underline; }
+
+/* ── Hero card ── */
+.cd-hero { background: var(--cd-slate); border-radius: 14px; padding: 28px 28px 24px; margin-bottom: 24px; position: relative; overflow: hidden; }
+.cd-hero::before { content:''; position:absolute; top:-30px; right:-40px; width:180px; height:180px; border-radius:50%; background:rgba(192,34,43,.18); }
+.cd-hero__inner { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; position: relative; z-index: 1; }
+.cd-hero__left  { display: flex; align-items: center; gap: 16px; }
+.cd-hero__avatar { width: 64px; height: 64px; border-radius: 50%; object-fit: cover; border: 3px solid rgba(255,255,255,.25); flex-shrink: 0; }
+.cd-hero__avatar-placeholder { width:64px;height:64px;border-radius:50%;background:var(--cd-red);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:#fff;flex-shrink:0;border:3px solid rgba(255,255,255,.25); }
+.cd-hero__name { color: #fff; font-size: 18px; font-weight: 700; margin: 0 0 4px; }
+.cd-hero__sub  { color: rgba(255,255,255,.6); font-size: 13px; margin: 0; }
+.cd-hero__actions { display: flex; gap: 10px; align-items: center; flex-shrink: 0; }
+.cd-btn { display:inline-flex;align-items:center;gap:6px;padding:8px 18px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;border:none;cursor:pointer;transition:all .15s; }
+.cd-btn--outline { background:rgba(255,255,255,.08); color:#fff; border:1.5px solid rgba(255,255,255,.3); }
+.cd-btn--outline:hover { background:rgba(255,255,255,.18); color:#fff; }
+.cd-btn--danger  { background:#dc3545; color:#fff; }
+.cd-btn--danger:hover  { background:#b02a37; color:#fff; }
+.cd-btn--primary { background:var(--cd-red); color:#fff; }
+.cd-btn--primary:hover { background:var(--cd-reddark); color:#fff; }
+.cd-badge { display:inline-flex;align-items:center;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;margin-top:6px; }
+.cd-badge--active      { background:#d1fae5; color:#065f46; }
+.cd-badge--draft       { background:#fff3cd; color:#856404; }
+.cd-badge--expired     { background:#e9ecef; color:#495057; }
+.cd-badge--terminated  { background:#fee2e2; color:#991b1b; }
+
+/* ── Figures strip ── */
+.cd-figs { display: grid; grid-template-columns: repeat(auto-fill, minmax(175px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.cd-fig { background: #fff; border: 1.5px solid #e9ecef; border-radius: 12px; padding: 14px 16px; }
+.cd-fig__label { font-size: 11px; color: var(--cd-gray); font-weight: 600; text-transform: uppercase; letter-spacing: .4px; margin-bottom: 6px; }
+.cd-fig__value { font-size: 20px; font-weight: 700; color: var(--cd-slate); }
+.cd-fig__value--red    { color: var(--cd-red); }
+.cd-fig__value--green  { color: var(--cd-green); }
+.cd-fig__value--amber  { color: var(--cd-amber); }
+.cd-fig__sub { font-size: 11px; color: var(--cd-gray); margin-top: 2px; }
+
+/* ── Cards ── */
+.cd-card { background: #fff; border: 1px solid #e9ecef; border-radius: 12px; margin-bottom: 18px; overflow: hidden; }
+.cd-card__head { padding: 14px 20px; border-bottom: 1px solid #f0f0f0; display: flex; justify-content: space-between; align-items: center; }
+.cd-card__title { font-size: 13px; font-weight: 700; color: var(--cd-slate); text-transform: uppercase; letter-spacing: .4px; margin: 0; }
+.cd-card__body { padding: 18px 20px; }
+
+/* ── Chip pills ── */
+.cd-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.cd-chip { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 500; border: 1.5px solid; }
+.cd-chip--allow { background:#f0fdf4; border-color:#86efac; color:#166534; }
+.cd-chip--deduct { background:#fef2f2; border-color:#fca5a5; color:#991b1b; }
+.cd-chip--empty  { color: var(--cd-gray); font-size: 12px; font-style: italic; }
+
+/* ── KPI Table ── */
+.cd-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.cd-table thead th { background: #f8f9fa; padding: 9px 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .3px; color: #6c757d; border-bottom: 1px solid #e9ecef; white-space: nowrap; }
+.cd-table tbody tr { border-bottom: 1px solid #f5f5f5; }
+.cd-table tbody tr:last-child { border-bottom: none; }
+.cd-table tbody tr:hover { background: #fffbfb; }
+.cd-table td { padding: 10px 12px; vertical-align: middle; }
+.cd-table .text-end { text-align: right; }
+.cd-table .text-center { text-align: center; }
+.cd-btn-sm { display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;text-decoration:none;border:none;cursor:pointer;transition:all .15s; }
+.cd-btn-sm--danger { background:#fee2e2;color:#991b1b; }
+.cd-btn-sm--danger:hover { background:#dc3545;color:#fff; }
+.cd-empty { padding: 28px 20px; text-align: center; color: var(--cd-gray); font-size: 13px; }
+.cd-empty a { color: var(--cd-red); font-weight: 600; text-decoration: none; }
+
+/* ── PL3 consent ── */
+.cd-consent { display: flex; align-items: center; gap: 10px; }
+.cd-consent__icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+.cd-consent__icon--yes { background: #d1fae5; }
+.cd-consent__icon--no  { background: #fee2e2; }
+.cd-consent__label { font-size: 14px; font-weight: 600; }
+.cd-consent__label--yes { color: var(--cd-green); }
+.cd-consent__label--no  { color: #dc3545; }
+.cd-consent__date  { font-size: 12px; color: var(--cd-gray); margin-top: 2px; }
+</style>
+
+<div class="cd-page">
 
   <!-- Breadcrumb -->
-  <div class="mb-3">
-    <a href="{% url 'trial-contract-list' %}" style="color:#c0222b;font-size:13px;">
-      ← Danh sách Hợp đồng UAT PM
-    </a>
-  </div>
-
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-start mb-4">
-    <div class="oh-profile">
-      <div class="oh-profile__avatar">
-        <img src="{{ contract.employee_id.get_avatar }}"
-             class="oh-profile__image me-3"
-             style="width:56px;height:56px;border-radius:50%;object-fit:cover;"
-             alt="{{ contract.employee_id }}">
-      </div>
-      <div>
-        <h2 class="oh-inner-sidebar-content__title mb-0">{{ contract.contract_name }}</h2>
-        <p class="mb-0" style="font-size:14px;color:#6c757d;">
-          {{ contract.employee_id }}
-          {% with wi=contract.employee_id.employee_work_info %}
-          {% if wi.department_id or wi.job_position_id %}
-          &nbsp;·&nbsp; {{ wi.department_id }} / {{ wi.job_position_id }}
-          {% endif %}
-          {% endwith %}
-        </p>
-      </div>
-    </div>
-    <div class="d-flex gap-2 flex-shrink-0 ms-3">
-      <a href="{% url 'trial-contract-update' contract.pk %}" class="oh-btn oh-btn--light-bkg">
-        <ion-icon name="create-outline" class="me-1"></ion-icon>Sửa
-      </a>
-      <form method="post" action="{% url 'trial-contract-delete' contract.pk %}"
-            onsubmit="return confirm('Xóa hợp đồng này và toàn bộ Phụ lục 1?')">
-        {% csrf_token %}
-        <button type="submit" class="oh-btn oh-btn--danger">
-          <ion-icon name="trash-outline" class="me-1"></ion-icon>Xóa
-        </button>
-      </form>
-    </div>
+  <div class="cd-bread">
+    <a href="{% url 'trial-contract-list' %}">← Danh sách Hợp đồng UAT PM</a>
   </div>
 
   <!-- Messages -->
   {% if messages %}
   {% for msg in messages %}
-  <div class="oh-alert-container mb-3">
-    <div class="oh-alert oh-alert--animated {{ msg.tags }}">{{ msg }}</div>
+  <div class="cd-card" style="background:{% if 'error' in msg.tags %}#fee2e2{% else %}#d1fae5{% endif %};border-color:{% if 'error' in msg.tags %}#fca5a5{% else %}#86efac{% endif %};margin-bottom:14px;">
+    <div class="cd-card__body" style="padding:10px 16px;font-size:13px;color:{% if 'error' in msg.tags %}#991b1b{% else %}#065f46{% endif %};">{{ msg }}</div>
   </div>
   {% endfor %}
   {% endif %}
 
-  <!-- Summary stats (Horilla oh-timeoff-modal__stats style adapted) -->
-  <div class="oh-card oh-card--margin mb-3">
-    <div class="oh-card__body">
-      <div class="row g-3">
-        <div class="col-6 col-md-3">
-          <div class="oh-timeoff-modal__stat">
-            <span class="oh-timeoff-modal__stat-title">Trạng thái</span>
-            <span class="oh-timeoff-modal__stat-count">
-              {% if contract.contract_status == "active" %}<span style="color:#198754;font-weight:700;">Hiệu lực</span>
-              {% elif contract.contract_status == "draft" %}<span style="color:#fd7e14;font-weight:700;">Nháp</span>
-              {% elif contract.contract_status == "expired" %}<span style="color:#6c757d;font-weight:700;">Hết hạn</span>
-              {% else %}<span style="color:#dc3545;font-weight:700;">Chấm dứt</span>
-              {% endif %}
-            </span>
+  <!-- Hero -->
+  <div class="cd-hero">
+    <div class="cd-hero__inner">
+      <div class="cd-hero__left">
+        {% if contract.employee_id.employee_profile %}
+          <img src="{{ contract.employee_id.get_avatar }}" alt="{{ contract.employee_id }}" class="cd-hero__avatar">
+        {% else %}
+          <div class="cd-hero__avatar-placeholder">
+            {{ contract.employee_id.employee_first_name|slice:":1" }}{{ contract.employee_id.employee_last_name|slice:":1" }}
           </div>
+        {% endif %}
+        <div>
+          <h1 class="cd-hero__name">{{ contract.contract_name }}</h1>
+          <p class="cd-hero__sub">
+            {{ contract.employee_id.get_full_name }}
+            {% with wi=contract.employee_id.employee_work_info %}
+            {% if wi.department_id %}&nbsp;·&nbsp; {{ wi.department_id }}{% endif %}
+            {% if wi.job_position_id %}&nbsp;/ {{ wi.job_position_id }}{% endif %}
+            {% endwith %}
+          </p>
+          {% if contract.contract_status == "active" %}
+            <span class="cd-badge cd-badge--active">Hiệu lực</span>
+          {% elif contract.contract_status == "draft" %}
+            <span class="cd-badge cd-badge--draft">Nháp</span>
+          {% elif contract.contract_status == "expired" %}
+            <span class="cd-badge cd-badge--expired">Hết hạn</span>
+          {% else %}
+            <span class="cd-badge cd-badge--terminated">Chấm dứt</span>
+          {% endif %}
         </div>
-        <div class="col-6 col-md-3">
-          <div class="oh-timeoff-modal__stat">
-            <span class="oh-timeoff-modal__stat-title">Lương cơ bản</span>
-            <span class="oh-timeoff-modal__stat-count" style="color:#c0222b;font-weight:700;">
-              {{ contract.wage|vnd }}đ
-            </span>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="oh-timeoff-modal__stat">
-            <span class="oh-timeoff-modal__stat-title">Lương hiệu suất</span>
-            <span class="oh-timeoff-modal__stat-count" style="font-weight:700;">
-              {{ contract.base_salary|vnd }}đ
-            </span>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="oh-timeoff-modal__stat">
-            <span class="oh-timeoff-modal__stat-title">% UAT</span>
-            <span class="oh-timeoff-modal__stat-count" style="font-weight:700;">
-              {{ contract.trial_wage_pct }}%
-            </span>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="oh-timeoff-modal__stat">
-            <span class="oh-timeoff-modal__stat-title">Ngày bắt đầu</span>
-            <span class="oh-timeoff-modal__stat-count dateformat_changer">{{ contract.contract_start_date }}</span>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="oh-timeoff-modal__stat">
-            <span class="oh-timeoff-modal__stat-title">Ngày kết thúc</span>
-            <span class="oh-timeoff-modal__stat-count dateformat_changer">
-              {{ contract.contract_end_date|default:"—" }}
-            </span>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="oh-timeoff-modal__stat">
-            <span class="oh-timeoff-modal__stat-title">Số ngày UAT</span>
-            <span class="oh-timeoff-modal__stat-count">{{ contract.probation_days }} ngày</span>
-          </div>
-        </div>
-        <div class="col-6 col-md-3">
-          <div class="oh-timeoff-modal__stat">
-            <span class="oh-timeoff-modal__stat-title">Phụ lục 3</span>
-            <span class="oh-timeoff-modal__stat-count">
-              {% if contract.consent_agreed %}
-                <span style="color:#198754;font-weight:700;">Đã ký</span>
-                {% if contract.consent_date %}<br><small class="text-muted">{{ contract.consent_date }}</small>{% endif %}
-              {% else %}
-                <span style="color:#dc3545;">Chưa ký</span>
-              {% endif %}
-            </span>
-          </div>
-        </div>
+      </div>
+      <div class="cd-hero__actions">
+        <a href="{% url 'trial-contract-update' contract.pk %}" class="cd-btn cd-btn--outline">
+          <ion-icon name="create-outline"></ion-icon> Chỉnh sửa
+        </a>
+        <form method="post" action="{% url 'trial-contract-delete' contract.pk %}"
+              onsubmit="return confirm('Xóa hợp đồng này và toàn bộ Phụ lục 1?')">
+          {% csrf_token %}
+          <button type="submit" class="cd-btn cd-btn--danger">
+            <ion-icon name="trash-outline"></ion-icon> Xóa
+          </button>
+        </form>
       </div>
     </div>
   </div>
 
-  <!-- Phu luc 1 -->
-  <div class="oh-card oh-card--margin mb-3">
-    <div class="oh-card__header d-flex justify-content-between align-items-center">
-      <span class="oh-card__title oh-card__title--sm">Phụ lục 1 — KPI &amp; Thu nhập</span>
-      <a href="{% url 'trial-kpi-appendix-create' contract.pk %}"
-         class="oh-btn oh-btn--secondary oh-btn--sm">+ Thêm năm</a>
+  <!-- Key Figures -->
+  <div class="cd-figs">
+    <div class="cd-fig">
+      <div class="cd-fig__label">Lương cơ bản</div>
+      <div class="cd-fig__value cd-fig__value--red">{{ contract.wage|vnd }}đ</div>
+      <div class="cd-fig__sub">ContractBase wage</div>
     </div>
-    <div class="oh-card__body p-0">
-      {% if appendices %}
-      <table class="oh-table oh-table--bordered" style="font-size:12px;">
-        <thead class="table-light">
+    <div class="cd-fig">
+      <div class="cd-fig__label">Lương hiệu suất</div>
+      <div class="cd-fig__value">{{ contract.base_salary|vnd }}đ</div>
+      <div class="cd-fig__sub">Base salary</div>
+    </div>
+    <div class="cd-fig">
+      <div class="cd-fig__label">Tỷ lệ lương UAT</div>
+      <div class="cd-fig__value cd-fig__value--amber">{{ contract.trial_wage_pct }}%</div>
+      <div class="cd-fig__sub">Trong thời gian thử việc</div>
+    </div>
+    <div class="cd-fig">
+      <div class="cd-fig__label">Số ngày UAT</div>
+      <div class="cd-fig__value">{{ contract.probation_days }}</div>
+      <div class="cd-fig__sub">ngày thử việc</div>
+    </div>
+    <div class="cd-fig">
+      <div class="cd-fig__label">Ngày bắt đầu</div>
+      <div class="cd-fig__value" style="font-size:15px;">
+        <span class="dateformat_changer">{{ contract.contract_start_date }}</span>
+      </div>
+    </div>
+    <div class="cd-fig">
+      <div class="cd-fig__label">Ngày kết thúc</div>
+      <div class="cd-fig__value" style="font-size:15px;">
+        {% if contract.contract_end_date %}
+          <span class="dateformat_changer">{{ contract.contract_end_date }}</span>
+        {% else %}
+          <span style="color:var(--cd-gray);">—</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- PL3 — Bảo mật -->
+  <div class="cd-card">
+    <div class="cd-card__head">
+      <span class="cd-card__title">Phụ lục 3 — Cam kết bảo mật</span>
+    </div>
+    <div class="cd-card__body">
+      <div class="cd-consent">
+        {% if contract.consent_agreed %}
+          <div class="cd-consent__icon cd-consent__icon--yes">✅</div>
+          <div>
+            <div class="cd-consent__label cd-consent__label--yes">Đã ký cam kết bảo mật</div>
+            {% if contract.consent_date %}
+            <div class="cd-consent__date">Ngày ký: <span class="dateformat_changer">{{ contract.consent_date }}</span></div>
+            {% endif %}
+          </div>
+        {% else %}
+          <div class="cd-consent__icon cd-consent__icon--no">❌</div>
+          <div>
+            <div class="cd-consent__label cd-consent__label--no">Chưa ký cam kết bảo mật</div>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- PL1 — KPI -->
+  <div class="cd-card">
+    <div class="cd-card__head">
+      <span class="cd-card__title">Phụ lục 1 — KPI &amp; Thu nhập năm</span>
+      <a href="{% url 'trial-kpi-appendix-create' contract.pk %}" class="cd-btn cd-btn--primary" style="padding:6px 14px;font-size:12px;">
+        <ion-icon name="add-outline"></ion-icon> Thêm năm
+      </a>
+    </div>
+    {% if appendices %}
+    <div style="overflow-x:auto;">
+      <table class="cd-table">
+        <thead>
           <tr>
             <th>Năm</th>
             <th>Vị trí</th>
-            <th class="text-end">Thu nhập năm min</th>
-            <th class="text-end">Thu nhập năm max</th>
+            <th class="text-end">TN năm min</th>
+            <th class="text-end">TN năm max</th>
             <th class="text-end">Tạm ứng/tháng</th>
-            <th class="text-center">KPI 90-100%</th>
-            <th class="text-center">KPI 75-89%</th>
-            <th class="text-center">KPI 60-74%</th>
+            <th class="text-center">KPI 90–100%</th>
+            <th class="text-center">KPI 75–89%</th>
+            <th class="text-center">KPI 60–74%</th>
             <th class="text-center">KPI &lt;60%</th>
             <th class="text-center">Xóa</th>
           </tr>
         </thead>
         <tbody>
-          {% for a in appendices %}
+          {% for ap in appendices %}
           <tr>
-            <td class="fw-bold">{{ a.year }}</td>
-            <td>{{ a.position|default:"—" }}</td>
-            <td class="text-end">{{ a.annual_income_min|vnd }}đ</td>
-            <td class="text-end">{{ a.annual_income_max|vnd }}đ</td>
-            <td class="text-end">{{ a.monthly_performance_advance|vnd }}đ</td>
-            <td class="text-center">{{ a.kpi_pct_90_100 }}%</td>
-            <td class="text-center">{{ a.kpi_pct_75_89 }}%</td>
-            <td class="text-center">{{ a.kpi_pct_60_74 }}%</td>
-            <td class="text-center">{{ a.kpi_below_60 }}%</td>
+            <td><strong>{{ ap.year }}</strong></td>
+            <td>{{ ap.position|default:"—" }}</td>
+            <td class="text-end">{{ ap.annual_income_min|vnd }}đ</td>
+            <td class="text-end">{{ ap.annual_income_max|vnd }}đ</td>
+            <td class="text-end">{{ ap.monthly_performance_advance|vnd }}đ</td>
+            <td class="text-center">{{ ap.kpi_pct_90_100 }}%</td>
+            <td class="text-center">{{ ap.kpi_pct_75_89 }}%</td>
+            <td class="text-center">{{ ap.kpi_pct_60_74 }}%</td>
+            <td class="text-center">{{ ap.kpi_below_60 }}%</td>
             <td class="text-center">
-              <form method="post" action="{% url 'kpi-appendix-delete' a.pk %}"
+              <form method="post" action="{% url 'kpi-appendix-delete' ap.pk %}"
                     style="display:inline;"
-                    onsubmit="return confirm('Xóa Phụ lục 1 năm {{ a.year }}?')">
+                    onsubmit="return confirm('Xóa Phụ lục 1 năm {{ ap.year }}?')">
                 {% csrf_token %}
-                <button type="submit" class="oh-btn oh-btn--danger oh-btn--sm">Xóa</button>
+                <button type="submit" class="cd-btn-sm cd-btn-sm--danger">
+                  <ion-icon name="trash-outline"></ion-icon>
+                </button>
               </form>
             </td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
-      {% else %}
-      <div class="p-3 text-center text-muted" style="font-size:13px;">
-        Chưa có Phụ lục 1.
-        <a href="{% url 'trial-kpi-appendix-create' contract.pk %}" style="color:#c0222b;">Thêm ngay</a>
-      </div>
-      {% endif %}
     </div>
+    {% else %}
+    <div class="cd-empty">
+      Chưa có Phụ lục 1.
+      <a href="{% url 'trial-kpi-appendix-create' contract.pk %}">Thêm ngay →</a>
+    </div>
+    {% endif %}
   </div>
 
-  <!-- Phu luc 2 -->
-  <div class="oh-card oh-card--margin mb-3">
-    <div class="oh-card__header">
-      <span class="oh-card__title oh-card__title--sm">Phụ lục 2 — Phụ cấp &amp; Khoản trừ</span>
+  <!-- PL2 — Phụ cấp & Khoản trừ -->
+  <div class="cd-card">
+    <div class="cd-card__head">
+      <span class="cd-card__title">Phụ lục 2 — Phụ cấp &amp; Khoản trừ</span>
     </div>
-    <div class="oh-card__body">
-      <div class="row">
+    <div class="cd-card__body">
+      <div class="row g-4">
         <div class="col-md-6">
-          <strong style="font-size:13px;">Phụ cấp:</strong>
-          <ul style="font-size:13px;margin-top:4px;">
+          <div style="font-size:12px;font-weight:700;color:var(--cd-gray);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;">
+            Phụ cấp
+          </div>
+          <div class="cd-chips">
             {% for a in contract.allowances.all %}
-            <li>{{ a.name }}</li>
+            <span class="cd-chip cd-chip--allow">
+              <ion-icon name="add-circle-outline" style="font-size:13px;"></ion-icon>
+              {{ a.title }}
+            </span>
             {% empty %}
-            <li class="text-muted">Chưa cấu hình</li>
+            <span class="cd-chip--empty">Chưa có phụ cấp nào</span>
             {% endfor %}
-          </ul>
+          </div>
         </div>
         <div class="col-md-6">
-          <strong style="font-size:13px;">Khoản trừ:</strong>
-          <ul style="font-size:13px;margin-top:4px;">
+          <div style="font-size:12px;font-weight:700;color:var(--cd-gray);text-transform:uppercase;letter-spacing:.4px;margin-bottom:10px;">
+            Khoản trừ
+          </div>
+          <div class="cd-chips">
             {% for d in contract.deductions.all %}
-            <li>{{ d.name }}</li>
+            <span class="cd-chip cd-chip--deduct">
+              <ion-icon name="remove-circle-outline" style="font-size:13px;"></ion-icon>
+              {{ d.title }}
+            </span>
             {% empty %}
-            <li class="text-muted">Chưa cấu hình</li>
+            <span class="cd-chip--empty">Chưa có khoản trừ nào</span>
             {% endfor %}
-          </ul>
+          </div>
         </div>
       </div>
     </div>

@@ -3,158 +3,717 @@
 {% load payrollfilters %}
 
 {% block content %}
-<div class="oh-wrapper oh-wrapper--full-width py-4 px-3">
+<style>
+/* ── Payroll overview: pl- prefix ─────────────────────────── */
+:root {
+  --pl-input-bg:    #fffbeb;   /* amber-50  — HR editable */
+  --pl-auto-bg:     #f0fdf4;   /* green-50  — computed    */
+  --pl-accent:      #c0222b;   /* HNH crimson             */
+  --pl-border:      #dee2e6;
+  --pl-hdr-bg:      #1e293b;   /* dark slate              */
+  --pl-hdr-sub:     #334155;
+}
 
-  <!-- Header -->
-  <div class="d-flex justify-content-between align-items-center mb-4">
-    <h2 class="oh-inner-sidebar-content__title mb-0">
-      Bảng Lương Tổng Công Ty — Tháng {{ current_month }}/{{ current_year }}
-    </h2>
-    <div class="d-flex gap-2 align-items-center">
-      <a href="?month={% if current_month == 1 %}12{% else %}{{ current_month|add:"-1" }}{% endif %}&year={% if current_month == 1 %}{{ current_year|add:"-1" }}{% else %}{{ current_year }}{% endif %}&dept={{ dept_filter }}&type={{ type_filter }}"
-         class="oh-btn oh-btn--light-bkg oh-btn--sm">‹ Trước</a>
-      <span style="font-size:13px;color:#6c757d;">{{ current_month }}/{{ current_year }}</span>
-      <a href="?month={% if current_month == 12 %}1{% else %}{{ current_month|add:"1" }}{% endif %}&year={% if current_month == 12 %}{{ current_year|add:"1" }}{% else %}{{ current_year }}{% endif %}&dept={{ dept_filter }}&type={{ type_filter }}"
-         class="oh-btn oh-btn--light-bkg oh-btn--sm">Sau ›</a>
+/* Wrapper */
+.pl-wrap { padding: 20px 16px 80px; }
+
+/* Page header */
+.pl-header { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:20px; }
+.pl-title { font-size:20px; font-weight:700; color:#1e293b; margin:0; }
+.pl-title small { display:block; font-size:12px; font-weight:400; color:#64748b; margin-top:2px; }
+.pl-actions { display:flex; gap:8px; flex-wrap:wrap; }
+
+/* Stat cards */
+.pl-stats { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:12px; margin-bottom:20px; }
+.pl-stat { background:#fff; border:1px solid var(--pl-border); border-radius:10px; padding:14px 16px; }
+.pl-stat__label { font-size:11px; color:#64748b; text-transform:uppercase; letter-spacing:.5px; }
+.pl-stat__value { font-size:20px; font-weight:700; margin-top:4px; }
+.pl-stat--red   .pl-stat__value { color:#c0222b; }
+.pl-stat--amber .pl-stat__value { color:#d97706; }
+.pl-stat--green .pl-stat__value { color:#16a34a; }
+.pl-stat--gray  .pl-stat__value { color:#475569; }
+
+/* Filter bar */
+.pl-filter { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:16px; background:#f8fafc; border:1px solid var(--pl-border); border-radius:8px; padding:10px 14px; }
+.pl-filter select, .pl-filter input[type=number] { padding:5px 10px; font-size:13px; border:1px solid #cbd5e1; border-radius:6px; background:#fff; }
+
+/* Legend */
+.pl-legend { display:flex; gap:16px; flex-wrap:wrap; margin-bottom:10px; font-size:11px; color:#64748b; }
+.pl-legend__item { display:flex; align-items:center; gap:5px; }
+.pl-legend__swatch { width:14px; height:14px; border-radius:3px; border:1px solid rgba(0,0,0,.1); }
+.pl-legend__swatch--input { background:var(--pl-input-bg); }
+.pl-legend__swatch--auto  { background:var(--pl-auto-bg); }
+
+/* Table */
+.pl-table-wrap { overflow-x:auto; border-radius:10px; border:1px solid var(--pl-border); }
+.pl-tbl { border-collapse:collapse; font-size:11.5px; white-space:nowrap; min-width:3200px; width:100%; }
+
+/* Header rows */
+.pl-tbl thead tr:first-child th { background:var(--pl-hdr-bg); color:#e2e8f0; font-size:10.5px; font-weight:600; text-align:center; padding:6px 8px; border:1px solid #475569; }
+.pl-tbl thead tr:last-child th  { background:var(--pl-hdr-sub); color:#cbd5e1; font-size:10px; font-weight:500; text-align:center; padding:4px 6px; border:1px solid #475569; }
+
+/* Body */
+.pl-tbl tbody tr:nth-child(even) { background:#fafafa; }
+.pl-tbl tbody tr:hover { background:#f1f5f9; }
+.pl-tbl td { border:1px solid #e2e8f0; padding:3px 5px; vertical-align:middle; }
+
+/* Input cells */
+.pl-cell-in { background:var(--pl-input-bg); }
+.pl-cell-in input { background:transparent; border:none; outline:none; width:100%; text-align:right; font-size:11.5px; padding:1px 2px; font-family:inherit; }
+.pl-cell-in input:focus { background:#fef3c7; border-radius:3px; }
+
+/* Computed cells */
+.pl-cell-auto { background:var(--pl-auto-bg); text-align:right; color:#15803d; font-weight:500; }
+
+/* Fixed info cells */
+.pl-cell-info { color:#334155; }
+
+/* Totals row */
+.pl-tbl tfoot td { background:#1e293b; color:#e2e8f0; font-weight:700; font-size:11px; border:1px solid #475569; padding:5px 6px; text-align:right; }
+.pl-tbl tfoot td:first-child { text-align:left; }
+
+/* Sticky save bar */
+.pl-save-bar { position:fixed; bottom:0; left:0; right:0; z-index:200; background:#1e293b; padding:10px 24px; display:flex; align-items:center; justify-content:space-between; box-shadow:0 -2px 12px rgba(0,0,0,.2); }
+.pl-save-bar__info { color:#94a3b8; font-size:12px; }
+.pl-save-bar__btns { display:flex; gap:10px; }
+
+/* Signature strip */
+.pl-sig { display:grid; grid-template-columns:repeat(3,1fr); gap:24px; margin-top:32px; padding:20px; background:#fff; border:1px solid var(--pl-border); border-radius:10px; text-align:center; }
+.pl-sig__role { font-size:11px; font-weight:600; color:#334155; text-transform:uppercase; letter-spacing:.5px; }
+.pl-sig__date { font-size:11px; color:#94a3b8; margin-top:2px; }
+.pl-sig__line { border-top:1px solid #cbd5e1; margin:40px 16px 8px; }
+.pl-sig__name { font-size:12px; color:#475569; }
+
+/* Buttons */
+.pl-btn { display:inline-flex; align-items:center; gap:6px; padding:7px 14px; border-radius:8px; font-size:13px; font-weight:500; border:none; cursor:pointer; text-decoration:none; }
+.pl-btn--primary { background:var(--pl-accent); color:#fff; }
+.pl-btn--primary:hover { background:#9a1a21; color:#fff; }
+.pl-btn--success { background:#16a34a; color:#fff; }
+.pl-btn--success:hover { background:#15803d; color:#fff; }
+.pl-btn--outline { background:#fff; color:#334155; border:1px solid #cbd5e1; }
+.pl-btn--outline:hover { background:#f1f5f9; }
+.pl-btn--amber { background:#d97706; color:#fff; }
+.pl-btn--amber:hover { background:#b45309; color:#fff; }
+
+/* Empty state */
+.pl-empty { padding:64px 20px; text-align:center; }
+.pl-empty__icon { font-size:48px; margin-bottom:12px; }
+.pl-empty__msg { font-size:14px; color:#64748b; margin-bottom:20px; }
+</style>
+
+<div class="pl-wrap">
+
+  <!-- ── Page header ── -->
+  <div class="pl-header">
+    <div>
+      <h2 class="pl-title">
+        Bảng Lương
+        <small>
+          Tháng {{ current_month }}/{{ current_year }}
+          {% if company %} — {{ company.company }}{% else %} — Toàn công ty{% endif %}
+        </small>
+      </h2>
+    </div>
+    <div class="pl-actions">
+      <!-- Generate from contracts -->
+      <form method="post" style="margin:0;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="generate">
+        <input type="hidden" name="month" value="{{ current_month }}">
+        <input type="hidden" name="year" value="{{ current_year }}">
+        <button type="submit" class="pl-btn pl-btn--outline"
+                onclick="return confirm('Tạo dòng lương từ hợp đồng active tháng {{ current_month }}/{{ current_year }}?')"
+                title="Tạo tự động từ hợp đồng active">
+          ⚡ Tạo từ HĐ
+        </button>
+      </form>
+
+      <!-- Export Excel -->
+      <a href="{% url 'hnh-payroll-export' %}?month={{ current_month }}&year={{ current_year }}{% if dept_filter %}&dept={{ dept_filter }}{% endif %}"
+         class="pl-btn pl-btn--outline">
+        📊 Xuất Excel
+      </a>
     </div>
   </div>
 
-  <!-- Summary Cards -->
-  <div class="row g-3 mb-4">
-    <div class="col-6 col-md-3">
-      <div class="oh-card oh-card--margin text-center" style="padding:18px 12px;">
-        <div style="font-size:11px;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;">Tổng quỹ lương NLĐ</div>
-        <div style="font-size:18px;font-weight:700;color:#c0222b;margin-top:6px;">{{ total_wage|vnd }}đ</div>
-        <div style="font-size:11px;color:#6c757d;margin-top:2px;">{{ total_employees }} nhân viên</div>
-      </div>
+  <!-- ── Stat summary ── -->
+  {% if has_entries %}
+  <div class="pl-stats">
+    <div class="pl-stat pl-stat--red">
+      <div class="pl-stat__label">Gross thực tế (AB)</div>
+      <div class="pl-stat__value">{{ totals.AB|vnd }}đ</div>
     </div>
-    <div class="col-6 col-md-3">
-      <div class="oh-card oh-card--margin text-center" style="padding:18px 12px;">
-        <div style="font-size:11px;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;">Khoản trừ BH (NLĐ)</div>
-        <div style="font-size:18px;font-weight:700;color:#fd7e14;margin-top:6px;">{{ total_employee_deductions|vnd }}đ</div>
-        <div style="font-size:11px;color:#6c757d;margin-top:2px;">BHXH + BHYT + BHTN</div>
-      </div>
+    <div class="pl-stat pl-stat--amber">
+      <div class="pl-stat__label">Khoản trừ BH NLĐ (AF)</div>
+      <div class="pl-stat__value">{{ totals.AF|vnd }}đ</div>
     </div>
-    <div class="col-6 col-md-3">
-      <div class="oh-card oh-card--margin text-center" style="padding:18px 12px;">
-        <div style="font-size:11px;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;">Thực lĩnh ước tính</div>
-        <div style="font-size:18px;font-weight:700;color:#198754;margin-top:6px;">{{ total_net|vnd }}đ</div>
-        <div style="font-size:11px;color:#6c757d;margin-top:2px;">Chưa trừ thuế TNCN</div>
-      </div>
+    <div class="pl-stat pl-stat--amber">
+      <div class="pl-stat__label">Thuế TNCN (AI)</div>
+      <div class="pl-stat__value">{{ totals.AI|vnd }}đ</div>
     </div>
-    <div class="col-6 col-md-3">
-      <div class="oh-card oh-card--margin text-center" style="padding:18px 12px;">
-        <div style="font-size:11px;color:#6c757d;text-transform:uppercase;letter-spacing:.5px;">Chi phí BH (NSDLĐ)</div>
-        <div style="font-size:18px;font-weight:700;color:#6c757d;margin-top:6px;">{{ total_employer_bhxh|vnd }}đ</div>
-        <div style="font-size:11px;color:#6c757d;margin-top:2px;">~21.5% lương (không gồm KPCĐ)</div>
-      </div>
+    <div class="pl-stat pl-stat--green">
+      <div class="pl-stat__label">Thực lĩnh (AK)</div>
+      <div class="pl-stat__value">{{ totals.AK|vnd }}đ</div>
     </div>
   </div>
+  {% endif %}
 
-  <!-- Filter -->
-  <form method="get" class="mb-3 d-flex flex-wrap gap-2 align-items-center">
-    <input type="hidden" name="month" value="{{ current_month }}">
-    <input type="hidden" name="year" value="{{ current_year }}">
+  <!-- ── Filter bar ── -->
+  <form method="get" class="pl-filter" id="filterForm">
+    <!-- Month / Year -->
+    <select name="month" onchange="document.getElementById('filterForm').submit()">
+      {% for m in months %}
+      <option value="{{ m }}" {% if m == current_month %}selected{% endif %}>Tháng {{ m }}</option>
+      {% endfor %}
+    </select>
+    <select name="year" onchange="document.getElementById('filterForm').submit()">
+      {% for y in years %}
+      <option value="{{ y }}" {% if y == current_year %}selected{% endif %}>{{ y }}</option>
+      {% endfor %}
+    </select>
 
-    <select name="dept" class="oh-input oh-input--small" style="max-width:220px;" onchange="this.form.submit()">
+    <!-- Dept filter -->
+    <select name="dept" onchange="document.getElementById('filterForm').submit()">
       <option value="">-- Tất cả phòng ban --</option>
       {% for d in departments %}
       <option value="{{ d.pk }}" {% if dept_filter == d.pk|stringformat:"s" %}selected{% endif %}>{{ d.department }}</option>
       {% endfor %}
     </select>
 
-    <select name="type" class="oh-input oh-input--small" style="max-width:180px;" onchange="this.form.submit()">
-      <option value="">-- Tất cả loại HĐ --</option>
-      <option value="Trial"       {% if type_filter == "Trial" %}selected{% endif %}>Hợp đồng UAT PM</option>
-      <option value="Official"    {% if type_filter == "Official" %}selected{% endif %}>Hợp đồng Chính thức</option>
-      <option value="Performance" {% if type_filter == "Performance" %}selected{% endif %}>Hợp đồng Hiệu suất</option>
-    </select>
-
-    {% if dept_filter or type_filter %}
-    <a href="?month={{ current_month }}&year={{ current_year }}" class="oh-btn oh-btn--light-bkg oh-btn--sm">✕ Xóa filter</a>
+    {% if dept_filter %}
+    <a href="?month={{ current_month }}&year={{ current_year }}" class="pl-btn pl-btn--outline" style="font-size:12px;padding:5px 10px;">✕ Xóa</a>
     {% endif %}
 
-    <span style="font-size:12px;color:#6c757d;margin-left:auto;">
-      Hiển thị {{ rows|length }} bản ghi
+    <span style="margin-left:auto;font-size:12px;color:#64748b;">
+      {{ rows|length }} nhân viên
     </span>
   </form>
 
-  <!-- Table -->
-  <div class="oh-card oh-card--margin">
-    <div class="oh-card__body p-0">
-      {% if rows %}
-      <div style="overflow-x:auto;">
-      <table class="oh-table oh-table--bordered" style="font-size:12px;min-width:900px;">
-        <thead class="table-light">
-          <tr>
-            <th>Nhân viên</th>
-            <th>Phòng ban</th>
-            <th>Vị trí</th>
-            <th class="text-center">Loại HĐ</th>
-            <th class="text-end">Lương gross</th>
-            <th class="text-end">Khoản trừ BH</th>
-            <th class="text-end">Thực lĩnh ước tính</th>
-            <th class="text-end">Tạm ứng HSnăng</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for r in rows %}
-          <tr>
-            <td>
-              <div style="font-weight:600;">{{ r.employee.get_full_name }}</div>
-              <div style="font-size:11px;color:#6c757d;">{{ r.contract.contract_name }}</div>
-            </td>
-            <td style="font-size:12px;">{{ r.dept|default:"—" }}</td>
-            <td style="font-size:12px;">{{ r.pos|default:"—" }}</td>
-            <td class="text-center">
-              {% if r.contract_type == "Trial" %}
-                <span class="oh-badge" style="background:#0d6efd22;color:#0d6efd;font-size:11px;">UAT PM</span>
-              {% elif r.contract_type == "Official" %}
-                <span class="oh-badge" style="background:#6c757d22;color:#495057;font-size:11px;">Chính thức</span>
-              {% elif r.contract_type == "Performance" %}
-                <span class="oh-badge oh-badge--success" style="font-size:11px;">Hiệu suất</span>
-              {% else %}
-                <span class="oh-badge" style="font-size:11px;">{{ r.contract_type }}</span>
-              {% endif %}
-            </td>
-            <td class="text-end">{{ r.wage|vnd }}đ</td>
-            <td class="text-end">
-              {{ r.total_deductions|vnd }}đ
-              <div style="font-size:10px;color:#6c757d;">
-                {% for title, amount in r.ded_detail.items %}
-                  {{ title }}: {{ amount|vnd }}đ<br>
-                {% endfor %}
-              </div>
-            </td>
-            <td class="text-end" style="font-weight:600;color:#198754;">{{ r.net_estimated|vnd }}đ</td>
-            <td class="text-end">
-              {% if r.advance %}
-                {{ r.advance|vnd }}đ
-              {% else %}
-                <span style="color:#adb5bd;">—</span>
-              {% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-        <tfoot style="background:#f8f9fa;font-weight:700;border-top:2px solid #dee2e6;">
-          <tr>
-            <td colspan="4" class="text-end" style="font-size:12px;">Tổng cộng:</td>
-            <td class="text-end" style="color:#c0222b;">{{ total_wage|vnd }}đ</td>
-            <td class="text-end" style="color:#fd7e14;">{{ total_employee_deductions|vnd }}đ</td>
-            <td class="text-end" style="color:#198754;">{{ total_net|vnd }}đ</td>
-            <td></td>
-          </tr>
-        </tfoot>
-      </table>
-      </div>
-      {% else %}
-      <div class="p-5 text-center" style="color:#6c757d;font-size:13px;">
-        Không có hợp đồng active trong tháng {{ current_month }}/{{ current_year }}.
-      </div>
-      {% endif %}
-    </div>
+  <!-- ── Legend ── -->
+  <div class="pl-legend">
+    <div class="pl-legend__item"><div class="pl-legend__swatch pl-legend__swatch--input"></div>Nhập tay (HR)</div>
+    <div class="pl-legend__item"><div class="pl-legend__swatch pl-legend__swatch--auto"></div>Tính tự động</div>
   </div>
 
+  <!-- ── Table ── -->
+  {% if has_entries %}
+  <form method="post" id="payrollForm">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="save">
+    <input type="hidden" name="month" value="{{ current_month }}">
+    <input type="hidden" name="year" value="{{ current_year }}">
+
+    <div class="pl-table-wrap">
+    <table class="pl-tbl">
+      <thead>
+        <!-- Group header row -->
+        <tr>
+          <th rowspan="2" style="min-width:32px;">STT</th>
+          <th colspan="4" style="min-width:320px;">Thông tin nhân viên</th>
+          <th colspan="2" style="min-width:130px;">Ngày công</th>
+          <th colspan="5" style="min-width:400px;">Lương cơ bản & Hiệu suất</th>
+          <th rowspan="2" style="min-width:100px;">PC Đi lại<br><span style="font-size:9px;font-weight:400;">(L)</span></th>
+          <th colspan="3" style="min-width:200px;">Ca đêm</th>
+          <th colspan="5" style="min-width:380px;">OT (Làm thêm giờ)</th>
+          <th colspan="3" style="min-width:240px;">KPI</th>
+          <th colspan="4" style="min-width:380px;">Thu nhập khác</th>
+          <th rowspan="2" style="min-width:110px;">Gross thực<br><span style="font-size:9px;font-weight:400;">(AB)</span></th>
+          <th colspan="4" style="min-width:320px;">BHXH / BHYT / BHTN (NLĐ)</th>
+          <th rowspan="2" style="min-width:60px;">NPT<br><span style="font-size:9px;font-weight:400;">(AG)</span></th>
+          <th colspan="2" style="min-width:200px;">Thuế TNCN</th>
+          <th rowspan="2" style="min-width:100px;">Tạm ứng<br><span style="font-size:9px;font-weight:400;">(AJ)</span></th>
+          <th rowspan="2" style="min-width:120px;">Thực lĩnh<br><span style="font-size:9px;font-weight:400;">(AK)</span></th>
+          <th rowspan="2" style="min-width:140px;">Ghi chú</th>
+        </tr>
+        <!-- Sub-header row -->
+        <tr>
+          <!-- Info -->
+          <th>Phòng ban (B)</th>
+          <th>Họ và tên (C)</th>
+          <th>Chức danh (D)</th>
+          <th>Loại HĐ</th>
+          <!-- Ngày công -->
+          <th>Chuẩn (E)</th>
+          <th>Thực tế (F)</th>
+          <!-- Lương -->
+          <th>LCB BHXH (G)</th>
+          <th>Gross TT (H)</th>
+          <th>PC Chức vụ (I)</th>
+          <th>LCB TT (J)</th>
+          <th>Pool LHS (K)</th>
+          <!-- Ca đêm -->
+          <th>Số ca (M)</th>
+          <th>Đơn giá (N)</th>
+          <th>Thưởng đêm (O)</th>
+          <!-- OT -->
+          <th>OT TT (P)</th>
+          <th>OT CuT (Q)</th>
+          <th>OT Lễ (R)</th>
+          <th>Đg/giờ (S)</th>
+          <th>Tổng OT (T)</th>
+          <!-- KPI -->
+          <th>%KPI (U)</th>
+          <th>KPI thực (V)</th>
+          <th>Gap KPI (W)</th>
+          <!-- Thu nhập khác -->
+          <th>LCB+LHS+PC (X)</th>
+          <th>Incentive (Y)</th>
+          <th>Bonus/T13 (Z)</th>
+          <th>Phát sinh (AA)</th>
+          <!-- BH -->
+          <th>BHXH 8% (AC)</th>
+          <th>BHYT 1.5% (AD)</th>
+          <th>BHTN 1% (AE)</th>
+          <th>Tổng BH (AF)</th>
+          <!-- TNCN -->
+          <th>TNCT (AH)</th>
+          <th>Thuế TNCN (AI)</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for r in rows %}
+        {% with e=r.entry f=r.f %}
+        <input type="hidden" name="entry_id" value="{{ e.pk }}">
+        <tr data-id="{{ e.pk }}">
+          <!-- A: STT -->
+          <td class="pl-cell-info" style="text-align:center;">{{ forloop.counter }}</td>
+
+          <!-- B: Phòng ban -->
+          <td class="pl-cell-info">{{ r.dept.department|default:"—" }}</td>
+
+          <!-- C: Họ và tên -->
+          <td class="pl-cell-info" style="min-width:160px;">
+            <div style="font-weight:600;">
+              {{ r.employee.employee_last_name }} {{ r.employee.employee_first_name }}
+            </div>
+            <div style="font-size:10px;color:#94a3b8;">{{ r.employee.badge_id|default:r.employee.pk }}</div>
+          </td>
+
+          <!-- D: Chức danh -->
+          <td class="pl-cell-info">{{ r.pos.job_position|default:"—" }}</td>
+
+          <!-- Loại HĐ -->
+          <td class="pl-cell-info" style="text-align:center;">
+            {% if e.trial_contract_id %}
+              <span style="background:#dbeafe;color:#1d4ed8;padding:2px 6px;border-radius:4px;font-size:10px;">UAT PM</span>
+            {% elif e.official_contract_id %}
+              <span style="background:#dcfce7;color:#15803d;padding:2px 6px;border-radius:4px;font-size:10px;">Chính thức</span>
+            {% elif e.performance_contract_id %}
+              <span style="background:#f3e8ff;color:#7c3aed;padding:2px 6px;border-radius:4px;font-size:10px;">Hiệu suất</span>
+            {% endif %}
+          </td>
+
+          <!-- E: Ngày công chuẩn (editable) -->
+          <td class="pl-cell-in" style="min-width:68px;">
+            <input type="number" name="e_{{ e.pk }}" value="{{ e.standard_days }}"
+                   step="0.5" min="0" max="31"
+                   data-field="E" data-id="{{ e.pk }}"
+                   oninput="recalcRow({{ e.pk }})" style="width:60px;">
+          </td>
+
+          <!-- F: Ngày công thực tế (editable) -->
+          <td class="pl-cell-in" style="min-width:68px;">
+            <input type="number" name="f_{{ e.pk }}" value="{{ e.actual_days }}"
+                   step="0.5" min="0" max="31"
+                   data-field="F" data-id="{{ e.pk }}"
+                   oninput="recalcRow({{ e.pk }})" style="width:60px;">
+          </td>
+
+          <!-- G: LCB BHXH (editable) -->
+          <td class="pl-cell-in" style="min-width:110px;">
+            <input type="number" name="g_{{ e.pk }}" value="{{ e.lcb_bhxh }}"
+                   step="1" min="0"
+                   data-field="G" data-id="{{ e.pk }}"
+                   oninput="recalcRow({{ e.pk }})">
+          </td>
+
+          <!-- H: Tổng Gross TT (editable) -->
+          <td class="pl-cell-in" style="min-width:110px;">
+            <input type="number" name="h_{{ e.pk }}" value="{{ e.total_gross }}"
+                   step="1" min="0"
+                   data-field="H" data-id="{{ e.pk }}"
+                   oninput="recalcRow({{ e.pk }})">
+          </td>
+
+          <!-- I: PC Chức vụ (editable) -->
+          <td class="pl-cell-in" style="min-width:100px;">
+            <input type="number" name="i_{{ e.pk }}" value="{{ e.pc_chuc_vu }}"
+                   step="1" min="0"
+                   data-field="I" data-id="{{ e.pk }}"
+                   oninput="recalcRow({{ e.pk }})">
+          </td>
+
+          <!-- J: LCB TT (computed: G × F/E) -->
+          <td class="pl-cell-auto" id="j_{{ e.pk }}">{{ f.J|vnd }}</td>
+
+          <!-- K: Pool LHS (computed: H - G - L + I) -->
+          <td class="pl-cell-auto" id="k_{{ e.pk }}">{{ f.K|vnd }}</td>
+
+          <!-- L: PC Đi lại (editable) -->
+          <td class="pl-cell-in" style="min-width:100px;">
+            <input type="number" name="l_{{ e.pk }}" value="{{ e.pc_travel }}"
+                   step="1" min="0"
+                   data-field="L" data-id="{{ e.pk }}"
+                   oninput="recalcRow({{ e.pk }})">
+          </td>
+
+          <!-- M: Số ca đêm (editable) -->
+          <td class="pl-cell-in" style="min-width:68px;">
+            <input type="number" name="m_{{ e.pk }}" value="{{ e.night_shifts }}"
+                   step="0.5" min="0"
+                   data-field="M" data-id="{{ e.pk }}"
+                   oninput="recalcRow({{ e.pk }})" style="width:60px;">
+          </td>
+
+          <!-- N: Đơn giá ca đêm (editable) -->
+          <td class="pl-cell-in" style="min-width:100px;">
+            <input type="number" name="n_{{ e.pk }}" value="{{ e.night_shift_rate }}"
+                   step="1" min="0"
+                   data-field="N" data-id="{{ e.pk }}"
+                   oninput="recalcRow({{ e.pk }})">
+          </td>
+
+          <!-- O: Thưởng ca đêm (computed: M × N) -->
+          <td class="pl-cell-auto" id="o_{{ e.pk }}">{{ f.O|vnd }}</td>
+
+          <!-- P: OT ngày thường (editable) -->
+          <td class="pl-cell-in" style="min-width:68px;">
+            <input type="number" name="p_{{ e.pk }}" value="{{ e.ot_normal }}"
+                   step="0.25" min="0"
+                   data-field="P" data-id="{{ e.pk }}"
+                   oninput="recalcRow({{ e.pk }})" style="width:60px;">
+          </td>
+
+          <!-- Q: OT cuối tuần (editable) -->
+          <td class="pl-cell-in" style="min-width:68px;">
+            <input type="number" name="q_{{ e.pk }}" value="{{ e.ot_weekend }}"
+                   step="0.25" min="0"
+                   data-field="Q" data-id="{{ e.pk }}"
+                   oninput="recalcRow({{ e.pk }})" style="width:60px;">
+          </td>
+
+          <!-- R: OT ngày lễ (editable) -->
+          <td class="pl-cell-in" style="min-width:68px;">
+            <input type="number" name="r_{{ e.pk }}" value="{{ e.ot_holiday }}"
+                   step="0.25" min="0"
+                   data-field="R" data-id="{{ e.pk }}"
+                   oninput="recalcRow({{ e.pk }})" style="width:60px;">
+          </td>
+
+          <!-- S: Đơn giá/giờ (computed: G/(E×8)) -->
+          <td class="pl-cell-auto" id="s_{{ e.pk }}">{{ f.S|vnd }}</td>
+
+          <!-- T: Tổng OT (computed: P×S×4 + Q×S×4.5 + R×S×5) -->
+          <td class="pl-cell-auto" id="t_{{ e.pk }}">{{ f.T|vnd }}</td>
+
+          <!-- U: % KPI (editable) -->
+          <td class="pl-cell-in" style="min-width:68px;">
+            <input type="number" name="u_{{ e.pk }}" value="{{ e.kpi_pct }}"
+                   step="0.01" min="0" max="200"
+                   data-field="U" data-id="{{ e.pk }}"
+                   oninput="recalcRow({{ e.pk }})" style="width:60px;">
+          </td>
+
+          <!-- V: KPI thực nhận (computed: U/100 × K) -->
+          <td class="pl-cell-auto" id="v_{{ e.pk }}">{{ f.V|vnd }}</td>
+
+          <!-- W: Gap KPI (computed: K - V) -->
+          <td class="pl-cell-auto" id="w_{{ e.pk }}" style="color:{% if f.W < 0 %}#dc2626{% else %}#15803d{% endif %};">{{ f.W|vnd }}</td>
+
+          <!-- X: LCB+LHS+PC (computed: J+V+T+L) -->
+          <td class="pl-cell-auto" id="x_{{ e.pk }}" style="font-weight:600;">{{ f.X|vnd }}</td>
+
+          <!-- Y: Incentive (editable) -->
+          <td class="pl-cell-in" style="min-width:100px;">
+            <input type="number" name="y_{{ e.pk }}" value="{{ e.incentive }}"
+                   step="1" min="0"
+                   data-field="Y" data-id="{{ e.pk }}"
+                   oninput="recalcRow({{ e.pk }})">
+          </td>
+
+          <!-- Z: Bonus/T13 (editable) -->
+          <td class="pl-cell-in" style="min-width:100px;">
+            <input type="number" name="z_{{ e.pk }}" value="{{ e.bonus }}"
+                   step="1" min="0"
+                   data-field="Z" data-id="{{ e.pk }}"
+                   oninput="recalcRow({{ e.pk }})">
+          </td>
+
+          <!-- AA: Phát sinh khác (editable) -->
+          <td class="pl-cell-in" style="min-width:100px;">
+            <input type="number" name="aa_{{ e.pk }}" value="{{ e.other_adjust }}"
+                   step="1"
+                   data-field="AA" data-id="{{ e.pk }}"
+                   oninput="recalcRow({{ e.pk }})">
+          </td>
+
+          <!-- AB: Gross thực tế (computed: X+Y+Z+AA) -->
+          <td class="pl-cell-auto" id="ab_{{ e.pk }}" style="font-weight:700;color:#c0222b;">{{ f.AB|vnd }}</td>
+
+          <!-- AC: BHXH 8% (computed) -->
+          <td class="pl-cell-auto" id="ac_{{ e.pk }}">{{ f.AC|vnd }}</td>
+
+          <!-- AD: BHYT 1.5% (computed) -->
+          <td class="pl-cell-auto" id="ad_{{ e.pk }}">{{ f.AD|vnd }}</td>
+
+          <!-- AE: BHTN 1% (computed) -->
+          <td class="pl-cell-auto" id="ae_{{ e.pk }}">{{ f.AE|vnd }}</td>
+
+          <!-- AF: Tổng BH NLĐ (computed) -->
+          <td class="pl-cell-auto" id="af_{{ e.pk }}" style="font-weight:600;">{{ f.AF|vnd }}</td>
+
+          <!-- AG: Số NPT (editable) -->
+          <td class="pl-cell-in" style="min-width:50px;text-align:center;">
+            <input type="number" name="ag_{{ e.pk }}" value="{{ e.npt }}"
+                   step="1" min="0" max="20"
+                   data-field="AG" data-id="{{ e.pk }}"
+                   oninput="recalcRow({{ e.pk }})" style="width:44px;text-align:center;">
+          </td>
+
+          <!-- AH: Thu nhập chịu thuế (computed) -->
+          <td class="pl-cell-auto" id="ah_{{ e.pk }}">{{ f.AH|vnd }}</td>
+
+          <!-- AI: Thuế TNCN (computed) -->
+          <td class="pl-cell-auto" id="ai_{{ e.pk }}" style="color:#dc2626;">{{ f.AI|vnd }}</td>
+
+          <!-- AJ: Tạm ứng (editable) -->
+          <td class="pl-cell-in" style="min-width:100px;">
+            <input type="number" name="aj_{{ e.pk }}" value="{{ e.tam_ung }}"
+                   step="1" min="0"
+                   data-field="AJ" data-id="{{ e.pk }}"
+                   oninput="recalcRow({{ e.pk }})">
+          </td>
+
+          <!-- AK: Thực lĩnh (computed: AB - AF - AI - AJ) -->
+          <td class="pl-cell-auto" id="ak_{{ e.pk }}" style="font-weight:700;color:#16a34a;min-width:120px;">{{ f.AK|vnd }}</td>
+
+          <!-- Notes -->
+          <td class="pl-cell-in" style="min-width:140px;">
+            <input type="text" name="notes_{{ e.pk }}" value="{{ e.notes }}"
+                   placeholder="Ghi chú…" style="width:130px;background:transparent;border:none;outline:none;font-size:11px;">
+          </td>
+        </tr>
+        {% endwith %}
+        {% endfor %}
+      </tbody>
+
+      <!-- Totals footer -->
+      <tfoot>
+        <tr>
+          <td colspan="5">Tổng cộng ({{ rows|length }} nhân viên)</td>
+          <td></td><!-- E -->
+          <td></td><!-- F -->
+          <td style="text-align:right;">{{ totals.G|vnd }}</td><!-- G -->
+          <td style="text-align:right;">{{ totals.H|vnd }}</td><!-- H -->
+          <td></td><!-- I -->
+          <td style="text-align:right;" id="tot_J">{{ totals.J|vnd }}</td><!-- J -->
+          <td style="text-align:right;" id="tot_K">{{ totals.K|vnd }}</td><!-- K -->
+          <td style="text-align:right;">{{ totals.L|vnd }}</td><!-- L -->
+          <td></td><!-- M -->
+          <td></td><!-- N -->
+          <td style="text-align:right;" id="tot_O">{{ totals.O|vnd }}</td><!-- O -->
+          <td></td><!-- P -->
+          <td></td><!-- Q -->
+          <td></td><!-- R -->
+          <td></td><!-- S -->
+          <td style="text-align:right;" id="tot_T">{{ totals.T|vnd }}</td><!-- T -->
+          <td></td><!-- U -->
+          <td style="text-align:right;" id="tot_V">{{ totals.V|vnd }}</td><!-- V -->
+          <td></td><!-- W -->
+          <td style="text-align:right;" id="tot_X">{{ totals.X|vnd }}</td><!-- X -->
+          <td style="text-align:right;">{{ totals.Y|vnd }}</td><!-- Y -->
+          <td style="text-align:right;">{{ totals.Z|vnd }}</td><!-- Z -->
+          <td style="text-align:right;">{{ totals.AA|vnd }}</td><!-- AA -->
+          <td style="text-align:right;color:#fca5a5;" id="tot_AB">{{ totals.AB|vnd }}</td><!-- AB -->
+          <td style="text-align:right;" id="tot_AC">{{ totals.AC|vnd }}</td><!-- AC -->
+          <td style="text-align:right;" id="tot_AD">{{ totals.AD|vnd }}</td><!-- AD -->
+          <td style="text-align:right;" id="tot_AE">{{ totals.AE|vnd }}</td><!-- AE -->
+          <td style="text-align:right;" id="tot_AF">{{ totals.AF|vnd }}</td><!-- AF -->
+          <td></td><!-- AG -->
+          <td style="text-align:right;" id="tot_AH">{{ totals.AH|vnd }}</td><!-- AH -->
+          <td style="text-align:right;color:#fca5a5;" id="tot_AI">{{ totals.AI|vnd }}</td><!-- AI -->
+          <td style="text-align:right;">{{ totals.AJ|vnd }}</td><!-- AJ -->
+          <td style="text-align:right;color:#86efac;" id="tot_AK">{{ totals.AK|vnd }}</td><!-- AK -->
+          <td></td><!-- Notes -->
+        </tr>
+      </tfoot>
+    </table>
+    </div><!-- pl-table-wrap -->
+
+    <!-- Signature strip -->
+    <div class="pl-sig">
+      <div>
+        <div class="pl-sig__role">Người lập bảng</div>
+        <div class="pl-sig__date">TP.HCM, ngày &nbsp;&nbsp;&nbsp; tháng {{ current_month }} năm {{ current_year }}</div>
+        <div class="pl-sig__line"></div>
+        <div class="pl-sig__name">&nbsp;</div>
+      </div>
+      <div>
+        <div class="pl-sig__role">Kế toán trưởng</div>
+        <div class="pl-sig__date">&nbsp;</div>
+        <div class="pl-sig__line"></div>
+        <div class="pl-sig__name">&nbsp;</div>
+      </div>
+      <div>
+        <div class="pl-sig__role">Giám đốc</div>
+        <div class="pl-sig__date">&nbsp;</div>
+        <div class="pl-sig__line"></div>
+        <div class="pl-sig__name">&nbsp;</div>
+      </div>
+    </div>
+
+  </form><!-- #payrollForm -->
+
+  {% else %}
+  <!-- Empty state -->
+  <div class="oh-card oh-card--margin">
+    <div class="pl-empty">
+      <div class="pl-empty__icon">📋</div>
+      <div class="pl-empty__msg">
+        Chưa có dữ liệu bảng lương tháng {{ current_month }}/{{ current_year }}
+        {% if company %} cho {{ company.company }}{% endif %}.
+      </div>
+      <form method="post" style="display:inline;">
+        {% csrf_token %}
+        <input type="hidden" name="action" value="generate">
+        <input type="hidden" name="month" value="{{ current_month }}">
+        <input type="hidden" name="year" value="{{ current_year }}">
+        <button type="submit" class="pl-btn pl-btn--primary">
+          ⚡ Tạo từ hợp đồng active
+        </button>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
+</div><!-- pl-wrap -->
+
+<!-- ── Sticky save bar ── -->
+{% if has_entries %}
+<div class="pl-save-bar">
+  <div class="pl-save-bar__info">
+    Bảng lương tháng <strong style="color:#e2e8f0;">{{ current_month }}/{{ current_year }}</strong>
+    {% if company %} — {{ company.company }}{% endif %}
+    &nbsp;·&nbsp; {{ rows|length }} dòng
+  </div>
+  <div class="pl-save-bar__btns">
+    <a href="{% url 'hnh-payroll-export' %}?month={{ current_month }}&year={{ current_year }}{% if dept_filter %}&dept={{ dept_filter }}{% endif %}"
+       class="pl-btn pl-btn--outline" style="color:#e2e8f0;border-color:#475569;">
+      📊 Xuất Excel
+    </a>
+    <button type="submit" form="payrollForm" class="pl-btn pl-btn--success">
+      💾 Lưu bảng lương
+    </button>
+  </div>
 </div>
+{% endif %}
+
+<!-- ── JavaScript ── -->
+<script>
+const BHXH_CAP  = {{ bhxh_cap }};
+const BHTN_CAP  = {{ bhtn_cap }};
+const BHXH_RATE = 0.08;
+const BHYT_RATE = 0.015;
+const BHTN_RATE = 0.01;
+const PERSONAL_DED  = 11000000;
+const DEPENDENT_DED = 4400000;
+
+const TNCN_BRACKETS = [
+  [5000000,  0.05],
+  [5000000,  0.10],
+  [8000000,  0.15],
+  [14000000, 0.20],
+  [20000000, 0.25],
+  [28000000, 0.30],
+  [Infinity, 0.35],
+];
+
+function calcTNCN(taxable) {
+  if (taxable <= 0) return 0;
+  let tax = 0, rem = taxable;
+  for (const [width, rate] of TNCN_BRACKETS) {
+    const chunk = Math.min(rem, width);
+    tax += chunk * rate;
+    rem -= chunk;
+    if (rem <= 0) break;
+  }
+  return Math.round(tax);
+}
+
+function fmtVND(n) {
+  return Math.round(n).toLocaleString('vi-VN');
+}
+
+function recalcRow(id) {
+  const q = (field) => {
+    const el = document.querySelector(`input[data-field="${field}"][data-id="${id}"]`);
+    return el ? parseFloat(el.value) || 0 : 0;
+  };
+  const set = (col, val) => {
+    const el = document.getElementById(`${col.toLowerCase()}_${id}`);
+    if (el) el.textContent = fmtVND(val);
+  };
+
+  const E  = q('E') || 1;  // avoid div/0
+  const F  = q('F');
+  const G  = q('G');
+  const H  = q('H');
+  const I  = q('I');
+  const L  = q('L');
+  const M  = q('M');
+  const N  = q('N');
+  const P  = q('P');
+  const Q2 = q('Q');
+  const R  = q('R');
+  const U  = q('U');
+  const Y  = q('Y');
+  const Z  = q('Z');
+  const AA = q('AA');
+  const AG = q('AG');
+  const AJ = q('AJ');
+
+  const J  = Math.round(G * F / E);
+  const K  = H - G - L + I;
+  const O  = Math.round(M * N);
+  const S  = Math.round(G / (E * 8));
+  const T  = Math.round(P * S * 4 + Q2 * S * 4.5 + R * S * 5);
+  const V  = Math.round((U / 100) * K);
+  const W  = K - V;
+  const X  = J + V + T + L;
+  const AB = X + Y + Z + AA;
+
+  const bhxhBase = Math.min(G, BHXH_CAP);
+  const bhtnBase = Math.min(G, BHTN_CAP);
+  const AC = Math.round(bhxhBase * BHXH_RATE);
+  const AD = Math.round(bhxhBase * BHYT_RATE);
+  const AE = Math.round(bhtnBase * BHTN_RATE);
+  const AF = AC + AD + AE;
+
+  const AH = Math.max(0, AB - AF - PERSONAL_DED - AG * DEPENDENT_DED);
+  const AI = calcTNCN(AH);
+  const AK = AB - AF - AI - AJ;
+
+  set('J',  J);
+  set('K',  K);
+  set('O',  O);
+  set('S',  S);
+  set('T',  T);
+  set('V',  V);
+  set('W',  W);
+  set('X',  X);
+  set('AB', AB);
+  set('AC', AC);
+  set('AD', AD);
+  set('AE', AE);
+  set('AF', AF);
+  set('AH', AH);
+  set('AI', AI);
+  set('AK', AK);
+
+  // Colour W cell based on sign
+  const wEl = document.getElementById(`w_${id}`);
+  if (wEl) wEl.style.color = W < 0 ? '#dc2626' : '#15803d';
+}
+</script>
 {% endblock %}

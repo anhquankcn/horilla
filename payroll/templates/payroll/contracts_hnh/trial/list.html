@@ -5,239 +5,309 @@
 
 {% block content %}
 <main :class="sidebarOpen ? 'oh-main__sidebar-visible' : ''">
+<style>
+:root {
+  --cl-red:   #c0222b;
+  --cl-green: #198754;
+  --cl-amber: #d97706;
+  --cl-gray:  #6c757d;
+  --cl-slate: #1a1a2e;
+}
+.cl-page { max-width: 1200px; margin: 0 auto; padding: 24px 16px 60px; }
 
-  <!-- Top bar -->
-  <section class="oh-wrapper oh-main__topbar" x-data="{searchShow: false}">
-    <div class="oh-main__titlebar oh-main__titlebar--left">
-      <h1 class="oh-main__titlebar-title fw-bold">Hợp đồng UAT PM</h1>
-      <a class="oh-main__titlebar-search-toggle" role="button"
-         @click="searchShow = !searchShow">
-        <ion-icon name="search-outline" class="oh-main__titlebar-serach-icon"></ion-icon>
-      </a>
-    </div>
-    <div class="oh-main__titlebar oh-main__titlebar--right">
-      <form method="get" action="{% url 'trial-contract-list' %}" class="d-flex" id="filterForm">
-        <div class="oh-input-group oh-input__search-group"
-             :class="searchShow ? 'oh-input__search-group--show' : ''">
-          <ion-icon name="search-outline" class="oh-input-group__icon oh-input-group__icon--left"></ion-icon>
-          <input type="text" name="search" class="oh-input oh-input__icon"
-                 placeholder="Tìm nhân viên / hợp đồng" value="{{ search }}"
-                 onkeyup="this.form.submit()">
-        </div>
-        <!-- Status filter dropdown -->
-        <div class="oh-dropdown" x-data="{open: false}">
-          <button class="oh-btn ml-2" @click="open = !open" onclick="event.preventDefault()">
-            <ion-icon name="filter" class="mr-1"></ion-icon>Lọc
-          </button>
-          <div class="oh-dropdown__menu oh-dropdown__menu--right oh-dropdown__filter p-4"
-               x-show="open" @click.outside="open = false" style="display:none;min-width:200px;">
-            <label class="oh-label">Trạng thái</label>
-            <select name="status" class="oh-select mt-1 w-100" onchange="this.form.submit()">
-              <option value="" {% if not status_filter %}selected{% endif %}>Tất cả</option>
-              <option value="draft" {% if status_filter == "draft" %}selected{% endif %}>Nháp</option>
-              <option value="active" {% if status_filter == "active" %}selected{% endif %}>Hiệu lực</option>
-              <option value="expired" {% if status_filter == "expired" %}selected{% endif %}>Hết hạn</option>
-              <option value="terminated" {% if status_filter == "terminated" %}selected{% endif %}>Chấm dứt</option>
-            </select>
-          </div>
-        </div>
-      </form>
-      <div class="oh-main__titlebar-button-container">
-        <a class="oh-btn oh-btn--secondary oh-btn--shadow ml-2"
-           href="{% url 'trial-contract-create' %}">
-          <ion-icon name="add-outline"></ion-icon> Tạo mới
-        </a>
+/* ── Header ── */
+.cl-head { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px; gap:12px; flex-wrap:wrap; }
+.cl-head__left { display:flex; align-items:center; gap:12px; }
+.cl-head__icon { width:40px;height:40px;background:var(--cl-red);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0; }
+.cl-head__title { font-size:20px;font-weight:700;color:var(--cl-slate);margin:0; }
+.cl-head__sub { font-size:12px;color:var(--cl-gray);margin:2px 0 0; }
+.cl-btn-new { display:inline-flex;align-items:center;gap:6px;padding:8px 18px;background:var(--cl-red);color:#fff;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;border:none;cursor:pointer;transition:background .15s; }
+.cl-btn-new:hover { background:#9a1a21;color:#fff; }
+
+/* ── Stats chips ── */
+.cl-stats { display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap; }
+.cl-stat { display:flex;align-items:center;gap:8px;padding:8px 16px;background:#fff;border:1.5px solid #e9ecef;border-radius:24px;cursor:pointer;transition:border-color .15s,box-shadow .15s;text-decoration:none; }
+.cl-stat:hover { border-color:#bbb;box-shadow:0 2px 6px rgba(0,0,0,.07); }
+.cl-stat--on { border-color:var(--cl-red);background:#fff5f5; }
+.cl-stat__dot { width:8px;height:8px;border-radius:50%;flex-shrink:0; }
+.cl-stat__num { font-size:15px;font-weight:700;color:var(--cl-slate); }
+.cl-stat__label { font-size:11px;color:var(--cl-gray);font-weight:500; }
+
+/* ── Filter bar ── */
+.cl-filter { display:flex;gap:10px;align-items:center;margin-bottom:18px;flex-wrap:wrap; }
+.cl-search { position:relative;flex:1;min-width:200px;max-width:360px; }
+.cl-search__icon { position:absolute;left:10px;top:50%;transform:translateY(-50%);color:#adb5bd;font-size:14px; }
+.cl-search__input { width:100%;padding:8px 12px 8px 32px;border:1px solid #dee2e6;border-radius:8px;font-size:13px;outline:none;transition:border-color .15s; }
+.cl-search__input:focus { border-color:var(--cl-red);box-shadow:0 0 0 3px rgba(192,34,43,.1); }
+.cl-select { padding:8px 12px;border:1px solid #dee2e6;border-radius:8px;font-size:13px;background:#fff;color:#212529;outline:none;cursor:pointer; }
+.cl-select:focus { border-color:var(--cl-red); }
+
+/* ── Messages ── */
+.cl-msg { border-radius:8px;padding:10px 16px;margin-bottom:14px;font-size:13px; }
+.cl-msg--success { background:#d1fae5;color:#065f46; }
+.cl-msg--error { background:#fee2e2;color:#991b1b; }
+
+/* ── Table ── */
+.cl-card { background:#fff;border:1px solid #e9ecef;border-radius:12px;overflow:hidden;margin-bottom:20px; }
+.cl-table { width:100%;border-collapse:collapse;font-size:13px; }
+.cl-table thead th { background:#fafafa;padding:10px 14px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:#6c757d;border-bottom:1px solid #e9ecef;white-space:nowrap; }
+.cl-table tbody tr { border-bottom:1px solid #f5f5f5;cursor:pointer;transition:background .1s; }
+.cl-table tbody tr:hover { background:#fff8f8; }
+.cl-table tbody tr:last-child { border-bottom:none; }
+.cl-table td { padding:11px 14px;vertical-align:middle; }
+.cl-table .text-end { text-align:right; }
+.cl-table .text-center { text-align:center; }
+
+/* ── Employee cell ── */
+.cl-emp { display:flex;align-items:center;gap:9px; }
+.cl-emp__avatar { width:32px;height:32px;border-radius:50%;object-fit:cover;flex-shrink:0; }
+.cl-emp__name { font-weight:600;color:#212529; }
+.cl-emp__dept { font-size:11px;color:var(--cl-gray); }
+
+/* ── Date range ── */
+.cl-dates { font-size:12px; }
+.cl-dates__start { color:#212529; }
+.cl-dates__arrow { color:#adb5bd;margin:0 4px; }
+.cl-dates__end { color:var(--cl-gray); }
+
+/* ── Wage ── */
+.cl-wage { font-variant-numeric:tabular-nums;font-weight:600;color:#212529; }
+.cl-wage-sub { font-size:11px;color:var(--cl-gray); }
+
+/* ── Status badge ── */
+.cl-badge { display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;white-space:nowrap; }
+.cl-badge::before { content:'';display:inline-block;width:6px;height:6px;border-radius:50%; }
+.cl-badge--active     { background:#d1fae5;color:#065f46; } .cl-badge--active::before { background:#065f46; }
+.cl-badge--draft      { background:#f3f4f6;color:#374151; } .cl-badge--draft::before { background:#9ca3af; }
+.cl-badge--expired    { background:#fff3cd;color:#856404; } .cl-badge--expired::before { background:#d97706; }
+.cl-badge--terminated { background:#fee2e2;color:#991b1b; } .cl-badge--terminated::before { background:#dc3545; }
+
+/* ── PL badges ── */
+.cl-pl { display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;border-radius:6px;font-size:11px;font-weight:700; }
+.cl-pl--yes { background:#d1fae5;color:#065f46; }
+.cl-pl--no  { background:#f3f4f6;color:#adb5bd; }
+
+/* ── Actions ── */
+.cl-actions { display:flex;gap:6px;justify-content:flex-end; }
+.cl-act { display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:6px;border:1px solid #e9ecef;background:#fff;cursor:pointer;transition:all .12s;text-decoration:none;font-size:14px; }
+.cl-act:hover { background:#f8f9fa;border-color:#ccc; }
+.cl-act--del:hover { background:#fee2e2;border-color:#dc3545;color:#dc3545; }
+
+/* ── Empty state ── */
+.cl-empty { display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 20px;color:var(--cl-gray); }
+.cl-empty img { width:140px;opacity:.5;margin-bottom:16px; }
+.cl-empty h5 { font-size:15px;font-weight:600;margin:0 0 6px; }
+.cl-empty p { font-size:13px;margin:0 0 16px; }
+
+/* ── Pagination ── */
+.cl-pag { display:flex;justify-content:space-between;align-items:center;padding:12px 16px;border-top:1px solid #f0f0f0;font-size:12px;color:var(--cl-gray); }
+.cl-pag__nav { display:flex;gap:4px; }
+.cl-pag__link { display:inline-flex;align-items:center;padding:5px 12px;border:1px solid #e9ecef;border-radius:6px;font-size:12px;font-weight:500;color:#495057;text-decoration:none;transition:all .12s; }
+.cl-pag__link:hover { background:#f8f9fa;border-color:#ccc; }
+.cl-pag__link--active { background:var(--cl-red);border-color:var(--cl-red);color:#fff; }
+
+@media(max-width:768px) {
+  .cl-table thead th:nth-child(n+5) { display:none; }
+  .cl-table td:nth-child(n+5) { display:none; }
+}
+</style>
+
+<div class="cl-page">
+
+  <!-- ── Header ── -->
+  <div class="cl-head">
+    <div class="cl-head__left">
+      <div class="cl-head__icon">📋</div>
+      <div>
+        <h1 class="cl-head__title">Hợp đồng UAT PM</h1>
+        <p class="cl-head__sub">Quản lý hợp đồng thử việc & nghiệm thu hệ thống</p>
       </div>
     </div>
-  </section>
-
-  <!-- Status legend -->
-  <div class="d-flex flex-row-reverse oh-wrapper mb-2" style="gap:16px;">
-    <span style="cursor:pointer;" onclick="document.querySelector('[name=status]').value='terminated';document.getElementById('filterForm').submit()">
-      <span class="oh-dot oh-dot--small me-1" style="background:black"></span>Chấm dứt
-    </span>
-    <span style="cursor:pointer;" onclick="document.querySelector('[name=status]').value='expired';document.getElementById('filterForm').submit()">
-      <span class="oh-dot oh-dot--small me-1" style="background:red"></span>Hết hạn
-    </span>
-    <span style="cursor:pointer;" onclick="document.querySelector('[name=status]').value='draft';document.getElementById('filterForm').submit()">
-      <span class="oh-dot oh-dot--small me-1" style="background:rgba(128,128,128,0.5)"></span>Nháp
-    </span>
-    <span style="cursor:pointer;" onclick="document.querySelector('[name=status]').value='active';document.getElementById('filterForm').submit()">
-      <span class="oh-dot oh-dot--small me-1" style="background:yellowgreen"></span>Hiệu lực
-    </span>
+    <a href="{% url 'trial-contract-create' %}" class="cl-btn-new">
+      <ion-icon name="add-outline"></ion-icon> Tạo mới
+    </a>
   </div>
 
-  <!-- Messages -->
-  {% if messages %}
-  <div class="oh-wrapper mb-2">
-    {% for msg in messages %}
-    <div class="oh-alert-container">
-      <div class="oh-alert oh-alert--animated {{ msg.tags }}">{{ msg }}</div>
+  <!-- ── Stats ── -->
+  <div class="cl-stats">
+    <a href="?search={{ search }}" class="cl-stat {% if not status_filter %}cl-stat--on{% endif %}">
+      <span class="cl-stat__dot" style="background:#c0222b;"></span>
+      <span class="cl-stat__num">{{ stats.total }}</span>
+      <span class="cl-stat__label">Tất cả</span>
+    </a>
+    <a href="?status=active&search={{ search }}" class="cl-stat {% if status_filter == 'active' %}cl-stat--on{% endif %}">
+      <span class="cl-stat__dot" style="background:#198754;"></span>
+      <span class="cl-stat__num">{{ stats.active }}</span>
+      <span class="cl-stat__label">Hiệu lực</span>
+    </a>
+    <a href="?status=draft&search={{ search }}" class="cl-stat {% if status_filter == 'draft' %}cl-stat--on{% endif %}">
+      <span class="cl-stat__dot" style="background:#9ca3af;"></span>
+      <span class="cl-stat__num">{{ stats.draft }}</span>
+      <span class="cl-stat__label">Nháp</span>
+    </a>
+    <a href="?status=expired&search={{ search }}" class="cl-stat {% if status_filter == 'expired' %}cl-stat--on{% endif %}">
+      <span class="cl-stat__dot" style="background:#d97706;"></span>
+      <span class="cl-stat__num">{{ stats.expired }}</span>
+      <span class="cl-stat__label">Hết hạn</span>
+    </a>
+    <a href="?status=terminated&search={{ search }}" class="cl-stat {% if status_filter == 'terminated' %}cl-stat--on{% endif %}">
+      <span class="cl-stat__dot" style="background:#dc3545;"></span>
+      <span class="cl-stat__num">{{ stats.terminated }}</span>
+      <span class="cl-stat__label">Chấm dứt</span>
+    </a>
+  </div>
+
+  <!-- ── Filter ── -->
+  <form method="get" id="cl-form" class="cl-filter">
+    {% if status_filter %}<input type="hidden" name="status" value="{{ status_filter }}">{% endif %}
+    <div class="cl-search">
+      <ion-icon name="search-outline" class="cl-search__icon"></ion-icon>
+      <input type="text" name="search" class="cl-search__input"
+             placeholder="Tìm tên nhân viên hoặc tên hợp đồng…"
+             value="{{ search }}" autocomplete="off"
+             oninput="clearTimeout(window._st);window._st=setTimeout(()=>this.form.submit(),400)">
     </div>
-    {% endfor %}
-  </div>
-  {% endif %}
+    <select name="status" class="cl-select" onchange="this.form.submit()">
+      <option value="" {% if not status_filter %}selected{% endif %}>Tất cả trạng thái</option>
+      <option value="active"     {% if status_filter == 'active'     %}selected{% endif %}>🟢 Hiệu lực</option>
+      <option value="draft"      {% if status_filter == 'draft'      %}selected{% endif %}>⬜ Nháp</option>
+      <option value="expired"    {% if status_filter == 'expired'    %}selected{% endif %}>🟠 Hết hạn</option>
+      <option value="terminated" {% if status_filter == 'terminated' %}selected{% endif %}>🔴 Chấm dứt</option>
+    </select>
+  </form>
 
-  <!-- Table -->
-  <div class="oh-wrapper oh-tabs">
-    <div class="oh-tabs__content oh-tabs__content--active">
-      <div class="oh-tabs__contents">
-        {% if contracts %}
-        <div class="oh-sticky-table">
-          <div class="oh-sticky-table__table">
-            <div class="oh-sticky-table__thead">
-              <div class="oh-sticky-table__tr">
-                <div class="oh-sticky-table__th">Hợp đồng</div>
-                <div class="oh-sticky-table__th">Nhân viên</div>
-                <div class="oh-sticky-table__th">Phòng / Vị trí</div>
-                <div class="oh-sticky-table__th">Ngày BĐ</div>
-                <div class="oh-sticky-table__th">Ngày KT</div>
-                <div class="oh-sticky-table__th text-end">Lương (đ)</div>
-                <div class="oh-sticky-table__th text-center">% UAT</div>
-                <div class="oh-sticky-table__th text-center">PL1</div>
-                <div class="oh-sticky-table__th text-center">PL3</div>
-                <div class="oh-sticky-table__th text-center">Trạng thái</div>
-                <div class="oh-sticky-table__th oh-sticky-table__right">Thao tác</div>
+  <!-- ── Messages ── -->
+  {% for msg in messages %}
+  <div class="cl-msg cl-msg--{{ msg.tags }}">{{ msg }}</div>
+  {% endfor %}
+
+  <!-- ── Table ── -->
+  <div class="cl-card">
+    {% if contracts %}
+    <table class="cl-table">
+      <thead>
+        <tr>
+          <th style="width:220px;">Nhân viên</th>
+          <th>Tên hợp đồng</th>
+          <th style="width:180px;">Thời hạn</th>
+          <th class="text-end" style="width:140px;">Lương CB</th>
+          <th class="text-center" style="width:75px;">% UAT</th>
+          <th class="text-center" style="width:50px;">PL1</th>
+          <th class="text-center" style="width:50px;">PL3</th>
+          <th class="text-center" style="width:110px;">Trạng thái</th>
+          <th class="text-end"   style="width:80px;">Thao tác</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in contracts %}
+        {% with wi=c.employee_id.employee_work_info %}
+        <tr onclick="window.location='{% url 'trial-contract-detail' c.pk %}'">
+          <td>
+            <div class="cl-emp">
+              <img src="{{ c.employee_id.get_avatar }}" class="cl-emp__avatar" alt="">
+              <div>
+                <div class="cl-emp__name">{{ c.employee_id.get_full_name }}</div>
+                <div class="cl-emp__dept">{{ wi.department_id|default:"—" }}</div>
               </div>
             </div>
-            <div class="oh-sticky-table__tbody">
-              {% for c in contracts %}
-              {% with wi=c.employee_id.employee_work_info %}
-              <div class="oh-sticky-table__tr"
-                   style="cursor:pointer;"
-                   onclick="window.location='{% url 'trial-contract-detail' c.pk %}'">
-                <!-- Status edge indicator -->
-                <div class="oh-sticky-table__sd
-                  {% if c.contract_status == 'active' %}row-status--yellow
-                  {% elif c.contract_status == 'draft' %}row-status--purple
-                  {% elif c.contract_status == 'expired' %}row-status--red
-                  {% elif c.contract_status == 'terminated' %}row-status--black
-                  {% endif %}">
-                </div>
-
-                <div class="oh-sticky-table__td">
-                  <span style="font-weight:500;">{{ c.contract_name }}</span>
-                </div>
-
-                <div class="oh-sticky-table__td">
-                  <div style="display:flex;align-items:center;gap:8px;">
-                    <img src="{{ c.employee_id.get_avatar }}"
-                         style="width:28px;height:28px;border-radius:50%;object-fit:cover;">
-                    <span>{{ c.employee_id }}</span>
-                  </div>
-                </div>
-
-                <div class="oh-sticky-table__td" style="font-size:12px;color:#6c757d;">
-                  {{ wi.department_id|default:"—" }}<br>
-                  <span>{{ wi.job_position_id|default:"" }}</span>
-                </div>
-
-                <div class="oh-sticky-table__td dateformat_changer">{{ c.contract_start_date }}</div>
-
-                <div class="oh-sticky-table__td dateformat_changer">
-                  {{ c.contract_end_date|default:"—" }}
-                </div>
-
-                <div class="oh-sticky-table__td text-end" style="font-variant-numeric:tabular-nums;">
-                  {{ c.wage|vnd }}đ
-                </div>
-
-                <div class="oh-sticky-table__td text-center">
-                  {{ c.trial_wage_pct }}%
-                </div>
-
-                <div class="oh-sticky-table__td text-center">
-                  {% with kpi_count=c.kpi_appendices.count %}
-                  {% if kpi_count %}
-                    <span style="color:#198754;font-weight:600;">{{ kpi_count }}</span>
-                  {% else %}
-                    <span style="color:#adb5bd;">—</span>
-                  {% endif %}
-                  {% endwith %}
-                </div>
-
-                <div class="oh-sticky-table__td text-center">
-                  {% if c.consent_agreed %}
-                    <ion-icon name="checkmark-circle" style="color:#198754;font-size:16px;"></ion-icon>
-                  {% else %}
-                    <span style="color:#adb5bd;">—</span>
-                  {% endif %}
-                </div>
-
-                <div class="oh-sticky-table__td text-center" onclick="event.stopPropagation()">
-                  {% if c.contract_status == "active" %}
-                    <span class="oh-badge oh-badge--success">Hiệu lực</span>
-                  {% elif c.contract_status == "draft" %}
-                    <span class="oh-badge oh-badge--warning">Nháp</span>
-                  {% elif c.contract_status == "expired" %}
-                    <span class="oh-badge">Hết hạn</span>
-                  {% else %}
-                    <span class="oh-badge oh-badge--danger">Chấm dứt</span>
-                  {% endif %}
-                </div>
-
-                <div class="oh-sticky-table__td oh-sticky-table__right" onclick="event.stopPropagation()">
-                  <div class="oh-btn-group">
-                    <a href="{% url 'trial-contract-update' c.pk %}"
-                       class="oh-btn oh-btn--light-bkg w-100"
-                       title="Sửa">
-                      <ion-icon name="create-outline" style="color:blue;"></ion-icon>
-                    </a>
-                    <button class="oh-btn oh-btn--danger-outline oh-btn--light-bkg w-100"
-                            title="Xóa"
-                            onclick="if(confirm('Xóa hợp đồng này?')){
-                              fetch('{% url 'trial-contract-delete' c.pk %}',{method:'POST',headers:{'X-CSRFToken':'{{ csrf_token }}'}})
-                              .then(()=>location.reload())
-                            }">
-                      <ion-icon name="trash-outline"></ion-icon>
-                    </button>
-                  </div>
-                </div>
-              </div>
-              {% endwith %}
-              {% endfor %}
+          </td>
+          <td style="font-weight:500;color:#212529;">{{ c.contract_name }}</td>
+          <td>
+            <div class="cl-dates">
+              <span class="cl-dates__start">{{ c.contract_start_date|date:"d/m/Y" }}</span>
+              {% if c.contract_end_date %}
+              <span class="cl-dates__arrow">→</span>
+              <span class="cl-dates__end">{{ c.contract_end_date|date:"d/m/Y" }}</span>
+              {% else %}
+              <span class="cl-dates__arrow">→</span>
+              <span class="cl-dates__end">Không thời hạn</span>
+              {% endif %}
             </div>
-          </div>
-        </div>
+          </td>
+          <td class="text-end">
+            <div class="cl-wage">{{ c.wage|vnd }}đ</div>
+          </td>
+          <td class="text-center">
+            <span style="font-weight:600;color:#c0222b;">{{ c.trial_wage_pct }}%</span>
+          </td>
+          <td class="text-center">
+            {% with kc=c.kpi_appendices.count %}
+            {% if kc %}
+              <span class="cl-pl cl-pl--yes">{{ kc }}</span>
+            {% else %}
+              <span class="cl-pl cl-pl--no">—</span>
+            {% endif %}
+            {% endwith %}
+          </td>
+          <td class="text-center">
+            {% if c.consent_agreed %}
+              <span class="cl-pl cl-pl--yes">✓</span>
+            {% else %}
+              <span class="cl-pl cl-pl--no">—</span>
+            {% endif %}
+          </td>
+          <td class="text-center">
+            {% if c.contract_status == "active" %}
+              <span class="cl-badge cl-badge--active">Hiệu lực</span>
+            {% elif c.contract_status == "draft" %}
+              <span class="cl-badge cl-badge--draft">Nháp</span>
+            {% elif c.contract_status == "expired" %}
+              <span class="cl-badge cl-badge--expired">Hết hạn</span>
+            {% else %}
+              <span class="cl-badge cl-badge--terminated">Chấm dứt</span>
+            {% endif %}
+          </td>
+          <td class="text-end" onclick="event.stopPropagation()">
+            <div class="cl-actions">
+              <a href="{% url 'trial-contract-update' c.pk %}" class="cl-act" title="Chỉnh sửa">
+                <ion-icon name="create-outline" style="color:#3b82f6;"></ion-icon>
+              </a>
+              <button class="cl-act cl-act--del" title="Xóa"
+                      onclick="if(confirm('Xóa hợp đồng «{{ c.contract_name }}»?')){
+                        fetch('{% url 'trial-contract-delete' c.pk %}',
+                          {method:'POST',headers:{'X-CSRFToken':'{{ csrf_token }}'}})
+                        .then(()=>location.reload())
+                      }">
+                <ion-icon name="trash-outline"></ion-icon>
+              </button>
+            </div>
+          </td>
+        </tr>
+        {% endwith %}
+        {% endfor %}
+      </tbody>
+    </table>
 
-        <!-- Pagination -->
-        <div class="oh-pagination mt-3">
-          <span class="oh-pagination__page">
-            Trang {{ contracts.number }} / {{ contracts.paginator.num_pages }}
-            &nbsp;·&nbsp; {{ contracts.paginator.count }} hợp đồng
-          </span>
-          <nav class="oh-pagination__nav">
-            <ul class="oh-pagination__items">
-              {% if contracts.has_previous %}
-              <li class="oh-pagination__item oh-pagination__item--wide">
-                <a href="?page=1&status={{ status_filter }}&search={{ search }}" class="oh-pagination__link">Đầu</a>
-              </li>
-              <li class="oh-pagination__item oh-pagination__item--wide">
-                <a href="?page={{ contracts.previous_page_number }}&status={{ status_filter }}&search={{ search }}" class="oh-pagination__link">Trước</a>
-              </li>
-              {% endif %}
-              {% if contracts.has_next %}
-              <li class="oh-pagination__item oh-pagination__item--wide">
-                <a href="?page={{ contracts.next_page_number }}&status={{ status_filter }}&search={{ search }}" class="oh-pagination__link">Tiếp</a>
-              </li>
-              <li class="oh-pagination__item oh-pagination__item--wide">
-                <a href="?page={{ contracts.paginator.num_pages }}&status={{ status_filter }}&search={{ search }}" class="oh-pagination__link">Cuối</a>
-              </li>
-              {% endif %}
-            </ul>
-          </nav>
-        </div>
-
-        {% else %}
-        <div style="display:flex;flex-direction:column;justify-content:center;align-items:center;height:60vh;">
-          <img style="width:190px;height:190px;" src="{% static 'images/ui/no-results.png' %}" alt="Không có kết quả">
-          <h5 class="oh-404__subtitle mt-3">Chưa có hợp đồng UAT PM nào.</h5>
-          <a href="{% url 'trial-contract-create' %}" class="oh-btn oh-btn--secondary mt-3">+ Tạo mới</a>
-        </div>
+    <!-- Pagination -->
+    {% if contracts.paginator.num_pages > 1 %}
+    <div class="cl-pag">
+      <span>Trang {{ contracts.number }}/{{ contracts.paginator.num_pages }} &nbsp;·&nbsp; {{ contracts.paginator.count }} hợp đồng</span>
+      <nav class="cl-pag__nav">
+        {% if contracts.has_previous %}
+        <a href="?page=1&status={{ status_filter }}&search={{ search }}" class="cl-pag__link">«</a>
+        <a href="?page={{ contracts.previous_page_number }}&status={{ status_filter }}&search={{ search }}" class="cl-pag__link">‹</a>
         {% endif %}
-      </div>
+        <span class="cl-pag__link cl-pag__link--active">{{ contracts.number }}</span>
+        {% if contracts.has_next %}
+        <a href="?page={{ contracts.next_page_number }}&status={{ status_filter }}&search={{ search }}" class="cl-pag__link">›</a>
+        <a href="?page={{ contracts.paginator.num_pages }}&status={{ status_filter }}&search={{ search }}" class="cl-pag__link">»</a>
+        {% endif %}
+      </nav>
     </div>
+    {% endif %}
+
+    {% else %}
+    <div class="cl-empty">
+      <img src="{% static 'images/ui/no-results.png' %}" alt="">
+      <h5>Chưa có hợp đồng UAT PM nào</h5>
+      <p>{% if search or status_filter %}Không tìm thấy kết quả phù hợp.{% else %}Bắt đầu bằng cách tạo hợp đồng đầu tiên.{% endif %}</p>
+      {% if not search and not status_filter %}
+      <a href="{% url 'trial-contract-create' %}" class="cl-btn-new">+ Tạo mới</a>
+      {% endif %}
+    </div>
+    {% endif %}
   </div>
 
+</div>
 </main>
 {% endblock %}

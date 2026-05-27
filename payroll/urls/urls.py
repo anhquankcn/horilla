@@ -212,6 +212,7 @@ urlpatterns = [
     # Official Contract (Hop dong Chinh thuc)
     path("hnh/official/", contract_hnh_views.official_contract_list, name="official-contract-list"),
     path("hnh/official/create/", contract_hnh_views.official_contract_create, name="official-contract-create"),
+    path("hnh/official/<int:pk>/", contract_hnh_views.official_contract_detail, name="official-contract-detail"),
     path("hnh/official/<int:pk>/edit/", contract_hnh_views.official_contract_update, name="official-contract-update"),
     path("hnh/official/<int:pk>/delete/", contract_hnh_views.official_contract_delete, name="official-contract-delete"),
     # Performance Contract (Hop dong Hieu suat)
@@ -225,8 +226,9 @@ urlpatterns = [
     path("hnh/kpi/<int:pk>/delete/", contract_hnh_views.kpi_appendix_delete, name="kpi-appendix-delete"),
     # JSON API for cascading department → position selector
     path("hnh/api/positions/", contract_hnh_views.hnh_positions_api, name="hnh-positions-api"),
-    # Company-wide payroll overview (all 3 contract types)
+    # Bảng lương tháng (editable, company-scoped)
     path("hnh/payroll-overview/", contract_hnh_views.hnh_payroll_overview, name="hnh-payroll-overview"),
+    path("hnh/payroll-overview/export/", contract_hnh_views.hnh_payroll_export, name="hnh-payroll-export"),
     path(
         "contract-bulk-delete",
         views.contract_bulk_delete,

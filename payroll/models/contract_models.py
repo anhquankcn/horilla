@@ -15,7 +15,7 @@ from decimal import Decimal
 
 from django.db import models
 
-from base.models import JobPosition
+from base.models import Company, JobPosition
 from employee.models import Employee
 from horilla.models import HorillaModel
 
@@ -225,6 +225,139 @@ class ContractKPIAppendix(HorillaModel):
                 condition=models.Q(trial_contract__isnull=False),
                 name="uq_trial_contract_year",
             ),
+        ]
+
+
+class MonthlyPayrollEntry(HorillaModel):
+    """Bảng lương tháng — one row per employee per month.
+
+    Input fields (HR fills in): actual_days, night_shifts, night_shift_rate,
+    ot_normal, ot_weekend, ot_holiday, kpi_pct, incentive, bonus,
+    other_adjust, npt, tam_ung.
+
+    Pre-filled from contract: lcb_bhxh, total_gross, pc_chuc_vu, pc_travel,
+    standard_days.
+
+    All formula columns (J, K, O, S, T, V, W, X, AB, AC-AF, AH, AI, AK)
+    are computed in Python from the stored fields.
+    """
+
+    employee_id = models.ForeignKey(
+        Employee,
+        on_delete=models.PROTECT,
+        related_name="monthly_payroll_entries",
+        verbose_name="Nhân viên",
+    )
+    year = models.IntegerField(verbose_name="Năm")
+    month = models.IntegerField(verbose_name="Tháng")
+    company = models.ForeignKey(
+        Company,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name="Công ty",
+    )
+
+    # Contract source reference (at most one non-null)
+    trial_contract = models.ForeignKey(
+        TrialContract,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="payroll_entries",
+        verbose_name="HĐ UAT PM",
+    )
+    official_contract = models.ForeignKey(
+        OfficialContract,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="payroll_entries",
+        verbose_name="HĐ Chính thức",
+    )
+    performance_contract = models.ForeignKey(
+        PerformanceContract,
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="payroll_entries",
+        verbose_name="HĐ Hiệu suất",
+    )
+
+    # ── Pre-filled from contract (editable) ──────────────────────────────
+    standard_days = models.DecimalField(
+        max_digits=5, decimal_places=1, default=Decimal("26"),
+        verbose_name="Ngày công chuẩn (E)",
+    )
+    actual_days = models.DecimalField(
+        max_digits=5, decimal_places=1, default=Decimal("0"),
+        verbose_name="Ngày công thực tế (F)",
+    )
+    lcb_bhxh = models.DecimalField(
+        max_digits=14, decimal_places=0, default=0,
+        verbose_name="LCB đóng BHXH (G)",
+    )
+    total_gross = models.DecimalField(
+        max_digits=14, decimal_places=0, default=0,
+        verbose_name="Tổng Gross TT (H)",
+    )
+    pc_chuc_vu = models.DecimalField(
+        max_digits=12, decimal_places=0, default=0,
+        verbose_name="PC Chức vụ (I)",
+    )
+    pc_travel = models.DecimalField(
+        max_digits=12, decimal_places=0, default=0,
+        verbose_name="PC Đi lại (L)",
+    )
+
+    # ── HR manual input ───────────────────────────────────────────────────
+    night_shifts = models.DecimalField(
+        max_digits=6, decimal_places=1, default=0,
+        verbose_name="Số ca đêm (M)",
+    )
+    night_shift_rate = models.DecimalField(
+        max_digits=10, decimal_places=0, default=250000,
+        verbose_name="Đơn giá ca đêm (N)",
+    )
+    ot_normal = models.DecimalField(
+        max_digits=7, decimal_places=2, default=0,
+        verbose_name="Giờ OT ngày thường (P)",
+    )
+    ot_weekend = models.DecimalField(
+        max_digits=7, decimal_places=2, default=0,
+        verbose_name="Giờ OT cuối tuần (Q)",
+    )
+    ot_holiday = models.DecimalField(
+        max_digits=7, decimal_places=2, default=0,
+        verbose_name="Giờ OT ngày lễ (R)",
+    )
+    kpi_pct = models.DecimalField(
+        max_digits=6, decimal_places=2, default=Decimal("100.00"),
+        verbose_name="% KPI tháng (U)",
+    )
+    incentive = models.DecimalField(
+        max_digits=14, decimal_places=0, default=0,
+        verbose_name="Incentive (Y)",
+    )
+    bonus = models.DecimalField(
+        max_digits=14, decimal_places=0, default=0,
+        verbose_name="Bonus / T13 (Z)",
+    )
+    other_adjust = models.DecimalField(
+        max_digits=14, decimal_places=0, default=0,
+        verbose_name="Phát sinh khác (AA)",
+    )
+    npt = models.IntegerField(default=0, verbose_name="Số NPT (AG)")
+    tam_ung = models.DecimalField(
+        max_digits=14, decimal_places=0, default=0,
+        verbose_name="Tạm ứng (AJ)",
+    )
+    notes = models.TextField(blank=True, verbose_name="Ghi chú")
+
+    class Meta:
+        verbose_name = "Bảng lương tháng"
+        verbose_name_plural = "Bảng lương tháng"
+        unique_together = [("employee_id", "year", "month")]
+        ordering = [
+            "employee_id__employee_work_info__department_id__department",
+            "employee_id__employee_last_name",
         ]
 
     def __str__(self):

@@ -7,39 +7,36 @@
 <main :class="sidebarOpen ? 'oh-main__sidebar-visible' : ''">
 <style>
 :root {
-  --cd-purple:      #7c3aed;
-  --cd-purpledark:  #5b21b6;
-  --cd-purplelight: #ede9fe;
-  --cd-red:         #c0222b;
-  --cd-green:       #198754;
-  --cd-amber:       #d97706;
-  --cd-gray:        #6c757d;
-  --cd-slate:       #1a1a2e;
+  --cd-green:      #1a7f5a;
+  --cd-greendark:  #145f43;
+  --cd-greenlight: #d1fae5;
+  --cd-red:        #c0222b;
+  --cd-amber:      #d97706;
+  --cd-gray:       #6c757d;
+  --cd-slate:      #1a1a2e;
 }
 
 .cd-page { max-width: 1000px; margin: 0 auto; padding: 24px 16px 60px; }
 
 .cd-bread { font-size: 13px; margin-bottom: 18px; }
-.cd-bread a { color: var(--cd-purple); text-decoration: none; font-weight: 500; }
+.cd-bread a { color: var(--cd-green); text-decoration: none; font-weight: 500; }
 .cd-bread a:hover { text-decoration: underline; }
 
 /* ── Hero ── */
 .cd-hero { background: var(--cd-slate); border-radius: 14px; padding: 28px 28px 24px; margin-bottom: 24px; position: relative; overflow: hidden; }
-.cd-hero::before { content:''; position:absolute; top:-30px; right:-40px; width:180px; height:180px; border-radius:50%; background:rgba(124,58,237,.22); }
-.cd-hero__inner { display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;position:relative;z-index:1; }
-.cd-hero__left  { display:flex;align-items:center;gap:16px; }
+.cd-hero::before { content:''; position:absolute; top:-30px; right:-40px; width:180px; height:180px; border-radius:50%; background:rgba(26,127,90,.22); }
+.cd-hero__inner { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; position: relative; z-index: 1; }
+.cd-hero__left  { display: flex; align-items: center; gap: 16px; }
 .cd-hero__avatar { width:64px;height:64px;border-radius:50%;object-fit:cover;border:3px solid rgba(255,255,255,.25);flex-shrink:0; }
-.cd-hero__avatar-placeholder { width:64px;height:64px;border-radius:50%;background:var(--cd-purple);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:#fff;flex-shrink:0;border:3px solid rgba(255,255,255,.25); }
-.cd-hero__name { color:#fff;font-size:18px;font-weight:700;margin:0 0 4px; }
-.cd-hero__sub  { color:rgba(255,255,255,.6);font-size:13px;margin:0; }
+.cd-hero__avatar-placeholder { width:64px;height:64px;border-radius:50%;background:var(--cd-green);display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:700;color:#fff;flex-shrink:0;border:3px solid rgba(255,255,255,.25); }
+.cd-hero__name { color:#fff; font-size:18px; font-weight:700; margin:0 0 4px; }
+.cd-hero__sub  { color:rgba(255,255,255,.6); font-size:13px; margin:0; }
 .cd-hero__actions { display:flex;gap:10px;align-items:center;flex-shrink:0; }
 .cd-btn { display:inline-flex;align-items:center;gap:6px;padding:8px 18px;border-radius:8px;font-size:13px;font-weight:600;text-decoration:none;border:none;cursor:pointer;transition:all .15s; }
 .cd-btn--outline { background:rgba(255,255,255,.08);color:#fff;border:1.5px solid rgba(255,255,255,.3); }
 .cd-btn--outline:hover { background:rgba(255,255,255,.18);color:#fff; }
 .cd-btn--danger  { background:#dc3545;color:#fff; }
 .cd-btn--danger:hover  { background:#b02a37;color:#fff; }
-.cd-btn--primary { background:var(--cd-purple);color:#fff; }
-.cd-btn--primary:hover { background:var(--cd-purpledark);color:#fff; }
 .cd-badge { display:inline-flex;align-items:center;padding:4px 12px;border-radius:20px;font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;margin-top:6px; }
 .cd-badge--active      { background:#d1fae5;color:#065f46; }
 .cd-badge--draft       { background:#fff3cd;color:#856404; }
@@ -51,8 +48,7 @@
 .cd-fig { background:#fff;border:1.5px solid #e9ecef;border-radius:12px;padding:14px 16px; }
 .cd-fig__label { font-size:11px;color:var(--cd-gray);font-weight:600;text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px; }
 .cd-fig__value { font-size:20px;font-weight:700;color:var(--cd-slate); }
-.cd-fig__value--purple { color:var(--cd-purple); }
-.cd-fig__value--red    { color:var(--cd-red); }
+.cd-fig__value--green  { color:var(--cd-green); }
 .cd-fig__sub { font-size:11px;color:var(--cd-gray);margin-top:2px; }
 
 /* ── Cards ── */
@@ -67,21 +63,6 @@
 .cd-chip--allow  { background:#f0fdf4;border-color:#86efac;color:#166534; }
 .cd-chip--deduct { background:#fef2f2;border-color:#fca5a5;color:#991b1b; }
 .cd-chip--empty  { color:var(--cd-gray);font-size:12px;font-style:italic; }
-
-/* ── KPI Table ── */
-.cd-table { width:100%;border-collapse:collapse;font-size:12px; }
-.cd-table thead th { background:#f8f9fa;padding:9px 12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:#6c757d;border-bottom:1px solid #e9ecef;white-space:nowrap; }
-.cd-table tbody tr { border-bottom:1px solid #f5f5f5; }
-.cd-table tbody tr:last-child { border-bottom:none; }
-.cd-table tbody tr:hover { background:#faf8ff; }
-.cd-table td { padding:10px 12px;vertical-align:middle; }
-.cd-table .text-end { text-align:right; }
-.cd-table .text-center { text-align:center; }
-.cd-btn-sm { display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:6px;font-size:11px;font-weight:600;text-decoration:none;border:none;cursor:pointer;transition:all .15s; }
-.cd-btn-sm--danger { background:#fee2e2;color:#991b1b; }
-.cd-btn-sm--danger:hover { background:#dc3545;color:#fff; }
-.cd-empty { padding:28px 20px;text-align:center;color:var(--cd-gray);font-size:13px; }
-.cd-empty a { color:var(--cd-purple);font-weight:600;text-decoration:none; }
 
 /* ── Consent ── */
 .cd-consent { display:flex;align-items:center;gap:10px; }
@@ -98,7 +79,7 @@
 
   <!-- Breadcrumb -->
   <div class="cd-bread">
-    <a href="{% url 'performance-contract-list' %}">← Danh sách Hợp đồng Hiệu suất</a>
+    <a href="{% url 'official-contract-list' %}">← Danh sách Hợp đồng Chính thức</a>
   </div>
 
   <!-- Messages -->
@@ -142,11 +123,11 @@
         </div>
       </div>
       <div class="cd-hero__actions">
-        <a href="{% url 'performance-contract-update' contract.pk %}" class="cd-btn cd-btn--outline">
+        <a href="{% url 'official-contract-update' contract.pk %}" class="cd-btn cd-btn--outline">
           <ion-icon name="create-outline"></ion-icon> Chỉnh sửa
         </a>
-        <form method="post" action="{% url 'performance-contract-delete' contract.pk %}"
-              onsubmit="return confirm('Xóa hợp đồng hiệu suất này và toàn bộ Phụ lục 1?')">
+        <form method="post" action="{% url 'official-contract-delete' contract.pk %}"
+              onsubmit="return confirm('Xóa hợp đồng chính thức này?')">
           {% csrf_token %}
           <button type="submit" class="cd-btn cd-btn--danger">
             <ion-icon name="trash-outline"></ion-icon> Xóa
@@ -159,14 +140,9 @@
   <!-- Key Figures -->
   <div class="cd-figs">
     <div class="cd-fig">
-      <div class="cd-fig__label">Lương cơ bản</div>
-      <div class="cd-fig__value cd-fig__value--purple">{{ contract.base_salary|vnd }}đ</div>
-      <div class="cd-fig__sub">Lương CB hàng tháng</div>
-    </div>
-    <div class="cd-fig">
-      <div class="cd-fig__label">Lương hợp đồng</div>
-      <div class="cd-fig__value cd-fig__value--red">{{ contract.wage|vnd }}đ</div>
-      <div class="cd-fig__sub">Wage (tổng ghi hợp đồng)</div>
+      <div class="cd-fig__label">Mức lương</div>
+      <div class="cd-fig__value cd-fig__value--green">{{ contract.wage|vnd }}đ</div>
+      <div class="cd-fig__sub">Lương tháng</div>
     </div>
     <div class="cd-fig">
       <div class="cd-fig__label">Ngày bắt đầu</div>
@@ -180,14 +156,20 @@
         {% if contract.contract_end_date %}
           <span class="dateformat_changer">{{ contract.contract_end_date }}</span>
         {% else %}
-          <span style="color:var(--cd-gray);">—</span>
+          <span style="color:var(--cd-gray);">Không xác định</span>
         {% endif %}
       </div>
+      <div class="cd-fig__sub">{% if not contract.contract_end_date %}Hợp đồng không thời hạn{% endif %}</div>
     </div>
     <div class="cd-fig">
-      <div class="cd-fig__label">Phụ lục KPI</div>
-      <div class="cd-fig__value">{{ appendices|length }}</div>
-      <div class="cd-fig__sub">năm đã thiết lập</div>
+      <div class="cd-fig__label">Phụ cấp</div>
+      <div class="cd-fig__value">{{ contract.allowances.count }}</div>
+      <div class="cd-fig__sub">khoản phụ cấp</div>
+    </div>
+    <div class="cd-fig">
+      <div class="cd-fig__label">Khoản trừ</div>
+      <div class="cd-fig__value">{{ contract.deductions.count }}</div>
+      <div class="cd-fig__sub">khoản khấu trừ</div>
     </div>
   </div>
 
@@ -214,66 +196,6 @@
         {% endif %}
       </div>
     </div>
-  </div>
-
-  <!-- PL1 — KPI -->
-  <div class="cd-card">
-    <div class="cd-card__head">
-      <span class="cd-card__title">Phụ lục 1 — KPI &amp; Thu nhập năm</span>
-      <a href="{% url 'kpi-appendix-create' contract.pk %}" class="cd-btn cd-btn--primary" style="padding:6px 14px;font-size:12px;">
-        <ion-icon name="add-outline"></ion-icon> Thêm năm
-      </a>
-    </div>
-    {% if appendices %}
-    <div style="overflow-x:auto;">
-      <table class="cd-table">
-        <thead>
-          <tr>
-            <th>Năm</th>
-            <th>Vị trí</th>
-            <th class="text-end">TN năm min</th>
-            <th class="text-end">TN năm max</th>
-            <th class="text-end">Tạm ứng/tháng</th>
-            <th class="text-center">KPI 90–100%</th>
-            <th class="text-center">KPI 75–89%</th>
-            <th class="text-center">KPI 60–74%</th>
-            <th class="text-center">KPI &lt;60%</th>
-            <th class="text-center">Xóa</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for ap in appendices %}
-          <tr>
-            <td><strong>{{ ap.year }}</strong></td>
-            <td>{{ ap.position|default:"—" }}</td>
-            <td class="text-end">{{ ap.annual_income_min|vnd }}đ</td>
-            <td class="text-end">{{ ap.annual_income_max|vnd }}đ</td>
-            <td class="text-end">{{ ap.monthly_performance_advance|vnd }}đ</td>
-            <td class="text-center">{{ ap.kpi_pct_90_100 }}%</td>
-            <td class="text-center">{{ ap.kpi_pct_75_89 }}%</td>
-            <td class="text-center">{{ ap.kpi_pct_60_74 }}%</td>
-            <td class="text-center">{{ ap.kpi_below_60 }}%</td>
-            <td class="text-center">
-              <form method="post" action="{% url 'kpi-appendix-delete' ap.pk %}"
-                    style="display:inline;"
-                    onsubmit="return confirm('Xóa Phụ lục 1 năm {{ ap.year }}?')">
-                {% csrf_token %}
-                <button type="submit" class="cd-btn-sm cd-btn-sm--danger">
-                  <ion-icon name="trash-outline"></ion-icon>
-                </button>
-              </form>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    {% else %}
-    <div class="cd-empty">
-      Chưa có Phụ lục 1.
-      <a href="{% url 'kpi-appendix-create' contract.pk %}">Thêm ngay →</a>
-    </div>
-    {% endif %}
   </div>
 
   <!-- PL2 — Phụ cấp & Khoản trừ -->

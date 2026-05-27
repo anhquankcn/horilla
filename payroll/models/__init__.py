@@ -3,6 +3,7 @@ from payroll.models.bhxh_models import BHXHConfig, BHXHContribution, EmployeeBHX
 from payroll.models.pit_models import PITCalculation, PITConfig
 from payroll.models.contract_models import (
     ContractKPIAppendix,
+    MonthlyPayrollEntry,
     OfficialContract,
     PerformanceContract,
     TrialContract,
