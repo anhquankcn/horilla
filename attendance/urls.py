@@ -32,7 +32,7 @@ from attendance.cbv import (
 from base.forms import AttendanceAllowedIPForm
 from base.models import AttendanceAllowedIP
 
-from .views import views
+from .views import hnh_import, views
 
 urlpatterns = [
     path(
@@ -176,6 +176,11 @@ urlpatterns = [
     path("attendance-excel", views.attendance_excel, name="attendance-excel"),
     path(
         "attendance-info-import", views.attendance_import, name="attendance-info-import"
+    ),
+    path(
+        "hnh-attendance-import",
+        hnh_import.hnh_attendance_import,
+        name="hnh-attendance-import",
     ),
     path(
         "attendance-info-export-form",

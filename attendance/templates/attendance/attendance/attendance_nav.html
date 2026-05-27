@@ -64,6 +64,65 @@
     </div>
 </div>
 
+<!-- Modal import chấm công HNH -->
+<div class="oh-modal" id="hnhAttendanceImport" role="dialog" aria-hidden="true">
+    <div class="oh-modal__dialog">
+        <div class="oh-modal__dialog-header">
+            <h2 class="oh-modal__dialog-title">Import Chấm Công HNH</h2>
+            <button class="oh-modal__close" aria-label="Close">
+                <ion-icon name="close-outline"></ion-icon>
+            </button>
+        </div>
+        <div class="oh-modal__dialog-body p-0 pt-2" id="hnhImportModalBody">
+            <form hx-post="{% url 'hnh-attendance-import' %}" hx-encoding="multipart/form-data"
+                hx-target="#hnhAttendanceImport" id="hnhAttendanceImportForm">
+                {% csrf_token %}
+                <div class="oh-modal__dialog-body mr-5" id="hnhUploading" style="display:none">
+                    <div class="loader-container">
+                        <div class="loader"></div>
+                        <div class="loader-text">Đang xử lý...</div>
+                    </div>
+                </div>
+                <div id="hnhUploadContainer">
+                    <label class="oh-dropdown__import-label" for="hnhUploadFile"
+                        style="cursor:pointer; display:block; border:2px dashed #ccc; border-radius:8px; padding:24px; text-align:center;">
+                        <ion-icon name="cloud-upload" class="oh-dropdown__import-form-icon"
+                            style="font-size:36px; color:#888;"></ion-icon>
+                        <span class="oh-dropdown__import-form-title" style="display:block; font-weight:600; margin-top:8px;">
+                            Chọn file Excel chấm công HNH
+                        </span>
+                        <span class="oh-dropdown__import-form-text" style="display:block; color:#888; font-size:13px; margin-top:4px;">
+                            Định dạng: .xlsx — cột A: Mã NV, D: Ngày, E: Giờ vào, F: Giờ ra
+                        </span>
+                    </label>
+                    <input type="file" name="hnh_attendance_file" id="hnhUploadFile"
+                        accept=".xlsx,.xls" required style="display:none" />
+                    <div id="hnhFileName" style="text-align:center; margin-top:8px; font-size:13px; color:#555;"></div>
+                </div>
+                <button type="submit" class="oh-btn oh-btn--small oh-btn--secondary w-100 mt-3">
+                    Upload & Import
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+<script>
+(function () {
+    document.addEventListener('change', function (e) {
+        if (e.target && e.target.id === 'hnhUploadFile') {
+            var name = e.target.files[0] ? e.target.files[0].name : '';
+            document.getElementById('hnhFileName').textContent = name ? '📎 ' + name : '';
+        }
+    });
+    document.body.addEventListener('htmx:beforeRequest', function (e) {
+        if (e.detail.elt && e.detail.elt.id === 'hnhAttendanceImportForm') {
+            document.getElementById('hnhUploading').style.display = 'block';
+            document.getElementById('hnhUploadContainer').style.display = 'none';
+        }
+    });
+})();
+</script>
+
 <div class="oh-modal" id="attendanceImport" role="dialog" aria-labelledby="attendanceImport" aria-hidden="true">
     <div class="oh-modal__dialog">
         <div class="oh-modal__dialog-header">
@@ -220,6 +279,10 @@
                         <li class="oh-dropdown__item">
                             <a href="#" class="oh-dropdown__link attendance-info-import" data-toggle="oh-modal-toggle"
                                 data-target="#attendanceImport">{% trans "Import" %}</a>
+                        </li>
+                        <li class="oh-dropdown__item">
+                            <a href="#" class="oh-dropdown__link" data-toggle="oh-modal-toggle"
+                                data-target="#hnhAttendanceImport">Import HNH</a>
                         </li>
                         <li class="oh-dropdown__item">
                             <a href="#" class="oh-dropdown__link" id="attendance-info-export" data-toggle="oh-modal-toggle"

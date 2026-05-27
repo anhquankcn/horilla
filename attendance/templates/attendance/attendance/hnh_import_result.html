@@ -1,0 +1,67 @@
+{% load i18n %}
+<div class="oh-modal__dialog oh-modal__dialog--confirm" style="max-width: 560px">
+    <p class="swal2-close"></p>
+
+    {% if created_count == 0 and error_count == 0 %}
+        <div class="swal2-icon swal2-info swal2-icon-show" style="display:flex">
+            <div class="swal2-icon-content">i</div>
+        </div>
+        <h2 class="swal2-title">Không có bản ghi nào được import</h2>
+        <div class="swal2-html-container" style="display:block">
+            <p>File không có dữ liệu chấm công hợp lệ (có thể toàn bộ là ngày vắng).</p>
+            {% if skipped_absent %}<p>Đã bỏ qua {{ skipped_absent }} dòng ngày vắng.</p>{% endif %}
+        </div>
+
+    {% elif created_count > 0 %}
+        <div class="swal2-icon swal2-success swal2-icon-show" style="display:flex">
+            <div class="swal2-icon-content">✔</div>
+        </div>
+        <h2 class="swal2-title">Import thành công</h2>
+        <div class="swal2-html-container" style="display:block">
+            <p><strong>{{ created_count }}</strong> bản ghi chấm công đã được tạo.</p>
+            {% if skipped_absent %}<p>Bỏ qua {{ skipped_absent }} dòng ngày vắng.</p>{% endif %}
+            {% if error_count %}<p>{{ error_count }} dòng có lỗi (xem bên dưới).</p>{% endif %}
+        </div>
+
+    {% else %}
+        <div class="swal2-icon swal2-warning swal2-icon-show" style="display:flex">
+            <div class="swal2-icon-content">!</div>
+        </div>
+        <h2 class="swal2-title">Import thất bại</h2>
+        <div class="swal2-html-container" style="display:block">
+            <p>Không có bản ghi nào được tạo. {{ error_count }} lỗi.</p>
+            {% if skipped_absent %}<p>Bỏ qua {{ skipped_absent }} dòng ngày vắng.</p>{% endif %}
+        </div>
+    {% endif %}
+
+    {% if errors %}
+    <div class="swal2-html-container" style="display:block; max-height:220px; overflow-y:auto; font-size:12px; text-align:left; margin-top:8px;">
+        <table style="width:100%; border-collapse:collapse;">
+            <thead>
+                <tr style="background:#f5f5f5;">
+                    <th style="padding:4px 8px; border-bottom:1px solid #ddd;">Mã NV</th>
+                    <th style="padding:4px 8px; border-bottom:1px solid #ddd;">Ngày</th>
+                    <th style="padding:4px 8px; border-bottom:1px solid #ddd;">Lỗi</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for e in errors %}
+                <tr style="border-bottom:1px solid #eee;">
+                    <td style="padding:3px 8px;">{{ e.badge_id|default:"-" }}</td>
+                    <td style="padding:3px 8px;">{{ e.date|default:"-" }}</td>
+                    <td style="padding:3px 8px; color:#c0392b;">{{ e.error }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% if error_count > 50 %}<p style="margin-top:6px; color:#888;">... và {{ error_count|add:"-50" }} lỗi khác</p>{% endif %}
+    </div>
+    {% endif %}
+
+    <div class="swal2-actions pb-4">
+        <button type="button" class="swal2-cancel swal2-styled"
+            style="background-color:#d33;" onclick="window.location.reload();">
+            {% trans "Đóng" %}
+        </button>
+    </div>
+</div>
