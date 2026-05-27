@@ -53,7 +53,14 @@ def get_companies(request):
     This method will return the history additional field form
     """
     companies = list(
-        [company.id, company.company, company.icon.url, False]
+        [
+            company.id,
+            company.company,
+            company.icon.url
+            if company.icon and company.icon.name
+            else f"https://ui-avatars.com/api/?name={company.company[:2]}&background=c0222b&color=fff",
+            False,
+        ]
         for company in Company.objects.all()
     )
     companies = [

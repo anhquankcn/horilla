@@ -99,6 +99,10 @@
 .pl-empty { padding:64px 20px; text-align:center; }
 .pl-empty__icon { font-size:48px; margin-bottom:12px; }
 .pl-empty__msg { font-size:14px; color:#64748b; margin-bottom:20px; }
+
+/* Contract warning row */
+.pl-row--warn { background:#fffbeb !important; }
+.pl-row--warn:hover { background:#fef3c7 !important; }
 </style>
 
 <div class="pl-wrap">
@@ -121,15 +125,16 @@
         <input type="hidden" name="action" value="generate">
         <input type="hidden" name="month" value="{{ current_month }}">
         <input type="hidden" name="year" value="{{ current_year }}">
+        <input type="hidden" name="ctype_filter" value="{{ ctype_filter }}">
         <button type="submit" class="pl-btn pl-btn--outline"
-                onclick="return confirm('Tạo dòng lương từ hợp đồng active tháng {{ current_month }}/{{ current_year }}?')"
-                title="Tạo tự động từ hợp đồng active">
+                onclick="return confirm('Tạo dòng lương từ hợp đồng active{% if ctype_filter %} ({{ ctype_filter }}){% endif %} tháng {{ current_month }}/{{ current_year }}?')"
+                title="Tạo tự động từ hợp đồng active đang lọc">
           ⚡ Tạo từ HĐ
         </button>
       </form>
 
       <!-- Export Excel -->
-      <a href="{% url 'hnh-payroll-export' %}?month={{ current_month }}&year={{ current_year }}{% if dept_filter %}&dept={{ dept_filter }}{% endif %}"
+      <a href="{% url 'hnh-payroll-export' %}?month={{ current_month }}&year={{ current_year }}{% if dept_filter %}&dept={{ dept_filter }}{% endif %}{% if ctype_filter %}&ctype={{ ctype_filter }}{% endif %}"
          class="pl-btn pl-btn--outline">
         📊 Xuất Excel
       </a>
@@ -155,11 +160,20 @@
       <div class="pl-stat__label">Thực lĩnh (AK)</div>
       <div class="pl-stat__value">{{ totals.AK|vnd }}đ</div>
     </div>
+    {% if warn_count %}
+    <div class="pl-stat" style="border-left:3px solid #f59e0b;cursor:pointer;"
+         onclick="document.querySelector('[name=ctype]').value='no_contract';document.getElementById('filterForm').submit();">
+      <div class="pl-stat__label" style="color:#b45309;">Hợp đồng cần kiểm tra</div>
+      <div class="pl-stat__value" style="color:#b45309;">⚠️ {{ warn_count }}</div>
+    </div>
+    {% endif %}
   </div>
   {% endif %}
 
   <!-- ── Filter bar ── -->
   <form method="get" class="pl-filter" id="filterForm">
+    <input type="hidden" name="ctype_filter" value="{{ ctype_filter }}">
+
     <!-- Month / Year -->
     <select name="month" onchange="document.getElementById('filterForm').submit()">
       {% for m in months %}
@@ -180,12 +194,28 @@
       {% endfor %}
     </select>
 
-    {% if dept_filter %}
-    <a href="?month={{ current_month }}&year={{ current_year }}" class="pl-btn pl-btn--outline" style="font-size:12px;padding:5px 10px;">✕ Xóa</a>
+    <!-- Contract type filter -->
+    <select name="ctype" onchange="document.getElementById('filterForm').submit()"
+            style="border-left:3px solid var(--pl-accent);">
+      {% for val, label in contract_type_choices %}
+      <option value="{{ val }}" {% if ctype_filter == val %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+
+    {% if dept_filter or ctype_filter %}
+    <a href="?month={{ current_month }}&year={{ current_year }}"
+       class="pl-btn pl-btn--outline" style="font-size:12px;padding:5px 10px;">✕ Xóa bộ lọc</a>
     {% endif %}
 
     <span style="margin-left:auto;font-size:12px;color:#64748b;">
       {{ rows|length }} nhân viên
+      {% if warn_count %}
+      <span style="margin-left:8px;background:#fef3c7;color:#92400e;padding:2px 8px;border-radius:12px;font-size:11px;cursor:pointer;"
+            onclick="document.getElementById('filterForm').elements['ctype'].value='no_contract';document.getElementById('filterForm').submit();"
+            title="Xem danh sách có vấn đề HĐ">
+        ⚠️ {{ warn_count }} HĐ cần kiểm tra
+      </span>
+      {% endif %}
     </span>
   </form>
 
@@ -202,6 +232,8 @@
     <input type="hidden" name="action" value="save">
     <input type="hidden" name="month" value="{{ current_month }}">
     <input type="hidden" name="year" value="{{ current_year }}">
+    <input type="hidden" name="dept_filter" value="{{ dept_filter }}">
+    <input type="hidden" name="ctype_filter" value="{{ ctype_filter }}">
 
     <div class="pl-table-wrap">
     <table class="pl-tbl">
@@ -293,16 +325,30 @@
           <!-- D: Chức danh -->
           <td class="pl-cell-info">{{ r.pos.job_position|default:"—" }}</td>
 
-          <!-- Loại HĐ -->
-          <td class="pl-cell-info" style="text-align:center;">
-            {% if e.trial_contract_id %}
-              <span style="background:#dbeafe;color:#1d4ed8;padding:2px 6px;border-radius:4px;font-size:10px;">UAT PM</span>
-            {% elif e.official_contract_id %}
-              <span style="background:#dcfce7;color:#15803d;padding:2px 6px;border-radius:4px;font-size:10px;">Chính thức</span>
-            {% elif e.performance_contract_id %}
-              <span style="background:#f3e8ff;color:#7c3aed;padding:2px 6px;border-radius:4px;font-size:10px;">Hiệu suất</span>
+          <!-- Loại HĐ + trạng thái -->
+          {% with v=r.validity %}
+          <td class="pl-cell-info" style="text-align:center;min-width:110px;">
+            {% if v.ctype_key == "trial" %}
+              <span style="background:#dbeafe;color:#1d4ed8;padding:2px 6px;border-radius:4px;font-size:10px;display:inline-block;">Trial</span>
+            {% elif v.ctype_key == "official" %}
+              <span style="background:#dcfce7;color:#15803d;padding:2px 6px;border-radius:4px;font-size:10px;display:inline-block;">Chính thức</span>
+            {% elif v.ctype_key == "performance" %}
+              <span style="background:#f3e8ff;color:#7c3aed;padding:2px 6px;border-radius:4px;font-size:10px;display:inline-block;">Hiệu suất</span>
+            {% elif v.ctype_key == "horilla" %}
+              <span style="background:#e0f2fe;color:#0369a1;padding:2px 6px;border-radius:4px;font-size:10px;display:inline-block;">Horilla</span>
+            {% else %}
+              <span style="background:#f1f5f9;color:#64748b;padding:2px 6px;border-radius:4px;font-size:10px;display:inline-block;">—</span>
+            {% endif %}
+            {% if not v.contract_ok %}
+              <span title="{{ v.warnings|join:', ' }}"
+                    style="display:inline-block;margin-top:2px;background:#fef2f2;color:#b91c1c;border:1px solid #fca5a5;padding:1px 5px;border-radius:3px;font-size:9px;cursor:help;">
+                ⚠️ {{ v.warnings|first }}
+              </span>
+            {% else %}
+              <span style="display:inline-block;margin-top:2px;color:#16a34a;font-size:9px;">✓ HĐ hợp lệ</span>
             {% endif %}
           </td>
+          {% endwith %}
 
           <!-- E: Ngày công chuẩn (editable) -->
           <td class="pl-cell-in" style="min-width:68px;">

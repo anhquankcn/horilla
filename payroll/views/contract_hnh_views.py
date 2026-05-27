@@ -669,6 +669,23 @@ _DEPENDENT_DEDUCTION = Decimal("4400000")
 _NIGHT_SHIFT_RATE_DEFAULT = Decimal("250000")
 
 
+_CONTRACT_TYPE_CHOICES = [
+    ("",            "Tất cả loại HĐ"),
+    ("trial",       "HNH Trial (Thử việc)"),
+    ("official",    "HNH Chính thức"),
+    ("performance", "HNH Hiệu suất"),
+    ("horilla",     "Horilla (Chuẩn)"),
+    ("no_contract", "Không có HĐ"),
+]
+
+_CONTRACT_STATUS_LABELS = {
+    "draft":      "Nháp",
+    "active":     "Hiệu lực",
+    "expired":    "Hết hạn",
+    "terminated": "Chấm dứt",
+}
+
+
 def _get_bhxh_caps():
     cfg = BHXHConfig.objects.filter(is_active=True).first()
     if cfg:
@@ -677,6 +694,53 @@ def _get_bhxh_caps():
             Decimal(str(cfg.luong_toi_thieu_vung)) * 20,
         )
     return Decimal("46800000"), Decimal("99200000")
+
+
+def _contract_validity(entry: MonthlyPayrollEntry, period_start, period_end) -> dict:
+    """
+    Check whether the contract linked to a payroll entry is valid for the period.
+    Returns: ctype_key, ctype_label, contract_ok (bool), warnings (list[str]).
+    """
+    if entry.trial_contract_id:
+        c = entry.trial_contract
+        ctype_key, ctype_label = "trial", "HNH Trial"
+    elif entry.official_contract_id:
+        c = entry.official_contract
+        ctype_key, ctype_label = "official", "HNH Chính thức"
+    elif entry.performance_contract_id:
+        c = entry.performance_contract
+        ctype_key, ctype_label = "performance", "HNH Hiệu suất"
+    else:
+        # No HNH contract — check Horilla native Contract
+        from payroll.models.models import Contract as HorillaContract
+        horilla_c = HorillaContract.objects.filter(
+            employee_id=entry.employee_id,
+            contract_status="active",
+            contract_start_date__lte=period_end,
+        ).filter(
+            models.Q(contract_end_date__isnull=True) |
+            models.Q(contract_end_date__gte=period_start)
+        ).first()
+        if horilla_c:
+            return {"ctype_key": "horilla", "ctype_label": "Horilla", "contract": horilla_c, "contract_ok": True, "warnings": []}
+        return {"ctype_key": "no_contract", "ctype_label": "—", "contract": None, "contract_ok": False, "warnings": ["Không có hợp đồng"]}
+
+    warnings = []
+    status_label = _CONTRACT_STATUS_LABELS.get(c.contract_status, c.contract_status)
+    if c.contract_status != "active":
+        warnings.append(f"Trạng thái: {status_label}")
+    if c.contract_start_date > period_end:
+        warnings.append("Chưa bắt đầu trong kỳ")
+    if c.contract_end_date and c.contract_end_date < period_start:
+        warnings.append(f"Hết hạn {c.contract_end_date.strftime('%d/%m/%Y')}")
+
+    return {
+        "ctype_key":    ctype_key,
+        "ctype_label":  ctype_label,
+        "contract":     c,
+        "contract_ok":  len(warnings) == 0,
+        "warnings":     warnings,
+    }
 
 
 def _tncn_progressive(taxable: Decimal) -> Decimal:
@@ -855,12 +919,21 @@ def hnh_payroll_overview(request):
         except (Company.DoesNotExist, ValueError):
             company = None
 
+    # Period bounds (for contract validity check)
+    period_start = date(current_year, current_month, 1)
+    period_end   = date(current_year, current_month, calendar.monthrange(current_year, current_month)[1])
+
     # ── Handle POST: save / generate ─────────────────────────────────────
     if request.method == "POST":
         action = request.POST.get("action", "save")
+        ctype_post = request.POST.get("ctype_filter", "")
         if action == "generate":
-            return _generate_payroll_stubs(request, current_year, current_month, company)
-        return _save_payroll_entries(request, current_year, current_month, company)
+            return _generate_payroll_stubs(request, current_year, current_month, company, ctype_post)
+        return _save_payroll_entries(request, current_year, current_month, company, ctype_post)
+
+    # ── Filters ──────────────────────────────────────────────────────────
+    dept_filter  = request.GET.get("dept", "").strip()
+    ctype_filter = request.GET.get("ctype", "").strip()
 
     # ── Load existing entries ─────────────────────────────────────────────
     entry_qs = MonthlyPayrollEntry.objects.filter(
@@ -878,33 +951,44 @@ def hnh_payroll_overview(request):
         entry_qs = entry_qs.filter(
             employee_id__employee_work_info__company_id=company
         )
-
-    dept_filter = request.GET.get("dept", "").strip()
     if dept_filter:
         entry_qs = entry_qs.filter(
             employee_id__employee_work_info__department_id=dept_filter
         )
 
+    # Contract-type filter
+    if ctype_filter == "trial":
+        entry_qs = entry_qs.filter(trial_contract_id__isnull=False)
+    elif ctype_filter == "official":
+        entry_qs = entry_qs.filter(official_contract_id__isnull=False)
+    elif ctype_filter == "performance":
+        entry_qs = entry_qs.filter(performance_contract_id__isnull=False)
+    elif ctype_filter in ("horilla", "no_contract"):
+        # Both: no HNH contract linked at all
+        entry_qs = entry_qs.filter(
+            trial_contract_id__isnull=True,
+            official_contract_id__isnull=True,
+            performance_contract_id__isnull=True,
+        )
+
     bhxh_cap, bhtn_cap = _get_bhxh_caps()
     rows = []
+    warn_count = 0
     for e in entry_qs:
         wi   = getattr(e.employee_id, "employee_work_info", None)
         dept = wi.department_id if wi else None
         pos  = wi.job_position_id if wi else None
-        ctype = (
-            "UAT PM" if e.trial_contract_id else
-            "Chính thức" if e.official_contract_id else
-            "Hiệu suất" if e.performance_contract_id else
-            "—"
-        )
+        validity = _contract_validity(e, period_start, period_end)
+        if not validity["contract_ok"]:
+            warn_count += 1
         formulas = _compute_entry_formulas(e, bhxh_cap, bhtn_cap)
         rows.append({
-            "entry":     e,
-            "employee":  e.employee_id,
-            "dept":      dept,
-            "pos":       pos,
-            "ctype":     ctype,
-            "f":         formulas,
+            "entry":    e,
+            "employee": e.employee_id,
+            "dept":     dept,
+            "pos":      pos,
+            "validity": validity,
+            "f":        formulas,
         })
 
     # Totals
@@ -912,35 +996,38 @@ def hnh_payroll_overview(request):
         return sum(r["f"][key] for r in rows)
 
     totals = {k: _sum(k) for k in ("J","K","O","T","V","W","X","AB","AC","AD","AE","AF","AH","AI","AK")}
-    totals["G"] = sum(int(r["entry"].lcb_bhxh) for r in rows)
-    totals["H"] = sum(int(r["entry"].total_gross) for r in rows)
-    totals["L"] = sum(int(r["entry"].pc_travel) for r in rows)
-    totals["Y"] = sum(int(r["entry"].incentive) for r in rows)
-    totals["Z"] = sum(int(r["entry"].bonus) for r in rows)
-    totals["AA"] = sum(int(r["entry"].other_adjust) for r in rows)
-    totals["AJ"] = sum(int(r["entry"].tam_ung) for r in rows)
+    totals["G"]  = sum(int(r["entry"].lcb_bhxh)     for r in rows)
+    totals["H"]  = sum(int(r["entry"].total_gross)   for r in rows)
+    totals["L"]  = sum(int(r["entry"].pc_travel)     for r in rows)
+    totals["Y"]  = sum(int(r["entry"].incentive)     for r in rows)
+    totals["Z"]  = sum(int(r["entry"].bonus)         for r in rows)
+    totals["AA"] = sum(int(r["entry"].other_adjust)  for r in rows)
+    totals["AJ"] = sum(int(r["entry"].tam_ung)       for r in rows)
 
     departments = Department.objects.order_by("department")
     month_vn = ["", "Một", "Hai", "Ba", "Bốn", "Năm", "Sáu", "Bảy", "Tám", "Chín", "Mười", "Mười Một", "Mười Hai"][current_month]
 
     return render(request, "payroll/contracts_hnh/payroll_overview.html", {
-        "rows":          rows,
-        "totals":        totals,
-        "departments":   departments,
-        "dept_filter":   dept_filter,
-        "current_month": current_month,
-        "current_year":  current_year,
-        "month_vn":      month_vn,
-        "company":       company,
-        "has_entries":   bool(rows),
-        "bhxh_cap":      int(bhxh_cap),
-        "bhtn_cap":      int(bhtn_cap),
-        "months":        list(range(1, 13)),
-        "years":         list(range(today.year - 2, today.year + 3)),
+        "rows":                rows,
+        "totals":              totals,
+        "departments":         departments,
+        "dept_filter":         dept_filter,
+        "ctype_filter":        ctype_filter,
+        "contract_type_choices": _CONTRACT_TYPE_CHOICES,
+        "warn_count":          warn_count,
+        "current_month":       current_month,
+        "current_year":        current_year,
+        "month_vn":            month_vn,
+        "company":             company,
+        "has_entries":         bool(rows),
+        "bhxh_cap":            int(bhxh_cap),
+        "bhtn_cap":            int(bhtn_cap),
+        "months":              list(range(1, 13)),
+        "years":               list(range(today.year - 2, today.year + 3)),
     })
 
 
-def _generate_payroll_stubs(request, year: int, month: int, company):
+def _generate_payroll_stubs(request, year: int, month: int, company, ctype_filter: str = ""):
     """Generate MonthlyPayrollEntry rows from active contracts."""
     period_start = date(year, month, 1)
     period_end   = date(year, month, calendar.monthrange(year, month)[1])
@@ -957,11 +1044,18 @@ def _generate_payroll_stubs(request, year: int, month: int, company):
             q = q.filter(employee_id__employee_work_info__company_id=company)
         return q
 
+    # Select which contract types to generate based on filter
+    contracts_to_generate = []
+    if ctype_filter in ("", "trial"):
+        contracts_to_generate += list(_active(TrialContract.objects))
+    if ctype_filter in ("", "official"):
+        contracts_to_generate += list(_active(OfficialContract.objects))
+    if ctype_filter in ("", "performance"):
+        contracts_to_generate += list(_active(PerformanceContract.objects))
+
     created = 0
     skipped = 0
-    for contract in list(_active(TrialContract.objects)) + \
-                    list(_active(OfficialContract.objects)) + \
-                    list(_active(PerformanceContract.objects)):
+    for contract in contracts_to_generate:
         exists = MonthlyPayrollEntry.objects.filter(
             employee_id=contract.employee_id,
             year=year, month=month,
@@ -973,11 +1067,15 @@ def _generate_payroll_stubs(request, year: int, month: int, company):
         stub.save()
         created += 1
 
-    messages.success(request, f"Đã tạo {created} dòng bảng lương. Bỏ qua {skipped} nhân viên đã có.")
-    return redirect(f"{request.path}?month={month}&year={year}")
+    type_label = dict(_CONTRACT_TYPE_CHOICES).get(ctype_filter, "Tất cả")
+    messages.success(request, f"[{type_label}] Đã tạo {created} dòng bảng lương. Bỏ qua {skipped} nhân viên đã có.")
+    params = f"month={month}&year={year}"
+    if ctype_filter:
+        params += f"&ctype={ctype_filter}"
+    return redirect(f"{request.path}?{params}")
 
 
-def _save_payroll_entries(request, year: int, month: int, company):
+def _save_payroll_entries(request, year: int, month: int, company, ctype_filter: str = ""):
     """Bulk-update MonthlyPayrollEntry from POST data."""
     entry_ids = request.POST.getlist("entry_id")
     updated = 0
@@ -1020,8 +1118,14 @@ def _save_payroll_entries(request, year: int, month: int, company):
         updated += 1
 
     messages.success(request, f"Đã lưu {updated} dòng bảng lương.")
-    dept = request.POST.get("dept_filter", "")
-    return redirect(f"{request.path}?month={month}&year={year}&dept={dept}")
+    dept  = request.POST.get("dept_filter", "")
+    ctype = request.POST.get("ctype_filter", ctype_filter)
+    params = f"month={month}&year={year}"
+    if dept:
+        params += f"&dept={dept}"
+    if ctype:
+        params += f"&ctype={ctype}"
+    return redirect(f"{request.path}?{params}")
 
 
 @login_required
