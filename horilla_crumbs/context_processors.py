@@ -137,6 +137,12 @@ sidebar_urls = [
     "mail-automations",
     "faq-view",
     "auto-payslip-settings-view",
+    # HNH custom pages
+    "payroll-overview",
+    "dependent-hr-panel",
+    "trial",
+    "official",
+    "performance",
     "bonus-point-setting",
     "employee-past-leave-restriction",
     "track-late-come-early-out",
