@@ -254,18 +254,26 @@ class Command(BaseCommand):
         result = {}
         keys   = ["annual", "sick", "business", "absent"]
         for (name, color, payment, count), key in zip(defaults, keys):
-            lt, _ = LeaveType.objects.get_or_create(
-                name=name,
-                defaults={
-                    "color": color,
-                    "payment": payment,
-                    "count": count,
-                    "period_in": "days",
-                    "require_approval": True,
-                    "exclude_company_leave": True,
-                    "exclude_holiday": True,
-                },
-            )
+            lt = LeaveType.objects.filter(name=name).first()
+            if not lt:
+                # Use update_or_create at DB level to bypass save() request dependency
+                from django.db import connection
+                with connection.cursor() as cur:
+                    cur.execute(
+                        """
+                        INSERT INTO leave_leavetype
+                          (name, color, payment, count, period_in, require_approval,
+                           exclude_company_leave, exclude_holiday, is_active,
+                           limit_leave, reset, is_encashable, is_compensatory_leave,
+                           carryforward_type, total_days, carryforward_max,
+                           carryforward_expire_in, reset_weekend)
+                        VALUES (%s,%s,%s,%s,'days',TRUE,TRUE,TRUE,TRUE,
+                                FALSE,FALSE,FALSE,FALSE,'no_carryforward',0,0,0,FALSE)
+                        ON CONFLICT (name) DO NOTHING
+                        """,
+                        [name, color, payment, count],
+                    )
+                lt = LeaveType.objects.get(name=name)
             result[key] = lt
             self.stdout.write(f"  Leave type: {lt.name} (id={lt.id})")
         return result
