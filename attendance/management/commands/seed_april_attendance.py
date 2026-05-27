@@ -245,7 +245,7 @@ class Command(BaseCommand):
     # ─── helpers ────────────────────────────────────────────────────────────
 
     def _ensure_leave_types(self):
-        import horilla_middlewares
+        from horilla.horilla_middlewares import _thread_locals
         # Mock request so LeaveType.save() doesn't crash on session access
         class _FakeSession(dict):
             def get(self, key, default=None):
@@ -253,7 +253,7 @@ class Command(BaseCommand):
         class _FakeRequest:
             session = _FakeSession()
             user = None
-        horilla_middlewares._thread_locals.request = _FakeRequest()
+        _thread_locals.request = _FakeRequest()
 
         defaults = [
             ("Nghỉ phép năm", "#198754", "paid_leave",  12),
@@ -279,7 +279,7 @@ class Command(BaseCommand):
             result[key] = lt
             self.stdout.write(f"  Leave type: {lt.name} (id={lt.id}){' [created]' if created else ''}")
 
-        horilla_middlewares._thread_locals.request = None
+        _thread_locals.request = None
         return result
 
     def _ensure_available_leave(self, employees, leave_types):
