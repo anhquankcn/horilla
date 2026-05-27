@@ -256,7 +256,6 @@ class Command(BaseCommand):
         for (name, color, payment, count), key in zip(defaults, keys):
             lt = LeaveType.objects.filter(name=name).first()
             if not lt:
-                # Use update_or_create at DB level to bypass save() request dependency
                 from django.db import connection
                 with connection.cursor() as cur:
                     cur.execute(
@@ -269,7 +268,6 @@ class Command(BaseCommand):
                            carryforward_expire_in, reset_weekend)
                         VALUES (%s,%s,%s,%s,'days',TRUE,TRUE,TRUE,TRUE,
                                 FALSE,FALSE,FALSE,FALSE,'no_carryforward',0,0,0,FALSE)
-                        ON CONFLICT (name) DO NOTHING
                         """,
                         [name, color, payment, count],
                     )
