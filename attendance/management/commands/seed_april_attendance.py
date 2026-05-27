@@ -252,6 +252,7 @@ class Command(BaseCommand):
                 return default
         class _FakeUser:
             is_authenticated = False
+            is_anonymous = True
             pk = None
         class _FakeRequest:
             session = _FakeSession()
