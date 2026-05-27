@@ -902,3 +902,90 @@ form label {
 .swal2-styled.swal2-cancel{
     background-color : rgb(221, 51, 51);
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   Viewport-locked layout — content scrolls inside, not the page
+   Works on desktop (1920px+), tablet (768px), mobile (360px)
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Lock the page — no outer scroll */
+html,
+body {
+    height: 100%;
+    overflow: hidden;
+}
+
+/* Grid container: fill exactly 100vh */
+.oh-wrapper-main {
+    height: 100vh;
+}
+
+/* Sidebar: scroll its own items when menu is longer than viewport */
+#sidebar {
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* Content column: flex stack — navbar fixed on top, content fills rest */
+#main {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    /* NOTE: NO overflow:hidden here — navbar dropdowns must remain visible */
+}
+
+/* Navbar: never shrinks, always pinned at top of the column */
+#main > .oh-navbar {
+    flex-shrink: 0;
+}
+
+/* Content area: takes all remaining height; scrolls both axes on overflow */
+#main-section {
+    flex: 1 1 0%;
+    min-height: 0;           /* flex items default to min-height:auto → break scroll */
+    overflow-y: auto;
+    overflow-x: auto;
+}
+
+/* ── Slim scrollbar (WebKit / Chromium / Edge) ─────────────────── */
+#main-section::-webkit-scrollbar,
+#sidebar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+#main-section::-webkit-scrollbar-track,
+#sidebar::-webkit-scrollbar-track {
+    background: transparent;
+}
+#main-section::-webkit-scrollbar-thumb,
+#sidebar::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 3px;
+}
+#main-section::-webkit-scrollbar-thumb:hover,
+#sidebar::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.30);
+}
+#main-section::-webkit-scrollbar-corner {
+    background: transparent;
+}
+
+/* ── Firefox scrollbar ─────────────────────────────────────────── */
+#main-section,
+#sidebar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
+}
+
+/* ── Mobile: ensure #main still fills viewport when sidebar collapses ── */
+@media (max-width: 767.98px) {
+    .oh-wrapper-main {
+        grid-template-columns: 0 auto;
+    }
+    .oh-wrapper-main--closed {
+        grid-template-columns: auto;
+    }
+    #main {
+        width: 100%;
+    }
+}
