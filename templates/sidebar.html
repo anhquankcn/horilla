@@ -60,12 +60,37 @@ function initializeSummernote(candId,searchWords,) {
     font-size: 15px;
     padding-right: 4px;
   }
+  .oh-sidebar__close-mobile {
+    display: none;
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: rgba(255,255,255,0.7);
+    cursor: pointer;
+    z-index: 10;
+    padding: 4px;
+    line-height: 1;
+  }
+  .oh-sidebar__close-mobile:hover {
+    color: #fff;
+  }
+  @media (max-width: 767.98px) {
+    .oh-sidebar__close-mobile {
+      display: block;
+    }
+  }
 </style>
 
 <div
   class="oh-sidebar"
   style="position: -webkit-sticky; position: sticky; top: 0;height:100vh; overflow-x:hidden;"
 >
+<button class="oh-sidebar__close-mobile" onclick="closeMobileSidebar()" aria-label="Close menu">
+  <ion-icon name="close-outline"></ion-icon>
+</button>
 <div class="oh-sidebar__company" style="padding: 14px">
     {% if request.session.selected_company_instance %}
     <span class="mr-3">
@@ -321,6 +346,7 @@ function initializeSummernote(candId,searchWords,) {
 </style>
 <script>
   $("#sidebar").mouseover(function (e) {
+    if (window.innerWidth < 768) return;
     e.preventDefault();
     var sidebarContainer = $(".oh-wrapper-main");
     if (sidebarContainer.hasClass("oh-wrapper-main--closed")) {
@@ -329,6 +355,7 @@ function initializeSummernote(candId,searchWords,) {
   });
 
   $("#sidebar").mouseleave(function (e) {
+    if (window.innerWidth < 768) return;
     var sidebarContainer = $(".oh-wrapper-main");
     if (sidebarContainer.hasClass("oh-wrapper-main--closed")) {
       sidebarContainer.removeClass("oh-wrapper-main--closed");
@@ -491,4 +518,17 @@ function initializeSummernote(candId,searchWords,) {
       $("#filterCount").text(`(${count})`);
     }
   }
+
+  function closeMobileSidebar() {
+    var wrapper = document.querySelector('.oh-wrapper-main');
+    var backdrop = document.getElementById('sidebarBackdrop');
+    if (wrapper) wrapper.classList.remove('sidebar-open');
+    if (backdrop) backdrop.classList.remove('sidebar-backdrop--visible');
+  }
+
+  $(document).on('click', '.oh-sidebar__submenu-link', function() {
+    if (window.innerWidth < 768) {
+      closeMobileSidebar();
+    }
+  });
 </script>
