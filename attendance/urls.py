@@ -32,7 +32,7 @@ from attendance.cbv import (
 from base.forms import AttendanceAllowedIPForm
 from base.models import AttendanceAllowedIP
 
-from .views import hnh_import, views
+from .views import hnh_import, pwa_checkin, views
 
 urlpatterns = [
     path(
@@ -928,5 +928,16 @@ urlpatterns = [
         "settings/geo-face-config/",
         attendance.views.geofaceconfig.geofaceconfig,
         name="geo-face-config",
+    ),
+    # PWA GPS Check-in
+    path(
+        "pwa-checkin/",
+        pwa_checkin.pwa_checkin_page,
+        name="pwa-checkin",
+    ),
+    path(
+        "api/pwa-checkin/",
+        pwa_checkin.pwa_checkin_api,
+        name="pwa-checkin-api",
     ),
 ]

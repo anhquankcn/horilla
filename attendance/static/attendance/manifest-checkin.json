@@ -1,0 +1,23 @@
+{
+    "name": "HNH Check-in",
+    "short_name": "Check-in",
+    "description": "Chấm công GPS — Hồng Ngọc Hà Travel",
+    "start_url": "/attendance/pwa-checkin/",
+    "scope": "/attendance/pwa-checkin/",
+    "display": "standalone",
+    "orientation": "portrait",
+    "theme_color": "#c0222b",
+    "background_color": "#faf7f2",
+    "icons": [
+        {
+            "src": "/static/favicons/android-chrome-192x192.png",
+            "sizes": "192x192",
+            "type": "image/png"
+        },
+        {
+            "src": "/static/favicons/android-chrome-512x512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        }
+    ]
+}

@@ -194,6 +194,120 @@ def clock_in_attendance_and_activity(
     return attendance
 
 
+def do_clock_in(employee, datetime_override=None):
+    """
+    Core clock-in logic extracted for reuse (PWA, biometric, API).
+    Returns (attendance, error_string). On success error_string is None.
+    """
+    work_info = employee.employee_work_info
+    if work_info is None:
+        return None, "Employee has no work information"
+
+    shift = work_info.shift_id
+    if datetime_override:
+        datetime_now = datetime_override
+        date_today = datetime_now.date() if hasattr(datetime_now, "date") else date.today()
+        now = datetime_now.strftime("%H:%M")
+    else:
+        datetime_now = datetime.now()
+        date_today = date.today()
+        now = datetime_now.strftime("%H:%M")
+
+    attendance_date = date_today
+    day = date_today.strftime("%A").lower()
+    day = EmployeeShiftDay.objects.get(day=day)
+    now_sec = strtime_seconds(now)
+    mid_day_sec = strtime_seconds("12:00")
+    minimum_hour, start_time_sec, end_time_sec = shift_schedule_today(
+        day=day, shift=shift
+    )
+    if start_time_sec > end_time_sec:
+        if mid_day_sec > now_sec:
+            date_yesterday = date_today - timedelta(days=1)
+            day_yesterday = date_yesterday.strftime("%A").lower()
+            day_yesterday = EmployeeShiftDay.objects.get(day=day_yesterday)
+            minimum_hour, start_time_sec, end_time_sec = shift_schedule_today(
+                day=day_yesterday, shift=shift
+            )
+            attendance_date = date_yesterday
+            day = day_yesterday
+    attendance = clock_in_attendance_and_activity(
+        employee=employee,
+        date_today=date_today,
+        attendance_date=attendance_date,
+        day=day,
+        now=now,
+        shift=shift,
+        minimum_hour=minimum_hour,
+        start_time=start_time_sec,
+        end_time=end_time_sec,
+        in_datetime=datetime_now,
+    )
+    return attendance, None
+
+
+def do_clock_out(employee, datetime_override=None):
+    """
+    Core clock-out logic extracted for reuse (PWA, biometric, API).
+    Returns (attendance, error_string). On success error_string is None.
+    """
+    work_info = employee.employee_work_info
+    if work_info is None:
+        return None, "Employee has no work information"
+
+    shift = work_info.shift_id
+    if datetime_override:
+        datetime_now = datetime_override
+        date_today = datetime_now.date() if hasattr(datetime_now, "date") else date.today()
+        now = datetime_now.strftime("%H:%M")
+    else:
+        datetime_now = datetime.now()
+        date_today = date.today()
+        now = datetime_now.strftime("%H:%M")
+
+    day = date_today.strftime("%A").lower()
+    day = EmployeeShiftDay.objects.get(day=day)
+    attendance = (
+        Attendance.objects.filter(employee_id=employee)
+        .order_by("id", "attendance_date")
+        .last()
+    )
+    if attendance is not None:
+        day = attendance.attendance_day
+    minimum_hour, start_time_sec, end_time_sec = shift_schedule_today(
+        day=day, shift=shift
+    )
+    attendance = clock_out_attendance_and_activity(
+        employee=employee, date_today=date_today, now=now, out_datetime=datetime_now
+    )
+    if attendance:
+        early_out_instance = attendance.late_come_early_out.filter(type="early_out")
+        is_night_shift = attendance.is_night_shift()
+        next_date = attendance.attendance_date + timedelta(days=1)
+        if not early_out_instance.exists():
+            now_sec = strtime_seconds(now)
+            mid_sec = strtime_seconds("12:00")
+            if is_night_shift:
+                if (attendance.attendance_date == date_today) or (
+                    mid_sec >= now_sec and date_today == next_date
+                ):
+                    early_out(
+                        attendance=attendance,
+                        start_time=start_time_sec,
+                        end_time=end_time_sec,
+                        shift=shift,
+                    )
+            elif attendance.attendance_date == date_today:
+                early_out(
+                    attendance=attendance,
+                    start_time=start_time_sec,
+                    end_time=end_time_sec,
+                    shift=shift,
+                )
+        return attendance, None
+    return None, "No open attendance activity to clock out"
+
+
 @login_required
 @hx_request_required
 def clock_in(request):

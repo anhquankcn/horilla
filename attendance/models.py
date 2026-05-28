@@ -1528,3 +1528,37 @@ class WorkRecords(models.Model):
         verbose_name = _("Work Record")
         verbose_name_plural = _("Work Records")
         # unique_together = ['date', 'employee_id']
+
+
+class GPSCheckInLog(models.Model):
+    employee = models.ForeignKey(
+        Employee,
+        on_delete=models.CASCADE,
+        related_name="gps_checkin_logs",
+    )
+    attendance_activity = models.ForeignKey(
+        AttendanceActivity,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
+    latitude = models.FloatField()
+    longitude = models.FloatField()
+    accuracy = models.FloatField(null=True, blank=True)
+    distance_m = models.FloatField()
+    selfie = models.ImageField(
+        upload_to="attendance_selfies/",
+        null=True,
+        blank=True,
+    )
+    source = models.CharField(max_length=20, default="pwa")
+    timestamp = models.DateTimeField(auto_now_add=True)
+    is_offline_sync = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["-timestamp"]
+        verbose_name = _("GPS Check-in Log")
+        verbose_name_plural = _("GPS Check-in Logs")
+
+    def __str__(self):
+        return f"{self.employee} @ {self.timestamp:%Y-%m-%d %H:%M}"
