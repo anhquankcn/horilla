@@ -16,6 +16,10 @@ IMG_SRC = "images/ui/attendances.svg"
 
 SUBMENUS = [
     {
+        "menu": _("PWA Check-in"),
+        "redirect": reverse_lazy("pwa-checkin"),
+    },
+    {
         "menu": _("Dashboard"),
         "redirect": reverse_lazy("attendance-dashboard"),
         "accessibility": "attendance.sidebar.dashboard_accessibility",
