@@ -685,6 +685,14 @@ _CONTRACT_STATUS_LABELS = {
     "terminated": "Chấm dứt",
 }
 
+_CONTRACT_STATUS_CHOICES = [
+    ("",            "Tất cả trạng thái"),
+    ("active",      "Hiệu lực"),
+    ("draft",       "Nháp"),
+    ("expired",     "Hết hạn"),
+    ("terminated",  "Chấm dứt"),
+]
+
 
 def _get_bhxh_caps():
     cfg = BHXHConfig.objects.filter(is_active=True).first()
@@ -723,8 +731,8 @@ def _contract_validity(entry: MonthlyPayrollEntry, period_start, period_end) -> 
             warnings = []
             if horilla_c.wage is not None and float(horilla_c.wage) == 0:
                 warnings.append("Lương = 0")
-            return {"ctype_key": "horilla", "ctype_label": "Horilla", "contract": horilla_c, "contract_ok": len(warnings) == 0, "warnings": warnings}
-        return {"ctype_key": "no_contract", "ctype_label": "—", "contract": None, "contract_ok": False, "warnings": ["Không có hợp đồng"]}
+            return {"ctype_key": "horilla", "ctype_label": "Horilla", "contract": horilla_c, "contract_status": horilla_c.contract_status, "contract_ok": len(warnings) == 0, "warnings": warnings}
+        return {"ctype_key": "no_contract", "ctype_label": "—", "contract": None, "contract_status": "none", "contract_ok": False, "warnings": ["Không có hợp đồng"]}
 
     warnings = []
     status_label = _CONTRACT_STATUS_LABELS.get(c.contract_status, c.contract_status)
@@ -748,6 +756,7 @@ def _contract_validity(entry: MonthlyPayrollEntry, period_start, period_end) -> 
         "ctype_key":    ctype_key,
         "ctype_label":  ctype_label,
         "contract":     c,
+        "contract_status": c.contract_status,
         "contract_ok":  len(warnings) == 0,
         "warnings":     warnings,
     }
@@ -997,8 +1006,9 @@ def hnh_payroll_overview(request):
         return _save_payroll_entries(request, current_year, current_month, company, ctype_post)
 
     # ── Filters ──────────────────────────────────────────────────────────
-    dept_filter  = request.GET.get("dept", "").strip()
-    ctype_filter = request.GET.get("ctype", "").strip()
+    dept_filter    = request.GET.get("dept", "").strip()
+    ctype_filter   = request.GET.get("ctype", "").strip()
+    status_filter  = request.GET.get("status", "active").strip()
 
     # ── Load existing entries ─────────────────────────────────────────────
     entry_qs = MonthlyPayrollEntry.objects.filter(
@@ -1038,14 +1048,11 @@ def hnh_payroll_overview(request):
 
     bhxh_cap, bhtn_cap = _get_bhxh_caps()
     rows = []
-    warn_count = 0
     for e in entry_qs:
         wi   = getattr(e.employee_id, "employee_work_info", None)
         dept = wi.department_id if wi else None
         pos  = wi.job_position_id if wi else None
         validity = _contract_validity(e, period_start, period_end)
-        if not validity["contract_ok"]:
-            warn_count += 1
         formulas = _compute_entry_formulas(e, bhxh_cap, bhtn_cap)
         rows.append({
             "entry":    e,
@@ -1055,6 +1062,11 @@ def hnh_payroll_overview(request):
             "validity": validity,
             "f":        formulas,
         })
+
+    if status_filter:
+        rows = [r for r in rows if r["validity"].get("contract_status") == status_filter]
+
+    warn_count = sum(1 for r in rows if not r["validity"]["contract_ok"])
 
     # Totals
     def _sum(key):
@@ -1078,7 +1090,9 @@ def hnh_payroll_overview(request):
         "departments":         departments,
         "dept_filter":         dept_filter,
         "ctype_filter":        ctype_filter,
-        "contract_type_choices": _CONTRACT_TYPE_CHOICES,
+        "status_filter":       status_filter,
+        "contract_type_choices":   _CONTRACT_TYPE_CHOICES,
+        "contract_status_choices": _CONTRACT_STATUS_CHOICES,
         "warn_count":          warn_count,
         "current_month":       current_month,
         "current_year":        current_year,
