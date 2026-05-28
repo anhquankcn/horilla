@@ -433,11 +433,15 @@ class WorkTypeRequestCancelView(APIView):
 
     def put(self, request, pk):
         work_type_request = WorkTypeRequest.find(pk)
+        is_manager = is_reportingmanger(request, work_type_request) is True
+        is_own_unapproved = (
+            work_type_request.employee_id == request.user.employee_get
+            and not work_type_request.approved
+        )
         if (
-            is_reportingmanger(request, work_type_request)
+            is_manager
             or request.user.has_perm("base.cancel_worktyperequest")
-            or work_type_request.employee_id == request.user.employee_get
-            and work_type_request.approved == False
+            or is_own_unapproved
         ):
             work_type_request.canceled = True
             work_type_request.approved = False
@@ -457,11 +461,12 @@ class WorkTypeRequestCancelView(APIView):
                     verb_fr="Votre demande de type de travail a été annulée",
                     redirect=f"/employee/work-type-request-view?id={work_type_request.id}",
                     icon="close",
-                    api_redirect="/api/base/worktype-requests/<int:pk>/",
+                    api_redirect=f"/api/base/worktype-requests/{work_type_request.id}/",
                 )
             except:
                 pass
-        return Response(status=200)
+            return Response({"status": "canceled"}, status=200)
+        return Response({"error": "You don't have permission"}, status=403)
 
 
 class WorkRequestApproveView(APIView):
@@ -469,37 +474,39 @@ class WorkRequestApproveView(APIView):
 
     def put(self, request, pk):
         work_type_request = WorkTypeRequest.find(pk)
+        is_manager = is_reportingmanger(request, work_type_request) is True
         if (
-            is_reportingmanger(request, work_type_request)
-            or request.user.has_perm("approve_worktyperequest")
-            or request.user.has_perm("change_worktyperequest")
-            and not work_type_request.approved
+            is_manager
+            or request.user.has_perm("base.approve_worktyperequest")
+            or request.user.has_perm("base.change_worktyperequest")
         ):
-            """
-            Here the request will be approved, can send mail right here
-            """
-            if not work_type_request.is_any_work_type_request_exists():
-                work_type_request.approved = True
-                work_type_request.canceled = False
-                work_type_request.save()
-                try:
-                    notify.send(
-                        request.user.employee_get,
-                        recipient=work_type_request.employee_id.employee_user_id,
-                        verb="Your work type request has been approved.",
-                        verb_ar="تمت الموافقة على طلب نوع وظيفتك.",
-                        verb_de="Ihre Arbeitstypanfrage wurde genehmigt.",
-                        verb_es="Su solicitud de tipo de trabajo ha sido aprobada.",
-                        verb_fr="Votre demande de type de travail a été approuvée.",
-                        redirect=f"/employee/work-type-request-view?id={work_type_request.id}",
-                        icon="checkmark",
-                        api_redirect="/api/base/worktype-requests/<int:pk>/",
-                    )
-                    return Response({"status": "approved"})
-                except Exception as e:
-                    return Response({"error": str(e)}, status=400)
-        else:
-            return Response({"error": "You don't have permission"}, status=400)
+            if work_type_request.approved:
+                return Response({"error": "Already approved"}, status=400)
+            if work_type_request.is_any_work_type_request_exists():
+                return Response(
+                    {"error": "Another work type request already exists for this period"},
+                    status=400,
+                )
+            work_type_request.approved = True
+            work_type_request.canceled = False
+            work_type_request.save()
+            try:
+                notify.send(
+                    request.user.employee_get,
+                    recipient=work_type_request.employee_id.employee_user_id,
+                    verb="Your work type request has been approved.",
+                    verb_ar="تمت الموافقة على طلب نوع وظيفتك.",
+                    verb_de="Ihre Arbeitstypanfrage wurde genehmigt.",
+                    verb_es="Su solicitud de tipo de trabajo ha sido aprobada.",
+                    verb_fr="Votre demande de type de travail a été approuvée.",
+                    redirect=f"/employee/work-type-request-view?id={work_type_request.id}",
+                    icon="checkmark",
+                    api_redirect=f"/api/base/worktype-requests/{work_type_request.id}/",
+                )
+            except:
+                pass
+            return Response({"status": "approved"}, status=200)
+        return Response({"error": "You don't have permission"}, status=403)
 
 
 class WorkTypeRequestExport(APIView):
@@ -1034,26 +1041,23 @@ class ShiftRequestApproveView(APIView):
 
     def put(self, request, pk):
         shift_request = ShiftRequest.objects.get(id=pk)
+        is_manager = is_reportingmanger(request, shift_request) is True
         if (
-            is_reportingmanger(request, shift_request)
-            or request.user.has_perm("approve_shiftrequest")
-            or request.user.has_perm("change_shiftrequest")
-            and not shift_request.approved
+            is_manager
+            or request.user.has_perm("base.approve_shiftrequest")
+            or request.user.has_perm("base.change_shiftrequest")
         ):
-            """
-            here the request will be approved, can send mail right here
-            """
-            if not shift_request.is_any_request_exists():
-                shift_request.approved = True
-                shift_request.canceled = False
-                shift_request.save()
-                return Response({"status": "success"}, status=200)
-            else:
+            if shift_request.approved:
+                return Response({"error": "Already approved"}, status=400)
+            if shift_request.is_any_request_exists():
                 return Response(
-                    {"error": "Already request exits on same date"}, status=400
+                    {"error": "Already request exists on same date"}, status=400
                 )
-
-        return Response({"error": "No permission "}, status=400)
+            shift_request.approved = True
+            shift_request.canceled = False
+            shift_request.save()
+            return Response({"status": "success"}, status=200)
+        return Response({"error": "No permission"}, status=403)
 
 
 class ShiftRequestBulkApproveView(APIView):
@@ -1065,21 +1069,19 @@ class ShiftRequestBulkApproveView(APIView):
         count = 0
         for id in ids:
             shift_request = ShiftRequest.objects.get(id=id)
+            is_manager = is_reportingmanger(request, shift_request) is True
             if (
-                is_reportingmanger(request, shift_request)
-                or request.user.has_perm("approve_shiftrequest")
-                or request.user.has_perm("change_shiftrequest")
-                and not shift_request.approved
+                is_manager
+                or request.user.has_perm("base.approve_shiftrequest")
+                or request.user.has_perm("base.change_shiftrequest")
             ):
-                """
-                here the request will be approved, can send mail right here
-                """
-                shift_request.approved = True
-                shift_request.canceled = False
-                employee_work_info = shift_request.employee_id.employee_work_info
-                employee_work_info.shift_id = shift_request.shift_id
-                employee_work_info.save()
-                shift_request.save()
+                if not shift_request.approved:
+                    shift_request.approved = True
+                    shift_request.canceled = False
+                    employee_work_info = shift_request.employee_id.employee_work_info
+                    employee_work_info.shift_id = shift_request.shift_id
+                    employee_work_info.save()
+                    shift_request.save()
                 count += 1
         if length == count:
             return Response({"status": "success"}, status=200)
@@ -1090,13 +1092,16 @@ class ShiftRequestCancelView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, pk):
-
         shift_request = ShiftRequest.objects.get(id=pk)
+        is_manager = is_reportingmanger(request, shift_request) is True
+        is_own_unapproved = (
+            shift_request.employee_id == request.user.employee_get
+            and not shift_request.approved
+        )
         if (
-            is_reportingmanger(request, shift_request)
+            is_manager
             or request.user.has_perm("base.cancel_shiftrequest")
-            or shift_request.employee_id == request.user.employee_get
-            and shift_request.approved == False
+            or is_own_unapproved
         ):
             shift_request.canceled = True
             shift_request.approved = False
@@ -1106,7 +1111,7 @@ class ShiftRequestCancelView(APIView):
             shift_request.employee_id.employee_work_info.save()
             shift_request.save()
             return Response({"status": "success"}, status=200)
-        return Response({"status": "failed"}, status=400)
+        return Response({"error": "No permission"}, status=403)
 
 
 class ShiftRequestBulkCancelView(APIView):
@@ -1118,11 +1123,15 @@ class ShiftRequestBulkCancelView(APIView):
         count = 0
         for id in ids:
             shift_request = ShiftRequest.objects.get(id=id)
+            is_manager = is_reportingmanger(request, shift_request) is True
+            is_own_unapproved = (
+                shift_request.employee_id == request.user.employee_get
+                and not shift_request.approved
+            )
             if (
-                is_reportingmanger(request, shift_request)
+                is_manager
                 or request.user.has_perm("base.cancel_shiftrequest")
-                or shift_request.employee_id == request.user.employee_get
-                and shift_request.approved == False
+                or is_own_unapproved
             ):
                 shift_request.canceled = True
                 shift_request.approved = False
