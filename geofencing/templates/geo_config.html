@@ -1,5 +1,185 @@
-<form hx-post="{% url 'geo-config' %}" hx-swap="none" hx-on-htmx-after-request="$('#reloadMessagesButton').click();">
-    {% csrf_token %}
-    {{form.as_p}}
+{% load i18n %}
+<style>
+    .geo-config-wrap {
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
+    }
+    .geo-form {
+        flex: 1;
+        min-width: 280px;
+    }
+    .geo-form .field-row {
+        margin-bottom: 12px;
+    }
+    .geo-form label {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+        color: #374151;
+        margin-bottom: 4px;
+    }
+    .geo-form input[type="text"],
+    .geo-form input[type="number"] {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-size: 14px;
+        transition: border-color .2s;
+    }
+    .geo-form input:focus {
+        outline: none;
+        border-color: #c0222b;
+        box-shadow: 0 0 0 2px rgba(192,34,43,.12);
+    }
+    .geo-form .toggle-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin: 16px 0;
+    }
+    .geo-form .toggle-row input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        accent-color: #c0222b;
+    }
+    .geo-form .btn-save {
+        background: #c0222b;
+        color: #fff;
+        border: none;
+        padding: 10px 24px;
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background .2s;
+    }
+    .geo-form .btn-save:hover { background: #9a1a21; }
+    .geo-map-wrap {
+        flex: 1;
+        min-width: 300px;
+        min-height: 350px;
+        border-radius: 10px;
+        overflow: hidden;
+        border: 2px solid #e5e7eb;
+        position: relative;
+    }
+    #geoMap { width: 100%; height: 100%; min-height: 350px; }
+    .geo-map-hint {
+        position: absolute;
+        top: 8px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0,0,0,.7);
+        color: #fff;
+        font-size: 12px;
+        font-weight: 500;
+        padding: 4px 12px;
+        border-radius: 16px;
+        z-index: 500;
+        pointer-events: none;
+    }
+</style>
 
-</form>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<h4 style="font-size:15px;font-weight:700;margin-bottom:12px;">{% trans "Geofencing Configuration" %}</h4>
+
+<div class="geo-config-wrap">
+    <form class="geo-form" hx-post="{% url 'geo-config' %}" hx-swap="none" hx-on-htmx-after-request="$('#reloadMessagesButton').click();">
+        {% csrf_token %}
+        <div class="field-row">
+            <label for="id_latitude">{% trans "Latitude" %}</label>
+            <input type="text" name="latitude" id="id_latitude" step="any"
+                value="{{ form.latitude.value|default_if_none:'' }}" placeholder="10.7756" required>
+        </div>
+        <div class="field-row">
+            <label for="id_longitude">{% trans "Longitude" %}</label>
+            <input type="text" name="longitude" id="id_longitude" step="any"
+                value="{{ form.longitude.value|default_if_none:'' }}" placeholder="106.6685" required>
+        </div>
+        <div class="field-row">
+            <label for="id_radius_in_meters">{% trans "Radius" %} (m)</label>
+            <input type="number" name="radius_in_meters" id="id_radius_in_meters" min="10" max="5000"
+                value="{{ form.radius_in_meters.value|default_if_none:'100' }}" required>
+        </div>
+        <div class="toggle-row">
+            <input type="checkbox" name="start" id="id_start"
+                {% if form.start.value %}checked{% endif %}>
+            <label for="id_start" style="margin:0;cursor:pointer;">{% trans "Enable Geofencing" %}</label>
+        </div>
+        <button type="submit" class="btn-save">{% trans "Save" %}</button>
+    </form>
+    <div class="geo-map-wrap">
+        <div id="geoMap"></div>
+        <div class="geo-map-hint">{% trans "Click on map to set location" %}</div>
+    </div>
+</div>
+
+<script>
+(function() {
+    var latInput = document.getElementById('id_latitude');
+    var lngInput = document.getElementById('id_longitude');
+    var radiusInput = document.getElementById('id_radius_in_meters');
+
+    var initLat = parseFloat(latInput.value) || 10.7756;
+    var initLng = parseFloat(lngInput.value) || 106.6685;
+    var initRadius = parseInt(radiusInput.value) || 100;
+
+    var map = L.map('geoMap').setView([initLat, initLng], 16);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+    var marker = L.marker([initLat, initLng], { draggable: true }).addTo(map);
+    var circle = L.circle([initLat, initLng], {
+        radius: initRadius,
+        color: '#c0222b',
+        fillColor: '#c0222b',
+        fillOpacity: 0.1,
+        weight: 2,
+        dashArray: '6 4',
+    }).addTo(map);
+
+    function updateFromMarker(latlng) {
+        latInput.value = latlng.lat.toFixed(6);
+        lngInput.value = latlng.lng.toFixed(6);
+        circle.setLatLng(latlng);
+    }
+
+    marker.on('dragend', function() {
+        updateFromMarker(marker.getLatLng());
+    });
+
+    map.on('click', function(e) {
+        marker.setLatLng(e.latlng);
+        updateFromMarker(e.latlng);
+    });
+
+    radiusInput.addEventListener('input', function() {
+        var r = parseInt(this.value) || 100;
+        circle.setRadius(r);
+    });
+
+    latInput.addEventListener('change', function() {
+        var lat = parseFloat(this.value);
+        var lng = parseFloat(lngInput.value);
+        if (!isNaN(lat) && !isNaN(lng)) {
+            var ll = L.latLng(lat, lng);
+            marker.setLatLng(ll);
+            circle.setLatLng(ll);
+            map.setView(ll);
+        }
+    });
+    lngInput.addEventListener('change', function() {
+        var lat = parseFloat(latInput.value);
+        var lng = parseFloat(this.value);
+        if (!isNaN(lat) && !isNaN(lng)) {
+            var ll = L.latLng(lat, lng);
+            marker.setLatLng(ll);
+            circle.setLatLng(ll);
+            map.setView(ll);
+        }
+    });
+})();
+</script>
