@@ -1,11 +1,11 @@
 {
-    "name": "Horilla",
-    "short_name": "Horilla",
-    "description": "Free and Open Source HR Software",
+    "name": "HNH Travel HRM",
+    "short_name": "HNH HRM",
+    "description": "Hệ thống quản lý nhân sự — Công ty Du lịch Hồng Ngọc Hà",
     "start_url": "/",
     "display": "standalone",
-    "background_color": "orangered",
-    "theme_color": "orangered",
+    "background_color": "#faf7f2",
+    "theme_color": "#142B6F",
     "icons": [
       {
         "src": "/static/favicons/apple-touch-icon.png",
