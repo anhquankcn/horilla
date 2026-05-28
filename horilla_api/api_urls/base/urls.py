@@ -240,12 +240,22 @@ urlpatterns = [
     path(
         "shift-request-approve-permission-check",
         views.ShiftRequestApprovePermissionCheck.as_view(),
-        name="api-rotating-worktype-create-permission-check",
+        name="api-shift-request-approve-permission-check",
+    ),
+    path(
+        "shift-request-approve-permission-check/<int:employee_id>",
+        views.ShiftRequestApprovePermissionCheck.as_view(),
+        name="api-shift-request-approve-permission-check-with-id",
     ),
     path(
         "worktype-request-approve-permission-check",
         views.WorktypeRequestApprovePermissionCheck.as_view(),
-        name="api-rotating-shift-create-permission-check",
+        name="api-worktype-request-approve-permission-check",
+    ),
+    path(
+        "worktype-request-approve-permission-check/<int:employee_id>",
+        views.WorktypeRequestApprovePermissionCheck.as_view(),
+        name="api-worktype-request-approve-permission-check-with-id",
     ),
     path(
         "employee-tab-permission-check",

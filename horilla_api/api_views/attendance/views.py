@@ -2,6 +2,7 @@ from datetime import date, datetime, timedelta, timezone
 
 from django import template
 from django.conf import settings
+from django.utils import timezone as django_tz
 from django.core.mail import EmailMessage
 from django.db.models import Case, CharField, F, Value, When
 from django.http import QueryDict
@@ -80,7 +81,7 @@ class ClockInAPIView(APIView):
             except:
                 pass
             employee, work_info = employee_exists(request)
-            datetime_now = datetime.now()
+            datetime_now = django_tz.now()
             if request.__dict__.get("datetime"):
                 datetime_now = request.datetime
             if employee and work_info is not None:
@@ -161,8 +162,8 @@ class ClockOutAPIView(APIView):
             pass
         if request.user.employee_get.check_online():
             current_date = date.today()
-            current_time = datetime.now().time()
-            current_datetime = datetime.now()
+            current_time = django_tz.now().time()
+            current_datetime = django_tz.now()
 
             try:
                 clock_out(

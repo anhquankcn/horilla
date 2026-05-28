@@ -1246,12 +1246,14 @@ class RotatingShiftPermissionCheck(APIView):
 class WorktypeRequestApprovePermissionCheck(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
-        instance = Employee.objects.filter(id=request.GET.get("employee_id")).first()
+    def get(self, request, employee_id=None):
+        if employee_id is None:
+            employee_id = request.GET.get("employee_id")
+        instance = Employee.objects.filter(id=employee_id).first()
         if (
             _is_reportingmanger(request, instance)
-            or request.user.has_perm("approve_shiftrequest")
-            or request.user.has_perm("change_shiftrequest")
+            or request.user.has_perm("base.approve_worktyperequest")
+            or request.user.has_perm("base.change_worktyperequest")
         ):
             return Response(status=200)
         return Response(status=400)
@@ -1260,8 +1262,10 @@ class WorktypeRequestApprovePermissionCheck(APIView):
 class ShiftRequestApprovePermissionCheck(APIView):
     permission_classes = [IsAuthenticated]
 
-    def get(self, request):
-        instance = Employee.objects.filter(id=request.GET.get("employee_id")).first()
+    def get(self, request, employee_id=None):
+        if employee_id is None:
+            employee_id = request.GET.get("employee_id")
+        instance = Employee.objects.filter(id=employee_id).first()
         if (
             _is_reportingmanger(request, instance)
             or request.user.has_perm("approve_shiftrequest")
