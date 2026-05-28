@@ -2,6 +2,9 @@
 {% extends "settings.html" %}
 {% block settings %}
 
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
 <div hx-get="{% url 'geo-config' %}" hx-trigger="load" hx-target="#geo"></div>
 <div id="geo"></div>
 

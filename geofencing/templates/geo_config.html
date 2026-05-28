@@ -82,9 +82,6 @@
     }
 </style>
 
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
 <h4 style="font-size:15px;font-weight:700;margin-bottom:12px;">{% trans "Geofencing Configuration" %}</h4>
 
 <div class="geo-config-wrap">
@@ -119,7 +116,8 @@
 </div>
 
 <script>
-(function() {
+function _initGeoMap() {
+    if (typeof L === 'undefined') { setTimeout(_initGeoMap, 200); return; }
     var latInput = document.getElementById('id_latitude');
     var lngInput = document.getElementById('id_longitude');
     var radiusInput = document.getElementById('id_radius_in_meters');
@@ -181,5 +179,6 @@
             map.setView(ll);
         }
     });
-})();
+}
+_initGeoMap();
 </script>
