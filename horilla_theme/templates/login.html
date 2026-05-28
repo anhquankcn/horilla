@@ -1,205 +1,472 @@
 {% load static i18n %}
 <!DOCTYPE html>
-<html>
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <link href="{% static 'horilla_theme/assets/css/tailwind.css' %}" rel="stylesheet">
-        <title>Login - {{white_label_company_name}} Dashboard</title>
-        <link
-            rel="apple-touch-icon"
-            sizes="180x180"
-            href="{% if white_label_company.icon %}{{white_label_company.icon.url}} {% else %}{% static 'favicons/apple-touch-icon.png' %}{% endif %}"
-        />
-        <link
-            rel="icon"
-            type="image/png"
-            sizes="32x32"
-            href="{% if white_label_company.icon %}{{white_label_company.icon.url}} {% else %}{% static 'favicons/favicon-32x32.png' %}{% endif %}"
-        />
-        <link
-            rel="icon"
-            type="image/png"
-            sizes="16x16"
-            href="{% if white_label_company.icon %}{{white_label_company.icon.url}} {% else %}{% static 'favicons/favicon-16x16.png' %}{% endif %}"
-        />
-        <link
-            rel="stylesheet"
-            href="/static/horilla_theme/assets/css/global.css"
-        />
-        <link
-            rel="stylesheet"
-            href="/static/horilla_theme/assets/css/v1_styles.css"
-        />
-        <script src="{% static "horilla_theme/assets/js/tailwindcdn.js" %}"></script>
-        <script src="{% static '/jquery/jquery.min.js' %}"></script>
-    </head>
+<html lang="vi">
 
-    <body class="bg-[#f8f8f9] font-[Inter,_sans-serif]">
-        <div class="oh-alert-container">
-            {% for message in messages %}
-            <div class="oh-alert oh-alert--animated {{ message.tags }}">
-                {{ message }}
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% trans "Sign In" %} — {{white_label_company_name}}</title>
+    <link rel="apple-touch-icon" sizes="180x180"
+        href="{% if white_label_company.icon %}{{white_label_company.icon.url}} {% else %}{% static 'favicons/apple-touch-icon.png' %}{% endif %}">
+    <link rel="icon" type="image/png" sizes="32x32"
+        href="{% if white_label_company.icon %}{{white_label_company.icon.url}} {% else %}{% static 'favicons/favicon-32x32.png' %}{% endif %}">
+    <link rel="icon" type="image/png" sizes="16x16"
+        href="{% if white_label_company.icon %}{{white_label_company.icon.url}} {% else %}{% static 'favicons/favicon-16x16.png' %}{% endif %}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --hnh-red: #c0222b;
+            --hnh-red-dark: #9a1a21;
+            --hnh-navy: #142B6F;
+            --hnh-navy-2: #1f3d8a;
+            --hnh-cream: #faf7f2;
+            --hnh-cream-2: #f4efe7;
+            --hnh-ink: #0f1428;
+            --hnh-ink-2: #4a5170;
+            --hnh-ink-3: #8a8fa6;
+            --hnh-line: #ece8e0;
+            --hnh-gold: #d4a017;
+            --hnh-success: #1f8a5b;
+            --hnh-font: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            --hnh-display: 'Plus Jakarta Sans', 'Be Vietnam Pro', system-ui, sans-serif;
+        }
+
+        html, body {
+            height: 100%;
+            font-family: var(--hnh-font);
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        body {
+            background: var(--hnh-cream);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .login-container {
+            width: 100%;
+            max-width: 440px;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            background: #fff;
+            position: relative;
+            overflow: hidden;
+        }
+
+        @media (min-width: 600px) {
+            .login-container {
+                min-height: auto;
+                height: auto;
+                border-radius: 28px;
+                box-shadow: 0 30px 80px rgba(15,20,40,0.12), 0 12px 30px rgba(15,20,40,0.08);
+                margin: 24px auto;
+            }
+        }
+
+        .login-hero {
+            background: linear-gradient(180deg, var(--hnh-navy) 0%, #0d1f4f 100%);
+            padding: 56px 32px 44px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .login-hero__sun-arc {
+            position: absolute;
+            right: -80px;
+            top: -60px;
+            width: 260px;
+            height: 260px;
+            border-radius: 50%;
+            background: var(--hnh-red);
+            opacity: 0.18;
+        }
+
+        .login-hero__gold-blur {
+            position: absolute;
+            left: -40px;
+            bottom: -30px;
+            width: 200px;
+            height: 60px;
+            border-radius: 50%;
+            background: var(--hnh-gold);
+            opacity: 0.15;
+            filter: blur(8px);
+        }
+
+        .login-hero__content {
+            position: relative;
+            z-index: 1;
+        }
+
+        .login-hero__logo {
+            margin-bottom: 22px;
+        }
+
+        .login-hero__title {
+            color: #fff;
+            font-family: var(--hnh-display);
+            font-size: 30px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            line-height: 1.1;
+        }
+
+        .login-hero__subtitle {
+            margin-top: 12px;
+            color: rgba(255,255,255,0.72);
+            font-size: 14px;
+            line-height: 1.55;
+            max-width: 320px;
+        }
+
+        .login-form {
+            flex: 1;
+            padding: 32px 28px 28px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .login-form__label {
+            font-size: 11.5px;
+            font-weight: 700;
+            color: var(--hnh-ink-3);
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+
+        .login-sso-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            width: 100%;
+            height: 54px;
+            border-radius: 14px;
+            border: none;
+            background: var(--hnh-red);
+            color: #fff;
+            font-weight: 700;
+            font-size: 15.5px;
+            font-family: var(--hnh-font);
+            letter-spacing: 0.2px;
+            cursor: pointer;
+            box-shadow: 0 8px 18px rgba(192,34,43,0.28);
+            text-decoration: none;
+            transition: background 0.2s, box-shadow 0.2s, transform 0.1s;
+        }
+
+        .login-sso-btn:hover {
+            background: var(--hnh-red-dark);
+            box-shadow: 0 6px 14px rgba(192,34,43,0.35);
+            transform: translateY(-1px);
+            color: #fff;
+            text-decoration: none;
+        }
+
+        .login-sso-btn:active {
+            transform: translateY(0);
+            box-shadow: 0 4px 10px rgba(192,34,43,0.2);
+        }
+
+        .login-sso-btn__badge {
+            width: 22px;
+            height: 22px;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.2);
+            color: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            font-weight: 800;
+            letter-spacing: 0.3px;
+        }
+
+        .login-divider {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 20px 0;
+            color: var(--hnh-ink-3);
+            font-size: 11.5px;
+            font-weight: 600;
+            letter-spacing: 0.4px;
+        }
+
+        .login-divider__line {
+            flex: 1;
+            height: 1px;
+            background: var(--hnh-line);
+        }
+
+        .login-info {
+            background: var(--hnh-cream-2);
+            border-radius: 14px;
+            padding: 16px 18px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+
+        .login-info__icon {
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            background: rgba(20,43,111,0.08);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+
+        .login-info__text {
+            font-size: 13px;
+            color: var(--hnh-ink-2);
+            line-height: 1.5;
+            font-weight: 500;
+        }
+
+        .login-info__text strong {
+            font-weight: 700;
+            color: var(--hnh-ink);
+        }
+
+        .login-alert {
+            background: #fdecee;
+            border: 1px solid #fad6da;
+            border-radius: 12px;
+            padding: 14px 16px;
+            margin-bottom: 16px;
+            font-size: 13.5px;
+            color: var(--hnh-red);
+            font-weight: 600;
+            text-align: center;
+        }
+
+        .login-footer {
+            margin-top: auto;
+            text-align: center;
+            font-size: 11.5px;
+            color: var(--hnh-ink-3);
+            padding-top: 28px;
+            line-height: 1.6;
+        }
+
+        .login-footer a {
+            color: var(--hnh-navy);
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .oh-alert-container {
+            position: fixed;
+            top: 16px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            max-width: 400px;
+            width: 90%;
+        }
+
+        .oh-alert {
+            padding: 12px 16px;
+            border-radius: 12px;
+            font-size: 13.5px;
+            font-weight: 600;
+            text-align: center;
+            margin-bottom: 8px;
+            animation: slideDown 0.3s ease;
+        }
+
+        .oh-alert--warning {
+            background: #fdf2dc;
+            color: #c97a16;
+            border: 1px solid #f7e7b7;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .login-init-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid var(--hnh-line);
+        }
+
+        .login-init-section .login-divider {
+            margin: 0 0 14px;
+        }
+
+        .login-init-btns {
+            display: flex;
+            gap: 10px;
+        }
+
+        .login-init-btn {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            height: 44px;
+            border-radius: 12px;
+            border: 1.5px solid var(--hnh-line);
+            background: #fff;
+            font-family: var(--hnh-font);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: border-color 0.2s, background 0.2s;
+        }
+
+        .login-init-btn--danger {
+            color: #e54f38;
+            border-color: rgba(229,79,56,0.2);
+        }
+
+        .login-init-btn--danger:hover {
+            background: rgba(229,79,56,0.06);
+            border-color: rgba(229,79,56,0.4);
+        }
+
+        .login-init-btn--success {
+            color: var(--hnh-success);
+            border-color: rgba(31,138,91,0.2);
+        }
+
+        .login-init-btn--success:hover {
+            background: rgba(31,138,91,0.06);
+            border-color: rgba(31,138,91,0.4);
+        }
+
+        .swal2-styled.swal2-confirm {
+            background: var(--hnh-red) !important;
+            border-radius: 10px !important;
+            font-family: var(--hnh-font) !important;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="oh-alert-container">
+        {% for message in messages %}
+        <div class="oh-alert {{ message.tags }}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="login-container">
+        <div class="login-hero">
+            <div class="login-hero__sun-arc"></div>
+            <div class="login-hero__gold-blur"></div>
+            <div class="login-hero__content">
+                <div class="login-hero__logo">
+                    <svg width="72" height="36" viewBox="0 0 100 50">
+                        <path d="M22 30 A28 28 0 0 1 78 30 Z" fill="#fff"/>
+                        <path d="M2 32 C 20 26, 35 38, 50 32 C 65 26, 80 38, 98 32 L 98 38 C 80 44, 65 32, 50 38 C 35 44, 20 32, 2 38 Z" fill="rgba(255,255,255,0.85)"/>
+                        <path d="M2 40 C 20 34, 35 46, 50 40 C 65 34, 80 46, 98 40 L 98 46 C 80 52, 65 40, 50 46 C 35 52, 20 40, 2 46 Z" fill="rgba(255,255,255,0.6)"/>
+                    </svg>
+                </div>
+
+                <div class="login-hero__title">
+                    {% trans "Chào mừng," %}<br/>{{white_label_company_name|default:"HNH Travel"}}.
+                </div>
+                <div class="login-hero__subtitle">
+                    {% trans "Hệ thống nhân sự nội bộ — hướng đến những hành trình quý giá." %}
+                </div>
             </div>
-            {% endfor %}
         </div>
 
-        <div class="h-screen w-full flex items-center justify-center">
-            <div
-                class="bg-[white] p-[50px] rounded-md [box-shadow:0px_0px_20px_#ebebeb] w-[450px]"
-            >
-                <img
-                    src="{% if white_label_company.icon %}{{white_label_company.icon.url}}{% else %}{% static 'horilla_theme/assets/img/logo.svg' %}{% endif %}"
-                    alt=""
-                    class="m-auto mb-4"
-                    width="80"
-                />
-                <h1 class="text-3xl font-bold mb-2 text-center">
-                    {% trans "Chào mừng đến" %} {{white_label_company_name}}
-                </h1>
-                <p class="mb-5 text-center text-sm text-color-600">
-                    {% trans "Vui lòng đăng nhập để truy cập hệ thống." %}
-                </p>
-                <form method="post" class="oh-form-group">
-                    {% csrf_token %}
-                    <div class="mb-3">
-                        <label for="username" class="text-sm text-color-600"
-                            >{% trans "Username" %}</label
-                        >
-                        <input
-                            type="text"
-                            id="username"
-                            name="username"
-                            placeholder="e.g. nguyen.van.a@hongngocha.com"
-                            class="text-color-600 w-full border border-dark-50 rounded-md p-3 mt-1 focus-visible:outline-0 placeholder:text-[#00000041] placeholder:font-medium text-xs [transition:.3s] focus:border-primary-600"
-                        />
-                    </div>
-                    <label for="password" class="text-sm text-color-600"
-                        >{% trans "Password" %}</label
-                    >
-                    <div class="relative">
-                        <input
-                            type="password"
-                            id="password"
-                            name="password"
-                            placeholder="Enter Password"
-                            class="oh-input--password text-color-600 p-3 pr-[40px] w-full border border-dark-50 rounded-md mt-1 focus-visible:outline-0 placeholder:text-[#00000041] placeholder:font-medium text-xs [transition:.3s] focus:border-primary-600"
-                        />
-                        <span
-                            type="button"
-                            class="oh-btn oh-btn--transparent oh-password-input--toggle"
-                        >
-                            <ion-icon
-                                class="oh-password-input__show-icon"
-                                title="{% trans 'Show Password' %}"
-                                name="eye-outline"
-                            ></ion-icon>
-                            <ion-icon
-                                class="oh-password-input__hide-icon hidden"
-                                title="{% trans 'Hide Password' %}"
-                                name="eye-off-outline"
-                            ></ion-icon>
-                        </span>
-                    </div>
-                    {% if not initialize_database %}
-                    <div class="flex justify-end">
-                        <a
-                            href="{% url 'forgot-password' %}"
-                            class="text-sm text-right font-medium text-[red] mb-3 mt-2 cursor-pointer"
-                        >
-                            {% trans "Forgot Password ?" %}
-                        </a>
-                    </div>
-                    {% endif %}
-                    <button
-                        type="submit"
-                        class="p-3 mt-3 bg-primary-600 hover:bg-secondary-600 w-full flex gap-3 justify-center rounded-md text-[white] [transition:.3s]"
-                    >
-                        <img src="{% static "horilla_theme/assets/icons/sign.svg" %}" alt="" /> {% trans "Sign In" %}
-                    </button>
-                </form>
+        <div class="login-form">
+            <div class="login-form__label">{% trans "Đăng nhập" %}</div>
 
-                {# ── HNHSSO Login Button ── #}
-                <div class="mt-4">
-                  <div class="flex items-center my-4">
-                    <hr class="flex-grow border-t border-gray-300" />
-                    <span class="mx-3 text-gray-500 text-xs uppercase">{% trans "or" %}</span>
-                    <hr class="flex-grow border-t border-gray-300" />
-                  </div>
-                  <a href="{% url 'oidc_authentication_init' %}"
-                     class="p-3 w-full flex gap-3 justify-center items-center rounded-md text-white bg-[#1a4e8a] hover:bg-[#153e6d] [transition:.3s] no-underline font-medium"
-                     style="text-decoration:none;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M12 1C5.925 1 1 5.925 1 12s4.925 11 11 11 11-4.925 11-11S18.075 1 12 1zm0 4a3.5 3.5 0 1 1 0 7 3.5 3.5 0 0 1 0-7zm0 14.5c-2.755 0-5.195-1.26-6.832-3.232A8.972 8.972 0 0 1 12 14a8.972 8.972 0 0 1 6.832 2.268C17.195 18.24 14.755 19.5 12 19.5z"/></svg>
-                    {% trans "Đăng nhập qua HNHSSO" %}
-                  </a>
-                </div>
-                {# ──────────────────────── #}
+            {% if sso_error %}
+            <div class="login-alert">
+                {% trans "Đăng nhập thất bại. Vui lòng thử lại hoặc liên hệ phòng IT." %}
+            </div>
+            {% endif %}
 
-                {% if initialize_database %}
-                <div>
-                    <div class="d-flex gap-2">
-                        <a
-                            href="{% url 'initialize-database' %}"
-                            class="oh-btn oh-onboarding-card__button mt-4 oh-btn--secondary oh-btn--shadow w-full mb-4"
-                            role="button"
-                            style="
-                                background-color: rgba(229, 79, 56, 0.1);
-                                color: hsl(8, 77%, 56%);
-                            "
-                        >
-                            {% trans "Initialize Database" %}
-                            <ion-icon
-                                class="ms-2"
-                                name="arrow-forward-outline"
-                            ></ion-icon>
-                        </a>
-                        <a
-                            onclick="$('#dataLoadAuthentication').toggleClass('oh-modal--show');"
-                            class="oh-btn oh-onboarding-card__button mt-4 oh-btn--secondary oh-btn--shadow w-full mb-4"
-                            style="background-color: #31b46e1f; color: #1fad61"
-                            role="button"
-                        >
-                            {% trans "Load Demo Data" %}
-                            <ion-icon
-                                class="ms-2"
-                                name="arrow-forward-outline"
-                            ></ion-icon>
-                        </a>
-                    </div>
+            <a href="{% url 'oidc_authentication_init' %}" class="login-sso-btn">
+                <span class="login-sso-btn__badge">SSO</span>
+                {% trans "Đăng nhập qua HNHSSO" %}
+            </a>
+
+            <div class="login-divider">
+                <div class="login-divider__line"></div>
+                <span>{% trans "TRUY CẬP AN TOÀN" %}</span>
+                <div class="login-divider__line"></div>
+            </div>
+
+            <div class="login-info">
+                <div class="login-info__icon">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#142B6F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    </svg>
                 </div>
-                <div
-                    class="oh-modal"
-                    id="dataLoadAuthentication"
-                    role="dialog"
-                    aria-labelledby="dataLoadAuthenticationLabel"
-                    aria-hidden="true"
-                    style="backdrop-filter: blur(8px)"
-                >
-                    <div class="oh-modal__dialog">
-                        {% include "demo_database/auth_load_data.html" %}
-                    </div>
+                <div class="login-info__text">
+                    <strong>{% trans "Single Sign-On" %}</strong><br>
+                    {% trans "Được bảo vệ bởi xác thực OTP qua tài khoản công ty của bạn." %}
                 </div>
-                {% endif %}
+            </div>
+
+            {% if initialize_database %}
+            <div class="login-init-section">
+                <div class="login-divider">
+                    <div class="login-divider__line"></div>
+                    <span>{% trans "THIẾT LẬP" %}</span>
+                    <div class="login-divider__line"></div>
+                </div>
+                <div class="login-init-btns">
+                    <a href="{% url 'initialize-database' %}" class="login-init-btn login-init-btn--danger">
+                        {% trans "Khởi tạo CSDL" %}
+                    </a>
+                    <a onclick="document.getElementById('dataLoadAuth').classList.toggle('login-modal--show');"
+                       class="login-init-btn login-init-btn--success">
+                        {% trans "Dữ liệu mẫu" %}
+                    </a>
+                </div>
+            </div>
+            <div class="login-modal" id="dataLoadAuth" role="dialog">
+                <div class="login-modal__dialog">
+                    {% include "demo_database/auth_load_data.html" %}
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="login-footer">
+                268 Tô Hiến Thành, P.15, Q.10, TP.HCM<br>
+                <a href="https://hongngocha.com" target="_blank" rel="noopener">hongngocha.com</a>
             </div>
         </div>
-        <script type="module"  src="{% static 'images/ionicons/ui_icons/ionicons/ionicons.esm.js' %}"></script>
-        <script>
-            document.querySelector('.oh-password-input--toggle').addEventListener('click', function (e) {
-                e.preventDefault();
-                const passwordInput = document.querySelector('.oh-input--password');
-                const showIcon = document.querySelector('.oh-password-input__show-icon');
-                const hideIcon = document.querySelector('.oh-password-input__hide-icon');
+    </div>
 
-                if (passwordInput.type === 'password') {
-                    passwordInput.type = 'text';
-                    showIcon.classList.add('hidden');
-                    hideIcon.classList.remove('hidden');
-                } else {
-                    passwordInput.type = 'password';
-                    showIcon.classList.remove('hidden');
-                    hideIcon.classList.add('hidden');
-                }
-            });
-        </script>
-    </body>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@10"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            var warns = document.querySelectorAll('.oh-alert--warning');
+            if (warns.length > 0) {
+                Swal.fire({
+                    title: 'Truy cập bị từ chối!',
+                    text: 'Tài khoản của bạn hiện đang bị khóa. Vui lòng liên hệ phòng Nhân sự để được hỗ trợ.',
+                    icon: 'warning',
+                    confirmButtonText: 'Đồng ý',
+                    confirmButtonColor: '#c0222b',
+                });
+            }
+        });
+    </script>
+</body>
+
 </html>
