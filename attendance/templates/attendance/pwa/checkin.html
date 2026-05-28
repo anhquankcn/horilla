@@ -32,100 +32,111 @@
             --hnh-ink-3: #8a8fa6;
             --hnh-line: #ece8e0;
             --hnh-font: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            --safe-top: env(safe-area-inset-top, 0px);
+            --safe-bottom: env(safe-area-inset-bottom, 0px);
         }
-        html, body { height: 100%; font-family: var(--hnh-font); background: var(--hnh-cream); color: var(--hnh-ink); }
+        html, body { height: 100%; font-family: var(--hnh-font); background: var(--hnh-cream); color: var(--hnh-ink); overflow: hidden; }
 
+        /* ═══ Shell ═══ */
         .pwa-shell {
+            width: 100%;
             max-width: 480px;
+            height: 100vh;
+            height: 100dvh;
             margin: 0 auto;
-            min-height: 100vh;
             display: flex;
             flex-direction: column;
-            padding: 0 16px;
+            padding: var(--safe-top) 16px var(--safe-bottom);
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
         }
 
-        /* Header */
+        /* ═══ Header ═══ */
         .pwa-header {
             display: flex;
             align-items: center;
-            gap: 12px;
-            padding: 12px 0 10px;
+            gap: 10px;
+            padding: 10px 0 8px;
             border-bottom: 1px solid var(--hnh-line);
+            flex-shrink: 0;
         }
-        .pwa-header img { width: 36px; height: 36px; border-radius: 8px; object-fit: contain; }
-        .pwa-header h1 { font-size: 15px; font-weight: 700; }
-        .pwa-header .offline-badge {
-            margin-left: auto;
-            background: var(--hnh-orange);
-            color: #fff;
-            font-size: 11px;
+        .pwa-header img { width: 32px; height: 32px; border-radius: 6px; object-fit: contain; }
+        .pwa-header h1 { font-size: 14px; font-weight: 700; flex: 1; }
+        .pwa-header .badge-row { display: flex; gap: 6px; align-items: center; }
+        .badge {
+            font-size: 10px;
             font-weight: 600;
-            padding: 2px 8px;
-            border-radius: 10px;
+            padding: 2px 7px;
+            border-radius: 8px;
             display: none;
         }
-        .pwa-header .offline-badge.show { display: inline-block; }
+        .badge.show { display: inline-block; }
+        .badge-offline { background: var(--hnh-orange); color: #fff; }
+        .badge-pwa { background: #e0e7ff; color: #3730a3; }
 
-        /* Employee info */
+        /* ═══ Employee info ═══ */
         .emp-info {
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 10px 0 6px;
+            gap: 8px;
+            padding: 8px 0 6px;
+            flex-shrink: 0;
         }
-        .emp-info .name { font-size: 16px; font-weight: 700; }
-        .emp-info .dept { font-size: 12px; color: var(--hnh-ink-2); }
+        .emp-info .name { font-size: 15px; font-weight: 700; line-height: 1.2; }
+        .emp-info .dept { font-size: 11px; color: var(--hnh-ink-2); }
         .emp-info .shift-label {
             margin-left: auto;
-            font-size: 11px;
+            font-size: 10px;
             font-weight: 600;
             background: #e0e7ff;
             color: #3730a3;
             padding: 2px 8px;
-            border-radius: 10px;
+            border-radius: 8px;
             white-space: nowrap;
         }
 
-        /* Map */
+        /* ═══ Main content area ═══ */
+        .main-content { display: flex; flex-direction: column; flex: 1; min-height: 0; gap: 10px; }
+
+        /* ═══ Map ═══ */
         .map-wrap {
             position: relative;
             border-radius: 12px;
             overflow: hidden;
-            height: 200px;
             border: 2px solid var(--hnh-line);
-            margin-bottom: 10px;
+            flex-shrink: 0;
+            height: 180px;
         }
         #map { width: 100%; height: 100%; }
-        .gps-status {
+        .gps-chip {
             position: absolute;
             bottom: 8px;
             left: 8px;
             right: 8px;
             background: rgba(255,255,255,.92);
             backdrop-filter: blur(6px);
+            -webkit-backdrop-filter: blur(6px);
             border-radius: 8px;
-            padding: 6px 10px;
-            font-size: 12px;
+            padding: 5px 10px;
+            font-size: 11px;
             color: var(--hnh-ink-2);
             z-index: 500;
             text-align: center;
         }
-        .gps-status.ok { color: var(--hnh-green); font-weight: 600; }
-        .gps-status.warn { color: var(--hnh-orange); font-weight: 600; }
-        .gps-status.err { color: var(--hnh-red); font-weight: 600; }
+        .gps-chip.ok { color: var(--hnh-green); font-weight: 600; }
+        .gps-chip.warn { color: var(--hnh-orange); font-weight: 600; }
+        .gps-chip.err { color: var(--hnh-red); font-weight: 600; }
 
-        /* Camera + Button row */
+        /* ═══ Camera + Button row ═══ */
         .action-row {
             display: flex;
-            gap: 12px;
+            gap: 10px;
             align-items: stretch;
-            margin-bottom: 10px;
+            flex-shrink: 0;
         }
-
-        /* Camera */
         .camera-wrap {
-            width: 120px;
-            height: 120px;
+            width: 110px;
+            height: 110px;
             border-radius: 12px;
             overflow: hidden;
             background: #1a1a2e;
@@ -137,6 +148,7 @@
             width: 100%;
             height: 100%;
             object-fit: cover;
+            display: block;
         }
         .camera-wrap canvas { display: none; }
         .camera-label {
@@ -149,7 +161,7 @@
             font-size: 10px;
             font-weight: 600;
             text-align: center;
-            padding: 3px 0;
+            padding: 2px 0;
         }
         .camera-captured { display: none; }
         .camera-captured.show { display: block; }
@@ -159,16 +171,16 @@
             justify-content: center;
             width: 100%;
             height: 100%;
-            color: #666;
+            color: #888;
             font-size: 11px;
             text-align: center;
             padding: 8px;
         }
 
-        /* Big button */
+        /* ═══ Big button ═══ */
         .btn-checkin {
             flex: 1;
-            border-radius: 16px;
+            border-radius: 14px;
             border: none;
             cursor: pointer;
             display: flex;
@@ -176,17 +188,15 @@
             align-items: center;
             justify-content: center;
             font-family: var(--hnh-font);
-            font-weight: 700;
-            font-size: 20px;
             color: #fff;
             background: #ccc;
             transition: all .25s;
             box-shadow: 0 4px 20px rgba(0,0,0,.12);
             -webkit-tap-highlight-color: transparent;
-            min-height: 120px;
+            min-height: 110px;
         }
-        .btn-checkin .time { font-size: 28px; font-weight: 800; margin-bottom: 2px; opacity: .95; }
-        .btn-checkin .label { font-size: 14px; font-weight: 600; letter-spacing: 1px; opacity: .9; }
+        .btn-checkin .time { font-size: 32px; font-weight: 800; line-height: 1; }
+        .btn-checkin .label { font-size: 13px; font-weight: 600; letter-spacing: 1.5px; margin-top: 4px; opacity: .9; }
         .btn-checkin[data-state="ready-in"] { background: linear-gradient(135deg, #16a34a, #15803d); }
         .btn-checkin[data-state="ready-in"]:active { transform: scale(.97); }
         .btn-checkin[data-state="ready-out"] { background: linear-gradient(135deg, #dc2626, #991b1b); }
@@ -195,17 +205,46 @@
         .btn-checkin[data-state="disabled"] { background: #cbd5e1; pointer-events: none; }
         .btn-checkin[data-state="outside"] { background: var(--hnh-orange); pointer-events: none; }
 
-        /* Toast */
+        /* ═══ Today log ═══ */
+        .today-log {
+            flex: 1;
+            overflow-y: auto;
+            min-height: 60px;
+            padding-bottom: 16px;
+        }
+        .today-log h3 {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--hnh-ink-3);
+            text-transform: uppercase;
+            letter-spacing: .5px;
+            padding: 6px 0 4px;
+            border-top: 1px solid var(--hnh-line);
+        }
+        .log-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 0;
+            font-size: 13px;
+        }
+        .log-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+        .log-dot.in { background: var(--hnh-green); }
+        .log-dot.out { background: var(--hnh-red); }
+        .log-time { font-weight: 600; min-width: 42px; }
+        .log-label { color: var(--hnh-ink-2); }
+
+        /* ═══ Toast ═══ */
         .toast {
             position: fixed;
-            bottom: 24px;
+            bottom: calc(16px + var(--safe-bottom));
             left: 50%;
             transform: translateX(-50%) translateY(80px);
             background: var(--hnh-ink);
             color: #fff;
-            padding: 12px 24px;
+            padding: 10px 20px;
             border-radius: 12px;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 500;
             z-index: 1000;
             opacity: 0;
@@ -217,35 +256,7 @@
         .toast.success { background: var(--hnh-green); }
         .toast.error { background: var(--hnh-red); }
 
-        /* Today log */
-        .today-log {
-            flex: 1;
-            overflow-y: auto;
-            padding: 0 0 60px;
-        }
-        .today-log h3 {
-            font-size: 12px;
-            font-weight: 600;
-            color: var(--hnh-ink-3);
-            text-transform: uppercase;
-            letter-spacing: .5px;
-            padding: 8px 0 4px;
-            border-top: 1px solid var(--hnh-line);
-        }
-        .log-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 6px 0;
-            font-size: 13px;
-        }
-        .log-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-        .log-dot.in { background: var(--hnh-green); }
-        .log-dot.out { background: var(--hnh-red); }
-        .log-time { font-weight: 600; min-width: 45px; }
-        .log-label { color: var(--hnh-ink-2); }
-
-        /* Offline queue */
+        /* ═══ Offline bar ═══ */
         .offline-queue {
             position: fixed;
             bottom: 0;
@@ -253,17 +264,105 @@
             right: 0;
             background: #fef3c7;
             color: #92400e;
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 600;
             text-align: center;
-            padding: 8px;
+            padding: 6px;
+            padding-bottom: calc(6px + var(--safe-bottom));
             display: none;
             z-index: 900;
         }
         .offline-queue.show { display: block; }
 
-        @media (min-width: 481px) {
-            .pwa-shell { padding: 0 24px; }
+        /* ═══════════════════════════════════════════════
+           TABLET (landscape phone / small tablet)
+           ═══════════════════════════════════════════════ */
+        @media (min-width: 600px) {
+            .pwa-shell {
+                max-width: 720px;
+                padding: var(--safe-top) 24px var(--safe-bottom);
+            }
+            .pwa-header h1 { font-size: 16px; }
+            .emp-info .name { font-size: 17px; }
+            .map-wrap { height: 220px; }
+            .camera-wrap { width: 130px; height: 130px; }
+            .btn-checkin { min-height: 130px; }
+            .btn-checkin .time { font-size: 36px; }
+            .btn-checkin .label { font-size: 14px; }
+        }
+
+        /* ═══════════════════════════════════════════════
+           DESKTOP / LARGE TABLET — side-by-side layout
+           ═══════════════════════════════════════════════ */
+        @media (min-width: 900px) {
+            body { display: flex; align-items: center; justify-content: center; }
+            .pwa-shell {
+                max-width: 960px;
+                height: auto;
+                min-height: auto;
+                max-height: 100vh;
+                max-height: 100dvh;
+                border-radius: 20px;
+                background: #fff;
+                box-shadow: 0 8px 40px rgba(0,0,0,.08);
+                padding: 24px;
+                overflow: hidden;
+            }
+            .main-content {
+                flex-direction: row;
+                gap: 20px;
+            }
+            .main-left {
+                flex: 1;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+                min-width: 0;
+            }
+            .main-right {
+                width: 300px;
+                flex-shrink: 0;
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+            .map-wrap { height: 280px; border-radius: 14px; }
+            .action-row { flex-direction: column; }
+            .camera-wrap { width: 100%; height: 200px; border-radius: 14px; }
+            .btn-checkin {
+                min-height: 100px;
+                border-radius: 14px;
+            }
+            .btn-checkin .time { font-size: 40px; }
+            .today-log { max-height: 200px; }
+        }
+
+        /* ═══════════════════════════════════════════════
+           PWA standalone mode — use full height, no card
+           ═══════════════════════════════════════════════ */
+        @media (display-mode: standalone) {
+            .pwa-shell {
+                border-radius: 0;
+                box-shadow: none;
+                max-height: 100vh;
+                max-height: 100dvh;
+            }
+        }
+
+        /* ═══════════════════════════════════════════════
+           Landscape phone — compact horizontal
+           ═══════════════════════════════════════════════ */
+        @media (max-height: 500px) and (orientation: landscape) {
+            .pwa-shell { max-width: 100%; flex-direction: column; }
+            .main-content { flex-direction: row; gap: 12px; }
+            .main-left { flex: 1; }
+            .main-right { width: 240px; }
+            .map-wrap { height: 140px; }
+            .camera-wrap { width: 100%; height: 100px; }
+            .btn-checkin { min-height: 80px; }
+            .btn-checkin .time { font-size: 24px; }
+            .emp-info { padding: 4px 0; }
+            .pwa-header { padding: 4px 0; }
         }
     </style>
 </head>
@@ -277,7 +376,10 @@
             <img src="{% static 'horilla_theme/assets/img/logo.png' %}" alt="">
             {% endif %}
             <h1>{{ company.company }}</h1>
-            <span class="offline-badge" id="offlineBadge">Offline</span>
+            <div class="badge-row">
+                <span class="badge badge-pwa" id="pwaBadge">PWA</span>
+                <span class="badge badge-offline" id="offlineBadge">Offline</span>
+            </div>
         </div>
 
         <!-- Employee info -->
@@ -291,48 +393,54 @@
             {% endif %}
         </div>
 
-        <!-- Map -->
-        <div class="map-wrap">
-            <div id="map"></div>
-            <div class="gps-status" id="gpsStatus">Dang lay vi tri...</div>
-        </div>
+        <!-- Main content -->
+        <div class="main-content">
+            <div class="main-left">
+                <!-- Map -->
+                <div class="map-wrap">
+                    <div id="map"></div>
+                    <div class="gps-chip" id="gpsStatus">Dang lay vi tri...</div>
+                </div>
+                <!-- Today log (desktop: below map) -->
+                <div class="today-log desktop-log">
+                    <h3>Lich su hom nay</h3>
+                    {% for act in today_activities %}
+                    <div class="log-item">
+                        <span class="log-dot in"></span>
+                        <span class="log-time">{{ act.clock_in|time:"H:i" }}</span>
+                        <span class="log-label">Check-in</span>
+                    </div>
+                    {% if act.clock_out %}
+                    <div class="log-item">
+                        <span class="log-dot out"></span>
+                        <span class="log-time">{{ act.clock_out|time:"H:i" }}</span>
+                        <span class="log-label">Check-out</span>
+                    </div>
+                    {% endif %}
+                    {% empty %}
+                    <div class="log-item">
+                        <span class="log-label">Chua co hoat dong hom nay</span>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
 
-        <!-- Camera + Check-in button -->
-        <div class="action-row">
-            <div class="camera-wrap" id="cameraWrap">
-                <video id="cameraVideo" autoplay playsinline muted></video>
-                <img id="cameraCaptured" class="camera-captured" alt="">
-                <div id="cameraOff" class="camera-off" style="display:none;">Camera khong kha dung</div>
-                <canvas id="cameraCanvas"></canvas>
-                <div class="camera-label" id="cameraLabel">Selfie</div>
+            <div class="main-right">
+                <!-- Camera + Button -->
+                <div class="action-row">
+                    <div class="camera-wrap" id="cameraWrap">
+                        <video id="cameraVideo" autoplay playsinline muted></video>
+                        <img id="cameraCaptured" class="camera-captured" alt="">
+                        <div id="cameraOff" class="camera-off" style="display:none;">Camera khong kha dung</div>
+                        <canvas id="cameraCanvas"></canvas>
+                        <div class="camera-label" id="cameraLabel">Selfie</div>
+                    </div>
+                    <button class="btn-checkin" id="btnCheckin" data-state="disabled">
+                        <span class="time" id="btnTime">--:--</span>
+                        <span class="label" id="btnLabel">CHECK-IN</span>
+                    </button>
+                </div>
             </div>
-            <button class="btn-checkin" id="btnCheckin" data-state="disabled">
-                <span class="time" id="btnTime">--:--</span>
-                <span class="label" id="btnLabel">CHECK-IN</span>
-            </button>
-        </div>
-
-        <!-- Today activity log -->
-        <div class="today-log">
-            <h3>Lich su hom nay</h3>
-            {% for act in today_activities %}
-            <div class="log-item">
-                <span class="log-dot in"></span>
-                <span class="log-time">{{ act.clock_in|time:"H:i" }}</span>
-                <span class="log-label">Check-in</span>
-            </div>
-            {% if act.clock_out %}
-            <div class="log-item">
-                <span class="log-dot out"></span>
-                <span class="log-time">{{ act.clock_out|time:"H:i" }}</span>
-                <span class="log-label">Check-out</span>
-            </div>
-            {% endif %}
-            {% empty %}
-            <div class="log-item">
-                <span class="log-label">Chua co hoat dong hom nay</span>
-            </div>
-            {% endfor %}
         </div>
     </div>
 
@@ -352,6 +460,7 @@
         var btnTime = document.getElementById('btnTime');
         var gpsStatus = document.getElementById('gpsStatus');
         var offlineBadge = document.getElementById('offlineBadge');
+        var pwaBadge = document.getElementById('pwaBadge');
         var offlineBar = document.getElementById('offlineBar');
         var toast = document.getElementById('toast');
 
@@ -368,8 +477,15 @@
         var map = null;
         var userMarker = null;
         var accuracyCircle = null;
-        var geofenceCircle = null;
         var mapInitialized = false;
+
+        // ── PWA standalone detection ──
+        var isStandalone = window.matchMedia('(display-mode: standalone)').matches
+            || window.navigator.standalone === true;
+        if (isStandalone) {
+            pwaBadge.classList.add('show');
+            document.documentElement.classList.add('pwa-standalone');
+        }
 
         // ── Clock ──
         function updateClock() {
@@ -389,12 +505,10 @@
             if (mapInitialized) return;
             mapInitialized = true;
             map = L.map('map', { zoomControl: false, attributionControl: false }).setView([lat, lng], 17);
-            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-            }).addTo(map);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
 
             if (GEOFENCE) {
-                geofenceCircle = L.circle([GEOFENCE.lat, GEOFENCE.lng], {
+                L.circle([GEOFENCE.lat, GEOFENCE.lng], {
                     radius: GEOFENCE.radius,
                     color: '#c0222b',
                     fillColor: '#c0222b',
@@ -402,7 +516,6 @@
                     weight: 2,
                     dashArray: '6 4',
                 }).addTo(map);
-
                 L.marker([GEOFENCE.lat, GEOFENCE.lng], {
                     icon: L.divIcon({
                         className: '',
@@ -411,41 +524,29 @@
                         iconAnchor: [6, 6],
                     })
                 }).addTo(map);
-
-                var bounds = L.latLngBounds([
-                    [lat, lng],
-                    [GEOFENCE.lat, GEOFENCE.lng]
-                ]).pad(0.3);
-                map.fitBounds(bounds);
+                map.fitBounds(L.latLngBounds([[lat, lng],[GEOFENCE.lat, GEOFENCE.lng]]).pad(0.3));
             }
+
+            // Resize map when layout changes
+            setTimeout(function() { map.invalidateSize(); }, 300);
         }
 
         function updateMap(lat, lng, accuracy) {
             if (!map) return;
             var latlng = L.latLng(lat, lng);
-
             if (userMarker) {
                 userMarker.setLatLng(latlng);
             } else {
                 userMarker = L.circleMarker(latlng, {
-                    radius: 8,
-                    color: '#fff',
-                    fillColor: '#3b82f6',
-                    fillOpacity: 1,
-                    weight: 3,
+                    radius: 8, color: '#fff', fillColor: '#3b82f6', fillOpacity: 1, weight: 3,
                 }).addTo(map);
             }
-
             if (accuracyCircle) {
                 accuracyCircle.setLatLng(latlng);
                 accuracyCircle.setRadius(accuracy);
             } else {
                 accuracyCircle = L.circle(latlng, {
-                    radius: accuracy,
-                    color: '#3b82f6',
-                    fillColor: '#3b82f6',
-                    fillOpacity: 0.1,
-                    weight: 1,
+                    radius: accuracy, color: '#3b82f6', fillColor: '#3b82f6', fillOpacity: 0.1, weight: 1,
                 }).addTo(map);
             }
         }
@@ -454,7 +555,7 @@
         function startGPS() {
             if (!navigator.geolocation) {
                 gpsStatus.textContent = 'Trinh duyet khong ho tro GPS';
-                gpsStatus.className = 'gps-status err';
+                gpsStatus.className = 'gps-chip err';
                 return;
             }
             navigator.geolocation.watchPosition(
@@ -464,37 +565,29 @@
                         longitude: pos.coords.longitude,
                         accuracy: Math.round(pos.coords.accuracy)
                     };
-
-                    if (!mapInitialized) {
-                        initMap(currentPos.latitude, currentPos.longitude);
-                    }
+                    if (!mapInitialized) initMap(currentPos.latitude, currentPos.longitude);
                     updateMap(currentPos.latitude, currentPos.longitude, currentPos.accuracy);
 
                     var distText = '';
                     if (GEOFENCE) {
                         var d = haversine(currentPos.latitude, currentPos.longitude, GEOFENCE.lat, GEOFENCE.lng);
-                        distText = ' — ' + Math.round(d) + 'm tu VP';
+                        distText = ' — ' + Math.round(d) + 'm';
                     }
-
                     if (currentPos.accuracy > 100) {
-                        gpsStatus.textContent = '⚠ Do chinh xac: ' + currentPos.accuracy + 'm (chua du)' + distText;
-                        gpsStatus.className = 'gps-status warn';
+                        gpsStatus.textContent = '⚠ GPS ±' + currentPos.accuracy + 'm (chua du)' + distText;
+                        gpsStatus.className = 'gps-chip warn';
                         btnCheckin.dataset.state = 'disabled';
                     } else {
-                        gpsStatus.textContent = '✅ GPS OK (±' + currentPos.accuracy + 'm)' + distText;
-                        gpsStatus.className = 'gps-status ok';
+                        gpsStatus.textContent = '✅ GPS ±' + currentPos.accuracy + 'm' + distText;
+                        gpsStatus.className = 'gps-chip ok';
                         btnCheckin.dataset.state = hasOpenActivity ? 'ready-out' : 'ready-in';
                     }
                 },
                 function(err) {
-                    if (err.code === 1) {
-                        gpsStatus.textContent = '🔒 Quyen GPS bi tu choi. Bat Dinh vi trong Cai dat.';
-                    } else if (err.code === 3) {
-                        gpsStatus.textContent = 'Khong lay duoc vi tri (timeout)';
-                    } else {
-                        gpsStatus.textContent = 'Loi GPS: ' + err.message;
-                    }
-                    gpsStatus.className = 'gps-status err';
+                    if (err.code === 1) gpsStatus.textContent = '🔒 GPS bi tu choi. Bat Dinh vi.';
+                    else if (err.code === 3) gpsStatus.textContent = 'Timeout GPS. Dang thu lai...';
+                    else gpsStatus.textContent = 'Loi GPS: ' + err.message;
+                    gpsStatus.className = 'gps-chip err';
                     btnCheckin.dataset.state = 'disabled';
                 },
                 { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
@@ -502,16 +595,12 @@
         }
 
         function haversine(lat1, lon1, lat2, lon2) {
-            var R = 6371000;
-            var dLat = (lat2 - lat1) * Math.PI / 180;
-            var dLon = (lon2 - lon1) * Math.PI / 180;
-            var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
-                    Math.cos(lat1 * Math.PI/180) * Math.cos(lat2 * Math.PI/180) *
-                    Math.sin(dLon/2) * Math.sin(dLon/2);
+            var R = 6371000, dLat = (lat2-lat1)*Math.PI/180, dLon = (lon2-lon1)*Math.PI/180;
+            var a = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)*Math.sin(dLon/2);
             return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
 
-        // ── Camera (live preview) ──
+        // ── Camera ──
         function startCamera() {
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 cameraVideo.style.display = 'none';
@@ -523,14 +612,11 @@
                 video: { facingMode: 'user', width: { ideal: 480 }, height: { ideal: 480 } },
                 audio: false
             })
-            .then(function(stream) {
-                cameraStream = stream;
-                cameraVideo.srcObject = stream;
-            })
+            .then(function(stream) { cameraStream = stream; cameraVideo.srcObject = stream; })
             .catch(function() {
                 cameraVideo.style.display = 'none';
                 cameraOff.style.display = 'flex';
-                cameraOff.textContent = 'Cho phep Camera trong Cai dat';
+                cameraOff.textContent = 'Cho phep Camera';
             });
         }
 
@@ -539,15 +625,11 @@
             var track = cameraStream.getVideoTracks()[0];
             if (!track) return null;
             var settings = track.getSettings();
-            var w = settings.width || 480;
-            var h = settings.height || 480;
-            var MAX = 480;
+            var w = settings.width || 480, h = settings.height || 480, MAX = 480;
             if (w > MAX || h > MAX) {
-                if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
-                else { w = Math.round(w * MAX / h); h = MAX; }
+                if (w > h) { h = Math.round(h*MAX/w); w = MAX; } else { w = Math.round(w*MAX/h); h = MAX; }
             }
-            cameraCanvas.width = w;
-            cameraCanvas.height = h;
+            cameraCanvas.width = w; cameraCanvas.height = h;
             cameraCanvas.getContext('2d').drawImage(cameraVideo, 0, 0, w, h);
             var dataUrl = cameraCanvas.toDataURL('image/jpeg', 0.7);
             cameraCaptured.src = dataUrl;
@@ -575,13 +657,7 @@
         function doCheckin(action, pos, selfie, offlineTs) {
             btnCheckin.dataset.state = 'loading';
             btnLabel.textContent = 'Dang xu ly...';
-
-            var body = {
-                latitude: pos.latitude,
-                longitude: pos.longitude,
-                accuracy: pos.accuracy,
-                action: action,
-            };
+            var body = { latitude: pos.latitude, longitude: pos.longitude, accuracy: pos.accuracy, action: action };
             if (selfie) body.selfie = selfie;
             if (offlineTs) body.offline_timestamp = offlineTs;
 
@@ -606,7 +682,7 @@
             })
             .catch(function() {
                 saveOffline(action, pos, selfie);
-                showToast('Da luu offline — se gui khi co mang', 'error');
+                showToast('Luu offline — se gui khi co mang', 'error');
                 hasOpenActivity = (action === 'in');
                 updateAction();
                 btnCheckin.dataset.state = hasOpenActivity ? 'ready-out' : 'ready-in';
@@ -618,14 +694,12 @@
         function addLogItem(action, dt) {
             var container = document.querySelector('.today-log');
             var empty = container.querySelector('.log-label');
-            if (empty && empty.textContent.indexOf('Chua co') >= 0) {
-                empty.parentElement.remove();
-            }
+            if (empty && empty.textContent.indexOf('Chua co') >= 0) empty.parentElement.remove();
             var div = document.createElement('div');
             div.className = 'log-item';
-            div.innerHTML = '<span class="log-dot ' + (action === 'in' ? 'in' : 'out') + '"></span>' +
-                '<span class="log-time">' + dt.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) + '</span>' +
-                '<span class="log-label">' + (action === 'in' ? 'Check-in' : 'Check-out') + '</span>';
+            div.innerHTML = '<span class="log-dot ' + (action==='in'?'in':'out') + '"></span>' +
+                '<span class="log-time">' + dt.toLocaleTimeString('vi-VN',{hour:'2-digit',minute:'2-digit'}) + '</span>' +
+                '<span class="log-label">' + (action==='in'?'Check-in':'Check-out') + '</span>';
             container.appendChild(div);
         }
 
@@ -637,109 +711,77 @@
         }
 
         // ── Offline queue (IndexedDB) ──
-        var db = null;
-        var DB_NAME = 'pwa_checkin';
-        var STORE = 'queue';
-
+        var db = null, DB_NAME = 'pwa_checkin', STORE = 'queue';
         function openDB(cb) {
             if (db) { cb(db); return; }
             var req = indexedDB.open(DB_NAME, 1);
             req.onupgradeneeded = function(e) {
                 var d = e.target.result;
-                if (!d.objectStoreNames.contains(STORE)) {
-                    d.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
-                }
+                if (!d.objectStoreNames.contains(STORE)) d.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
             };
             req.onsuccess = function(e) { db = e.target.result; cb(db); };
             req.onerror = function() { cb(null); };
         }
-
         function saveOffline(action, pos, selfie) {
             openDB(function(db) {
                 if (!db) return;
-                var tx = db.transaction(STORE, 'readwrite');
-                tx.objectStore(STORE).add({
-                    action: action,
-                    latitude: pos.latitude,
-                    longitude: pos.longitude,
-                    accuracy: pos.accuracy,
-                    selfie: selfie,
-                    timestamp: new Date().toISOString(),
-                    synced: false,
+                db.transaction(STORE,'readwrite').objectStore(STORE).add({
+                    action:action, latitude:pos.latitude, longitude:pos.longitude,
+                    accuracy:pos.accuracy, selfie:selfie, timestamp:new Date().toISOString(), synced:false
                 });
             });
             updateOfflineBar();
         }
-
         function syncOffline() {
             openDB(function(db) {
                 if (!db) return;
-                var tx = db.transaction(STORE, 'readonly');
-                var req = tx.objectStore(STORE).getAll();
+                var req = db.transaction(STORE,'readonly').objectStore(STORE).getAll();
                 req.onsuccess = function() {
-                    var entries = req.result.filter(function(e) { return !e.synced; });
-                    if (entries.length === 0) return;
+                    var entries = req.result.filter(function(e){return !e.synced;});
+                    if (!entries.length) return;
                     var synced = 0;
                     entries.forEach(function(entry) {
-                        var body = {
-                            latitude: entry.latitude,
-                            longitude: entry.longitude,
-                            accuracy: entry.accuracy,
-                            action: entry.action,
-                            offline_timestamp: entry.timestamp,
-                        };
+                        var body = { latitude:entry.latitude, longitude:entry.longitude, accuracy:entry.accuracy, action:entry.action, offline_timestamp:entry.timestamp };
                         if (entry.selfie) body.selfie = entry.selfie;
-                        fetch(API_URL, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json', 'X-CSRFToken': CSRF },
-                            body: JSON.stringify(body),
-                        })
+                        fetch(API_URL, { method:'POST', headers:{'Content-Type':'application/json','X-CSRFToken':CSRF}, body:JSON.stringify(body) })
                         .then(function(r) {
                             if (r.ok) {
-                                var tx2 = db.transaction(STORE, 'readwrite');
                                 entry.synced = true;
-                                tx2.objectStore(STORE).put(entry);
+                                db.transaction(STORE,'readwrite').objectStore(STORE).put(entry);
                                 synced++;
-                                if (synced === entries.length) {
-                                    showToast(synced + ' check-in da dong bo', 'success');
-                                    updateOfflineBar();
-                                }
+                                if (synced === entries.length) { showToast(synced+' check-in da dong bo','success'); updateOfflineBar(); }
                             }
-                        })
-                        .catch(function() {});
+                        }).catch(function(){});
                     });
                 };
             });
         }
-
         function updateOfflineBar() {
             openDB(function(db) {
                 if (!db) return;
-                var tx = db.transaction(STORE, 'readonly');
-                var req = tx.objectStore(STORE).getAll();
+                var req = db.transaction(STORE,'readonly').objectStore(STORE).getAll();
                 req.onsuccess = function() {
-                    var pending = req.result.filter(function(e) { return !e.synced; }).length;
-                    if (pending > 0) {
-                        offlineBar.textContent = '⚡ ' + pending + ' check-in cho dong bo';
-                        offlineBar.classList.add('show');
-                    } else {
-                        offlineBar.classList.remove('show');
-                    }
+                    var n = req.result.filter(function(e){return !e.synced;}).length;
+                    if (n > 0) { offlineBar.textContent = '⚡ '+n+' check-in cho dong bo'; offlineBar.classList.add('show'); }
+                    else offlineBar.classList.remove('show');
                 };
             });
         }
 
         // ── Online/offline ──
         function updateOnlineStatus() {
-            if (navigator.onLine) {
-                offlineBadge.classList.remove('show');
-                syncOffline();
-            } else {
-                offlineBadge.classList.add('show');
-            }
+            if (navigator.onLine) { offlineBadge.classList.remove('show'); syncOffline(); }
+            else offlineBadge.classList.add('show');
         }
         window.addEventListener('online', updateOnlineStatus);
         window.addEventListener('offline', updateOnlineStatus);
+
+        // ── Resize handler for map ──
+        var resizeTimer;
+        window.addEventListener('resize', function() {
+            clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(function() { if (map) map.invalidateSize(); }, 200);
+        });
 
         // ── Init ──
         startGPS();
@@ -748,9 +790,7 @@
         updateOfflineBar();
 
         if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register("{% static 'attendance/sw-checkin.js' %}", {
-                scope: '/attendance/pwa-checkin/'
-            }).catch(function() {});
+            navigator.serviceWorker.register("{% static 'attendance/sw-checkin.js' %}", { scope: '/attendance/pwa-checkin/' }).catch(function(){});
         }
     })();
     </script>
