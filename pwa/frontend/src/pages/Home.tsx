@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
@@ -5,6 +6,7 @@ import { Avatar } from '../components/ui/Avatar'
 import { Badge } from '../components/ui/Badge'
 import { useAuth } from '../lib/auth'
 import { useClock } from '../lib/useClock'
+import { ClockModal } from '../components/ClockModal'
 
 function StatChip({ icon, label, value, sub, tone = 'navy' }: {
   icon: string; label: string; value: string; sub: string; tone?: string
@@ -63,6 +65,7 @@ export function HomePage() {
   const navigate = useNavigate()
   const { employee } = useAuth()
   const { isClockedIn, duration, clockInTime, clockIn, clockOut, acting } = useClock()
+  const [clockModalOpen, setClockModalOpen] = useState(false)
   const now = new Date()
   const dayName = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'][now.getDay()]
   const dateStr = `${dayName.toUpperCase()}, ${String(now.getDate()).padStart(2, '0')} / ${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -186,21 +189,19 @@ export function HomePage() {
           </div>
 
           <button
-            onClick={() => isClockedIn ? clockOut() : clockIn()}
-            disabled={acting}
+            onClick={() => setClockModalOpen(true)}
             className="flex items-center justify-center gap-2 w-full border-none cursor-pointer"
             style={{
               marginTop: 14, height: 48, borderRadius: 14,
               background: isClockedIn ? HNH.red : HNH.navy,
               color: '#fff', fontWeight: 700, fontSize: 14,
-              opacity: acting ? 0.6 : 1,
               boxShadow: isClockedIn
                 ? '0 6px 14px rgba(192,34,43,0.25)'
                 : '0 6px 14px rgba(20,43,111,0.2)',
             }}
           >
             <Icon name={isClockedIn ? 'clock' : 'check'} size={18} color="#fff" stroke={2.2} />
-            {acting ? 'Đang xử lý...' : isClockedIn ? 'Kết thúc ca' : 'Chấm công vào ca'}
+            {isClockedIn ? 'Kết thúc ca' : 'Chấm công vào ca'}
           </button>
 
           <div className="flex items-center gap-1.5" style={{ marginTop: 10, fontSize: 11.5, color: HNH.ink3, fontWeight: 500 }}>
@@ -236,6 +237,18 @@ export function HomePage() {
           <QuickAction icon="sparkle" label="Báo cáo" tone="success" />
         </div>
       </div>
+
+      <ClockModal
+        open={clockModalOpen}
+        onClose={() => setClockModalOpen(false)}
+        isClockedIn={isClockedIn}
+        clockInTime={clockInTime}
+        duration={duration}
+        shiftName={employee?.shift_name ?? 'Ca hành chính'}
+        acting={acting}
+        onClockIn={clockIn}
+        onClockOut={clockOut}
+      />
     </div>
   )
 }

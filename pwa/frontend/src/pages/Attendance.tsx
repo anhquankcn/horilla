@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { Badge } from '../components/ui/Badge'
@@ -5,6 +6,7 @@ import { TopBar } from '../components/layout/TopBar'
 import { useAuth } from '../lib/auth'
 import { useApi } from '../lib/useApi'
 import { useClock } from '../lib/useClock'
+import { ClockModal } from '../components/ClockModal'
 
 function LogRow({ date, day, inT, outT, hours, tag, tagTone, last }: {
   date: string; day: string; inT: string; outT: string; hours: string
@@ -45,6 +47,7 @@ interface PaginatedResponse<T> {
 export function AttendancePage() {
   const { employee } = useAuth()
   const { isClockedIn, duration, clockInTime, clockIn, clockOut, acting } = useClock()
+  const [clockModalOpen, setClockModalOpen] = useState(false)
   const { data: historyResp } = useApi<PaginatedResponse<AttendanceRecord>>('/api/attendance/my-attendance/')
 
   const history = historyResp?.results ?? []
@@ -113,21 +116,19 @@ export function AttendancePage() {
 
           {/* Action button */}
           <button
-            onClick={() => isClockedIn ? clockOut() : clockIn()}
-            disabled={acting}
+            onClick={() => setClockModalOpen(true)}
             className="flex items-center justify-center gap-2.5 border-none cursor-pointer w-full"
             style={{
               marginTop: 16, height: 54, borderRadius: 16,
               background: isClockedIn ? HNH.red : HNH.navy,
               color: '#fff', fontWeight: 700, fontSize: 15.5,
-              opacity: acting ? 0.6 : 1,
               boxShadow: isClockedIn
                 ? '0 8px 18px rgba(192,34,43,0.28)'
                 : '0 8px 18px rgba(20,43,111,0.2)',
             }}
           >
             <Icon name={isClockedIn ? 'clock' : 'check'} size={20} color="#fff" stroke={2.2} />
-            {acting ? 'Đang xử lý...' : isClockedIn ? 'Chấm công kết thúc ca' : 'Chấm công vào ca'}
+            {isClockedIn ? 'Chấm công kết thúc ca' : 'Chấm công vào ca'}
           </button>
         </div>
 
@@ -178,16 +179,16 @@ export function AttendancePage() {
               const d = new Date(att.attendance_date)
               const dayLabels = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
               const dateLabel = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
-              const clockIn = att.attendance_clock_in?.slice(0, 5) ?? '--:--'
-              const clockOut = att.attendance_clock_out?.slice(0, 5) ?? '--:--'
+              const inTime = att.attendance_clock_in?.slice(0, 5) ?? '--:--'
+              const outTime = att.attendance_clock_out?.slice(0, 5) ?? '--:--'
               const hours = att.attendance_worked_hour?.slice(0, 5) ?? '—'
               return (
                 <LogRow
                   key={att.id}
                   date={dateLabel}
                   day={dayLabels[d.getDay()]}
-                  inT={clockIn}
-                  outT={clockOut}
+                  inT={inTime}
+                  outT={outTime}
                   hours={hours}
                   tag="Văn phòng"
                   tagTone="navy"
@@ -198,6 +199,18 @@ export function AttendancePage() {
           </div>
         </div>
       </div>
+
+      <ClockModal
+        open={clockModalOpen}
+        onClose={() => setClockModalOpen(false)}
+        isClockedIn={isClockedIn}
+        clockInTime={clockInTime}
+        duration={duration}
+        shiftName={employee?.shift_name ?? 'Ca hành chính'}
+        acting={acting}
+        onClockIn={clockIn}
+        onClockOut={clockOut}
+      />
     </div>
   )
 }
