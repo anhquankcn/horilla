@@ -1,11 +1,21 @@
-import { Navigate } from 'react-router-dom'
+import { Navigate, useSearchParams } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { LogoMark } from '../components/ui/Logo'
 import { Icon } from '../components/ui/Icon'
 import { useAuth } from '../lib/auth'
 
+const ERROR_MESSAGES: Record<string, string> = {
+  session_expired: 'Phiên đăng nhập hết hạn, vui lòng thử lại.',
+  token_failed: 'Xác thực SSO thất bại, vui lòng thử lại.',
+  login_failed: 'Không thể đăng nhập, liên hệ IT nếu lỗi tiếp tục.',
+  server_error: 'Lỗi hệ thống, vui lòng thử lại sau.',
+}
+
 export function LoginPage() {
   const { loading, authenticated } = useAuth()
+  const [searchParams] = useSearchParams()
+  const errorCode = searchParams.get('error')
+  const errorMsg = errorCode ? (ERROR_MESSAGES[errorCode] ?? 'Đã có lỗi xảy ra.') : null
 
   if (loading) {
     return (
@@ -75,6 +85,19 @@ export function LoginPage() {
         <div style={{ fontSize: 11.5, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 8 }}>
           Tài khoản
         </div>
+
+        {errorMsg && (
+          <div
+            className="flex items-center gap-2.5"
+            style={{
+              background: 'rgba(192,34,43,0.08)', border: `1px solid rgba(192,34,43,0.25)`,
+              borderRadius: 12, padding: '12px 14px', marginBottom: 12,
+            }}
+          >
+            <Icon name="alert" size={16} color={HNH.red} />
+            <span style={{ fontSize: 13, color: HNH.red, fontWeight: 600, lineHeight: 1.35 }}>{errorMsg}</span>
+          </div>
+        )}
 
         <div
           className="flex items-center gap-3"

@@ -40,64 +40,73 @@ export async function authRoutes(app: FastifyInstance) {
 
   // Step 2: Handle Keycloak callback, exchange code for tokens
   app.get("/bff/auth/callback", async (req, reply) => {
-    const { code, state } = req.query as { code?: string; state?: string };
-    const sessionId = req.cookies[COOKIE_NAME];
+    const loginUrl = (err?: string) =>
+      `${env.PWA_PATH}login${err ? `?error=${encodeURIComponent(err)}` : ""}`;
 
-    if (!sessionId || !code) {
-      return reply.status(400).send({ error: "Missing code or session" });
+    try {
+      const { code, state } = req.query as { code?: string; state?: string };
+      const sessionId = req.cookies[COOKIE_NAME];
+
+      if (!sessionId || !code) {
+        return reply.redirect(loginUrl("session_expired"));
+      }
+
+      const session = getSession(sessionId);
+      if (!session || session.oauthState !== state) {
+        reply.clearCookie(COOKIE_NAME, { path: "/" });
+        return reply.redirect(loginUrl("session_expired"));
+      }
+
+      // Exchange authorization code for Keycloak tokens
+      const tokenRes = await fetch(`${env.KC_BASE}/protocol/openid-connect/token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          client_id: env.KC_CLIENT_ID,
+          code,
+          redirect_uri: `${env.BFF_ORIGIN}/bff/auth/callback`,
+          code_verifier: session.codeVerifier!,
+        }).toString(),
+      });
+
+      if (tokenRes.statusCode !== 200) {
+        const body = await tokenRes.body.text();
+        app.log.error({ status: tokenRes.statusCode, body }, "KC token exchange failed");
+        return reply.redirect(loginUrl("token_failed"));
+      }
+
+      const kcTokens = (await tokenRes.body.json()) as {
+        access_token: string;
+        refresh_token?: string;
+      };
+
+      session.kcAccessToken = kcTokens.access_token;
+      session.kcRefreshToken = kcTokens.refresh_token;
+      delete session.codeVerifier;
+      delete session.oauthState;
+
+      // Exchange KC access_token for Horilla SimpleJWT via /api/auth/oidc-login/
+      const horillaRes = await fetch(`${env.HORILLA_API}/api/auth/oidc-login/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ access_token: kcTokens.access_token }),
+      });
+
+      if (horillaRes.statusCode !== 200) {
+        const body = await horillaRes.body.text();
+        app.log.error({ status: horillaRes.statusCode, body }, "Horilla OIDC login failed");
+        return reply.redirect(loginUrl("login_failed"));
+      }
+
+      const horillaData = (await horillaRes.body.json()) as { access: string };
+      session.horillaJwt = horillaData.access;
+
+      return reply.redirect(env.PWA_PATH);
+    } catch (err) {
+      app.log.error(err, "Unexpected error in auth callback");
+      return reply.redirect(loginUrl("server_error"));
     }
-
-    const session = getSession(sessionId);
-    if (!session || session.oauthState !== state) {
-      return reply.status(400).send({ error: "Invalid state" });
-    }
-
-    // Exchange authorization code for Keycloak tokens
-    const tokenRes = await fetch(`${env.KC_BASE}/protocol/openid-connect/token`, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        grant_type: "authorization_code",
-        client_id: env.KC_CLIENT_ID,
-        code,
-        redirect_uri: `${env.BFF_ORIGIN}/bff/auth/callback`,
-        code_verifier: session.codeVerifier!,
-      }).toString(),
-    });
-
-    if (tokenRes.statusCode !== 200) {
-      const body = await tokenRes.body.text();
-      app.log.error({ status: tokenRes.statusCode, body }, "KC token exchange failed");
-      return reply.status(502).send({ error: "Token exchange failed" });
-    }
-
-    const kcTokens = (await tokenRes.body.json()) as {
-      access_token: string;
-      refresh_token?: string;
-    };
-
-    session.kcAccessToken = kcTokens.access_token;
-    session.kcRefreshToken = kcTokens.refresh_token;
-    delete session.codeVerifier;
-    delete session.oauthState;
-
-    // Exchange KC access_token for Horilla SimpleJWT via /api/auth/oidc-login/
-    const horillaRes = await fetch(`${env.HORILLA_API}/api/auth/oidc-login/`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ access_token: kcTokens.access_token }),
-    });
-
-    if (horillaRes.statusCode !== 200) {
-      const body = await horillaRes.body.text();
-      app.log.error({ status: horillaRes.statusCode, body }, "Horilla OIDC login failed");
-      return reply.status(502).send({ error: "Horilla login failed" });
-    }
-
-    const horillaData = (await horillaRes.body.json()) as { access: string };
-    session.horillaJwt = horillaData.access;
-
-    return reply.redirect(env.PWA_PATH);
   });
 
   // Logout: destroy session, redirect to Keycloak logout
