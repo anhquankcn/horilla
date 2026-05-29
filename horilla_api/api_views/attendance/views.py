@@ -58,6 +58,16 @@ def query_dict(data):
     return query_dict
 
 
+def _is_clocked_in(employee):
+    """Check if employee has an open AttendanceActivity (no clock_out)."""
+    activity = (
+        AttendanceActivity.objects.filter(employee_id=employee)
+        .order_by("-id")
+        .first()
+    )
+    return activity is not None and activity.clock_out_date is None
+
+
 class ClockInAPIView(APIView):
     """
     Allows authenticated employees to clock in, determining the correct shift and attendance date, including handling night shifts.
@@ -69,7 +79,7 @@ class ClockInAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        if not request.user.employee_get.check_online():
+        if not _is_clocked_in(request.user.employee_get):
             employee, work_info = employee_exists(request)
             datetime_now = django_tz.now()
             if request.__dict__.get("datetime"):
@@ -157,7 +167,7 @@ class ClockOutAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        if request.user.employee_get.check_online():
+        if _is_clocked_in(request.user.employee_get):
             current_date = date.today()
             current_time = django_tz.now().time()
             current_datetime = django_tz.now()
