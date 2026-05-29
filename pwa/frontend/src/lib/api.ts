@@ -1,0 +1,37 @@
+const BASE = '/bff';
+
+export class ApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+  }
+}
+
+export async function apiFetch<T = unknown>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    credentials: 'include',
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...init?.headers,
+    },
+  });
+
+  if (res.status === 401) {
+    window.location.href = `${import.meta.env.BASE_URL}login`;
+    throw new ApiError(401, 'Unauthorized');
+  }
+
+  if (!res.ok) {
+    const text = await res.text();
+    throw new ApiError(res.status, text);
+  }
+
+  if (res.status === 204) return undefined as T;
+  return res.json();
+}
+
+export const api = {
+  get: <T = unknown>(path: string) => apiFetch<T>(path),
+  post: <T = unknown>(path: string, body: unknown) =>
+    apiFetch<T>(path, { method: 'POST', body: JSON.stringify(body) }),
+};
