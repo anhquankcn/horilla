@@ -70,16 +70,6 @@ class ClockInAPIView(APIView):
 
     def post(self, request):
         if not request.user.employee_get.check_online():
-            try:
-                if request.user.employee_get.get_company().geo_fencing.start:
-                    from geofencing.views import GeoFencingEmployeeLocationCheckAPIView
-
-                    location_api_view = GeoFencingEmployeeLocationCheckAPIView()
-                    response = location_api_view.post(request)
-                    if response.status_code != 200:
-                        return response
-            except:
-                pass
             employee, work_info = employee_exists(request)
             datetime_now = django_tz.now()
             if request.__dict__.get("datetime"):
@@ -101,14 +91,7 @@ class ClockInAPIView(APIView):
                     day=day, shift=shift
                 )
                 if start_time_sec > end_time_sec:
-                    # night shift
-                    # ------------------
-                    # Night shift in Horilla consider a 24 hours from noon to next day noon,
-                    # the shift day taken today if the attendance clocked in after 12 O clock.
-
                     if mid_day_sec > now_sec:
-                        # Here you need to create attendance for yesterday
-
                         date_yesterday = date_today - timedelta(days=1)
                         day_yesterday = date_yesterday.strftime("%A").lower()
                         day_yesterday = EmployeeShiftDay.objects.get(day=day_yesterday)
@@ -117,7 +100,7 @@ class ClockInAPIView(APIView):
                         )
                         attendance_date = date_yesterday
                         day = day_yesterday
-                clock_in_attendance_and_activity(
+                attendance = clock_in_attendance_and_activity(
                     employee=employee,
                     date_today=date_today,
                     attendance_date=attendance_date,
@@ -129,13 +112,38 @@ class ClockInAPIView(APIView):
                     end_time=end_time_sec,
                     in_datetime=datetime_now,
                 )
-                return Response({"message": "Clocked-In"}, status=200)
+
+                geo_valid = self._check_geofence(request, employee, attendance)
+
+                return Response(
+                    {"message": "Clocked-In", "geo_valid": geo_valid},
+                    status=200,
+                )
             return Response(
                 {
                     "error": "You Don't have work information filled or your employee detail neither entered "
                 }
             )
         return Response({"message": "Already clocked-in"}, status=400)
+
+    @staticmethod
+    def _check_geofence(request, employee, attendance):
+        """Check GPS against company geofence. Returns True/False/None."""
+        lat = request.data.get("latitude")
+        lng = request.data.get("longitude")
+        if lat is None or lng is None:
+            return None
+        try:
+            from geofencing.utils import check_geofence
+
+            company = employee.get_company()
+            inside, distance_m, _ = check_geofence(lat, lng, company)
+            if inside:
+                attendance.attendance_validated = True
+                attendance.save(update_fields=["attendance_validated"])
+            return inside
+        except Exception:
+            return None
 
 
 class ClockOutAPIView(APIView):
@@ -149,17 +157,6 @@ class ClockOutAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-
-        try:
-            if request.user.employee_get.get_company().geo_fencing.start:
-                from geofencing.views import GeoFencingEmployeeLocationCheckAPIView
-
-                location_api_view = GeoFencingEmployeeLocationCheckAPIView()
-                response = location_api_view.post(request)
-                if response.status_code != 200:
-                    return response
-        except:
-            pass
         if request.user.employee_get.check_online():
             current_date = date.today()
             current_time = django_tz.now().time()
@@ -174,12 +171,46 @@ class ClockOutAPIView(APIView):
                         datetime=current_datetime,
                     )
                 )
-                return Response({"message": "Clocked-Out"}, status=200)
+
+                geo_valid = self._check_geofence(request)
+
+                return Response(
+                    {"message": "Clocked-Out", "geo_valid": geo_valid},
+                    status=200,
+                )
 
             except Exception as error:
                 logger.error("Got an error in clock_out", error)
-            # return Response({"message": "Clocked-Out"}, status=200)
         return Response({"message": "Already clocked-out"}, status=400)
+
+    @staticmethod
+    def _check_geofence(request):
+        """Check GPS against company geofence on clock-out.
+        If outside, force attendance_validated=False."""
+        lat = request.data.get("latitude")
+        lng = request.data.get("longitude")
+        if lat is None or lng is None:
+            return None
+        try:
+            from geofencing.utils import check_geofence
+
+            employee = request.user.employee_get
+            company = employee.get_company()
+            inside, distance_m, _ = check_geofence(lat, lng, company)
+            attendance = (
+                Attendance.objects.filter(employee_id=employee)
+                .order_by("-attendance_date", "-id")
+                .first()
+            )
+            if attendance:
+                if inside:
+                    pass
+                else:
+                    attendance.attendance_validated = False
+                    attendance.save(update_fields=["attendance_validated"])
+            return inside
+        except Exception:
+            return None
 
 
 class AttendanceView(APIView):

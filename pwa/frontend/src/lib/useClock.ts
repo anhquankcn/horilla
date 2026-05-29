@@ -7,14 +7,19 @@ interface ClockStatus {
   clock_in: string | null;
 }
 
-interface UseClockResult {
+interface ClockResponse {
+  message: string;
+  geo_valid: boolean | null;
+}
+
+export interface UseClockResult {
   isClockedIn: boolean;
   duration: string;
   clockInTime: string | null;
   loading: boolean;
   acting: boolean;
-  clockIn: (body?: Record<string, unknown>) => Promise<void>;
-  clockOut: (body?: Record<string, unknown>) => Promise<void>;
+  clockIn: (body?: Record<string, unknown>) => Promise<ClockResponse | null>;
+  clockOut: (body?: Record<string, unknown>) => Promise<ClockResponse | null>;
   refresh: () => Promise<void>;
 }
 
@@ -36,21 +41,23 @@ export function useClock(): UseClockResult {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  const clockIn = useCallback(async (body?: Record<string, unknown>) => {
+  const clockIn = useCallback(async (body?: Record<string, unknown>): Promise<ClockResponse | null> => {
     setActing(true);
     try {
-      await api.post('/api/attendance/clock-in/', body ?? {});
+      const res = await api.post<ClockResponse>('/api/attendance/clock-in/', body ?? {});
       await refresh();
+      return res;
     } finally {
       setActing(false);
     }
   }, [refresh]);
 
-  const clockOut = useCallback(async (body?: Record<string, unknown>) => {
+  const clockOut = useCallback(async (body?: Record<string, unknown>): Promise<ClockResponse | null> => {
     setActing(true);
     try {
-      await api.post('/api/attendance/clock-out/', body ?? {});
+      const res = await api.post<ClockResponse>('/api/attendance/clock-out/', body ?? {});
       await refresh();
+      return res;
     } finally {
       setActing(false);
     }

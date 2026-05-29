@@ -12,8 +12,8 @@ interface ClockModalProps {
   duration: string
   shiftName: string
   acting: boolean
-  onClockIn: (body?: Record<string, unknown>) => Promise<void>
-  onClockOut: (body?: Record<string, unknown>) => Promise<void>
+  onClockIn: (body?: Record<string, unknown>) => Promise<{ geo_valid: boolean | null } | null>
+  onClockOut: (body?: Record<string, unknown>) => Promise<{ geo_valid: boolean | null } | null>
 }
 
 function VerifyChip({ icon, label, value, ok, warn, bad }: {
@@ -35,6 +35,8 @@ function VerifyChip({ icon, label, value, ok, warn, bad }: {
   )
 }
 
+type DoneState = null | 'valid' | 'pending'
+
 export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, shiftName, acting, onClockIn, onClockOut }: ClockModalProps) {
   const geo = useGeolocation()
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -43,8 +45,8 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
   const [cameraReady, setCameraReady] = useState(false)
   const [cameraError, setCameraError] = useState<string | null>(null)
   const [selfie, setSelfie] = useState<string | null>(null)
-  const [gpsWarningShown, setGpsWarningShown] = useState(false)
-  const [done, setDone] = useState(false)
+  const [done, setDone] = useState<DoneState>(null)
+  const wasClockedIn = useRef(false)
 
   useEffect(() => {
     if (!open) {
@@ -53,10 +55,10 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
       setCameraReady(false)
       setCameraError(null)
       setSelfie(null)
-      setGpsWarningShown(false)
-      setDone(false)
+      setDone(null)
       return
     }
+    wasClockedIn.current = isClockedIn
     let mounted = true
     async function start() {
       try {
@@ -106,16 +108,18 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
       gpsBody.latitude = geo.position.lat
       gpsBody.longitude = geo.position.lng
     }
+
+    let res: { geo_valid: boolean | null } | null = null
     if (isClockedIn) {
-      if (geo.inside === false) setGpsWarningShown(true)
-      await onClockOut(gpsBody)
+      res = await onClockOut(gpsBody)
     } else {
-      if (geo.inside === false) setGpsWarningShown(true)
-      await onClockIn(gpsBody)
+      res = await onClockIn(gpsBody)
     }
-    setDone(true)
-    setTimeout(() => onClose(), 1200)
-  }, [isClockedIn, onClockIn, onClockOut, capture, geo.position, geo.inside, onClose])
+
+    const geoValid = res?.geo_valid
+    setDone(geoValid === false ? 'pending' : 'valid')
+    setTimeout(() => onClose(), geoValid === false ? 2500 : 1200)
+  }, [isClockedIn, onClockIn, onClockOut, capture, geo.position, onClose])
 
   if (!open) return null
 
@@ -131,51 +135,59 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
           ? `Cách VP ${geo.distance < 1000 ? `${Math.round(geo.distance)}m` : `${(geo.distance / 1000).toFixed(1)}km`}`
           : 'Không xác định'
 
-  const statusColor = done ? HNH.success : isClockedIn ? HNH.success : isOutside ? HNH.warn : HNH.red
-  const statusText = done
-    ? (isClockedIn ? 'ĐÃ KẾT THÚC CA' : 'ĐÃ CHẤM CÔNG VÀO CA')
+  const statusColor =
+    done === 'valid' ? HNH.success
+    : done === 'pending' ? HNH.warn
+    : isClockedIn ? HNH.success
+    : isOutside ? HNH.warn
+    : HNH.red
+
+  const statusText =
+    done === 'valid'
+      ? (wasClockedIn.current ? 'ĐÃ KẾT THÚC CA' : 'ĐÃ CHẤM CÔNG VÀO CA')
+    : done === 'pending'
+      ? 'CHỜ XÁC NHẬN'
     : isClockedIn
       ? 'ĐANG LÀM VIỆC'
-      : isOutside
-        ? 'NGOÀI KHU VỰC VĂN PHÒNG'
-        : 'SẴN SÀNG CHẤM CÔNG'
+    : isOutside
+      ? 'NGOÀI KHU VỰC VĂN PHÒNG'
+    : 'SẴN SÀNG CHẤM CÔNG'
 
   const now = new Date()
   const hh = String(now.getHours()).padStart(2, '0')
   const mm = String(now.getMinutes()).padStart(2, '0')
 
-  const btnBg = done
-    ? HNH.success
-    : acting
-      ? HNH.ink3
-      : isClockedIn
-        ? `radial-gradient(circle at 30% 30%, ${HNH.navy} 0%, ${HNH.navy2} 100%)`
-        : isOutside
-          ? `radial-gradient(circle at 30% 30%, #e67e22 0%, #d35400 100%)`
-          : `radial-gradient(circle at 30% 30%, #d83641 0%, ${HNH.red} 50%, ${HNH.redDark} 100%)`
+  const btnBg =
+    done === 'valid' ? HNH.success
+    : done === 'pending' ? HNH.warn
+    : acting ? HNH.ink3
+    : isClockedIn
+      ? `radial-gradient(circle at 30% 30%, ${HNH.navy} 0%, ${HNH.navy2} 100%)`
+    : isOutside
+      ? `radial-gradient(circle at 30% 30%, #e67e22 0%, #d35400 100%)`
+    : `radial-gradient(circle at 30% 30%, #d83641 0%, ${HNH.red} 50%, ${HNH.redDark} 100%)`
+
   const btnShadow = (acting || done)
     ? 'none'
     : isClockedIn
       ? '0 16px 32px rgba(20,43,111,0.3), inset 0 -4px 12px rgba(0,0,0,0.18), inset 0 4px 12px rgba(255,255,255,0.25)'
-      : isOutside
-        ? '0 16px 32px rgba(211,84,0,0.3), inset 0 -4px 12px rgba(0,0,0,0.18), inset 0 4px 12px rgba(255,255,255,0.25)'
-        : '0 16px 32px rgba(192,34,43,0.3), inset 0 -4px 12px rgba(0,0,0,0.18), inset 0 4px 12px rgba(255,255,255,0.25)'
-  const btnLabel = done
-    ? 'THÀNH\nCÔNG'
-    : acting
-      ? 'ĐANG\nXỬ LÝ...'
-      : isClockedIn
-        ? 'KẾT THÚC\nCA'
-        : isOutside
-          ? 'CHẤM CÔNG\nNGOÀI VP'
-          : 'CHẤM\nVÀO CA'
+    : isOutside
+      ? '0 16px 32px rgba(211,84,0,0.3), inset 0 -4px 12px rgba(0,0,0,0.18), inset 0 4px 12px rgba(255,255,255,0.25)'
+    : '0 16px 32px rgba(192,34,43,0.3), inset 0 -4px 12px rgba(0,0,0,0.18), inset 0 4px 12px rgba(255,255,255,0.25)'
+
+  const btnLabel =
+    done === 'valid' ? 'THÀNH\nCÔNG'
+    : done === 'pending' ? 'CHỜ XÁC\nNHẬN'
+    : acting ? 'ĐANG\nXỬ LÝ...'
+    : isClockedIn ? 'KẾT THÚC\nCA'
+    : isOutside ? 'CHẤM CÔNG\nNGOÀI VP'
+    : 'CHẤM\nVÀO CA'
 
   return (
     <div
       className="fixed inset-0 flex flex-col"
       style={{ zIndex: 9999, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
     >
-      {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
         <div style={{ minHeight: '100%', background: HNH.cream, paddingBottom: 20 }}>
           {/* Header */}
@@ -231,8 +243,8 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
 
             <canvas ref={canvasRef} style={{ display: 'none' }} />
 
-            {/* GPS warning */}
-            {(isOutside || gpsWarningShown) && (
+            {/* GPS warning (before action) */}
+            {!done && isOutside && (
               <div
                 className="flex items-center gap-2"
                 style={{
@@ -243,13 +255,48 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
                 <Icon name="shield" size={18} color={HNH.warn} />
                 <div>
                   <div style={{ fontSize: 12.5, fontWeight: 700, color: HNH.warn }}>
-                    {isClockedIn ? 'Kết thúc ca ngoài khu vực VP' : 'Check-in ngoài khu vực văn phòng'}
+                    Ngoài khu vực văn phòng
                   </div>
                   <div style={{ fontSize: 11, fontWeight: 500, color: HNH.ink2, marginTop: 2 }}>
-                    GPS không hợp lệ — {geo.distance != null
-                      ? `cách VP ${geo.distance < 1000 ? `${Math.round(geo.distance)}m` : `${(geo.distance / 1000).toFixed(1)}km`}`
-                      : 'không xác định vị trí'}
+                    Lượt chấm công sẽ cần xác nhận từ quản lý
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Pending result banner */}
+            {done === 'pending' && (
+              <div
+                className="flex items-center gap-2"
+                style={{
+                  background: HNH.warn50, border: `1px solid ${HNH.warn}`,
+                  borderRadius: 14, padding: '12px 14px', marginBottom: 12,
+                }}
+              >
+                <Icon name="clock" size={18} color={HNH.warn} />
+                <div>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: HNH.warn }}>
+                    Chấm công chờ xác nhận
+                  </div>
+                  <div style={{ fontSize: 11, fontWeight: 500, color: HNH.ink2, marginTop: 2 }}>
+                    GPS ngoài khu vực VP — lượt chấm công cần quản lý phê duyệt
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Valid result banner */}
+            {done === 'valid' && (
+              <div
+                className="flex items-center gap-2"
+                style={{
+                  background: HNH.success50, border: `1px solid ${HNH.success}`,
+                  borderRadius: 14, padding: '12px 14px', marginBottom: 12,
+                }}
+              >
+                <Icon name="check" size={18} color={HNH.success} />
+                <div style={{ fontSize: 12.5, fontWeight: 700, color: HNH.success }}>
+                  Chấm công hợp lệ
                 </div>
               </div>
             )}
@@ -269,7 +316,8 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
                   left: '50%', top: 20, transform: 'translateX(-50%)',
                   width: 180, height: 180, borderRadius: '50%',
                   background: `radial-gradient(circle, ${
-                    done ? HNH.success50
+                    done === 'valid' ? HNH.success50
+                    : done === 'pending' ? HNH.warn50
                     : isOutside ? 'rgba(201,122,22,0.12)'
                     : isClockedIn ? HNH.success50
                     : HNH.red50
@@ -285,7 +333,7 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
                 fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 48, fontWeight: 800,
                 color: HNH.ink, letterSpacing: -2.5, lineHeight: 1, marginTop: 8,
               }}>
-                {isClockedIn
+                {isClockedIn && !done
                   ? duration.split(':').map((p, i) => (
                       <span key={i}>{i > 0 && <span style={{ color: HNH.ink3 }}>:</span>}{p}</span>
                     ))
@@ -298,7 +346,7 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
 
               <button
                 onClick={handleAction}
-                disabled={acting || done}
+                disabled={acting || !!done}
                 className="relative flex flex-col items-center justify-center gap-2 border-none cursor-pointer mx-auto"
                 style={{
                   marginTop: 18, width: 130, height: 130, borderRadius: '50%',
@@ -310,7 +358,7 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
                   transition: 'all 0.3s ease',
                 }}
               >
-                <Icon name={done ? 'check' : isClockedIn ? 'clock' : 'check'} size={28} color="#fff" stroke={3} />
+                <Icon name={done ? (done === 'valid' ? 'check' : 'clock') : isClockedIn ? 'clock' : 'check'} size={28} color="#fff" stroke={3} />
                 <div style={{ whiteSpace: 'pre-line', lineHeight: 1.2 }}>{btnLabel}</div>
               </button>
 
@@ -320,10 +368,16 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
                   Đã chấm công lúc {clockInTime}
                 </div>
               )}
-              {done && (
+              {done === 'valid' && (
                 <div className="relative flex items-center justify-center gap-1.5" style={{ fontSize: 11.5, color: HNH.success, fontWeight: 600, marginTop: 12 }}>
                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: HNH.success }} />
-                  {isClockedIn ? `Kết thúc ca lúc ${hh}:${mm}` : `Vào ca lúc ${hh}:${mm}`}
+                  {wasClockedIn.current ? `Kết thúc ca lúc ${hh}:${mm}` : `Vào ca lúc ${hh}:${mm}`}
+                </div>
+              )}
+              {done === 'pending' && (
+                <div className="relative flex items-center justify-center gap-1.5" style={{ fontSize: 11.5, color: HNH.warn, fontWeight: 600, marginTop: 12 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: HNH.warn }} />
+                  {wasClockedIn.current ? `Kết thúc ca lúc ${hh}:${mm} · Chờ duyệt` : `Vào ca lúc ${hh}:${mm} · Chờ duyệt`}
                 </div>
               )}
             </div>
