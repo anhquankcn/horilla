@@ -85,7 +85,7 @@ export async function authRoutes(app: FastifyInstance) {
     const horillaRes = await fetch(`${env.HORILLA_API}/api/auth/oidc-login/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: kcTokens.access_token }),
+      body: JSON.stringify({ access_token: kcTokens.access_token }),
     });
 
     if (horillaRes.statusCode !== 200) {
