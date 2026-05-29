@@ -9,7 +9,7 @@
                 <li>
                     <button
                         class="px-4 py-1.5 hover:text-primary-600 transition duration-300 text-sm gap-4 items-center flex w-full"
-                        onclick="event.preventDefault();document.getElementById('language-form-{{ language.0 }}').submit();"
+                        onclick="event.preventDefault();var f=document.getElementById('language-form-{{ language.0 }}'),c=document.cookie.match(/csrftoken=([^;]+)/);if(c)f.querySelector('[name=csrfmiddlewaretoken]').value=c[1];f.submit();"
                     >
                         <div class="flex items-center gap-2">
                             <span class="rounded-full overflow-hidden w-6 h-6">
