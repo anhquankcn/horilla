@@ -1,0 +1,105 @@
+import { useLocation, useNavigate } from 'react-router-dom'
+import { HNH } from '../../lib/theme'
+
+const tabs = [
+  { id: 'home', label: 'Trang chủ', path: '/' },
+  { id: 'attend', label: 'Chấm công', path: '/attendance' },
+  { id: 'ruby', label: 'Ruby AI', path: '/ruby' },
+  { id: 'tour', label: 'Nghiệp vụ', path: '/business' },
+  { id: 'me', label: 'Cá nhân', path: '/profile' },
+] as const
+
+function TabIcon({ name, active }: { name: string; active: boolean }) {
+  const c = active ? HNH.red : HNH.ink3
+  const sw = 1.7
+  const fill = active ? HNH.red50 : 'none'
+  switch (name) {
+    case 'home':
+      return <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1v-8Z" stroke={c} strokeWidth={sw} strokeLinejoin="round" fill={fill}/></svg>
+    case 'attend':
+      return <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke={c} strokeWidth={sw} fill={fill}/><path d="M12 7.5V12l3 2" stroke={c} strokeWidth={sw} strokeLinecap="round"/></svg>
+    case 'tour':
+      return <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 18c2-1 4-1 6 0s4 1 6 0 4-1 6 0" stroke={c} strokeWidth={sw} strokeLinecap="round"/><path d="M3 13c2-1 4-1 6 0s4 1 6 0 4-1 6 0" stroke={c} strokeWidth={sw} strokeLinecap="round"/><circle cx="12" cy="7" r="3" stroke={c} strokeWidth={sw} fill={fill}/></svg>
+    case 'me':
+      return <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.5" r="3.5" stroke={c} strokeWidth={sw} fill={fill}/><path d="M4.5 20c1.5-3.5 4.5-5 7.5-5s6 1.5 7.5 5" stroke={c} strokeWidth={sw} strokeLinecap="round" fill="none"/></svg>
+    default: return null
+  }
+}
+
+function RubyIcon({ active }: { active: boolean }) {
+  return (
+    <div
+      className="flex items-center justify-center relative"
+      style={{
+        width: 42, height: 42, borderRadius: 14,
+        background: active
+          ? `linear-gradient(135deg, ${HNH.red} 0%, ${HNH.redDark} 100%)`
+          : `linear-gradient(135deg, #1a1530 0%, ${HNH.navy} 100%)`,
+        marginTop: -10,
+        boxShadow: '0 6px 14px rgba(192,34,43,0.28)',
+      }}
+    >
+      <svg width="26" height="22" viewBox="0 0 100 80">
+        <path d="M22 38 A28 28 0 0 1 78 38 Z" fill="#fff"/>
+        <g stroke="#fff" strokeWidth="3" strokeLinecap="round">
+          <line x1="50" y1="6" x2="50" y2="14"/>
+          <line x1="20" y1="14" x2="25" y2="20"/>
+          <line x1="80" y1="14" x2="75" y2="20"/>
+        </g>
+        <path d="M4 50 C 22 42, 38 56, 50 50 C 62 44, 78 56, 96 50 L 96 58 C 78 64, 62 52, 50 58 C 38 64, 22 52, 4 58 Z" fill="#fff" fillOpacity="0.95"/>
+        <path d="M4 62 C 22 54, 38 68, 50 62 C 62 56, 78 68, 96 62 L 96 70 C 78 76, 62 64, 50 70 C 38 76, 22 64, 4 70 Z" fill="#fff" fillOpacity="0.7"/>
+      </svg>
+      <span className="absolute" style={{ top: -2, right: -2, width: 6, height: 6, borderRadius: '50%', background: HNH.gold }}/>
+    </div>
+  )
+}
+
+export function BottomNav() {
+  const location = useLocation()
+  const navigate = useNavigate()
+
+  const activeTab = tabs.find(t => t.path === location.pathname)?.id ?? 'home'
+
+  return (
+    <nav
+      className="sticky bottom-0 z-30 flex justify-around safe-bottom"
+      style={{
+        background: 'rgba(255,255,255,0.92)',
+        backdropFilter: 'blur(20px) saturate(180%)',
+        WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+        borderTop: `1px solid ${HNH.line}`,
+        padding: '8px 6px 22px',
+      }}
+    >
+      {tabs.map(t => {
+        const isActive = activeTab === t.id
+        if (t.id === 'ruby') {
+          return (
+            <button
+              key={t.id}
+              className="flex-1 flex flex-col items-center gap-1 p-1 bg-transparent border-none cursor-pointer"
+              onClick={() => navigate(t.path)}
+            >
+              <RubyIcon active={isActive} />
+              <span style={{ fontSize: 10.5, fontWeight: isActive ? 700 : 600, color: isActive ? HNH.red : HNH.ink2, letterSpacing: -0.1 }}>
+                {t.label}
+              </span>
+            </button>
+          )
+        }
+        return (
+          <button
+            key={t.id}
+            className="flex-1 flex flex-col items-center gap-1 py-1 bg-transparent border-none cursor-pointer"
+            onClick={() => navigate(t.path)}
+          >
+            <TabIcon name={t.id} active={isActive} />
+            <span style={{ fontSize: 10.5, fontWeight: isActive ? 700 : 500, color: isActive ? HNH.red : HNH.ink3, letterSpacing: -0.1 }}>
+              {t.label}
+            </span>
+          </button>
+        )
+      })}
+    </nav>
+  )
+}

@@ -41,6 +41,25 @@ from ...api_serializers.payroll.serializers import (
 )
 
 
+class MyPayslipAPIView(APIView):
+    """Returns payslips belonging to the authenticated user, newest first."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            employee = request.user.employee_get
+        except Exception:
+            return Response({"error": "No employee record"}, status=404)
+        payslips = Payslip.objects.filter(employee_id=employee).order_by(
+            "-start_date"
+        )
+        pagination = PageNumberPagination()
+        page = pagination.paginate_queryset(payslips, request)
+        serializer = PayslipSerializer(page, many=True)
+        return pagination.get_paginated_response(serializer.data)
+
+
 class PayslipView(APIView):
     permission_classes = [IsAuthenticated]
 

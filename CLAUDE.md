@@ -8,7 +8,7 @@ Branch làm việc chính: `horilla_aqv10`. Merge về `1.0` khi release.
 | Trường | Giá trị |
 |--------|---------|
 | Tên | Công ty Du lịch Hồng Ngọc Hà |
-| Địa chỉ | 268 Tô Hiến Thành, P.15, Q.10, TP.HCM |
+| Địa chỉ | 185-187 Lê Thánh Tôn, P. Bến Thành, Q.1, TP.HCM |
 | Website | hongngocha.com |
 | Múi giờ | Asia/Ho_Chi_Minh (UTC+7) |
 | Ngôn ngữ mặc định | Tiếng Việt (`vi`) |

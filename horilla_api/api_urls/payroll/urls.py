@@ -3,6 +3,7 @@ from django.urls import path
 from ...api_views.payroll.views import *
 
 urlpatterns = [
+    path("my-payslip/", MyPayslipAPIView.as_view(), name="api-my-payslip"),
     path(
         "contract/",
         ContractView.as_view(),

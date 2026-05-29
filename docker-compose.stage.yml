@@ -13,6 +13,24 @@ services:
       redis:
         condition: service_started
 
+  bff:
+    build: ./pwa/bff
+    environment:
+      KC_BASE: https://sso.hnhtravel.work/realms/HNHTravel-SGN
+      KC_CLIENT_ID: horilla-hrm-pwa
+      HORILLA_API: http://web:8000
+      BFF_PORT: "3000"
+      BFF_ORIGIN: https://qlns.hnhtravel.work
+      PWA_PATH: /pwa/
+      COOKIE_SECRET: ${BFF_COOKIE_SECRET}
+    restart: always
+    depends_on:
+      - web
+
+  pwa:
+    build: ./pwa/frontend
+    restart: always
+
   db:
     image: postgres:16-alpine
     environment:
@@ -43,6 +61,8 @@ services:
       - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
       - web
+      - bff
+      - pwa
     restart: always
 
   cloudflared:

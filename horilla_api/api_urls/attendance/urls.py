@@ -58,4 +58,5 @@ urlpatterns = [
     path("my-attendance/", UserAttendanceView.as_view()),
     path("attendance-type-check/", AttendanceTypeAccessCheck.as_view()),
     path("my-attendance-detailed/<int:id>/", UserAttendanceDetailedView.as_view()),
+    path("my-schedule/", MyScheduleAPIView.as_view(), name="api-my-schedule"),
 ]

@@ -1,0 +1,41 @@
+import { HNH } from '../../lib/theme'
+
+interface IconProps {
+  name: string
+  size?: number
+  color?: string
+  stroke?: number
+}
+
+export function Icon({ name, size = 18, color = HNH.ink, stroke: sw = 1.8 }: IconProps) {
+  const p = { stroke: color, strokeWidth: sw, fill: 'none', strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const }
+  switch (name) {
+    case 'bell': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M6 9a6 6 0 1 1 12 0c0 5 2 6 2 7H4c0-1 2-2 2-7Z" {...p}/><path d="M10 19a2 2 0 0 0 4 0" {...p}/></svg>
+    case 'search': return <svg width={size} height={size} viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" {...p}/><path d="m16 16 4 4" {...p}/></svg>
+    case 'pin': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M12 21s7-6.5 7-12a7 7 0 1 0-14 0c0 5.5 7 12 7 12Z" {...p}/><circle cx="12" cy="9" r="2.5" {...p}/></svg>
+    case 'clock': return <svg width={size} height={size} viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" {...p}/><path d="M12 7v5l3 2" {...p}/></svg>
+    case 'plus': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" {...p}/></svg>
+    case 'check': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="m4 12 5 5L20 6" {...p}/></svg>
+    case 'x': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" {...p}/></svg>
+    case 'chev-r': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="m9 6 6 6-6 6" {...p}/></svg>
+    case 'chev-d': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" {...p}/></svg>
+    case 'cal': return <svg width={size} height={size} viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2" {...p}/><path d="M3.5 10h17M8 3v4M16 3v4" {...p}/></svg>
+    case 'arrow-up': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6" {...p}/></svg>
+    case 'arrow-r': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" {...p}/></svg>
+    case 'logout': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M9 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h4M16 8l4 4-4 4M9 12h11" {...p}/></svg>
+    case 'gear': return <svg width={size} height={size} viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" {...p}/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3 1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8 1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z" {...p}/></svg>
+    case 'doc': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M13 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10Z" {...p}/><path d="M13 3v7h7" {...p}/></svg>
+    case 'money': return <svg width={size} height={size} viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2" {...p}/><circle cx="12" cy="12" r="2.5" {...p}/><path d="M6 9v.01M18 15v.01" {...p}/></svg>
+    case 'bus': return <svg width={size} height={size} viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="14" rx="2" {...p}/><path d="M4 12h16M8 18v2M16 18v2" {...p}/><circle cx="8" cy="15" r="1" fill={color} stroke="none"/><circle cx="16" cy="15" r="1" fill={color} stroke="none"/></svg>
+    case 'flag': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M5 21V4M5 4h11l-2 4 2 4H5" {...p}/></svg>
+    case 'sparkle': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.5 5.5l2.5 2.5M16 16l2.5 2.5M5.5 18.5 8 16M16 8l2.5-2.5" {...p}/></svg>
+    case 'palm': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M12 21V12M12 12c-3-4-7-3-8-1M12 12c3-4 7-3 8-1M12 12c-2-4 0-8 3-9M12 12c2-4 0-8-3-9" {...p}/></svg>
+    case 'globe': return <svg width={size} height={size} viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" {...p}/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" {...p}/></svg>
+    case 'phone': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6 19.8 19.8 0 0 1-3.1-8.7A2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.3 1.8.7 2.6a2 2 0 0 1-.5 2.1L8 9.7a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.8.3 1.7.6 2.6.7a2 2 0 0 1 1.7 2Z" {...p}/></svg>
+    case 'star': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="m12 3 2.7 5.6 6.3.9-4.5 4.4 1 6.1-5.5-2.9-5.5 2.9 1-6.1L3 9.5l6.3-.9L12 3Z" {...p}/></svg>
+    case 'shield': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M12 3 4 6v6c0 5 3.5 8 8 9 4.5-1 8-4 8-9V6l-8-3Z" {...p}/></svg>
+    case 'leaf': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M11 20A7 7 0 0 1 9.8 6.1L13 2a4 4 0 0 1 7 4l-1.5 1.5C19 9 19 11 18 13c-1 2-3 4-5 5.5L11 20Z" {...p}/><path d="M2 22c2-8 7-12 14-13" {...p}/></svg>
+    case 'home': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1v-8Z" {...p}/></svg>
+    default: return null
+  }
+}

@@ -176,3 +176,71 @@ class EmployeeSelectorSerializer(serializers.ModelSerializer):
             "badge_id",
             "employee_profile",
         ]
+
+
+class EmployeeMeSerializer(serializers.ModelSerializer):
+    full_name = serializers.SerializerMethodField()
+    department_name = serializers.CharField(
+        source="employee_work_info.department_id.department", read_only=True
+    )
+    job_position_name = serializers.CharField(
+        source="employee_work_info.job_position_id.job_position", read_only=True
+    )
+    shift_name = serializers.CharField(
+        source="employee_work_info.shift_id.employee_shift", read_only=True
+    )
+    company_name = serializers.CharField(
+        source="employee_work_info.company_id.company", read_only=True
+    )
+    reporting_manager_name = serializers.SerializerMethodField()
+    work_level_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Employee
+        fields = [
+            "id",
+            "badge_id",
+            "employee_first_name",
+            "employee_last_name",
+            "full_name",
+            "email",
+            "phone",
+            "employee_profile",
+            "dob",
+            "gender",
+            "address",
+            "country",
+            "state",
+            "city",
+            "zip",
+            "qualification",
+            "experience",
+            "marital_status",
+            "children",
+            "emergency_contact",
+            "emergency_contact_name",
+            "emergency_contact_relation",
+            "is_active",
+            "department_name",
+            "job_position_name",
+            "shift_name",
+            "company_name",
+            "reporting_manager_name",
+            "work_level_name",
+        ]
+
+    def get_full_name(self, obj):
+        return obj.get_full_name()
+
+    def get_reporting_manager_name(self, obj):
+        try:
+            mgr = obj.employee_work_info.reporting_manager_id
+            return mgr.get_full_name() if mgr else None
+        except Exception:
+            return None
+
+    def get_work_level_name(self, obj):
+        try:
+            return obj.work_level.name if obj.work_level else None
+        except Exception:
+            return None

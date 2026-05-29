@@ -256,7 +256,7 @@ class LeaveTypeGetCreateSerilaizer(serializers.ModelSerializer):
 class LeaveTypeAllGetSerializer(serializers.ModelSerializer):
     class Meta:
         model = LeaveType
-        fields = ["id", "name", "icon"]
+        fields = ["id", "name", "icon", "total_days"]
 
 
 class LeaveAllocationRequestCreateSerializer(serializers.ModelSerializer):

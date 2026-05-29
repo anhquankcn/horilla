@@ -42,6 +42,7 @@ from ...api_serializers.employee.serializers import (
     DocumentSerializer,
     EmployeeBankDetailsSerializer,
     EmployeeListSerializer,
+    EmployeeMeSerializer,
     EmployeeSelectorSerializer,
     EmployeeSerializer,
     EmployeeTypeSerializer,
@@ -68,6 +69,22 @@ def object_delete(cls, pk):
         return "", 200
     except Exception as e:
         return {"error": str(e)}, 400
+
+
+class EmployeeMeAPIView(APIView):
+    """Returns the authenticated user's own employee profile."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            employee = request.user.employee_get
+        except Employee.DoesNotExist:
+            return Response(
+                {"error": "No employee record for this user"}, status=404
+            )
+        serializer = EmployeeMeSerializer(employee)
+        return Response(serializer.data, status=200)
 
 
 class EmployeeTypeAPIView(APIView):

@@ -25,7 +25,7 @@ from attendance.views.dashboard import (
 from attendance.views.views import *
 from base.backends import ConfiguredEmailBackend
 from base.methods import generate_pdf, is_reportingmanager
-from base.models import HorillaMailTemplate
+from base.models import EmployeeShiftSchedule, HorillaMailTemplate
 from employee.filters import EmployeeFilter
 
 from ...api_decorators.base.decorators import (
@@ -1074,3 +1074,34 @@ class UserAttendanceDetailedView(APIView):
         return Response(
             {"error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN
         )
+
+
+class MyScheduleAPIView(APIView):
+    """Returns the authenticated employee's weekly shift schedule."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            employee = request.user.employee_get
+        except Exception:
+            return Response({"error": "No employee record"}, status=404)
+        work_info = getattr(employee, "employee_work_info", None)
+        if not work_info or not work_info.shift_id:
+            return Response({"error": "No shift assigned"}, status=404)
+        schedules = EmployeeShiftSchedule.objects.filter(
+            shift_id=work_info.shift_id
+        ).select_related("day", "shift_id")
+        data = []
+        for s in schedules:
+            data.append(
+                {
+                    "day": s.day.day if s.day else None,
+                    "shift": s.shift_id.employee_shift if s.shift_id else None,
+                    "start_time": s.start_time.strftime("%H:%M") if s.start_time else None,
+                    "end_time": s.end_time.strftime("%H:%M") if s.end_time else None,
+                    "minimum_working_hour": s.minimum_working_hour,
+                    "is_night_shift": s.is_night_shift,
+                }
+            )
+        return Response(data, status=200)
