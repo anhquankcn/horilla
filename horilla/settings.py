@@ -286,6 +286,10 @@ OIDC_STORE_ACCESS_TOKEN = True
 OIDC_STORE_ID_TOKEN = True
 OIDC_REDIRECT_BASE_URL = env("OIDC_REDIRECT_BASE_URL", default="https://qlns.hnhtravel.work")
 
+# ── External Task System (1StopShop) deeplink ─────────────────────
+TASK_SYSTEM_URL = env("TASK_SYSTEM_URL", default="https://task.hnhtravel.work")
+TASK_KC_CLIENT_ID = env("TASK_KC_CLIENT_ID", default="")
+
 # Trust Cloudflare/nginx reverse proxy HTTPS headers
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 USE_X_FORWARDED_HOST = True

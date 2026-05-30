@@ -13,7 +13,8 @@ SKIP_PREFIXES = (
     "/media/",
     "/oidc/",
     "/admin/",
-    "/set-view-mode/",
+    "/deeplink/",
+    "/login",
 )
 
 

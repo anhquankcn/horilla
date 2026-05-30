@@ -27,6 +27,13 @@
 
         <!-- Action Icons -->
         <div class="flex items-center gap-2">
+            <a
+                href="{% url 'deeplink-tasks' %}"
+                class="md:block p-2 group text-primary-600 w-12 h-12 bg-primary-100 hover:bg-primary-600 rounded-full transition duration-300 flex items-center justify-center"
+                title="1StopShop — Hệ thống Task"
+            >
+                <i class="fas fa-tasks transition duration-300 group-hover:text-white"></i>
+            </a>
             <button
                 onclick="document.cookie='prefer_desktop=;path=/;max-age=0';window.location.href='/pwa/'"
                 class="md:block p-2 group text-primary-600 w-12 h-12 bg-primary-100 hover:bg-primary-600 rounded-full transition duration-300 flex items-center justify-center"

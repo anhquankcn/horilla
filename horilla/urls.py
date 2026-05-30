@@ -25,6 +25,7 @@ import notifications.urls
 
 from . import settings
 from .oidc_backend import HorillaOIDCCallbackView
+from .deeplink_views import task_deeplink
 from .oidc_signup_views import oidc_signup_view
 
 
@@ -52,6 +53,7 @@ urlpatterns = [
     path("i18n/", include("django.conf.urls.i18n")),
     path("jsi18n/", JavaScriptCatalog.as_view(), name="javascript-catalog"),
     path("health/", health_check),
+    path("deeplink/tasks/", task_deeplink, name="deeplink-tasks"),
 ]
 
 

@@ -18,6 +18,11 @@ SUBMENUS = [
         "redirect": reverse_lazy("eoffice-dashboard"),
         "accessibility": "eoffice.sidebar.dashboard_accessibility",
     },
+    {
+        "menu": _("1StopShop (Task)"),
+        "redirect": reverse_lazy("deeplink-tasks"),
+        "accessibility": "eoffice.sidebar.default_accessibility",
+    },
 ]
 
 
