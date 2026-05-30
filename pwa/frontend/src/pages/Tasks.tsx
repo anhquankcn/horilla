@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { useApi } from '../lib/useApi'
@@ -242,6 +243,7 @@ function TaskDetailModal({ open, onClose, task, onRefresh }: {
 }
 
 export function TasksPage() {
+  const navigate = useNavigate()
   const [filterStatus, setFilterStatus] = useState('')
   const path = filterStatus ? `/api/eoffice/my-tasks/?status=${filterStatus}` : '/api/eoffice/my-tasks/'
   const { data: tasks, loading, refresh } = useApi<Task[]>(path)
@@ -261,14 +263,14 @@ export function TasksPage() {
       <div className="flex items-center justify-between" style={{ padding: '8px 20px 12px' }}>
         <div style={{ fontSize: 20, fontWeight: 800, color: HNH.ink, letterSpacing: -0.3 }}>Công việc</div>
         <div className="flex items-center gap-2">
-          <a
-            href="/deeplink/tasks/"
-            className="flex items-center gap-1.5 border-none cursor-pointer no-underline"
+          <button
+            onClick={() => navigate('/tasks/1stopshop')}
+            className="flex items-center gap-1.5 border-none cursor-pointer"
             style={{ background: HNH.cream, color: HNH.navy, padding: '8px 12px', borderRadius: 10, fontWeight: 700, fontSize: 12, border: `1px solid ${HNH.line}` }}
           >
             <Icon name="globe" size={14} color={HNH.navy} stroke={2} />
             1StopShop
-          </a>
+          </button>
           <button
             onClick={() => setShowCreate(true)}
             className="flex items-center gap-1.5 border-none cursor-pointer"

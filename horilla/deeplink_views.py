@@ -3,8 +3,10 @@ from urllib.parse import urlencode
 from django.conf import settings
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect
+from django.views.decorators.clickjacking import xframe_options_exempt
 
 
+@xframe_options_exempt
 @login_required
 def task_deeplink(request):
     """

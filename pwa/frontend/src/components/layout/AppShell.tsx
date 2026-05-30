@@ -34,7 +34,7 @@ export function AppShell() {
           Desktop
         </button>
       </div>
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto flex flex-col" style={{ minHeight: 0 }}>
         <Outlet />
       </div>
       <BottomNav />
