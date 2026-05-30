@@ -7,13 +7,15 @@ export class ApiError extends Error {
 }
 
 export async function apiFetch<T = unknown>(path: string, init?: RequestInit): Promise<T> {
+  const headers: Record<string, string> = { ...init?.headers as Record<string, string> };
+  if (init?.body) {
+    headers['Content-Type'] ??= 'application/json';
+  }
+
   const res = await fetch(`${BASE}${path}`, {
     credentials: 'include',
     ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...init?.headers,
-    },
+    headers,
   });
 
   if (res.status === 401) {
