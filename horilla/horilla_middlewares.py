@@ -18,6 +18,7 @@ MIDDLEWARE.append("horilla.horilla_middlewares.SVGSecurityMiddleware")
 MIDDLEWARE.append("accessibility.middlewares.AccessibilityMiddleware")
 MIDDLEWARE.append("accessibility.middlewares.AccessibilityMiddleware")
 MIDDLEWARE.append("base.middleware.TwoFactorAuthMiddleware")
+MIDDLEWARE.append("horilla.mobile_middleware.MobileRedirectMiddleware")
 _thread_locals = threading.local()
 
 

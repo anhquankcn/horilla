@@ -27,6 +27,13 @@
 
         <!-- Action Icons -->
         <div class="flex items-center gap-2">
+            <button
+                onclick="document.cookie='prefer_desktop=;path=/;max-age=0';window.location.href='/pwa/'"
+                class="md:block p-2 group text-primary-600 w-12 h-12 bg-primary-100 hover:bg-primary-600 rounded-full transition duration-300 flex items-center justify-center"
+                title="Chuyển sang giao diện Mobile"
+            >
+                <i class="fas fa-mobile-alt transition duration-300 group-hover:text-white"></i>
+            </button>
             {% if "attendance"|app_installed %}
                 {% if enabled_timerunner %}
                     <div id="attendance-activity-container">
