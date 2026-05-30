@@ -122,9 +122,11 @@ class TaskDetailView(APIView):
             return Response({"error": "Not found"}, status=404)
 
         data = request.data
-        for field in ["title", "description", "priority", "due_date"]:
+        for field in ["title", "description", "priority"]:
             if field in data:
-                setattr(task, field, data[field] if data[field] != "" else None)
+                setattr(task, field, data[field])
+        if "due_date" in data:
+            task.due_date = data["due_date"] or None
 
         if "status" in data:
             new_status = data["status"]
