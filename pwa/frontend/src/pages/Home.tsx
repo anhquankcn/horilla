@@ -207,10 +207,11 @@ function CheckInCard({ employee, isClockedIn, clockInTime, duration, onOpen }: {
   )
 }
 
-function TaskRow({ t }: { t: TaskSummary['recent_tasks'][number] }) {
+function TaskRow({ t, onClick }: { t: TaskSummary['recent_tasks'][number]; onClick: () => void }) {
   return (
-    <div
-      className="flex items-center gap-3"
+    <button
+      onClick={onClick}
+      className="flex items-center gap-3 w-full text-left border-none cursor-pointer"
       style={{ background: '#fff', border: `1px solid ${HNH.line}`, borderRadius: 14, padding: '10px 14px' }}
     >
       <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: STATUS_COLORS[t.status] ?? HNH.ink3 }} />
@@ -227,7 +228,8 @@ function TaskRow({ t }: { t: TaskSummary['recent_tasks'][number] }) {
         background: t.priority === 'urgent' ? HNH.red50 : t.priority === 'high' ? '#fff7ed' : HNH.cream,
         color: t.priority === 'urgent' ? HNH.red : t.priority === 'high' ? '#ea580c' : HNH.ink3,
       }}>{PRIORITY_LABELS[t.priority] ?? t.priority}</div>
-    </div>
+      <Icon name="chev-r" size={14} color={HNH.ink4} stroke={1.5} />
+    </button>
   )
 }
 
@@ -375,7 +377,9 @@ export function HomePage() {
             >Xem tất cả →</button>
           </div>
           <div className={isTablet ? 'grid gap-2' : 'flex flex-col gap-2'} style={isTablet ? { gridTemplateColumns: '1fr 1fr' } : undefined}>
-            {tasks.recent_tasks.map(t => <TaskRow key={t.id} t={t} />)}
+            {tasks.recent_tasks.map(t => (
+              <TaskRow key={t.id} t={t} onClick={() => navigate('/tasks', { state: { openTaskId: t.id } })} />
+            ))}
           </div>
         </div>
       )}

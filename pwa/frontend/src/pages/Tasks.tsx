@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { useApi } from '../lib/useApi'
@@ -431,6 +431,7 @@ function GroupSection({ group, isTablet, onTaskClick }: {
 
 export function TasksPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const isTablet = useTablet()
   const px = isTablet ? 28 : 20
   const [filterStatus, setFilterStatus] = useState('')
@@ -438,6 +439,17 @@ export function TasksPage() {
   const { data: tasks, loading, refresh } = useApi<Task[]>(path)
   const [showCreate, setShowCreate] = useState(false)
   const [selectedTask, setSelectedTask] = useState<Task | null>(null)
+
+  useEffect(() => {
+    const openId = (location.state as { openTaskId?: number } | null)?.openTaskId
+    if (openId && tasks) {
+      const found = tasks.find(t => t.id === openId)
+      if (found) {
+        setSelectedTask(found)
+        navigate(location.pathname, { replace: true, state: {} })
+      }
+    }
+  }, [tasks, location.state, navigate, location.pathname])
 
   const groups = tasks ? groupTasksByDeadline(tasks) : []
 
