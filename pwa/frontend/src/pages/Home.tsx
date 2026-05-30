@@ -10,6 +10,22 @@ import { useApi } from '../lib/useApi'
 import { ClockModal } from '../components/ClockModal'
 import { useTablet } from '../lib/useTablet'
 
+interface AttendanceRecord {
+  id: number
+  attendance_date: string
+}
+
+interface PaginatedResponse<T> {
+  count: number
+  results: T[]
+}
+
+interface LeaveAvailable {
+  id: number
+  available_days: number
+  leave_type_id: { name: string }
+}
+
 interface TaskSummary {
   total: number
   to_do: number
@@ -222,9 +238,39 @@ export function HomePage() {
   const { now, time } = useLiveClock()
   const [clockModalOpen, setClockModalOpen] = useState(false)
   const { data: tasks } = useApi<TaskSummary>('/api/eoffice/my-summary/')
+  const { data: attendanceData } = useApi<PaginatedResponse<AttendanceRecord>>(
+    '/api/attendance/my-attendance/?page_size=50'
+  )
+  const { data: leaveData } = useApi<PaginatedResponse<LeaveAvailable>>('/api/leave/available-leave/?page_size=20')
+  const { data: unreadData } = useApi<PaginatedResponse<{ id: number }>>('/api/notifications/list/unread')
   const isTablet = useTablet()
   const px = isTablet ? 28 : 20
   const activeCount = tasks ? tasks.to_do + tasks.in_progress + tasks.blocked : 0
+
+  const currentMonth = now.getMonth()
+  const currentYear = now.getFullYear()
+  const workingDays = attendanceData?.results?.filter(r => {
+    const d = new Date(r.attendance_date)
+    return d.getMonth() === currentMonth && d.getFullYear() === currentYear
+  }).length ?? 0
+  const totalWorkDaysInMonth = (() => {
+    const year = now.getFullYear()
+    const month = now.getMonth()
+    const daysInMonth = new Date(year, month + 1, 0).getDate()
+    let count = 0
+    for (let d = 1; d <= daysInMonth; d++) {
+      const day = new Date(year, month, d).getDay()
+      if (day !== 0 && day !== 6) count++
+    }
+    return count
+  })()
+
+  const annualLeave = leaveData?.results?.find(l =>
+    l.leave_type_id?.name?.toLowerCase().includes('phép năm') ||
+    l.leave_type_id?.name?.toLowerCase().includes('annual')
+  )
+  const leaveRemaining = annualLeave ? annualLeave.available_days : (leaveData?.results?.[0]?.available_days ?? 0)
+  const unreadCount = unreadData?.count ?? 0
   const dayName = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'][now.getDay()]
   const dateStr = `${dayName.toUpperCase()}, ${String(now.getDate()).padStart(2, '0')} / ${String(now.getMonth() + 1).padStart(2, '0')}`
 
@@ -270,13 +316,18 @@ export function HomePage() {
           }}
         >
           <Icon name="bell" size={18} color={HNH.ink} />
-          <span
-            className="absolute"
-            style={{
-              top: 8, right: 9, width: 8, height: 8,
-              borderRadius: '50%', background: HNH.red, border: '1.5px solid #fff',
-            }}
-          />
+          {unreadCount > 0 && (
+            <span
+              className="absolute flex items-center justify-center"
+              style={{
+                top: 4, right: 4, minWidth: 16, height: 16, padding: '0 4px',
+                borderRadius: 8, background: HNH.red, border: '1.5px solid #fff',
+                fontSize: 9, fontWeight: 800, color: '#fff', lineHeight: 1,
+              }}
+            >
+              {unreadCount > 99 ? '99+' : unreadCount}
+            </span>
+          )}
         </button>
         <button
           onClick={() => { window.location.href = '/' }}
@@ -335,11 +386,15 @@ export function HomePage() {
           <div style={{ fontSize: 15, fontWeight: 700, color: HNH.ink, letterSpacing: -0.1 }}>
             Tổng quan tháng {now.getMonth() + 1}
           </div>
-          <span style={{ fontSize: 12, color: HNH.red, fontWeight: 600 }}>Chi tiết →</span>
+          <button
+            onClick={() => navigate('/attendance')}
+            className="border-none bg-transparent cursor-pointer"
+            style={{ fontSize: 12, color: HNH.red, fontWeight: 600 }}
+          >Chi tiết →</button>
         </div>
         <div className={isTablet ? 'grid grid-cols-4 gap-2.5' : 'grid grid-cols-2 gap-2.5'}>
-          <StatChip icon="cal" label="Ngày công" value="18" sub="/ 21" tone="navy" />
-          <StatChip icon="leaf" label="Nghỉ phép còn" value="9" sub=" ngày" tone="success" />
+          <StatChip icon="cal" label="Ngày công" value={String(workingDays)} sub={`/ ${totalWorkDaysInMonth}`} tone="navy" />
+          <StatChip icon="leaf" label="Nghỉ phép còn" value={String(leaveRemaining)} sub=" ngày" tone="success" />
           <StatChip icon="doc" label="Công việc" value={String(activeCount)} sub={tasks ? ` / ${tasks.total}` : ''} tone="red" />
           <StatChip icon="shield" label="Trễ hạn" value={String(tasks?.overdue ?? 0)} sub=" việc" tone="gold" />
         </div>
@@ -351,8 +406,8 @@ export function HomePage() {
         <div className="grid grid-cols-4 gap-2">
           <QuickAction icon="leaf" label="Xin nghỉ" tone="red" onClick={() => navigate('/leave')} />
           <QuickAction icon="money" label="Lương" tone="navy" onClick={() => navigate('/payslip')} />
-          <QuickAction icon="doc" label="Công việc" tone="gold" onClick={() => window.open('https://task.hnhtravel.work', '_blank')} />
-          <QuickAction icon="shield" label="Phê duyệt" tone="success" onClick={() => window.open('https://task.hnhtravel.work', '_blank')} />
+          <QuickAction icon="doc" label="Công việc" tone="gold" onClick={() => navigate('/tasks')} />
+          <QuickAction icon="shield" label="Phê duyệt" tone="success" onClick={() => navigate(TASK_WEBVIEW)} />
         </div>
       </div>
 
