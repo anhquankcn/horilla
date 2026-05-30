@@ -3,6 +3,7 @@ import { Icon } from '../components/ui/Icon'
 import { Avatar } from '../components/ui/Avatar'
 import { Badge } from '../components/ui/Badge'
 import { useAuth } from '../lib/auth'
+import { useTablet } from '../lib/useTablet'
 
 function ProfileGroup({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -41,6 +42,8 @@ function ProfileRow({ icon, label, detail, tone = 'ink', last, onClick }: {
 
 export function ProfilePage() {
   const { employee } = useAuth()
+  const isTablet = useTablet()
+  const px = isTablet ? 28 : 20
 
   const handleLogout = () => {
     window.location.href = '/bff/auth/logout'
@@ -58,7 +61,7 @@ export function ProfilePage() {
       <div
         className="relative overflow-hidden"
         style={{
-          margin: '6px 20px 0', borderRadius: 24,
+          margin: `6px ${px}px 0`, borderRadius: 24,
           background: `linear-gradient(180deg, ${HNH.navy} 0%, ${HNH.navy2} 100%)`,
           padding: '22px 20px 18px', color: '#fff',
         }}
@@ -94,27 +97,56 @@ export function ProfilePage() {
         </div>
       </div>
 
-      {/* List groups */}
-      <div style={{ padding: '14px 20px 14px' }}>
-        <ProfileGroup title="HỒ SƠ & GIẤY TỜ">
-          <ProfileRow icon="doc" label="Thông tin cá nhân" detail="CCCD · BHXH" />
-          <ProfileRow icon="shield" label="Thẻ nhân viên" detail="Còn hiệu lực" />
-          <ProfileRow icon="globe" label="Ngôn ngữ" detail="VI · EN" />
-          <ProfileRow icon="leaf" label="Chuyên môn" detail="CNTT" last />
-        </ProfileGroup>
+      {/* List groups — 2 columns on tablet */}
+      <div style={{ padding: `14px ${px}px 14px` }}>
+        {isTablet ? (
+          <div className="flex gap-4">
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <ProfileGroup title="HỒ SƠ & GIẤY TỜ">
+                <ProfileRow icon="doc" label="Thông tin cá nhân" detail="CCCD · BHXH" />
+                <ProfileRow icon="shield" label="Thẻ nhân viên" detail="Còn hiệu lực" />
+                <ProfileRow icon="globe" label="Ngôn ngữ" detail="VI · EN" />
+                <ProfileRow icon="leaf" label="Chuyên môn" detail="CNTT" last />
+              </ProfileGroup>
 
-        <ProfileGroup title="CÔNG VIỆC">
-          <ProfileRow icon="cal" label="Lịch ca tuần này" />
-          <ProfileRow icon="bus" label="Lịch sử tour" detail="—" />
-          <ProfileRow icon="money" label="Phiếu lương & thuế" />
-          <ProfileRow icon="star" label="Đánh giá hiệu suất" last />
-        </ProfileGroup>
+              <ProfileGroup title="KHÁC">
+                <ProfileRow icon="gear" label="Cài đặt" />
+                <ProfileRow icon="phone" label="Liên hệ HR" detail="Ms. Hà · IP 102" />
+                <ProfileRow icon="logout" label="Đăng xuất" tone="red" last onClick={handleLogout} />
+              </ProfileGroup>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <ProfileGroup title="CÔNG VIỆC">
+                <ProfileRow icon="cal" label="Lịch ca tuần này" />
+                <ProfileRow icon="bus" label="Lịch sử tour" detail="—" />
+                <ProfileRow icon="money" label="Phiếu lương & thuế" />
+                <ProfileRow icon="star" label="Đánh giá hiệu suất" last />
+              </ProfileGroup>
+            </div>
+          </div>
+        ) : (
+          <>
+            <ProfileGroup title="HỒ SƠ & GIẤY TỜ">
+              <ProfileRow icon="doc" label="Thông tin cá nhân" detail="CCCD · BHXH" />
+              <ProfileRow icon="shield" label="Thẻ nhân viên" detail="Còn hiệu lực" />
+              <ProfileRow icon="globe" label="Ngôn ngữ" detail="VI · EN" />
+              <ProfileRow icon="leaf" label="Chuyên môn" detail="CNTT" last />
+            </ProfileGroup>
 
-        <ProfileGroup title="KHÁC">
-          <ProfileRow icon="gear" label="Cài đặt" />
-          <ProfileRow icon="phone" label="Liên hệ HR" detail="Ms. Hà · IP 102" />
-          <ProfileRow icon="logout" label="Đăng xuất" tone="red" last onClick={handleLogout} />
-        </ProfileGroup>
+            <ProfileGroup title="CÔNG VIỆC">
+              <ProfileRow icon="cal" label="Lịch ca tuần này" />
+              <ProfileRow icon="bus" label="Lịch sử tour" detail="—" />
+              <ProfileRow icon="money" label="Phiếu lương & thuế" />
+              <ProfileRow icon="star" label="Đánh giá hiệu suất" last />
+            </ProfileGroup>
+
+            <ProfileGroup title="KHÁC">
+              <ProfileRow icon="gear" label="Cài đặt" />
+              <ProfileRow icon="phone" label="Liên hệ HR" detail="Ms. Hà · IP 102" />
+              <ProfileRow icon="logout" label="Đăng xuất" tone="red" last onClick={handleLogout} />
+            </ProfileGroup>
+          </>
+        )}
       </div>
     </div>
   )

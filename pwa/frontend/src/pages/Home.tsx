@@ -8,6 +8,7 @@ import { useClock } from '../lib/useClock'
 import { useLiveClock } from '../lib/useLiveClock'
 import { useApi } from '../lib/useApi'
 import { ClockModal } from '../components/ClockModal'
+import { useTablet } from '../lib/useTablet'
 
 interface TaskSummary {
   total: number
@@ -92,6 +93,128 @@ const PRIORITY_LABELS: Record<string, string> = {
   low: 'Thấp', normal: 'Bình thường', high: 'Cao', urgent: 'Khẩn cấp',
 }
 
+function EOfficeCard({ tasks, onClick }: { tasks: TaskSummary | null; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="relative overflow-hidden w-full border-none cursor-pointer text-left"
+      style={{
+        background: `linear-gradient(135deg, ${HNH.navy} 0%, ${HNH.navy2} 100%)`,
+        borderRadius: 22, padding: 18, color: '#fff',
+        boxShadow: '0 10px 24px rgba(20,43,111,0.18)',
+      }}
+    >
+      <div className="absolute" style={{ right: -50, top: -60, width: 180, height: 180, borderRadius: '50%', background: HNH.red, opacity: 0.18 }} />
+      <div className="absolute" style={{ right: -10, top: 10, width: 80, height: 80, borderRadius: '50%', background: HNH.red, opacity: 0.5, filter: 'blur(20px)' }} />
+      <div className="relative flex items-start justify-between">
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.6, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Công việc cá nhân</div>
+          <div style={{ fontSize: 19, fontWeight: 700, marginTop: 4, letterSpacing: -0.2 }}>eOffice HNH Travel</div>
+          <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>task.hnhtravel.work · Quản lý công việc</div>
+        </div>
+        <div className="relative flex items-center gap-1.5" style={{ background: 'rgba(255,255,255,0.15)', borderRadius: 10, padding: '5px 10px' }}>
+          <Icon name="arrow-r" size={12} color="#fff" stroke={2} />
+          <span style={{ fontSize: 11, fontWeight: 700, color: '#fff' }}>Mở</span>
+        </div>
+      </div>
+      <div className="relative flex gap-3" style={{ marginTop: 16 }}>
+        {[
+          { label: 'Đang làm', val: tasks?.in_progress ?? 0, color: '#60a5fa' },
+          { label: 'Cần làm', val: tasks?.to_do ?? 0, color: '#22d3ee' },
+          { label: 'Bị chặn', val: tasks?.blocked ?? 0, color: '#fb923c' },
+          { label: 'Trễ hạn', val: tasks?.overdue ?? 0, color: '#f87171' },
+        ].map(s => (
+          <div key={s.label} className="flex-1" style={{ background: 'rgba(255,255,255,0.1)', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: s.val > 0 ? s.color : 'rgba(255,255,255,0.4)', lineHeight: 1 }}>{s.val}</div>
+            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', fontWeight: 600, marginTop: 4 }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+    </button>
+  )
+}
+
+function CheckInCard({ employee, isClockedIn, clockInTime, duration, onOpen }: {
+  employee: { shift_name?: string | null } | null
+  isClockedIn: boolean; clockInTime: string | null; duration: string; onOpen: () => void
+}) {
+  return (
+    <div style={{
+      background: '#fff', borderRadius: 22, padding: 18,
+      border: `1px solid ${HNH.line}`, boxShadow: '0 1px 2px rgba(15,20,40,0.04)',
+      height: '100%', boxSizing: 'border-box',
+    }}>
+      <div className="flex justify-between items-center">
+        <div>
+          <div style={{ fontSize: 11.5, color: HNH.ink3, fontWeight: 600, letterSpacing: 0.4, textTransform: 'uppercase' }}>
+            Chấm công · {employee?.shift_name ?? 'Ca hành chính'}
+          </div>
+          <div style={{ fontSize: 26, fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 800, color: HNH.ink, marginTop: 2, letterSpacing: -0.5 }}>
+            {clockInTime || '--:--'}
+            {isClockedIn && <span style={{ fontSize: 13, color: HNH.success, fontWeight: 700, marginLeft: 4 }}>· đang làm</span>}
+            {!clockInTime && <span style={{ fontSize: 13, color: HNH.ink3, fontWeight: 700, marginLeft: 4 }}>· chưa vào</span>}
+          </div>
+        </div>
+        <div className="flex items-center justify-center" style={{ width: 56, height: 56, borderRadius: '50%', background: isClockedIn ? HNH.success50 : HNH.cream2 }}>
+          <Icon name={isClockedIn ? 'check' : 'clock'} size={26} color={isClockedIn ? HNH.success : HNH.ink3} stroke={2.4} />
+        </div>
+      </div>
+      <div className="flex gap-2" style={{ marginTop: 14 }}>
+        {[
+          { label: 'VÀO', value: clockInTime || '--:--' },
+          { label: 'THỜI GIAN', value: duration },
+        ].map(item => (
+          <div key={item.label} className="flex-1" style={{ background: HNH.cream, borderRadius: 12, padding: '10px 12px' }}>
+            <div style={{ fontSize: 10.5, color: HNH.ink3, fontWeight: 600 }}>{item.label}</div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: HNH.ink }}>{item.value}</div>
+          </div>
+        ))}
+      </div>
+      <button
+        onClick={onOpen}
+        className="flex items-center justify-center gap-2 w-full border-none cursor-pointer"
+        style={{
+          marginTop: 14, height: 48, borderRadius: 14,
+          background: isClockedIn ? HNH.red : HNH.navy,
+          color: '#fff', fontWeight: 700, fontSize: 14,
+          boxShadow: isClockedIn ? '0 6px 14px rgba(192,34,43,0.25)' : '0 6px 14px rgba(20,43,111,0.2)',
+        }}
+      >
+        <Icon name={isClockedIn ? 'clock' : 'check'} size={18} color="#fff" stroke={2.2} />
+        {isClockedIn ? 'Kết thúc ca' : 'Chấm công vào ca'}
+      </button>
+      <div className="flex items-center gap-1.5" style={{ marginTop: 10, fontSize: 11.5, color: HNH.ink3, fontWeight: 500 }}>
+        <Icon name="pin" size={13} color={HNH.ink3} stroke={1.6} />
+        185-187 Lê Thánh Tôn · Văn phòng HNH
+      </div>
+    </div>
+  )
+}
+
+function TaskRow({ t }: { t: TaskSummary['recent_tasks'][number] }) {
+  return (
+    <div
+      className="flex items-center gap-3"
+      style={{ background: '#fff', border: `1px solid ${HNH.line}`, borderRadius: 14, padding: '10px 14px' }}
+    >
+      <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: STATUS_COLORS[t.status] ?? HNH.ink3 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 13, fontWeight: 600, color: HNH.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.title}</div>
+        <div style={{ fontSize: 11, color: HNH.ink3, marginTop: 2 }}>
+          {STATUS_LABELS[t.status] ?? t.status}
+          {t.due_date && <> · {t.due_date.slice(5).replace('-', '/')}</>}
+          {t.overdue_days > 0 && <span style={{ color: HNH.red, fontWeight: 700 }}> · Trễ {t.overdue_days} ngày</span>}
+        </div>
+      </div>
+      <div style={{
+        fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6,
+        background: t.priority === 'urgent' ? HNH.red50 : t.priority === 'high' ? '#fff7ed' : HNH.cream,
+        color: t.priority === 'urgent' ? HNH.red : t.priority === 'high' ? '#ea580c' : HNH.ink3,
+      }}>{PRIORITY_LABELS[t.priority] ?? t.priority}</div>
+    </div>
+  )
+}
+
 export function HomePage() {
   const navigate = useNavigate()
   const { employee } = useAuth()
@@ -99,6 +222,8 @@ export function HomePage() {
   const { now, time } = useLiveClock()
   const [clockModalOpen, setClockModalOpen] = useState(false)
   const { data: tasks } = useApi<TaskSummary>('/api/eoffice/my-summary/')
+  const isTablet = useTablet()
+  const px = isTablet ? 28 : 20
   const activeCount = tasks ? tasks.to_do + tasks.in_progress + tasks.blocked : 0
   const dayName = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'][now.getDay()]
   const dateStr = `${dayName.toUpperCase()}, ${String(now.getDate()).padStart(2, '0')} / ${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -111,7 +236,7 @@ export function HomePage() {
   return (
     <div style={{ padding: '6px 0 14px' }}>
       {/* Greeting header */}
-      <div className="flex items-center gap-3" style={{ padding: '6px 20px 14px' }}>
+      <div className="flex items-center gap-3" style={{ padding: `6px ${px}px 14px` }}>
         <Avatar initials={initials} bg={HNH.red} size={42} />
         <div className="flex-1">
           <div style={{ fontSize: 11.5, color: HNH.ink3, fontWeight: 600, letterSpacing: 0.4 }}>{dateStr}</div>
@@ -166,51 +291,30 @@ export function HomePage() {
         </button>
       </div>
 
-      {/* eOffice task summary card */}
-      <div style={{ padding: '0 20px' }}>
-        <button
-          onClick={() => navigate(TASK_WEBVIEW)}
-          className="relative overflow-hidden w-full border-none cursor-pointer text-left"
-          style={{
-            background: `linear-gradient(135deg, ${HNH.navy} 0%, ${HNH.navy2} 100%)`,
-            borderRadius: 22, padding: 18, color: '#fff',
-            boxShadow: '0 10px 24px rgba(20,43,111,0.18)',
-          }}
-        >
-          <div className="absolute" style={{ right: -50, top: -60, width: 180, height: 180, borderRadius: '50%', background: HNH.red, opacity: 0.18 }} />
-          <div className="absolute" style={{ right: -10, top: 10, width: 80, height: 80, borderRadius: '50%', background: HNH.red, opacity: 0.5, filter: 'blur(20px)' }} />
-
-          <div className="relative flex items-start justify-between">
-            <div>
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.6, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Công việc cá nhân</div>
-              <div style={{ fontSize: 19, fontWeight: 700, marginTop: 4, letterSpacing: -0.2 }}>eOffice HNH Travel</div>
-              <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>task.hnhtravel.work · Quản lý công việc</div>
-            </div>
-            <div className="relative flex items-center gap-1.5" style={{ background: 'rgba(255,255,255,0.15)', borderRadius: 10, padding: '5px 10px' }}>
-              <Icon name="arrow-r" size={12} color="#fff" stroke={2} />
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#fff' }}>Mở</span>
-            </div>
+      {/* eOffice + Check-in: side by side on tablet, stacked on mobile */}
+      {isTablet ? (
+        <div className="flex gap-4" style={{ padding: `0 ${px}px` }}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <EOfficeCard tasks={tasks ?? null} onClick={() => navigate(TASK_WEBVIEW)} />
           </div>
-
-          <div className="relative flex gap-3" style={{ marginTop: 16 }}>
-            {[
-              { label: 'Đang làm', val: tasks?.in_progress ?? 0, color: '#60a5fa' },
-              { label: 'Cần làm', val: tasks?.to_do ?? 0, color: '#22d3ee' },
-              { label: 'Bị chặn', val: tasks?.blocked ?? 0, color: '#fb923c' },
-              { label: 'Trễ hạn', val: tasks?.overdue ?? 0, color: '#f87171' },
-            ].map(s => (
-              <div key={s.label} className="flex-1" style={{ background: 'rgba(255,255,255,0.1)', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
-                <div style={{ fontSize: 20, fontWeight: 800, color: s.val > 0 ? s.color : 'rgba(255,255,255,0.4)', lineHeight: 1 }}>{s.val}</div>
-                <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', fontWeight: 600, marginTop: 4 }}>{s.label}</div>
-              </div>
-            ))}
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <CheckInCard employee={employee} isClockedIn={isClockedIn} clockInTime={clockInTime} duration={duration} onOpen={() => setClockModalOpen(true)} />
           </div>
-        </button>
-      </div>
+        </div>
+      ) : (
+        <>
+          <div style={{ padding: `0 ${px}px` }}>
+            <EOfficeCard tasks={tasks ?? null} onClick={() => navigate(TASK_WEBVIEW)} />
+          </div>
+          <div style={{ padding: `14px ${px}px 0` }}>
+            <CheckInCard employee={employee} isClockedIn={isClockedIn} clockInTime={clockInTime} duration={duration} onOpen={() => setClockModalOpen(true)} />
+          </div>
+        </>
+      )}
 
       {/* Recent tasks */}
       {tasks && tasks.recent_tasks.length > 0 && (
-        <div style={{ padding: '12px 20px 0' }}>
+        <div style={{ padding: `12px ${px}px 0` }}>
           <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: HNH.ink }}>Việc cần làm</div>
             <button
@@ -219,115 +323,21 @@ export function HomePage() {
               style={{ fontSize: 12, color: HNH.red, fontWeight: 600 }}
             >Xem tất cả →</button>
           </div>
-          <div className="flex flex-col gap-2">
-            {tasks.recent_tasks.map(t => (
-              <div
-                key={t.id}
-                className="flex items-center gap-3"
-                style={{
-                  background: '#fff', border: `1px solid ${HNH.line}`, borderRadius: 14,
-                  padding: '10px 14px',
-                }}
-              >
-                <div style={{
-                  width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
-                  background: STATUS_COLORS[t.status] ?? HNH.ink3,
-                }} />
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: HNH.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.title}</div>
-                  <div style={{ fontSize: 11, color: HNH.ink3, marginTop: 2 }}>
-                    {STATUS_LABELS[t.status] ?? t.status}
-                    {t.due_date && <> · {t.due_date.slice(5).replace('-', '/')}</>}
-                    {t.overdue_days > 0 && <span style={{ color: HNH.red, fontWeight: 700 }}> · Trễ {t.overdue_days} ngày</span>}
-                  </div>
-                </div>
-                <div style={{
-                  fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6,
-                  background: t.priority === 'urgent' ? HNH.red50 : t.priority === 'high' ? '#fff7ed' : HNH.cream,
-                  color: t.priority === 'urgent' ? HNH.red : t.priority === 'high' ? '#ea580c' : HNH.ink3,
-                }}>{PRIORITY_LABELS[t.priority] ?? t.priority}</div>
-              </div>
-            ))}
+          <div className={isTablet ? 'grid gap-2' : 'flex flex-col gap-2'} style={isTablet ? { gridTemplateColumns: '1fr 1fr' } : undefined}>
+            {tasks.recent_tasks.map(t => <TaskRow key={t.id} t={t} />)}
           </div>
         </div>
       )}
 
-      {/* Check-in card */}
-      <div style={{ padding: '14px 20px 0' }}>
-        <div
-          style={{
-            background: '#fff', borderRadius: 22, padding: 18,
-            border: `1px solid ${HNH.line}`,
-            boxShadow: '0 1px 2px rgba(15,20,40,0.04)',
-          }}
-        >
-          <div className="flex justify-between items-center">
-            <div>
-              <div style={{ fontSize: 11.5, color: HNH.ink3, fontWeight: 600, letterSpacing: 0.4, textTransform: 'uppercase' }}>
-                Chấm công · {employee?.shift_name ?? 'Ca hành chính'}
-              </div>
-              <div style={{ fontSize: 26, fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 800, color: HNH.ink, marginTop: 2, letterSpacing: -0.5 }}>
-                {clockInTime || '--:--'}
-                {isClockedIn && (
-                  <span style={{ fontSize: 13, color: HNH.success, fontWeight: 700, marginLeft: 4 }}>· đang làm</span>
-                )}
-                {!clockInTime && (
-                  <span style={{ fontSize: 13, color: HNH.ink3, fontWeight: 700, marginLeft: 4 }}>· chưa vào</span>
-                )}
-              </div>
-            </div>
-            <div
-              className="flex items-center justify-center"
-              style={{ width: 56, height: 56, borderRadius: '50%', background: isClockedIn ? HNH.success50 : HNH.cream2 }}
-            >
-              <Icon name={isClockedIn ? 'check' : 'clock'} size={26} color={isClockedIn ? HNH.success : HNH.ink3} stroke={2.4} />
-            </div>
-          </div>
-
-          <div className="flex gap-2" style={{ marginTop: 14 }}>
-            {[
-              { label: 'VÀO', value: clockInTime || '--:--' },
-              { label: 'THỜI GIAN', value: duration },
-            ].map(item => (
-              <div key={item.label} className="flex-1" style={{ background: HNH.cream, borderRadius: 12, padding: '10px 12px' }}>
-                <div style={{ fontSize: 10.5, color: HNH.ink3, fontWeight: 600 }}>{item.label}</div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: HNH.ink }}>{item.value}</div>
-              </div>
-            ))}
-          </div>
-
-          <button
-            onClick={() => setClockModalOpen(true)}
-            className="flex items-center justify-center gap-2 w-full border-none cursor-pointer"
-            style={{
-              marginTop: 14, height: 48, borderRadius: 14,
-              background: isClockedIn ? HNH.red : HNH.navy,
-              color: '#fff', fontWeight: 700, fontSize: 14,
-              boxShadow: isClockedIn
-                ? '0 6px 14px rgba(192,34,43,0.25)'
-                : '0 6px 14px rgba(20,43,111,0.2)',
-            }}
-          >
-            <Icon name={isClockedIn ? 'clock' : 'check'} size={18} color="#fff" stroke={2.2} />
-            {isClockedIn ? 'Kết thúc ca' : 'Chấm công vào ca'}
-          </button>
-
-          <div className="flex items-center gap-1.5" style={{ marginTop: 10, fontSize: 11.5, color: HNH.ink3, fontWeight: 500 }}>
-            <Icon name="pin" size={13} color={HNH.ink3} stroke={1.6} />
-            185-187 Lê Thánh Tôn · Văn phòng HNH
-          </div>
-        </div>
-      </div>
-
       {/* Quick stats */}
-      <div style={{ padding: '14px 20px 0' }}>
+      <div style={{ padding: `14px ${px}px 0` }}>
         <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: HNH.ink, letterSpacing: -0.1 }}>
             Tổng quan tháng {now.getMonth() + 1}
           </div>
           <span style={{ fontSize: 12, color: HNH.red, fontWeight: 600 }}>Chi tiết →</span>
         </div>
-        <div className="grid grid-cols-2 gap-2.5">
+        <div className={isTablet ? 'grid grid-cols-4 gap-2.5' : 'grid grid-cols-2 gap-2.5'}>
           <StatChip icon="cal" label="Ngày công" value="18" sub="/ 21" tone="navy" />
           <StatChip icon="leaf" label="Nghỉ phép còn" value="9" sub=" ngày" tone="success" />
           <StatChip icon="doc" label="Công việc" value={String(activeCount)} sub={tasks ? ` / ${tasks.total}` : ''} tone="red" />
@@ -336,7 +346,7 @@ export function HomePage() {
       </div>
 
       {/* Quick actions */}
-      <div style={{ padding: '16px 20px 0' }}>
+      <div style={{ padding: `16px ${px}px 0` }}>
         <div style={{ fontSize: 15, fontWeight: 700, color: HNH.ink, marginBottom: 10 }}>Truy cập nhanh</div>
         <div className="grid grid-cols-4 gap-2">
           <QuickAction icon="leaf" label="Xin nghỉ" tone="red" onClick={() => navigate('/leave')} />

@@ -4,6 +4,7 @@ import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { useApi } from '../lib/useApi'
 import { api } from '../lib/api'
+import { useTablet } from '../lib/useTablet'
 
 interface Task {
   id: number
@@ -36,8 +37,30 @@ const PRIORITY_META: Record<string, { label: string; color: string; bg: string }
   urgent: { label: 'Khẩn', color: HNH.red, bg: HNH.red50 },
 }
 
-function TaskFormModal({ open, onClose, onSaved, editTask }: {
-  open: boolean; onClose: () => void; onSaved: () => void; editTask: Task | null
+function ModalShell({ open, children, isTablet }: { open: boolean; children: React.ReactNode; isTablet: boolean }) {
+  if (!open) return null
+  return (
+    <div
+      className={isTablet ? 'fixed inset-0 flex items-center justify-center' : 'fixed inset-0 flex flex-col'}
+      style={{ zIndex: 10000, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
+    >
+      <div
+        className={isTablet ? '' : 'flex-1 overflow-y-auto'}
+        style={isTablet
+          ? { width: '100%', maxWidth: 520, maxHeight: '90vh', overflow: 'auto', borderRadius: 24, boxShadow: '0 24px 48px rgba(0,0,0,0.25)' }
+          : { WebkitOverflowScrolling: 'touch' as never }
+        }
+      >
+        <div style={{ minHeight: isTablet ? undefined : '100%', background: HNH.cream, paddingBottom: 20, borderRadius: isTablet ? 24 : 0 }}>
+          {children}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function TaskFormModal({ open, onClose, onSaved, editTask, isTablet }: {
+  open: boolean; onClose: () => void; onSaved: () => void; editTask: Task | null; isTablet: boolean
 }) {
   const [title, setTitle] = useState(editTask?.title ?? '')
   const [desc, setDesc] = useState(editTask?.description ?? '')
@@ -68,69 +91,65 @@ function TaskFormModal({ open, onClose, onSaved, editTask }: {
   }
 
   return (
-    <div className="fixed inset-0 flex flex-col" style={{ zIndex: 10000, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
-      <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
-        <div style={{ minHeight: '100%', background: HNH.cream, paddingBottom: 20 }}>
-          <div className="flex items-center justify-between" style={{ padding: '12px 16px', background: '#fff', borderBottom: `1px solid ${HNH.line}` }}>
-            <button onClick={onClose} className="flex items-center justify-center border-none cursor-pointer" style={{ width: 36, height: 36, borderRadius: 10, background: HNH.cream }}>
-              <Icon name="x" size={18} color={HNH.ink} stroke={2} />
-            </button>
-            <div style={{ fontSize: 15, fontWeight: 700, color: HNH.ink }}>{isEdit ? 'Sửa công việc' : 'Tạo công việc'}</div>
-            <div style={{ width: 36 }} />
+    <ModalShell open={open} isTablet={isTablet}>
+      <div className="flex items-center justify-between" style={{ padding: '12px 16px', background: '#fff', borderBottom: `1px solid ${HNH.line}`, borderRadius: isTablet ? '24px 24px 0 0' : 0 }}>
+        <button onClick={onClose} className="flex items-center justify-center border-none cursor-pointer" style={{ width: 36, height: 36, borderRadius: 10, background: HNH.cream }}>
+          <Icon name="x" size={18} color={HNH.ink} stroke={2} />
+        </button>
+        <div style={{ fontSize: 15, fontWeight: 700, color: HNH.ink }}>{isEdit ? 'Sửa công việc' : 'Tạo công việc'}</div>
+        <div style={{ width: 36 }} />
+      </div>
+
+      <div className="flex flex-col gap-3" style={{ padding: '16px' }}>
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: HNH.ink3, marginBottom: 4, display: 'block' }}>Tiêu đề *</label>
+          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Nhập tiêu đề công việc"
+            style={{ width: '100%', padding: '10px 14px', borderRadius: 12, border: `1px solid ${HNH.line}`, fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
+        </div>
+        <div>
+          <label style={{ fontSize: 12, fontWeight: 600, color: HNH.ink3, marginBottom: 4, display: 'block' }}>Mô tả</label>
+          <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="Mô tả chi tiết..." rows={3}
+            style={{ width: '100%', padding: '10px 14px', borderRadius: 12, border: `1px solid ${HNH.line}`, fontSize: 14, outline: 'none', resize: 'none', boxSizing: 'border-box' }} />
+        </div>
+        <div className="flex gap-3">
+          <div className="flex-1">
+            <label style={{ fontSize: 12, fontWeight: 600, color: HNH.ink3, marginBottom: 4, display: 'block' }}>Ưu tiên</label>
+            <select value={priority} onChange={e => setPriority(e.target.value)}
+              style={{ width: '100%', padding: '10px 14px', borderRadius: 12, border: `1px solid ${HNH.line}`, fontSize: 14, background: '#fff' }}>
+              <option value="low">Thấp</option>
+              <option value="normal">Bình thường</option>
+              <option value="high">Cao</option>
+              <option value="urgent">Khẩn cấp</option>
+            </select>
           </div>
-
-          <div className="flex flex-col gap-3" style={{ padding: '16px' }}>
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: HNH.ink3, marginBottom: 4, display: 'block' }}>Tiêu đề *</label>
-              <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Nhập tiêu đề công việc"
-                style={{ width: '100%', padding: '10px 14px', borderRadius: 12, border: `1px solid ${HNH.line}`, fontSize: 14, outline: 'none', boxSizing: 'border-box' }} />
-            </div>
-            <div>
-              <label style={{ fontSize: 12, fontWeight: 600, color: HNH.ink3, marginBottom: 4, display: 'block' }}>Mô tả</label>
-              <textarea value={desc} onChange={e => setDesc(e.target.value)} placeholder="Mô tả chi tiết..." rows={3}
-                style={{ width: '100%', padding: '10px 14px', borderRadius: 12, border: `1px solid ${HNH.line}`, fontSize: 14, outline: 'none', resize: 'none', boxSizing: 'border-box' }} />
-            </div>
-            <div className="flex gap-3">
-              <div className="flex-1">
-                <label style={{ fontSize: 12, fontWeight: 600, color: HNH.ink3, marginBottom: 4, display: 'block' }}>Ưu tiên</label>
-                <select value={priority} onChange={e => setPriority(e.target.value)}
-                  style={{ width: '100%', padding: '10px 14px', borderRadius: 12, border: `1px solid ${HNH.line}`, fontSize: 14, background: '#fff' }}>
-                  <option value="low">Thấp</option>
-                  <option value="normal">Bình thường</option>
-                  <option value="high">Cao</option>
-                  <option value="urgent">Khẩn cấp</option>
-                </select>
-              </div>
-              <div className="flex-1">
-                <label style={{ fontSize: 12, fontWeight: 600, color: HNH.ink3, marginBottom: 4, display: 'block' }}>Deadline</label>
-                <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
-                  style={{ width: '100%', padding: '10px 14px', borderRadius: 12, border: `1px solid ${HNH.line}`, fontSize: 14, boxSizing: 'border-box' }} />
-              </div>
-            </div>
-
-            <button
-              onClick={handleSave}
-              disabled={saving || !title.trim()}
-              className="flex items-center justify-center gap-2 w-full border-none cursor-pointer"
-              style={{
-                marginTop: 8, height: 48, borderRadius: 14,
-                background: saving ? HNH.ink3 : HNH.navy,
-                color: '#fff', fontWeight: 700, fontSize: 14,
-                opacity: !title.trim() ? 0.5 : 1,
-              }}
-            >
-              <Icon name="check" size={18} color="#fff" stroke={2.2} />
-              {saving ? 'Đang lưu...' : isEdit ? 'Cập nhật' : 'Tạo công việc'}
-            </button>
+          <div className="flex-1">
+            <label style={{ fontSize: 12, fontWeight: 600, color: HNH.ink3, marginBottom: 4, display: 'block' }}>Deadline</label>
+            <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
+              style={{ width: '100%', padding: '10px 14px', borderRadius: 12, border: `1px solid ${HNH.line}`, fontSize: 14, boxSizing: 'border-box' }} />
           </div>
         </div>
+
+        <button
+          onClick={handleSave}
+          disabled={saving || !title.trim()}
+          className="flex items-center justify-center gap-2 w-full border-none cursor-pointer"
+          style={{
+            marginTop: 8, height: 48, borderRadius: 14,
+            background: saving ? HNH.ink3 : HNH.navy,
+            color: '#fff', fontWeight: 700, fontSize: 14,
+            opacity: !title.trim() ? 0.5 : 1,
+          }}
+        >
+          <Icon name="check" size={18} color="#fff" stroke={2.2} />
+          {saving ? 'Đang lưu...' : isEdit ? 'Cập nhật' : 'Tạo công việc'}
+        </button>
       </div>
-    </div>
+    </ModalShell>
   )
 }
 
-function TaskDetailModal({ open, onClose, task, onRefresh }: {
-  open: boolean; onClose: () => void; task: Task | null; onRefresh: () => void
+function TaskDetailModal({ open, onClose, task, onRefresh, isTablet }: {
+  open: boolean; onClose: () => void; task: Task | null; onRefresh: () => void; isTablet: boolean
 }) {
   const [editing, setEditing] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -143,9 +162,7 @@ function TaskDetailModal({ open, onClose, task, onRefresh }: {
   async function changeStatus(newStatus: string) {
     setStatusChanging(true)
     try {
-      await api.put(`/api/eoffice/tasks/${task!.id}/`, {
-        status: newStatus,
-      })
+      await api.put(`/api/eoffice/tasks/${task!.id}/`, { status: newStatus })
       onRefresh()
       onClose()
     } catch { /* swallow */ } finally { setStatusChanging(false) }
@@ -170,73 +187,70 @@ function TaskDetailModal({ open, onClose, task, onRefresh }: {
 
   return (
     <>
-      <div className="fixed inset-0 flex flex-col" style={{ zIndex: 10000, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
-        <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
-          <div style={{ minHeight: '100%', background: HNH.cream, paddingBottom: 20 }}>
-            <div className="flex items-center justify-between" style={{ padding: '12px 16px', background: '#fff', borderBottom: `1px solid ${HNH.line}` }}>
-              <button onClick={onClose} className="flex items-center justify-center border-none cursor-pointer" style={{ width: 36, height: 36, borderRadius: 10, background: HNH.cream }}>
-                <Icon name="x" size={18} color={HNH.ink} stroke={2} />
-              </button>
-              <div style={{ fontSize: 15, fontWeight: 700, color: HNH.ink }}>Chi tiết công việc</div>
-              <button onClick={() => setEditing(true)} className="flex items-center justify-center border-none cursor-pointer" style={{ width: 36, height: 36, borderRadius: 10, background: HNH.cream }}>
-                <Icon name="doc" size={16} color={HNH.ink} stroke={2} />
-              </button>
-            </div>
-
-            <div style={{ padding: '16px' }}>
-              <div style={{ background: '#fff', borderRadius: 18, padding: '16px 18px', border: `1px solid ${HNH.line}`, marginBottom: 12 }}>
-                <div className="flex items-center gap-2" style={{ marginBottom: 10 }}>
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: sm.bg, color: sm.color }}>{sm.label}</span>
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: pm.bg, color: pm.color }}>{pm.label}</span>
-                  {task.is_overdue && <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: HNH.red50, color: HNH.red }}>Trễ {task.overdue_days} ngày</span>}
-                </div>
-                <div style={{ fontSize: 17, fontWeight: 700, color: HNH.ink, lineHeight: 1.4 }}>{task.title}</div>
-                {task.description && <div style={{ fontSize: 13, color: HNH.ink3, marginTop: 8, lineHeight: 1.5 }}>{task.description}</div>}
-              </div>
-
-              <div style={{ background: '#fff', borderRadius: 16, padding: '12px 16px', border: `1px solid ${HNH.line}`, marginBottom: 12 }}>
-                {[
-                  { label: 'Giao cho', value: task.assigned_to_name },
-                  { label: 'Người giao', value: task.assigned_by_name },
-                  { label: 'Phòng ban', value: task.department_name },
-                  { label: 'Deadline', value: task.due_date ? task.due_date.split('-').reverse().join('/') : '—' },
-                ].map(r => (
-                  <div key={r.label} className="flex justify-between" style={{ padding: '8px 0', borderBottom: `1px solid ${HNH.line}` }}>
-                    <span style={{ fontSize: 12.5, color: HNH.ink3, fontWeight: 500 }}>{r.label}</span>
-                    <span style={{ fontSize: 12.5, color: HNH.ink, fontWeight: 600 }}>{r.value}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div style={{ fontSize: 13, fontWeight: 700, color: HNH.ink, marginBottom: 8 }}>Chuyển trạng thái</div>
-              <div className="flex gap-2 flex-wrap">
-                {statusActions.map(s => {
-                  const m = STATUS_META[s.key]
-                  return (
-                    <button key={s.key} onClick={() => changeStatus(s.key)} disabled={statusChanging}
-                      className="border-none cursor-pointer" style={{ padding: '8px 16px', borderRadius: 10, background: m.bg, color: m.color, fontWeight: 700, fontSize: 12 }}>
-                      {s.label}
-                    </button>
-                  )
-                })}
-              </div>
-
-              <button onClick={handleDelete} disabled={deleting}
-                className="flex items-center justify-center gap-2 w-full border-none cursor-pointer"
-                style={{ marginTop: 20, height: 44, borderRadius: 14, background: HNH.red50, color: HNH.red, fontWeight: 700, fontSize: 13 }}>
-                <Icon name="x" size={14} color={HNH.red} stroke={2.2} />
-                {deleting ? 'Đang xóa...' : 'Xóa công việc'}
-              </button>
-            </div>
-          </div>
+      <ModalShell open={open} isTablet={isTablet}>
+        <div className="flex items-center justify-between" style={{ padding: '12px 16px', background: '#fff', borderBottom: `1px solid ${HNH.line}`, borderRadius: isTablet ? '24px 24px 0 0' : 0 }}>
+          <button onClick={onClose} className="flex items-center justify-center border-none cursor-pointer" style={{ width: 36, height: 36, borderRadius: 10, background: HNH.cream }}>
+            <Icon name="x" size={18} color={HNH.ink} stroke={2} />
+          </button>
+          <div style={{ fontSize: 15, fontWeight: 700, color: HNH.ink }}>Chi tiết công việc</div>
+          <button onClick={() => setEditing(true)} className="flex items-center justify-center border-none cursor-pointer" style={{ width: 36, height: 36, borderRadius: 10, background: HNH.cream }}>
+            <Icon name="doc" size={16} color={HNH.ink} stroke={2} />
+          </button>
         </div>
-      </div>
+
+        <div style={{ padding: '16px' }}>
+          <div style={{ background: '#fff', borderRadius: 18, padding: '16px 18px', border: `1px solid ${HNH.line}`, marginBottom: 12 }}>
+            <div className="flex items-center gap-2" style={{ marginBottom: 10 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: sm.bg, color: sm.color }}>{sm.label}</span>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: pm.bg, color: pm.color }}>{pm.label}</span>
+              {task.is_overdue && <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 6, background: HNH.red50, color: HNH.red }}>Trễ {task.overdue_days} ngày</span>}
+            </div>
+            <div style={{ fontSize: 17, fontWeight: 700, color: HNH.ink, lineHeight: 1.4 }}>{task.title}</div>
+            {task.description && <div style={{ fontSize: 13, color: HNH.ink3, marginTop: 8, lineHeight: 1.5 }}>{task.description}</div>}
+          </div>
+
+          <div style={{ background: '#fff', borderRadius: 16, padding: '12px 16px', border: `1px solid ${HNH.line}`, marginBottom: 12 }}>
+            {[
+              { label: 'Giao cho', value: task.assigned_to_name },
+              { label: 'Người giao', value: task.assigned_by_name },
+              { label: 'Phòng ban', value: task.department_name },
+              { label: 'Deadline', value: task.due_date ? task.due_date.split('-').reverse().join('/') : '—' },
+            ].map(r => (
+              <div key={r.label} className="flex justify-between" style={{ padding: '8px 0', borderBottom: `1px solid ${HNH.line}` }}>
+                <span style={{ fontSize: 12.5, color: HNH.ink3, fontWeight: 500 }}>{r.label}</span>
+                <span style={{ fontSize: 12.5, color: HNH.ink, fontWeight: 600 }}>{r.value}</span>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ fontSize: 13, fontWeight: 700, color: HNH.ink, marginBottom: 8 }}>Chuyển trạng thái</div>
+          <div className="flex gap-2 flex-wrap">
+            {statusActions.map(s => {
+              const m = STATUS_META[s.key]
+              return (
+                <button key={s.key} onClick={() => changeStatus(s.key)} disabled={statusChanging}
+                  className="border-none cursor-pointer" style={{ padding: '8px 16px', borderRadius: 10, background: m.bg, color: m.color, fontWeight: 700, fontSize: 12 }}>
+                  {s.label}
+                </button>
+              )
+            })}
+          </div>
+
+          <button onClick={handleDelete} disabled={deleting}
+            className="flex items-center justify-center gap-2 w-full border-none cursor-pointer"
+            style={{ marginTop: 20, height: 44, borderRadius: 14, background: HNH.red50, color: HNH.red, fontWeight: 700, fontSize: 13 }}>
+            <Icon name="x" size={14} color={HNH.red} stroke={2.2} />
+            {deleting ? 'Đang xóa...' : 'Xóa công việc'}
+          </button>
+        </div>
+      </ModalShell>
 
       <TaskFormModal
         open={editing}
         onClose={() => setEditing(false)}
         onSaved={() => { onRefresh(); onClose() }}
         editTask={task}
+        isTablet={isTablet}
       />
     </>
   )
@@ -244,6 +258,8 @@ function TaskDetailModal({ open, onClose, task, onRefresh }: {
 
 export function TasksPage() {
   const navigate = useNavigate()
+  const isTablet = useTablet()
+  const px = isTablet ? 28 : 20
   const [filterStatus, setFilterStatus] = useState('')
   const path = filterStatus ? `/api/eoffice/my-tasks/?status=${filterStatus}` : '/api/eoffice/my-tasks/'
   const { data: tasks, loading, refresh } = useApi<Task[]>(path)
@@ -260,7 +276,7 @@ export function TasksPage() {
 
   return (
     <div style={{ padding: '6px 0 14px' }}>
-      <div className="flex items-center justify-between" style={{ padding: '8px 20px 12px' }}>
+      <div className="flex items-center justify-between" style={{ padding: `8px ${px}px 12px` }}>
         <div style={{ fontSize: 20, fontWeight: 800, color: HNH.ink, letterSpacing: -0.3 }}>Công việc</div>
         <div className="flex items-center gap-2">
           <button
@@ -283,7 +299,7 @@ export function TasksPage() {
       </div>
 
       {/* Filters */}
-      <div className="flex gap-2 overflow-x-auto" style={{ padding: '0 20px 12px', scrollbarWidth: 'none' }}>
+      <div className="flex gap-2 overflow-x-auto" style={{ padding: `0 ${px}px 12px`, scrollbarWidth: 'none' }}>
         {filters.map(f => (
           <button
             key={f.key}
@@ -302,7 +318,7 @@ export function TasksPage() {
       </div>
 
       {/* Task list */}
-      <div style={{ padding: '0 20px' }}>
+      <div style={{ padding: `0 ${px}px` }}>
         {loading && <div style={{ padding: 30, textAlign: 'center', color: HNH.ink3, fontSize: 13 }}>Đang tải...</div>}
 
         {!loading && tasks && tasks.length === 0 && (
@@ -313,7 +329,7 @@ export function TasksPage() {
         )}
 
         {tasks && tasks.length > 0 && (
-          <div className="flex flex-col gap-2">
+          <div className={isTablet ? 'grid gap-2.5' : 'flex flex-col gap-2'} style={isTablet ? { gridTemplateColumns: '1fr 1fr' } : undefined}>
             {tasks.map(t => {
               const sm = STATUS_META[t.status] ?? STATUS_META.to_do
               const pm = PRIORITY_META[t.priority] ?? PRIORITY_META.normal
@@ -342,8 +358,8 @@ export function TasksPage() {
         )}
       </div>
 
-      <TaskFormModal open={showCreate} onClose={() => setShowCreate(false)} onSaved={refresh} editTask={null} />
-      <TaskDetailModal open={!!selectedTask} onClose={() => setSelectedTask(null)} task={selectedTask} onRefresh={refresh} />
+      <TaskFormModal open={showCreate} onClose={() => setShowCreate(false)} onSaved={refresh} editTask={null} isTablet={isTablet} />
+      <TaskDetailModal open={!!selectedTask} onClose={() => setSelectedTask(null)} task={selectedTask} onRefresh={refresh} isTablet={isTablet} />
     </div>
   )
 }

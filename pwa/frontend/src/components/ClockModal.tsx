@@ -3,6 +3,7 @@ import { HNH } from '../lib/theme'
 import { Icon } from './ui/Icon'
 import { Badge } from './ui/Badge'
 import { useGeolocation } from '../lib/useGeolocation'
+import { useTablet } from '../lib/useTablet'
 
 interface ClockModalProps {
   open: boolean
@@ -39,6 +40,7 @@ type DoneState = null | 'valid' | 'pending'
 
 export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, shiftName, acting, onClockIn, onClockOut }: ClockModalProps) {
   const geo = useGeolocation()
+  const isTablet = useTablet()
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -188,11 +190,17 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
 
   return (
     <div
-      className="fixed inset-0 flex flex-col"
+      className={isTablet ? 'fixed inset-0 flex items-center justify-center' : 'fixed inset-0 flex flex-col'}
       style={{ zIndex: 9999, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
     >
-      <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
-        <div style={{ minHeight: '100%', background: HNH.cream, paddingBottom: 20 }}>
+      <div
+        className={isTablet ? '' : 'flex-1 overflow-y-auto'}
+        style={isTablet
+          ? { width: '100%', maxWidth: 520, maxHeight: '90vh', overflow: 'auto', borderRadius: 24, boxShadow: '0 24px 48px rgba(0,0,0,0.25)' }
+          : { WebkitOverflowScrolling: 'touch' as never }
+        }
+      >
+        <div style={{ minHeight: isTablet ? undefined : '100%', background: HNH.cream, paddingBottom: 20, borderRadius: isTablet ? 24 : 0 }}>
           {/* Header */}
           <div className="flex items-center justify-between" style={{ padding: '12px 16px', background: '#fff', borderBottom: `1px solid ${HNH.line}` }}>
             <button onClick={onClose} className="flex items-center justify-center border-none cursor-pointer" style={{ width: 36, height: 36, borderRadius: 10, background: HNH.cream }}>
