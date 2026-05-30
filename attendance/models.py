@@ -93,6 +93,8 @@ class AttendanceActivity(HorillaModel):
     clock_out_photo = models.ImageField(
         upload_to="attendance/selfies/%Y/%m/", null=True, blank=True
     )
+    clock_in_address = models.CharField(max_length=255, blank=True, default="")
+    clock_out_address = models.CharField(max_length=255, blank=True, default="")
     objects = HorillaCompanyManager(
         related_company_field="employee_id__employee_work_info__company_id"
     )

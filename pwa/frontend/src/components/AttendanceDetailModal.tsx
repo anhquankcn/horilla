@@ -12,9 +12,11 @@ interface Activity {
   clock_out_date: string | null
   clock_in_latitude: string | null
   clock_in_longitude: string | null
+  clock_in_address: string | null
   clock_in_photo: string | null
   clock_out_latitude: string | null
   clock_out_longitude: string | null
+  clock_out_address: string | null
   clock_out_photo: string | null
 }
 
@@ -118,11 +120,11 @@ function ActivityCard({ activity, index, total }: { activity: Activity; index: n
             <span style={{ fontSize: 11, color: HNH.ink3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>Vào ca</span>
             <span style={{ fontSize: 15, fontWeight: 800, color: HNH.ink, fontFamily: "'Plus Jakarta Sans', monospace" }}>{inTime}</span>
           </div>
-          {hasInGps && (
+          {(hasInGps || activity.clock_in_address) && (
             <div className="flex items-center gap-1" style={{ marginTop: 4 }}>
               <Icon name="pin" size={11} color={HNH.ink3} stroke={1.5} />
               <span style={{ fontSize: 10.5, color: HNH.ink3 }}>
-                {Number(activity.clock_in_latitude).toFixed(5)}, {Number(activity.clock_in_longitude).toFixed(5)}
+                {activity.clock_in_address || `${Number(activity.clock_in_latitude).toFixed(5)}, ${Number(activity.clock_in_longitude).toFixed(5)}`}
               </span>
             </div>
           )}
@@ -148,11 +150,11 @@ function ActivityCard({ activity, index, total }: { activity: Activity; index: n
               {isOpen ? 'Chưa ra' : outTime}
             </span>
           </div>
-          {hasOutGps && (
+          {(hasOutGps || activity.clock_out_address) && (
             <div className="flex items-center gap-1" style={{ marginTop: 4 }}>
               <Icon name="pin" size={11} color={HNH.ink3} stroke={1.5} />
               <span style={{ fontSize: 10.5, color: HNH.ink3 }}>
-                {Number(activity.clock_out_latitude).toFixed(5)}, {Number(activity.clock_out_longitude).toFixed(5)}
+                {activity.clock_out_address || `${Number(activity.clock_out_latitude).toFixed(5)}, ${Number(activity.clock_out_longitude).toFixed(5)}`}
               </span>
             </div>
           )}

@@ -160,6 +160,10 @@ class ClockInAPIView(APIView):
         if lng is not None:
             activity.clock_in_longitude = lng
             updates.append("clock_in_longitude")
+        if lat is not None and lng is not None:
+            from attendance.geocode import reverse_geocode
+            activity.clock_in_address = reverse_geocode(lat, lng)
+            updates.append("clock_in_address")
         photo_b64 = request.data.get("photo")
         if photo_b64 and isinstance(photo_b64, str) and photo_b64.startswith("data:image"):
             import base64
@@ -245,6 +249,10 @@ class ClockOutAPIView(APIView):
         if lng is not None:
             activity.clock_out_longitude = lng
             updates.append("clock_out_longitude")
+        if lat is not None and lng is not None:
+            from attendance.geocode import reverse_geocode
+            activity.clock_out_address = reverse_geocode(lat, lng)
+            updates.append("clock_out_address")
         photo_b64 = request.data.get("photo")
         if photo_b64 and isinstance(photo_b64, str) and photo_b64.startswith("data:image"):
             import base64

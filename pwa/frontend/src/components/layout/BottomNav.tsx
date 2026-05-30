@@ -5,7 +5,7 @@ const tabs = [
   { id: 'home', label: 'Trang chủ', path: '/' },
   { id: 'attend', label: 'Chấm công', path: '/attendance' },
   { id: 'ruby', label: 'Ruby AI', path: '/ruby' },
-  { id: 'tour', label: 'Nghiệp vụ', path: '/business' },
+  { id: 'tasks', label: 'Công việc', path: '/tasks' },
   { id: 'me', label: 'Cá nhân', path: '/profile' },
 ] as const
 
@@ -18,8 +18,8 @@ function TabIcon({ name, active }: { name: string; active: boolean }) {
       return <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1v-8Z" stroke={c} strokeWidth={sw} strokeLinejoin="round" fill={fill}/></svg>
     case 'attend':
       return <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke={c} strokeWidth={sw} fill={fill}/><path d="M12 7.5V12l3 2" stroke={c} strokeWidth={sw} strokeLinecap="round"/></svg>
-    case 'tour':
-      return <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M3 18c2-1 4-1 6 0s4 1 6 0 4-1 6 0" stroke={c} strokeWidth={sw} strokeLinecap="round"/><path d="M3 13c2-1 4-1 6 0s4 1 6 0 4-1 6 0" stroke={c} strokeWidth={sw} strokeLinecap="round"/><circle cx="12" cy="7" r="3" stroke={c} strokeWidth={sw} fill={fill}/></svg>
+    case 'tasks':
+      return <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="2" stroke={c} strokeWidth={sw} fill={fill}/><path d="M9 12l2 2 4-4" stroke={c} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round"/></svg>
     case 'me':
       return <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.5" r="3.5" stroke={c} strokeWidth={sw} fill={fill}/><path d="M4.5 20c1.5-3.5 4.5-5 7.5-5s6 1.5 7.5 5" stroke={c} strokeWidth={sw} strokeLinecap="round" fill="none"/></svg>
     default: return null
