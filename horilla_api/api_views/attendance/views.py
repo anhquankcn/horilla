@@ -1004,7 +1004,10 @@ class CheckingStatus(APIView):
         )
         if attendance_activity:
             try:
-                clock_in_time = attendance_activity_first.clock_in.strftime("%I:%M %p")
+                clock_in_time = attendance_activity_first.clock_in.strftime("%H:%M")
+                clock_in_iso = None
+                if attendance_activity_first.in_datetime:
+                    clock_in_iso = attendance_activity_first.in_datetime.isoformat()
                 if attendance_activity.clock_out_date:
                     status = False
                 else:
@@ -1014,6 +1017,7 @@ class CheckingStatus(APIView):
                             "status": status,
                             "duration": duration,
                             "clock_in": clock_in_time,
+                            "clock_in_iso": clock_in_iso,
                         },
                         status=200,
                     )
