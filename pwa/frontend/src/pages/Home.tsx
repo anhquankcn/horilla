@@ -80,7 +80,7 @@ function QuickAction({ icon, label, tone, onClick }: {
   )
 }
 
-const EOFFICE_URL = 'https://task.hnhtravel.work'
+const EOFFICE_DEEPLINK = '/deeplink/tasks/'
 
 const STATUS_LABELS: Record<string, string> = {
   to_do: 'Cần làm', in_progress: 'Đang làm', done: 'Hoàn thành', blocked: 'Bị chặn',
@@ -169,7 +169,7 @@ export function HomePage() {
       {/* eOffice task summary card */}
       <div style={{ padding: '0 20px' }}>
         <button
-          onClick={() => window.open(EOFFICE_URL, '_blank')}
+          onClick={() => window.open(EOFFICE_DEEPLINK, '_blank')}
           className="relative overflow-hidden w-full border-none cursor-pointer text-left"
           style={{
             background: `linear-gradient(135deg, ${HNH.navy} 0%, ${HNH.navy2} 100%)`,
@@ -214,7 +214,7 @@ export function HomePage() {
           <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: HNH.ink }}>Việc cần làm</div>
             <button
-              onClick={() => window.open(EOFFICE_URL, '_blank')}
+              onClick={() => window.open(EOFFICE_DEEPLINK, '_blank')}
               className="border-none bg-transparent cursor-pointer"
               style={{ fontSize: 12, color: HNH.red, fontWeight: 600 }}
             >Xem tất cả →</button>
