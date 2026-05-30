@@ -170,7 +170,8 @@ def clock_in_attendance_and_activity(
         attendance = Attendance()
         attendance.employee_id = employee
         attendance.shift_id = shift
-        attendance.work_type_id = attendance.employee_id.employee_work_info.work_type_id
+        work_info = getattr(employee, "employee_work_info", None)
+        attendance.work_type_id = getattr(work_info, "work_type_id", None)
         attendance.attendance_date = attendance_date
         attendance.attendance_day = day
         attendance.attendance_clock_in = now

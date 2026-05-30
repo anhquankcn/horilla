@@ -82,20 +82,27 @@ class ClockInAPIView(APIView):
     def post(self, request):
         if not _is_clocked_in(request.user.employee_get):
             employee, work_info = employee_exists(request)
+            if not employee:
+                return Response(
+                    {"error": "Employee record not found"}, status=400
+                )
             datetime_now = django_tz.localtime(django_tz.now())
             if request.__dict__.get("datetime"):
                 datetime_now = request.datetime
-            if employee and work_info is not None:
-                shift = work_info.shift_id
-                date_today = datetime_now.date()
-                if request.__dict__.get("date"):
-                    date_today = request.date
-                attendance_date = date_today
-                day = date_today.strftime("%A").lower()
-                day = EmployeeShiftDay.objects.get(day=day)
-                now = datetime_now.strftime("%H:%M")
-                if request.__dict__.get("time"):
-                    now = request.time.strftime("%H:%M")
+
+            shift = getattr(work_info, "shift_id", None) if work_info else None
+            date_today = datetime_now.date()
+            if request.__dict__.get("date"):
+                date_today = request.date
+            attendance_date = date_today
+            day = date_today.strftime("%A").lower()
+            day = EmployeeShiftDay.objects.get(day=day)
+            now = datetime_now.strftime("%H:%M")
+            if request.__dict__.get("time"):
+                now = request.time.strftime("%H:%M")
+
+            minimum_hour, start_time_sec, end_time_sec = "00:00", 0, 0
+            if shift:
                 now_sec = strtime_seconds(now)
                 mid_day_sec = strtime_seconds("12:00")
                 minimum_hour, start_time_sec, end_time_sec = shift_schedule_today(
@@ -111,30 +118,26 @@ class ClockInAPIView(APIView):
                         )
                         attendance_date = date_yesterday
                         day = day_yesterday
-                attendance = clock_in_attendance_and_activity(
-                    employee=employee,
-                    date_today=date_today,
-                    attendance_date=attendance_date,
-                    day=day,
-                    now=now,
-                    shift=shift,
-                    minimum_hour=minimum_hour,
-                    start_time=start_time_sec,
-                    end_time=end_time_sec,
-                    in_datetime=datetime_now,
-                )
 
-                self._save_clock_in_extras(request, employee, datetime_now)
-                geo_valid = self._check_geofence(request, employee, attendance)
+            attendance = clock_in_attendance_and_activity(
+                employee=employee,
+                date_today=date_today,
+                attendance_date=attendance_date,
+                day=day,
+                now=now,
+                shift=shift,
+                minimum_hour=minimum_hour,
+                start_time=start_time_sec,
+                end_time=end_time_sec,
+                in_datetime=datetime_now,
+            )
 
-                return Response(
-                    {"message": "Clocked-In", "geo_valid": geo_valid},
-                    status=200,
-                )
+            self._save_clock_in_extras(request, employee, datetime_now)
+            geo_valid = self._check_geofence(request, employee, attendance)
+
             return Response(
-                {
-                    "error": "You Don't have work information filled or your employee detail neither entered "
-                }
+                {"message": "Clocked-In", "geo_valid": geo_valid},
+                status=200,
             )
         return Response({"message": "Already clocked-in"}, status=400)
 
