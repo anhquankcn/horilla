@@ -151,6 +151,7 @@ def clock_in_attendance_and_activity(
     if activity and not activity.clock_out:
         activity.clock_out = in_datetime
         activity.clock_out_date = date_today
+        activity.out_datetime = in_datetime
         activity.save()
 
     new_activity = AttendanceActivity.objects.create(
@@ -458,19 +459,22 @@ def clock_out_attendance_and_activity(employee, date_today, now, out_datetime=No
             total_seconds = days_second + seconds
             duration = duration + total_seconds
         duration = format_time(duration)
-        # update clock out of attendance
-        attendance = Attendance.objects.filter(employee_id=employee).order_by(
-            "-attendance_date", "-id"
-        )[0]
-        attendance.attendance_clock_out = now + ":00"
-        attendance.attendance_clock_out_date = date_today
-        attendance.attendance_worked_hour = duration
-        # Overtime calculation
-        attendance.attendance_overtime = overtime_calculation(attendance)
-
-        # Validate the attendance as per the condition
-        attendance.attendance_validated = attendance_validate(attendance)
-        attendance.save()
+        # update clock out of attendance — match the activity's attendance_date
+        att_date = attendance_activity.attendance_date
+        attendance = Attendance.objects.filter(
+            employee_id=employee, attendance_date=att_date
+        ).first()
+        if attendance is None:
+            attendance = Attendance.objects.filter(employee_id=employee).order_by(
+                "-attendance_date", "-id"
+            ).first()
+        if attendance is not None:
+            attendance.attendance_clock_out = now + ":00"
+            attendance.attendance_clock_out_date = date_today
+            attendance.attendance_worked_hour = duration
+            attendance.attendance_overtime = overtime_calculation(attendance)
+            attendance.attendance_validated = attendance_validate(attendance)
+            attendance.save()
 
         return attendance
 

@@ -1,3 +1,4 @@
+import logging
 from datetime import date, datetime, timedelta, timezone
 
 from django import template
@@ -44,7 +45,7 @@ from ...api_serializers.attendance.serializers import (
     UserAttendanceListSerializer,
 )
 
-# Create your views here.
+logger = logging.getLogger(__name__)
 
 
 def query_dict(data):
@@ -81,18 +82,18 @@ class ClockInAPIView(APIView):
     def post(self, request):
         if not _is_clocked_in(request.user.employee_get):
             employee, work_info = employee_exists(request)
-            datetime_now = django_tz.now()
+            datetime_now = django_tz.localtime(django_tz.now())
             if request.__dict__.get("datetime"):
                 datetime_now = request.datetime
             if employee and work_info is not None:
                 shift = work_info.shift_id
-                date_today = date.today()
+                date_today = datetime_now.date()
                 if request.__dict__.get("date"):
                     date_today = request.date
                 attendance_date = date_today
                 day = date_today.strftime("%A").lower()
                 day = EmployeeShiftDay.objects.get(day=day)
-                now = datetime.now().strftime("%H:%M")
+                now = datetime_now.strftime("%H:%M")
                 if request.__dict__.get("time"):
                     now = request.time.strftime("%H:%M")
                 now_sec = strtime_seconds(now)
@@ -168,19 +169,13 @@ class ClockOutAPIView(APIView):
 
     def post(self, request):
         if _is_clocked_in(request.user.employee_get):
-            current_date = date.today()
-            current_time = django_tz.now().time()
-            current_datetime = django_tz.now()
+            employee = request.user.employee_get
+            local_now = django_tz.localtime(django_tz.now())
 
             try:
-                clock_out(
-                    Request(
-                        user=request.user,
-                        date=current_date,
-                        time=current_time,
-                        datetime=current_datetime,
-                    )
-                )
+                attendance, error = do_clock_out(employee, datetime_override=local_now)
+                if error:
+                    return Response({"error": error}, status=400)
 
                 geo_valid = self._check_geofence(request)
 
@@ -190,7 +185,8 @@ class ClockOutAPIView(APIView):
                 )
 
             except Exception as error:
-                logger.error("Got an error in clock_out", error)
+                logger.error("Got an error in clock_out: %s", error)
+                return Response({"error": str(error)}, status=500)
         return Response({"message": "Already clocked-out"}, status=400)
 
     @staticmethod
