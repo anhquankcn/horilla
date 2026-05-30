@@ -102,11 +102,14 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
   }, [])
 
   const handleAction = useCallback(async () => {
-    capture()
+    const dataUrl = capture()
     const gpsBody: Record<string, unknown> = {}
     if (geo.position) {
       gpsBody.latitude = geo.position.lat
       gpsBody.longitude = geo.position.lng
+    }
+    if (dataUrl) {
+      gpsBody.photo = dataUrl
     }
 
     let res: { geo_valid: boolean | null } | null = null

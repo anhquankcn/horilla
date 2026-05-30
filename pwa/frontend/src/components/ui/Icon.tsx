@@ -39,6 +39,8 @@ export function Icon({ name, size = 18, color = HNH.ink, stroke: sw = 1.8 }: Ico
     case 'alert': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01" {...p}/><path d="M10.3 3.6 2.5 17.2a2 2 0 0 0 1.7 3h15.6a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z" {...p}/></svg>
     case 'monitor': return <svg width={size} height={size} viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2" {...p}/><path d="M8 20h8M12 16v4" {...p}/></svg>
     case 'smartphone': return <svg width={size} height={size} viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="18" rx="2" {...p}/><path d="M12 18h.01" {...p}/></svg>
+    case 'camera': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" {...p}/><circle cx="12" cy="13" r="4" {...p}/></svg>
+    case 'map': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="m1 6 8-3 6 3 8-3v15l-8 3-6-3-8 3V6Z" {...p}/><path d="M9 3v15M15 6v15" {...p}/></svg>
     default: return null
   }
 }

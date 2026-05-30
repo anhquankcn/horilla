@@ -8,13 +8,19 @@ import { useApi } from '../lib/useApi'
 import { useClock } from '../lib/useClock'
 import { useLiveClock } from '../lib/useLiveClock'
 import { ClockModal } from '../components/ClockModal'
+import { AttendanceDetailModal } from '../components/AttendanceDetailModal'
 
-function LogRow({ date, day, inT, outT, hours, tag, tagTone, last }: {
+function LogRow({ date, day, inT, outT, hours, tag, tagTone, last, onClick }: {
   date: string; day: string; inT: string; outT: string; hours: string
   tag: string; tagTone: 'navy' | 'red' | 'gold' | 'success' | 'warn' | 'ink'; last?: boolean
+  onClick?: () => void
 }) {
   return (
-    <div className="flex items-center gap-3" style={{ padding: '12px 16px', borderBottom: last ? 'none' : `1px solid ${HNH.line}` }}>
+    <button
+      onClick={onClick}
+      className="flex items-center gap-3 w-full border-none cursor-pointer text-left"
+      style={{ padding: '12px 16px', borderBottom: last ? 'none' : `1px solid ${HNH.line}`, background: 'transparent' }}
+    >
       <div style={{ width: 38, textAlign: 'center' }}>
         <div style={{ fontSize: 14, fontWeight: 700, color: HNH.ink }}>{date}</div>
         <div style={{ fontSize: 10.5, color: HNH.ink3, fontWeight: 600 }}>{day}</div>
@@ -28,7 +34,8 @@ function LogRow({ date, day, inT, outT, hours, tag, tagTone, last }: {
         </div>
         <div style={{ marginTop: 4 }}><Badge tone={tagTone} size="s">{tag}</Badge></div>
       </div>
-    </div>
+      <Icon name="chev-r" size={14} color={HNH.ink4} stroke={2} />
+    </button>
   )
 }
 
@@ -50,6 +57,7 @@ export function AttendancePage() {
   const { isClockedIn, duration, clockInTime, clockIn, clockOut, acting } = useClock()
   const { now, time } = useLiveClock()
   const [clockModalOpen, setClockModalOpen] = useState(false)
+  const [selectedAtt, setSelectedAtt] = useState<AttendanceRecord | null>(null)
   const { data: historyResp } = useApi<PaginatedResponse<AttendanceRecord>>('/api/attendance/my-attendance/')
 
   const history = historyResp?.results ?? []
@@ -203,6 +211,7 @@ export function AttendancePage() {
                   tag="Văn phòng"
                   tagTone="navy"
                   last={i === Math.min(history.length, 7) - 1}
+                  onClick={() => setSelectedAtt(att)}
                 />
               )
             })}
@@ -220,6 +229,16 @@ export function AttendancePage() {
         acting={acting}
         onClockIn={clockIn}
         onClockOut={clockOut}
+      />
+
+      <AttendanceDetailModal
+        open={!!selectedAtt}
+        onClose={() => setSelectedAtt(null)}
+        attendanceId={selectedAtt?.id ?? null}
+        attendanceDate={selectedAtt?.attendance_date ?? ''}
+        clockIn={selectedAtt?.attendance_clock_in?.slice(0, 5) ?? '--:--'}
+        clockOut={selectedAtt?.attendance_clock_out?.slice(0, 5) ?? '--:--'}
+        workedHour={selectedAtt?.attendance_worked_hour?.slice(0, 5) ?? '—'}
       />
     </div>
   )

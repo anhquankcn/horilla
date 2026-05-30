@@ -124,6 +124,7 @@ class ClockInAPIView(APIView):
                     in_datetime=datetime_now,
                 )
 
+                self._save_clock_in_extras(request, employee, datetime_now)
                 geo_valid = self._check_geofence(request, employee, attendance)
 
                 return Response(
@@ -136,6 +137,38 @@ class ClockInAPIView(APIView):
                 }
             )
         return Response({"message": "Already clocked-in"}, status=400)
+
+    @staticmethod
+    def _save_clock_in_extras(request, employee, in_datetime):
+        """Save GPS + selfie photo to the just-created AttendanceActivity."""
+        activity = (
+            AttendanceActivity.objects.filter(employee_id=employee, in_datetime=in_datetime)
+            .order_by("-id")
+            .first()
+        )
+        if not activity:
+            return
+        updates = []
+        lat = request.data.get("latitude")
+        lng = request.data.get("longitude")
+        if lat is not None:
+            activity.clock_in_latitude = lat
+            updates.append("clock_in_latitude")
+        if lng is not None:
+            activity.clock_in_longitude = lng
+            updates.append("clock_in_longitude")
+        photo_b64 = request.data.get("photo")
+        if photo_b64 and isinstance(photo_b64, str) and photo_b64.startswith("data:image"):
+            import base64
+            from django.core.files.base import ContentFile
+
+            fmt, data = photo_b64.split(";base64,", 1)
+            ext = fmt.split("/")[-1]
+            filename = f"in_{employee.badge_id}_{in_datetime.strftime('%Y%m%d_%H%M%S')}.{ext}"
+            activity.clock_in_photo.save(filename, ContentFile(base64.b64decode(data)), save=False)
+            updates.append("clock_in_photo")
+        if updates:
+            activity.save(update_fields=updates)
 
     @staticmethod
     def _check_geofence(request, employee, attendance):
@@ -177,6 +210,7 @@ class ClockOutAPIView(APIView):
                 if error:
                     return Response({"error": error}, status=400)
 
+                self._save_clock_out_extras(request, employee)
                 geo_valid = self._check_geofence(request)
 
                 return Response(
@@ -188,6 +222,38 @@ class ClockOutAPIView(APIView):
                 logger.error("Got an error in clock_out: %s", error)
                 return Response({"error": str(error)}, status=500)
         return Response({"message": "Already clocked-out"}, status=400)
+
+    @staticmethod
+    def _save_clock_out_extras(request, employee):
+        """Save GPS + selfie photo to the just-closed AttendanceActivity."""
+        activity = (
+            AttendanceActivity.objects.filter(employee_id=employee, clock_out__isnull=False)
+            .order_by("-id")
+            .first()
+        )
+        if not activity:
+            return
+        updates = []
+        lat = request.data.get("latitude")
+        lng = request.data.get("longitude")
+        if lat is not None:
+            activity.clock_out_latitude = lat
+            updates.append("clock_out_latitude")
+        if lng is not None:
+            activity.clock_out_longitude = lng
+            updates.append("clock_out_longitude")
+        photo_b64 = request.data.get("photo")
+        if photo_b64 and isinstance(photo_b64, str) and photo_b64.startswith("data:image"):
+            import base64
+            from django.core.files.base import ContentFile
+
+            fmt, data = photo_b64.split(";base64,", 1)
+            ext = fmt.split("/")[-1]
+            filename = f"out_{employee.badge_id}_{activity.clock_out_date}_{activity.clock_out.strftime('%H%M%S')}.{ext}"
+            activity.clock_out_photo.save(filename, ContentFile(base64.b64decode(data)), save=False)
+            updates.append("clock_out_photo")
+        if updates:
+            activity.save(update_fields=updates)
 
     @staticmethod
     def _check_geofence(request):
@@ -1111,6 +1177,24 @@ class UserAttendanceDetailedView(APIView):
         return Response(
             {"error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN
         )
+
+
+class MyAttendanceActivitiesView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, id):
+        attendance = get_object_or_404(Attendance, pk=id)
+        employee = request.user.employee_get
+        if attendance.employee_id != employee:
+            return Response(
+                {"error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN
+            )
+        activities = AttendanceActivity.objects.filter(
+            employee_id=employee,
+            attendance_date=attendance.attendance_date,
+        ).order_by("id")
+        serializer = AttendanceActivitySerializer(activities, many=True)
+        return Response(serializer.data, status=200)
 
 
 class MyScheduleAPIView(APIView):
