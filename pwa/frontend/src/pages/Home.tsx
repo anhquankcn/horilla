@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { Avatar } from '../components/ui/Avatar'
-import { Badge } from '../components/ui/Badge'
 import { useAuth } from '../lib/auth'
 import { useClock } from '../lib/useClock'
 import { useLiveClock } from '../lib/useLiveClock'
@@ -134,10 +133,11 @@ export function HomePage() {
         </button>
       </div>
 
-      {/* Hero "today" card */}
+      {/* eOffice task summary card */}
       <div style={{ padding: '0 20px' }}>
-        <div
-          className="relative overflow-hidden"
+        <button
+          onClick={() => window.open('https://task.hnhtravel.vn', '_blank')}
+          className="relative overflow-hidden w-full border-none cursor-pointer text-left"
           style={{
             background: `linear-gradient(135deg, ${HNH.navy} 0%, ${HNH.navy2} 100%)`,
             borderRadius: 22, padding: 18, color: '#fff',
@@ -149,30 +149,33 @@ export function HomePage() {
 
           <div className="relative flex items-start justify-between">
             <div>
-              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.6, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Tour hôm nay</div>
-              <div style={{ fontSize: 19, fontWeight: 700, marginTop: 4, letterSpacing: -0.2 }}>Hạ Long Bay 3N2Đ</div>
-              <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>HL-240514 · 24 khách</div>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.6, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Công việc cá nhân</div>
+              <div style={{ fontSize: 19, fontWeight: 700, marginTop: 4, letterSpacing: -0.2 }}>eOffice HNH Travel</div>
+              <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>task.hnhtravel.vn · Quản lý công việc</div>
             </div>
-            <Badge tone="gold" soft={false} size="s">Đang chạy</Badge>
+            <div className="relative flex items-center gap-1.5" style={{ background: 'rgba(255,255,255,0.15)', borderRadius: 10, padding: '5px 10px' }}>
+              <Icon name="arrow-r" size={12} color="#fff" stroke={2} />
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#fff' }}>Mở</span>
+            </div>
           </div>
 
           <div className="relative flex gap-4" style={{ marginTop: 18 }}>
             <div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>Vai trò</div>
-              <div style={{ fontSize: 14.5, fontWeight: 700, marginTop: 2 }}>HDV trưởng</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>Việc của tôi</div>
+              <div style={{ fontSize: 14.5, fontWeight: 700, marginTop: 2 }}>Kanban & Danh sách</div>
             </div>
             <div style={{ width: 1, background: 'rgba(255,255,255,0.18)' }} />
             <div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>Khởi hành</div>
-              <div style={{ fontSize: 14.5, fontWeight: 700, marginTop: 2 }}>06:00 · Q.1</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>Dự án</div>
+              <div style={{ fontSize: 14.5, fontWeight: 700, marginTop: 2 }}>Tiến độ & SLA</div>
             </div>
             <div style={{ width: 1, background: 'rgba(255,255,255,0.18)' }} />
             <div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>Ngày</div>
-              <div style={{ fontSize: 14.5, fontWeight: 700, marginTop: 2 }}>1 / 3</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', fontWeight: 600 }}>Phê duyệt</div>
+              <div style={{ fontSize: 14.5, fontWeight: 700, marginTop: 2 }}>Workflow</div>
             </div>
           </div>
-        </div>
+        </button>
       </div>
 
       {/* Check-in card */}
@@ -253,8 +256,8 @@ export function HomePage() {
         <div className="grid grid-cols-2 gap-2.5">
           <StatChip icon="cal" label="Ngày công" value="18" sub="/ 21" tone="navy" />
           <StatChip icon="leaf" label="Nghỉ phép còn" value="9" sub=" ngày" tone="success" />
-          <StatChip icon="bus" label="Tour đã dẫn" value="4" sub="/ 6" tone="red" />
-          <StatChip icon="star" label="Đánh giá khách" value="4.8" sub="/ 5" tone="gold" />
+          <StatChip icon="doc" label="Công việc" value="—" sub="" tone="red" />
+          <StatChip icon="shield" label="Phê duyệt" value="—" sub="" tone="gold" />
         </div>
       </div>
 
@@ -264,8 +267,8 @@ export function HomePage() {
         <div className="grid grid-cols-4 gap-2">
           <QuickAction icon="leaf" label="Xin nghỉ" tone="red" onClick={() => navigate('/leave')} />
           <QuickAction icon="money" label="Lương" tone="navy" onClick={() => navigate('/payslip')} />
-          <QuickAction icon="doc" label="Văn bản" tone="gold" />
-          <QuickAction icon="sparkle" label="Báo cáo" tone="success" />
+          <QuickAction icon="doc" label="Công việc" tone="gold" onClick={() => window.open('https://task.hnhtravel.vn', '_blank')} />
+          <QuickAction icon="shield" label="Phê duyệt" tone="success" onClick={() => window.open('https://task.hnhtravel.vn', '_blank')} />
         </div>
       </div>
 
