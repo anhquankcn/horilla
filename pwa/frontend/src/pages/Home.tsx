@@ -6,6 +6,7 @@ import { Avatar } from '../components/ui/Avatar'
 import { Badge } from '../components/ui/Badge'
 import { useAuth } from '../lib/auth'
 import { useClock } from '../lib/useClock'
+import { useLiveClock } from '../lib/useLiveClock'
 import { ClockModal } from '../components/ClockModal'
 
 function StatChip({ icon, label, value, sub, tone = 'navy' }: {
@@ -65,8 +66,8 @@ export function HomePage() {
   const navigate = useNavigate()
   const { employee } = useAuth()
   const { isClockedIn, duration, clockInTime, clockIn, clockOut, acting } = useClock()
+  const { now, time } = useLiveClock()
   const [clockModalOpen, setClockModalOpen] = useState(false)
-  const now = new Date()
   const dayName = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'][now.getDay()]
   const dateStr = `${dayName.toUpperCase()}, ${String(now.getDate()).padStart(2, '0')} / ${String(now.getMonth() + 1).padStart(2, '0')}`
 
@@ -82,7 +83,26 @@ export function HomePage() {
         <Avatar initials={initials} bg={HNH.red} size={42} />
         <div className="flex-1">
           <div style={{ fontSize: 11.5, color: HNH.ink3, fontWeight: 600, letterSpacing: 0.4 }}>{dateStr}</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: HNH.ink, letterSpacing: -0.2 }}>{greeting}</div>
+          <div className="flex items-baseline gap-2">
+            <div style={{ fontSize: 18, fontWeight: 700, color: HNH.ink, letterSpacing: -0.2 }}>{greeting}</div>
+          </div>
+        </div>
+        <div
+          className="flex flex-col items-center justify-center shrink-0"
+          style={{
+            background: HNH.navy, borderRadius: 14, padding: '6px 12px',
+            boxShadow: '0 2px 8px rgba(20,43,111,0.15)',
+          }}
+        >
+          <div style={{
+            fontFamily: "'Plus Jakarta Sans', monospace", fontSize: 17, fontWeight: 800,
+            color: '#fff', letterSpacing: 0.5, lineHeight: 1,
+          }}>
+            {time}
+          </div>
+          <div style={{ fontSize: 9, fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginTop: 2, letterSpacing: 0.3 }}>
+            UTC+7
+          </div>
         </div>
         <button
           onClick={() => navigate('/notifications')}

@@ -6,6 +6,7 @@ import { TopBar } from '../components/layout/TopBar'
 import { useAuth } from '../lib/auth'
 import { useApi } from '../lib/useApi'
 import { useClock } from '../lib/useClock'
+import { useLiveClock } from '../lib/useLiveClock'
 import { ClockModal } from '../components/ClockModal'
 
 function LogRow({ date, day, inT, outT, hours, tag, tagTone, last }: {
@@ -47,11 +48,11 @@ interface PaginatedResponse<T> {
 export function AttendancePage() {
   const { employee } = useAuth()
   const { isClockedIn, duration, clockInTime, clockIn, clockOut, acting } = useClock()
+  const { now, time } = useLiveClock()
   const [clockModalOpen, setClockModalOpen] = useState(false)
   const { data: historyResp } = useApi<PaginatedResponse<AttendanceRecord>>('/api/attendance/my-attendance/')
 
   const history = historyResp?.results ?? []
-  const now = new Date()
   const dayName = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][now.getDay()]
   const dateStr = `${dayName} · ${String(now.getDate()).padStart(2, '0')} / ${String(now.getMonth() + 1).padStart(2, '0')} / ${now.getFullYear()}`
 
@@ -71,12 +72,21 @@ export function AttendancePage() {
         title="Chấm công"
         sub={dateStr}
         trailing={
-          <button
-            className="flex items-center justify-center border-none cursor-pointer"
-            style={{ width: 38, height: 38, borderRadius: 12, background: '#fff', boxShadow: '0 1px 2px rgba(15,20,40,0.06)' }}
+          <div
+            className="flex items-center gap-1.5"
+            style={{
+              background: HNH.navy, borderRadius: 12, padding: '6px 12px',
+              boxShadow: '0 2px 8px rgba(20,43,111,0.15)',
+            }}
           >
-            <Icon name="cal" size={18} color={HNH.ink} />
-          </button>
+            <Icon name="clock" size={14} color="#fff" stroke={2} />
+            <span style={{
+              fontFamily: "'Plus Jakarta Sans', monospace", fontSize: 15, fontWeight: 800,
+              color: '#fff', letterSpacing: 0.5,
+            }}>
+              {time}
+            </span>
+          </div>
         }
       />
 
