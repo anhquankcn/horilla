@@ -153,6 +153,13 @@
                             <!-- End of check in/out button in nav bar -->
                         {% endif %}
 
+                        <!-- Switch to PWA mobile view -->
+                        <div class="oh-navbar__action-icons" title="Giao diện Mobile">
+                            <a href="/pwa/" class="oh-navbar__action-icons-link">
+                                <ion-icon name="phone-portrait-outline" class="oh-navbar__icon"></ion-icon>
+                            </a>
+                        </div>
+
                         {% if request.user|any_permission:'base' or show_section %}
                             <!-- Start of settings button in nav bar -->
                             <div class="oh-navbar__action-icons" title="Settings">

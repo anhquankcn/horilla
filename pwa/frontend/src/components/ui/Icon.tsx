@@ -37,6 +37,8 @@ export function Icon({ name, size = 18, color = HNH.ink, stroke: sw = 1.8 }: Ico
     case 'leaf': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M11 20A7 7 0 0 1 9.8 6.1L13 2a4 4 0 0 1 7 4l-1.5 1.5C19 9 19 11 18 13c-1 2-3 4-5 5.5L11 20Z" {...p}/><path d="M2 22c2-8 7-12 14-13" {...p}/></svg>
     case 'home': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1v-8Z" {...p}/></svg>
     case 'alert': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01" {...p}/><path d="M10.3 3.6 2.5 17.2a2 2 0 0 0 1.7 3h15.6a2 2 0 0 0 1.7-3L13.7 3.6a2 2 0 0 0-3.4 0Z" {...p}/></svg>
+    case 'monitor': return <svg width={size} height={size} viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="12" rx="2" {...p}/><path d="M8 20h8M12 16v4" {...p}/></svg>
+    case 'smartphone': return <svg width={size} height={size} viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="18" rx="2" {...p}/><path d="M12 18h.01" {...p}/></svg>
     default: return null
   }
 }
