@@ -79,10 +79,12 @@ export async function authRoutes(app: FastifyInstance) {
       const kcTokens = (await tokenRes.body.json()) as {
         access_token: string;
         refresh_token?: string;
+        id_token?: string;
       };
 
       session.kcAccessToken = kcTokens.access_token;
       session.kcRefreshToken = kcTokens.refresh_token;
+      session.kcIdToken = kcTokens.id_token;
       delete session.codeVerifier;
       delete session.oauthState;
 
@@ -112,15 +114,21 @@ export async function authRoutes(app: FastifyInstance) {
   // Logout: destroy session, redirect to Keycloak logout
   app.get("/bff/auth/logout", async (req, reply) => {
     const sessionId = req.cookies[COOKIE_NAME];
+    let idToken: string | undefined;
     if (sessionId) {
+      const session = getSession(sessionId);
+      idToken = session?.kcIdToken;
       destroySession(sessionId);
     }
     reply.clearCookie(COOKIE_NAME, { path: "/" });
 
     const params = new URLSearchParams({
       client_id: env.KC_CLIENT_ID,
-      post_logout_redirect_uri: env.BFF_ORIGIN,
+      post_logout_redirect_uri: `${env.BFF_ORIGIN}${env.PWA_PATH}login`,
     });
+    if (idToken) {
+      params.set("id_token_hint", idToken);
+    }
     return reply.redirect(
       `${env.KC_BASE}/protocol/openid-connect/logout?${params}`
     );

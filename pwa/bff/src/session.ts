@@ -4,6 +4,7 @@ interface Session {
   horillaJwt?: string;
   kcAccessToken?: string;
   kcRefreshToken?: string;
+  kcIdToken?: string;
   codeVerifier?: string;
   oauthState?: string;
 }
