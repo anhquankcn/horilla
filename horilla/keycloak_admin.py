@@ -219,13 +219,18 @@ def sync_employee_to_kc(employee):
             except Exception:
                 pass
 
-        return {"ok": True, "action": action, "kc_user_id": kc_user_id}
+        return {
+            "ok": True, "action": action,
+            "kc_user_id": kc_user_id,
+            "kc_username": email,
+            "employee_id": employee.pk,
+        }
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
 
 
 def sync_all_employees(employees):
-    results = {"created": 0, "updated": 0, "errors": []}
+    results = {"created": 0, "updated": 0, "errors": [], "mappings": []}
     for emp in employees:
         r = sync_employee_to_kc(emp)
         if r.get("ok"):
@@ -233,9 +238,123 @@ def sync_all_employees(employees):
                 results["created"] += 1
             else:
                 results["updated"] += 1
+            results["mappings"].append({
+                "employee_id": r["employee_id"],
+                "kc_user_id": r["kc_user_id"],
+                "kc_username": r["kc_username"],
+            })
         else:
             results["errors"].append(
                 {"employee": str(emp), "error": r.get("error", "")}
             )
+    results["ok"] = True
+    return results
+
+
+def sync_selective_roles(admin, roles_data):
+    """Create/update selective KC realm roles. Reuses an existing admin connection."""
+    results = {"created": 0, "exists": 0, "errors": [], "mappings": []}
+    try:
+        existing = admin.get_realm_roles(brief_representation=False)
+        by_name = {r["name"]: r for r in existing}
+
+        created_names = []
+        for rd in roles_data:
+            name = rd["name"]
+            desc = rd.get("description", "")
+            if name in by_name:
+                results["exists"] += 1
+                results["mappings"].append({
+                    "job_role_id": rd.get("job_role_id"),
+                    "kc_role_id": by_name[name]["id"],
+                    "kc_role_name": name,
+                })
+                continue
+            try:
+                admin.create_realm_role(
+                    payload={"name": name, "description": desc},
+                    skip_exists=True,
+                )
+                results["created"] += 1
+                created_names.append(rd)
+            except Exception as exc:
+                results["errors"].append({"role": name, "error": str(exc)})
+
+        if created_names:
+            all_roles = admin.get_realm_roles(brief_representation=False)
+            by_name_final = {r["name"]: r for r in all_roles}
+            for rd in created_names:
+                name = rd["name"]
+                role = by_name_final.get(name)
+                if role:
+                    results["mappings"].append({
+                        "job_role_id": rd.get("job_role_id"),
+                        "kc_role_id": role["id"],
+                        "kc_role_name": name,
+                    })
+    except Exception as exc:
+        return {"ok": False, "error": str(exc)}
+    results["ok"] = True
+    return results
+
+
+def sync_selective_employees(admin, employees):
+    """Create/update selective KC users. Reuses an existing admin connection."""
+    results = {"created": 0, "updated": 0, "errors": [], "mappings": []}
+    for emp in employees:
+        email = emp.email
+        if not email:
+            results["errors"].append({"employee": str(emp), "error": "No email"})
+            continue
+        try:
+            existing = admin.get_users(query={"email": email, "exact": True})
+            first_name = emp.employee_first_name or ""
+            last_name = emp.employee_last_name or ""
+
+            if existing:
+                kc_user = existing[0]
+                admin.update_user(
+                    user_id=kc_user["id"],
+                    payload={
+                        "firstName": first_name,
+                        "lastName": last_name,
+                        "enabled": emp.is_active,
+                    },
+                )
+                kc_user_id = kc_user["id"]
+                action = "updated"
+            else:
+                kc_user_id = admin.create_user(
+                    payload={
+                        "username": email,
+                        "email": email,
+                        "firstName": first_name,
+                        "lastName": last_name,
+                        "enabled": emp.is_active,
+                        "emailVerified": True,
+                    },
+                    exist_ok=True,
+                )
+                action = "created"
+
+            wi = getattr(emp, "employee_work_info", None)
+            if wi and wi.job_role_id:
+                try:
+                    realm_role = admin.get_realm_role(wi.job_role_id.job_role)
+                    admin.assign_realm_roles(user_id=kc_user_id, roles=[realm_role])
+                except Exception:
+                    pass
+
+            if action == "created":
+                results["created"] += 1
+            else:
+                results["updated"] += 1
+            results["mappings"].append({
+                "employee_id": emp.pk,
+                "kc_user_id": kc_user_id,
+                "kc_username": email,
+            })
+        except Exception as exc:
+            results["errors"].append({"employee": str(emp), "error": str(exc)})
     results["ok"] = True
     return results

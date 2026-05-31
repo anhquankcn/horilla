@@ -1494,6 +1494,7 @@ class KeycloakSyncUsersView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        from base.models import KCUserMapping
         from horilla.keycloak_admin import sync_all_employees
 
         employees = Employee.objects.filter(is_active=True).select_related(
@@ -1501,4 +1502,161 @@ class KeycloakSyncUsersView(APIView):
             "employee_work_info__job_role_id",
         )
         result = sync_all_employees(employees)
+
+        if result.get("ok"):
+            for m in result.get("mappings", []):
+                if m.get("employee_id") and m.get("kc_user_id"):
+                    KCUserMapping.objects.update_or_create(
+                        employee_id=m["employee_id"],
+                        defaults={
+                            "kc_user_id": m["kc_user_id"],
+                            "kc_username": m["kc_username"],
+                        },
+                    )
+            result.pop("mappings", None)
+
         return Response(result)
+
+
+class KeycloakSyncOverviewView(APIView):
+    """Department-grouped roles & employees with KC sync status."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from base.models import KCRoleMapping, KCUserMapping
+        from employee.models import EmployeeWorkInformation
+
+        departments = Department.objects.filter(is_active=True).order_by("department")
+
+        role_mappings = {m.job_role_id: m for m in KCRoleMapping.objects.all()}
+        user_mappings = {m.employee_id: m for m in KCUserMapping.objects.all()}
+
+        result = []
+        for dept in departments:
+            roles_qs = JobRole.objects.filter(
+                job_position_id__department_id=dept, is_active=True
+            ).select_related("job_position_id").order_by("job_role")
+
+            roles_list = []
+            for r in roles_qs:
+                rm = role_mappings.get(r.pk)
+                roles_list.append({
+                    "id": r.pk,
+                    "name": r.job_role,
+                    "position": r.job_position_id.job_position if r.job_position_id else None,
+                    "kc_synced": rm is not None,
+                    "kc_role_id": rm.kc_role_id if rm else None,
+                    "kc_role_name": rm.kc_role_name if rm else None,
+                    "synced_at": rm.synced_at.isoformat() if rm else None,
+                })
+
+            emps_qs = Employee.objects.filter(
+                employee_work_info__department_id=dept, is_active=True
+            ).select_related("employee_work_info", "employee_work_info__job_role_id")
+
+            emps_list = []
+            for emp in emps_qs:
+                um = user_mappings.get(emp.pk)
+                wi = getattr(emp, "employee_work_info", None)
+                emps_list.append({
+                    "id": emp.pk,
+                    "name": f"{emp.employee_first_name} {emp.employee_last_name or ''}".strip(),
+                    "email": emp.email,
+                    "role": wi.job_role_id.job_role if wi and wi.job_role_id else None,
+                    "kc_synced": um is not None,
+                    "kc_user_id": um.kc_user_id if um else None,
+                    "kc_username": um.kc_username if um else None,
+                    "synced_at": um.synced_at.isoformat() if um else None,
+                })
+
+            result.append({
+                "id": dept.pk,
+                "name": dept.department,
+                "roles": roles_list,
+                "employees": emps_list,
+            })
+
+        return Response(result)
+
+
+class KeycloakSelectiveSyncView(APIView):
+    """Selective sync: specific roles or employees to Keycloak."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from base.models import KCRoleMapping, KCUserMapping
+        from horilla.keycloak_admin import (
+            _get_admin,
+            sync_selective_employees,
+            sync_selective_roles,
+        )
+
+        sync_type = request.data.get("type")  # "roles" or "users"
+        ids = request.data.get("ids", [])
+
+        if not ids:
+            return Response({"error": "No items selected"}, status=400)
+
+        admin = _get_admin()
+        if not admin:
+            return Response(
+                {"error": "Keycloak not configured"}, status=503
+            )
+
+        if sync_type == "roles":
+            roles = JobRole.objects.filter(pk__in=ids, is_active=True).select_related(
+                "job_position_id", "job_position_id__department_id"
+            )
+            roles_data = []
+            for r in roles:
+                pos = r.job_position_id
+                dept = pos.department_id if pos else None
+                roles_data.append({
+                    "job_role_id": r.pk,
+                    "name": r.job_role,
+                    "description": f"{pos.job_position if pos else ''} - {dept.department if dept else ''}",
+                })
+
+            result = sync_selective_roles(admin, roles_data)
+
+            if result.get("ok"):
+                for m in result.get("mappings", []):
+                    if m.get("job_role_id") and m.get("kc_role_id"):
+                        KCRoleMapping.objects.update_or_create(
+                            job_role_id=m["job_role_id"],
+                            defaults={
+                                "kc_role_id": m["kc_role_id"],
+                                "kc_role_name": m["kc_role_name"],
+                            },
+                        )
+                result.pop("mappings", None)
+
+            return Response(result)
+
+        elif sync_type == "users":
+            employees = Employee.objects.filter(
+                pk__in=ids, is_active=True
+            ).select_related(
+                "employee_work_info",
+                "employee_work_info__job_role_id",
+            )
+
+            result = sync_selective_employees(admin, employees)
+
+            if result.get("ok"):
+                for m in result.get("mappings", []):
+                    if m.get("employee_id") and m.get("kc_user_id"):
+                        KCUserMapping.objects.update_or_create(
+                            employee_id=m["employee_id"],
+                            defaults={
+                                "kc_user_id": m["kc_user_id"],
+                                "kc_username": m["kc_username"],
+                            },
+                        )
+                result.pop("mappings", None)
+
+            return Response(result)
+
+        return Response({"error": "Invalid type, use 'roles' or 'users'"}, status=400)

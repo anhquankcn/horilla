@@ -46,6 +46,9 @@ export function Icon({ name, size = 18, color = HNH.ink, stroke: sw = 1.8 }: Ico
     case 'folder': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" {...p}/></svg>
     case 'send': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4 20-7Z" {...p}/><path d="m22 2-11 11" {...p}/></svg>
     case 'edit': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" {...p}/><path d="M18.5 2.5a2.1 2.1 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5Z" {...p}/></svg>
+    case 'refresh': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M1 4v6h6" {...p}/><path d="M23 20v-6h-6" {...p}/><path d="M20.5 9A9 9 0 0 0 5.6 5.6L1 10M23 14l-4.6 4.4A9 9 0 0 1 3.5 15" {...p}/></svg>
+    case 'link': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7.1-7.1l-1.7 1.7" {...p}/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7.1 7.1l1.7-1.7" {...p}/></svg>
+    case 'upload': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" {...p}/><path d="m17 8-5-5-5 5" {...p}/><path d="M12 3v12" {...p}/></svg>
     default: return null
   }
 }

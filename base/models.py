@@ -323,6 +323,26 @@ class KCRoleMapping(models.Model):
         return f"{self.job_role.job_role} → {self.kc_role_name}"
 
 
+class KCUserMapping(models.Model):
+    """Maps HRM Employee ↔ Keycloak user."""
+
+    employee = models.OneToOneField(
+        "employee.Employee", on_delete=models.CASCADE, related_name="kc_mapping",
+        verbose_name=_("Employee"),
+    )
+    kc_user_id = models.CharField(max_length=255, verbose_name=_("KC User ID"))
+    kc_username = models.CharField(max_length=255, verbose_name=_("KC Username"))
+    synced_at = models.DateTimeField(auto_now=True, verbose_name=_("Last Synced"))
+
+    class Meta:
+        verbose_name = _("KC User Mapping")
+        verbose_name_plural = _("KC User Mappings")
+        db_table = "base_kcusermapping"
+
+    def __str__(self):
+        return f"{self.employee} → {self.kc_username}"
+
+
 class WorkType(HorillaModel):
     """
     WorkType model

@@ -504,64 +504,426 @@ function InfoItem({ label, value }: { label: string; value: string | null }) {
   )
 }
 
-/* ── Sync Panel ── */
-function SyncPanel({ kcRoles, onSyncRoles, onSyncUsers, syncing }: {
-  kcRoles: KcRole[] | null
-  onSyncRoles: () => void
-  onSyncUsers: () => void
-  syncing: string | null
-}) {
-  return (
-    <div style={{
-      background: '#fff', borderRadius: 18, padding: 16,
-      border: `1px solid ${HNH.line}`, marginTop: 14,
-    }}>
-      <div className="flex items-center gap-2" style={{ marginBottom: 12 }}>
-        <Icon name="globe" size={18} color={HNH.navy} stroke={2} />
-        <span style={{ fontSize: 14, fontWeight: 700, color: HNH.ink }}>Keycloak Sync</span>
-        {kcRoles !== null && (
-          <span style={{ fontSize: 11, fontWeight: 700, color: HNH.success, background: HNH.success50, borderRadius: 6, padding: '2px 8px', marginLeft: 'auto' }}>
-            Kết nối OK · {kcRoles.length} roles
-          </span>
-        )}
-        {kcRoles === null && (
-          <span style={{ fontSize: 11, fontWeight: 700, color: HNH.warn, background: HNH.warn50, borderRadius: 6, padding: '2px 8px', marginLeft: 'auto' }}>
-            Chưa kết nối
-          </span>
-        )}
-      </div>
+/* ── KC Sync Modal ── */
+interface SyncDept {
+  id: number
+  name: string
+  roles: SyncRole[]
+  employees: SyncEmp[]
+}
+interface SyncRole {
+  id: number; name: string; position: string | null
+  kc_synced: boolean; kc_role_id: string | null; kc_role_name: string | null; synced_at: string | null
+}
+interface SyncEmp {
+  id: number; name: string; email: string; role: string | null
+  kc_synced: boolean; kc_user_id: string | null; kc_username: string | null; synced_at: string | null
+}
 
-      <div className="flex gap-2">
-        <button
-          onClick={onSyncRoles}
-          disabled={syncing !== null || kcRoles === null}
-          className="flex-1 flex items-center justify-center gap-2 border-none cursor-pointer"
-          style={{
-            padding: '10px 14px', borderRadius: 12,
-            background: kcRoles !== null ? HNH.navy : HNH.cream2,
-            color: kcRoles !== null ? '#fff' : HNH.ink3,
-            fontSize: 12.5, fontWeight: 700,
-            opacity: syncing !== null ? 0.6 : 1,
-          }}
-        >
-          <Icon name="arrow-up" size={14} color={kcRoles !== null ? '#fff' : HNH.ink3} stroke={2} />
-          {syncing === 'roles' ? 'Đang đồng bộ...' : 'Sync Roles → KC'}
-        </button>
-        <button
-          onClick={onSyncUsers}
-          disabled={syncing !== null || kcRoles === null}
-          className="flex-1 flex items-center justify-center gap-2 border-none cursor-pointer"
-          style={{
-            padding: '10px 14px', borderRadius: 12,
-            background: kcRoles !== null ? HNH.red : HNH.cream2,
-            color: kcRoles !== null ? '#fff' : HNH.ink3,
-            fontSize: 12.5, fontWeight: 700,
-            opacity: syncing !== null ? 0.6 : 1,
-          }}
-        >
-          <Icon name="users" size={14} color={kcRoles !== null ? '#fff' : HNH.ink3} stroke={2} />
-          {syncing === 'users' ? 'Đang đồng bộ...' : 'Sync Users → KC'}
-        </button>
+type SyncTab = 'roles' | 'users'
+
+function KCSyncModal({ onClose, isTablet, kcConnected }: {
+  onClose: () => void; isTablet: boolean; kcConnected: boolean
+}) {
+  const [tab, setTab] = useState<SyncTab>('roles')
+  const [depts, setDepts] = useState<SyncDept[]>([])
+  const [loading, setLoading] = useState(true)
+  const [expanded, setExpanded] = useState<Set<number>>(new Set())
+  const [selectedRoles, setSelectedRoles] = useState<Set<number>>(new Set())
+  const [selectedUsers, setSelectedUsers] = useState<Set<number>>(new Set())
+  const [syncing, setSyncing] = useState(false)
+  const [result, setResult] = useState<{ ok: boolean; msg: string } | null>(null)
+
+  const fetchOverview = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await api.get<SyncDept[]>('/api/base/keycloak/sync-overview/')
+      setDepts(data)
+      setExpanded(new Set(data.map(d => d.id)))
+    } catch { setDepts([]) }
+    finally { setLoading(false) }
+  }, [])
+
+  useEffect(() => { fetchOverview() }, [fetchOverview])
+
+  const allRoles = depts.flatMap(d => d.roles)
+  const allEmps = depts.flatMap(d => d.employees)
+
+  const toggleRole = (id: number) => {
+    const next = new Set(selectedRoles)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    setSelectedRoles(next)
+  }
+  const toggleUser = (id: number) => {
+    const next = new Set(selectedUsers)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    setSelectedUsers(next)
+  }
+  const toggleDeptRoles = (dept: SyncDept) => {
+    const ids = dept.roles.map(r => r.id)
+    const allSel = ids.every(id => selectedRoles.has(id))
+    const next = new Set(selectedRoles)
+    ids.forEach(id => { if (allSel) next.delete(id); else next.add(id) })
+    setSelectedRoles(next)
+  }
+  const toggleDeptUsers = (dept: SyncDept) => {
+    const ids = dept.employees.map(e => e.id)
+    const allSel = ids.every(id => selectedUsers.has(id))
+    const next = new Set(selectedUsers)
+    ids.forEach(id => { if (allSel) next.delete(id); else next.add(id) })
+    setSelectedUsers(next)
+  }
+  const selectAllItems = () => {
+    if (tab === 'roles') {
+      const all = allRoles.map(r => r.id)
+      const allSel = all.every(id => selectedRoles.has(id))
+      setSelectedRoles(allSel ? new Set() : new Set(all))
+    } else {
+      const all = allEmps.map(e => e.id)
+      const allSel = all.every(id => selectedUsers.has(id))
+      setSelectedUsers(allSel ? new Set() : new Set(all))
+    }
+  }
+
+  const handleSync = async () => {
+    const ids = tab === 'roles' ? Array.from(selectedRoles) : Array.from(selectedUsers)
+    if (ids.length === 0) return
+    setSyncing(true)
+    setResult(null)
+    try {
+      const res = await api.post<{
+        ok: boolean; created?: number; exists?: number; updated?: number; error?: string; errors?: { role?: string; employee?: string; error: string }[]
+      }>('/api/base/keycloak/sync-selective/', { type: tab, ids })
+      if (res.ok) {
+        const parts: string[] = []
+        if (res.created) parts.push(`${res.created} tạo mới`)
+        if (res.exists) parts.push(`${res.exists} đã tồn tại`)
+        if (res.updated) parts.push(`${res.updated} cập nhật`)
+        if (res.errors?.length) parts.push(`${res.errors.length} lỗi`)
+        setResult({ ok: true, msg: parts.join(', ') || 'Thành công' })
+        setSelectedRoles(new Set())
+        setSelectedUsers(new Set())
+        fetchOverview()
+      } else {
+        setResult({ ok: false, msg: res.error || 'Lỗi không xác định' })
+      }
+    } catch (e) {
+      setResult({ ok: false, msg: e instanceof Error ? e.message : 'Lỗi' })
+    } finally { setSyncing(false) }
+  }
+
+  const selCount = tab === 'roles' ? selectedRoles.size : selectedUsers.size
+  const syncedCount = tab === 'roles'
+    ? allRoles.filter(r => r.kc_synced).length
+    : allEmps.filter(e => e.kc_synced).length
+  const totalCount = tab === 'roles' ? allRoles.length : allEmps.length
+
+  const selectedHasSynced = tab === 'roles'
+    ? allRoles.some(r => selectedRoles.has(r.id) && r.kc_synced)
+    : allEmps.some(e => selectedUsers.has(e.id) && e.kc_synced)
+  const selectedHasNew = tab === 'roles'
+    ? allRoles.some(r => selectedRoles.has(r.id) && !r.kc_synced)
+    : allEmps.some(e => selectedUsers.has(e.id) && !e.kc_synced)
+
+  const formatDate = (iso: string | null) => {
+    if (!iso) return ''
+    const d = new Date(iso)
+    return d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+  }
+
+  return (
+    <div
+      className={isTablet ? 'fixed inset-0 flex items-center justify-center' : 'fixed inset-0 flex flex-col'}
+      style={{ zIndex: 9999, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div
+        className={isTablet ? '' : 'flex-1 flex flex-col'}
+        style={isTablet
+          ? { width: '100%', maxWidth: 640, maxHeight: '90vh', display: 'flex', flexDirection: 'column', borderRadius: 24, boxShadow: '0 24px 48px rgba(0,0,0,0.25)', overflow: 'hidden' }
+          : { overflow: 'hidden' }
+        }
+      >
+        {/* Header */}
+        <div style={{ background: '#fff', borderBottom: `1px solid ${HNH.line}`, flexShrink: 0 }}>
+          <div className="flex items-center justify-between" style={{ padding: '12px 16px' }}>
+            <button onClick={onClose} className="flex items-center justify-center border-none cursor-pointer" style={{ width: 36, height: 36, borderRadius: 10, background: HNH.cream }}>
+              <Icon name="x" size={18} color={HNH.ink} stroke={2} />
+            </button>
+            <div className="flex items-center gap-2">
+              <Icon name="globe" size={18} color={HNH.navy} stroke={2} />
+              <span style={{ fontSize: 15, fontWeight: 700, color: HNH.ink }}>Đồng bộ Keycloak</span>
+            </div>
+            <div style={{
+              fontSize: 10.5, fontWeight: 700, borderRadius: 6, padding: '3px 8px',
+              color: kcConnected ? HNH.success : HNH.warn,
+              background: kcConnected ? HNH.success50 : HNH.warn50,
+            }}>
+              {kcConnected ? 'Kết nối OK' : 'Chưa kết nối'}
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div className="flex gap-2" style={{ padding: '0 16px 10px' }}>
+            <div style={{ flex: 1, background: HNH.cream, borderRadius: 10, padding: '8px 12px', textAlign: 'center' }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: HNH.navy }}>{syncedCount}</div>
+              <div style={{ fontSize: 10, fontWeight: 600, color: HNH.ink3 }}>Đã đồng bộ</div>
+            </div>
+            <div style={{ flex: 1, background: HNH.warn50, borderRadius: 10, padding: '8px 12px', textAlign: 'center' }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: HNH.warn }}>{totalCount - syncedCount}</div>
+              <div style={{ fontSize: 10, fontWeight: 600, color: HNH.ink3 }}>Chưa đồng bộ</div>
+            </div>
+            <div style={{ flex: 1, background: HNH.navy50, borderRadius: 10, padding: '8px 12px', textAlign: 'center' }}>
+              <div style={{ fontSize: 18, fontWeight: 800, color: HNH.navy }}>{totalCount}</div>
+              <div style={{ fontSize: 10, fontWeight: 600, color: HNH.ink3 }}>Tổng</div>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="flex" style={{ padding: '0 16px' }}>
+            {([
+              { id: 'roles' as SyncTab, label: 'Vai trò', count: allRoles.length },
+              { id: 'users' as SyncTab, label: 'Nhân viên', count: allEmps.length },
+            ]).map(t => (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className="flex-1 flex items-center justify-center gap-1.5 border-none cursor-pointer"
+                style={{
+                  padding: '10px 0', background: 'transparent',
+                  borderBottom: tab === t.id ? `2.5px solid ${HNH.navy}` : '2.5px solid transparent',
+                  fontSize: 13, fontWeight: tab === t.id ? 700 : 600,
+                  color: tab === t.id ? HNH.navy : HNH.ink3,
+                }}
+              >
+                <Icon name={t.id === 'roles' ? 'shield' : 'users'} size={14} color={tab === t.id ? HNH.navy : HNH.ink3} stroke={2} />
+                {t.label}
+                <span style={{
+                  fontSize: 10, fontWeight: 700, borderRadius: 6, padding: '1px 6px',
+                  background: tab === t.id ? HNH.navy50 : HNH.cream2,
+                  color: tab === t.id ? HNH.navy : HNH.ink3,
+                }}>{t.count}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Select all bar */}
+        <div className="flex items-center justify-between" style={{
+          padding: '8px 16px', background: HNH.cream, borderBottom: `1px solid ${HNH.line}`, flexShrink: 0,
+        }}>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={selCount > 0 && selCount === totalCount}
+              onChange={selectAllItems}
+              style={{ width: 16, height: 16, accentColor: HNH.navy }}
+            />
+            <span style={{ fontSize: 12, fontWeight: 700, color: HNH.ink }}>
+              {selCount > 0 ? `Đã chọn ${selCount}` : 'Chọn tất cả'}
+            </span>
+          </label>
+          {selCount > 0 && (
+            <div className="flex items-center gap-1.5">
+              {selectedHasNew && (
+                <span style={{ fontSize: 10, fontWeight: 700, color: '#7c3aed', background: '#f3e8ff', borderRadius: 6, padding: '2px 6px' }}>
+                  Tạo mới
+                </span>
+              )}
+              {selectedHasSynced && (
+                <span style={{ fontSize: 10, fontWeight: 700, color: HNH.success, background: HNH.success50, borderRadius: 6, padding: '2px 6px' }}>
+                  Cập nhật
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Content */}
+        <div style={{ flex: 1, overflowY: 'auto', background: HNH.cream, padding: '8px 16px 120px' }}>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 40, color: HNH.ink3, fontSize: 13 }}>Đang tải...</div>
+          ) : depts.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: 40, color: HNH.ink3, fontSize: 13 }}>Không có dữ liệu</div>
+          ) : (
+            depts.map(dept => {
+              const items = tab === 'roles' ? dept.roles : dept.employees
+              if (items.length === 0) return null
+              const isOpen = expanded.has(dept.id)
+              const deptSyncedCount = items.filter((i: SyncRole | SyncEmp) => i.kc_synced).length
+
+              return (
+                <div key={dept.id} style={{ marginBottom: 8 }}>
+                  {/* Dept header */}
+                  <button
+                    onClick={() => {
+                      const next = new Set(expanded)
+                      if (next.has(dept.id)) next.delete(dept.id); else next.add(dept.id)
+                      setExpanded(next)
+                    }}
+                    className="w-full flex items-center gap-2 border-none cursor-pointer"
+                    style={{
+                      background: '#fff', borderRadius: 12, padding: '10px 14px',
+                      border: `1px solid ${HNH.line}`,
+                    }}
+                  >
+                    <Icon name={isOpen ? 'chev-d' : 'chev-r'} size={14} color={HNH.ink3} stroke={2} />
+                    <input
+                      type="checkbox"
+                      checked={items.length > 0 && items.every((i: SyncRole | SyncEmp) =>
+                        tab === 'roles' ? selectedRoles.has(i.id) : selectedUsers.has(i.id)
+                      )}
+                      onChange={e => {
+                        e.stopPropagation()
+                        if (tab === 'roles') toggleDeptRoles(dept)
+                        else toggleDeptUsers(dept)
+                      }}
+                      onClick={e => e.stopPropagation()}
+                      style={{ width: 16, height: 16, accentColor: HNH.navy }}
+                    />
+                    <span style={{ fontSize: 13, fontWeight: 700, color: HNH.ink, flex: 1, textAlign: 'left' }}>
+                      {dept.name}
+                    </span>
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, borderRadius: 6, padding: '2px 8px',
+                      color: deptSyncedCount === items.length ? HNH.success : HNH.warn,
+                      background: deptSyncedCount === items.length ? HNH.success50 : HNH.warn50,
+                    }}>
+                      {deptSyncedCount}/{items.length}
+                    </span>
+                  </button>
+
+                  {/* Items */}
+                  {isOpen && (
+                    <div style={{ padding: '4px 0 0 8px' }}>
+                      {tab === 'roles' ? dept.roles.map(role => (
+                        <label key={role.id} className="flex items-center gap-3 cursor-pointer" style={{
+                          padding: '8px 12px', borderBottom: `1px solid ${HNH.line}`,
+                          background: selectedRoles.has(role.id) ? HNH.navy50 : 'transparent',
+                          borderRadius: 8, marginBottom: 2,
+                        }}>
+                          <input
+                            type="checkbox" checked={selectedRoles.has(role.id)}
+                            onChange={() => toggleRole(role.id)}
+                            style={{ width: 16, height: 16, accentColor: HNH.navy, flexShrink: 0 }}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div style={{ fontSize: 13, fontWeight: 600, color: HNH.ink }}>{role.name}</div>
+                            {role.position && (
+                              <div style={{ fontSize: 11, color: HNH.ink3, marginTop: 1 }}>{role.position}</div>
+                            )}
+                          </div>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            {role.kc_synced ? (
+                              <>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: HNH.success, background: HNH.success50, borderRadius: 6, padding: '2px 8px' }}>
+                                  Đã đồng bộ
+                                </span>
+                                <span style={{ fontSize: 9, color: HNH.ink3 }}>{formatDate(role.synced_at)}</span>
+                              </>
+                            ) : (
+                              <span style={{ fontSize: 10, fontWeight: 700, color: HNH.warn, background: HNH.warn50, borderRadius: 6, padding: '2px 8px' }}>
+                                Chưa đồng bộ
+                              </span>
+                            )}
+                          </div>
+                        </label>
+                      )) : dept.employees.map(emp => (
+                        <label key={emp.id} className="flex items-center gap-3 cursor-pointer" style={{
+                          padding: '8px 12px', borderBottom: `1px solid ${HNH.line}`,
+                          background: selectedUsers.has(emp.id) ? HNH.navy50 : 'transparent',
+                          borderRadius: 8, marginBottom: 2,
+                        }}>
+                          <input
+                            type="checkbox" checked={selectedUsers.has(emp.id)}
+                            onChange={() => toggleUser(emp.id)}
+                            style={{ width: 16, height: 16, accentColor: HNH.navy, flexShrink: 0 }}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div style={{ fontSize: 13, fontWeight: 600, color: HNH.ink }}>{emp.name}</div>
+                            <div style={{ fontSize: 11, color: HNH.ink3, marginTop: 1 }}>{emp.email}</div>
+                            {emp.role && (
+                              <div style={{ fontSize: 10, color: HNH.ink2, marginTop: 1 }}>{emp.role}</div>
+                            )}
+                          </div>
+                          <div className="flex flex-col items-end gap-1 shrink-0">
+                            {emp.kc_synced ? (
+                              <>
+                                <span style={{ fontSize: 10, fontWeight: 700, color: HNH.success, background: HNH.success50, borderRadius: 6, padding: '2px 8px' }}>
+                                  Đã đồng bộ
+                                </span>
+                                <span style={{ fontSize: 9, color: HNH.ink3 }}>{formatDate(emp.synced_at)}</span>
+                              </>
+                            ) : (
+                              <span style={{ fontSize: 10, fontWeight: 700, color: HNH.warn, background: HNH.warn50, borderRadius: 6, padding: '2px 8px' }}>
+                                Chưa đồng bộ
+                              </span>
+                            )}
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })
+          )}
+        </div>
+
+        {/* Footer action bar */}
+        <div style={{
+          position: isTablet ? 'relative' : 'fixed',
+          bottom: 0, left: 0, right: 0,
+          background: '#fff', borderTop: `1px solid ${HNH.line}`,
+          padding: '12px 16px', flexShrink: 0,
+          boxShadow: '0 -4px 12px rgba(0,0,0,0.08)',
+        }}>
+          {result && (
+            <div style={{
+              marginBottom: 8, padding: '8px 12px', borderRadius: 10,
+              background: result.ok ? HNH.success50 : HNH.red50,
+              color: result.ok ? HNH.success : HNH.red,
+              fontSize: 12, fontWeight: 700,
+            }}>
+              {result.ok ? 'Thành công: ' : 'Lỗi: '}{result.msg}
+            </div>
+          )}
+
+          {selCount > 0 && (
+            <div style={{ fontSize: 11, color: HNH.ink3, marginBottom: 6, textAlign: 'center' }}>
+              {selectedHasNew && selectedHasSynced
+                ? 'Tạo mới trên KC + Cập nhật đã có'
+                : selectedHasNew
+                  ? 'Tạo mới trên Keycloak'
+                  : 'Cập nhật thông tin lên Keycloak'}
+            </div>
+          )}
+
+          <button
+            onClick={handleSync}
+            disabled={selCount === 0 || syncing || !kcConnected}
+            className="w-full flex items-center justify-center gap-2 border-none cursor-pointer"
+            style={{
+              padding: '12px 0', borderRadius: 14,
+              background: selCount > 0 && kcConnected ? HNH.navy : HNH.cream2,
+              color: selCount > 0 && kcConnected ? '#fff' : HNH.ink3,
+              fontSize: 14, fontWeight: 700,
+              opacity: syncing ? 0.6 : 1,
+            }}
+          >
+            <Icon
+              name={syncing ? 'refresh' : selectedHasSynced && !selectedHasNew ? 'refresh' : 'upload'}
+              size={16}
+              color={selCount > 0 && kcConnected ? '#fff' : HNH.ink3}
+              stroke={2}
+            />
+            {syncing
+              ? 'Đang đồng bộ...'
+              : selCount === 0
+                ? 'Chọn mục để đồng bộ'
+                : `Đồng bộ ${selCount} ${tab === 'roles' ? 'vai trò' : 'nhân viên'}`}
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -637,8 +999,7 @@ export function RolesPage() {
   const [search, setSearch] = useState('')
   const [deptFilter, setDeptFilter] = useState<number | null>(null)
   const [selected, setSelected] = useState<Role | null>(null)
-  const [syncing, setSyncing] = useState<string | null>(null)
-  const [syncMsg, setSyncMsg] = useState<string | null>(null)
+  const [showSyncModal, setShowSyncModal] = useState(false)
 
   const fetchRoles = useCallback(async (s: string, dept: number | null) => {
     setLoading(true)
@@ -663,41 +1024,6 @@ export function RolesPage() {
     const timer = setTimeout(() => fetchRoles(search, deptFilter), search ? 300 : 0)
     return () => clearTimeout(timer)
   }, [search, deptFilter, fetchRoles])
-
-  const handleSyncRoles = useCallback(async () => {
-    setSyncing('roles')
-    setSyncMsg(null)
-    try {
-      const res = await api.post<{ ok: boolean; created?: number; exists?: number; error?: string }>(
-        '/api/base/keycloak/sync-roles/', {}
-      )
-      if (res.ok) {
-        setSyncMsg(`Roles: ${res.created} tạo mới, ${res.exists} đã tồn tại`)
-        api.get<KcRole[]>('/api/base/keycloak/roles/').then(setKcRoles).catch(() => {})
-      } else {
-        setSyncMsg(`Lỗi: ${res.error}`)
-      }
-    } catch (e) {
-      setSyncMsg(`Lỗi: ${e instanceof Error ? e.message : 'Unknown'}`)
-    } finally { setSyncing(null) }
-  }, [])
-
-  const handleSyncUsers = useCallback(async () => {
-    setSyncing('users')
-    setSyncMsg(null)
-    try {
-      const res = await api.post<{ ok: boolean; created?: number; updated?: number; error?: string }>(
-        '/api/base/keycloak/sync-users/', {}
-      )
-      if (res.ok) {
-        setSyncMsg(`Users: ${res.created} tạo mới, ${res.updated} cập nhật`)
-      } else {
-        setSyncMsg(`Lỗi: ${res.error}`)
-      }
-    } catch (e) {
-      setSyncMsg(`Lỗi: ${e instanceof Error ? e.message : 'Unknown'}`)
-    } finally { setSyncing(null) }
-  }, [])
 
   const grouped = roles.reduce<Record<string, Role[]>>((acc, r) => {
     const dept = r.department || 'Chưa phân phòng'
@@ -726,23 +1052,30 @@ export function RolesPage() {
           </div>
         )}
 
-        {/* KC Sync Panel */}
-        <SyncPanel
-          kcRoles={kcRoles}
-          onSyncRoles={handleSyncRoles}
-          onSyncUsers={handleSyncUsers}
-          syncing={syncing}
-        />
-        {syncMsg && (
-          <div style={{
-            marginTop: 8, padding: '10px 14px', borderRadius: 12,
-            background: syncMsg.startsWith('Lỗi') ? HNH.red50 : HNH.success50,
-            color: syncMsg.startsWith('Lỗi') ? HNH.red : HNH.success,
-            fontSize: 12.5, fontWeight: 700,
-          }}>
-            {syncMsg}
-          </div>
-        )}
+        {/* KC Sync Button */}
+        <button
+          onClick={() => setShowSyncModal(true)}
+          className="w-full flex items-center justify-center gap-2 border-none cursor-pointer"
+          style={{
+            marginTop: 14, padding: '12px 16px', borderRadius: 14,
+            background: '#fff', border: `1px solid ${HNH.line}`,
+          }}
+        >
+          <Icon name="globe" size={18} color={HNH.navy} stroke={2} />
+          <span style={{ fontSize: 13.5, fontWeight: 700, color: HNH.ink, flex: 1, textAlign: 'left' }}>
+            Đồng bộ Keycloak
+          </span>
+          {kcRoles !== null ? (
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: HNH.success, background: HNH.success50, borderRadius: 6, padding: '2px 8px' }}>
+              Kết nối OK
+            </span>
+          ) : (
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: HNH.warn, background: HNH.warn50, borderRadius: 6, padding: '2px 8px' }}>
+              Chưa kết nối
+            </span>
+          )}
+          <Icon name="chev-r" size={16} color={HNH.ink3} stroke={2} />
+        </button>
 
         {/* Role list */}
         {loading ? (
@@ -774,6 +1107,14 @@ export function RolesPage() {
           onClose={() => setSelected(null)}
           onRoleUpdated={() => fetchRoles(search, deptFilter)}
           isTablet={isTablet}
+        />
+      )}
+
+      {showSyncModal && (
+        <KCSyncModal
+          onClose={() => { setShowSyncModal(false); fetchRoles(search, deptFilter) }}
+          isTablet={isTablet}
+          kcConnected={kcRoles !== null}
         />
       )}
     </div>
