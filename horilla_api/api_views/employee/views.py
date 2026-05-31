@@ -959,3 +959,125 @@ class ReportingManagerCheck(APIView):
         ):
             return Response(status=200)
         return Response(status=404)
+
+
+class EmployeeDirectoryView(APIView):
+    """Rich employee list for PWA with work info included."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from django.conf import settings
+
+        user = request.user
+        qs = Employee.objects.filter(is_active=True).select_related(
+            "employee_work_info",
+            "employee_work_info__department_id",
+            "employee_work_info__job_position_id",
+            "employee_work_info__job_role_id",
+            "employee_work_info__company_id",
+            "employee_work_info__shift_id",
+            "employee_work_info__work_type_id",
+            "employee_work_info__employee_type_id",
+            "employee_work_info__reporting_manager_id",
+        )
+
+        if not user.has_perm("employee.view_employee"):
+            sub = user.employee_get.get_subordinate_employees()
+            if sub.exists():
+                qs = qs.filter(Q(pk=user.employee_get.pk) | Q(pk__in=sub))
+            else:
+                qs = qs.filter(pk=user.employee_get.pk)
+
+        search = request.query_params.get("search", "").strip()
+        if search:
+            qs = qs.filter(
+                Q(employee_first_name__icontains=search)
+                | Q(employee_last_name__icontains=search)
+                | Q(badge_id__icontains=search)
+                | Q(phone__icontains=search)
+            )
+
+        dept = request.query_params.get("department")
+        if dept:
+            qs = qs.filter(employee_work_info__department_id=dept)
+
+        qs = qs.order_by("employee_first_name", "employee_last_name")
+
+        paginator = PageNumberPagination()
+        paginator.page_size = 50
+        page = paginator.paginate_queryset(qs, request)
+
+        def _safe(val):
+            return str(val) if val else None
+
+        def _profile_url(emp):
+            if emp.employee_profile:
+                return settings.MEDIA_URL + str(emp.employee_profile)
+            return None
+
+        results = []
+        for emp in page:
+            wi = getattr(emp, "employee_work_info", None)
+            results.append(
+                {
+                    "id": emp.pk,
+                    "badge_id": emp.badge_id,
+                    "first_name": emp.employee_first_name,
+                    "last_name": emp.employee_last_name or "",
+                    "email": emp.email,
+                    "phone": emp.phone,
+                    "profile": _profile_url(emp),
+                    "gender": emp.gender,
+                    "department": _safe(
+                        wi.department_id.department if wi and wi.department_id else None
+                    ),
+                    "department_id": wi.department_id_id if wi and wi.department_id else None,
+                    "job_position": _safe(
+                        wi.job_position_id.job_position
+                        if wi and wi.job_position_id
+                        else None
+                    ),
+                    "job_role": _safe(
+                        wi.job_role_id.job_role if wi and wi.job_role_id else None
+                    ),
+                    "company": _safe(
+                        wi.company_id.company if wi and wi.company_id else None
+                    ),
+                    "shift": _safe(
+                        wi.shift_id.employee_shift if wi and wi.shift_id else None
+                    ),
+                    "work_type": _safe(
+                        wi.work_type_id.work_type if wi and wi.work_type_id else None
+                    ),
+                    "employee_type": _safe(
+                        wi.employee_type_id.employee_type
+                        if wi and wi.employee_type_id
+                        else None
+                    ),
+                    "date_joining": (
+                        wi.date_joining.isoformat() if wi and wi.date_joining else None
+                    ),
+                    "reporting_manager": (
+                        wi.reporting_manager_id.get_full_name()
+                        if wi and wi.reporting_manager_id
+                        else None
+                    ),
+                }
+            )
+
+        return paginator.get_paginated_response(results)
+
+
+class DepartmentListView(APIView):
+    """List departments for filter chips."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from base.models import Department
+
+        depts = Department.objects.filter(is_active=True).order_by("department")
+        return Response(
+            [{"id": d.pk, "name": d.department} for d in depts]
+        )

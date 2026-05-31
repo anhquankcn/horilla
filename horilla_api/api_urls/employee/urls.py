@@ -119,4 +119,14 @@ urlpatterns = [
         views.ReportingManagerCheck.as_view(),
         name="api-manager-check",
     ),
+    path(
+        "directory/",
+        views.EmployeeDirectoryView.as_view(),
+        name="api-employee-directory",
+    ),
+    path(
+        "departments/",
+        views.DepartmentListView.as_view(),
+        name="api-department-list",
+    ),
 ]
