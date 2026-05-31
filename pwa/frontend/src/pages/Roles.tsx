@@ -18,6 +18,9 @@ interface Role {
   has_django_group: boolean
 }
 
+interface PermEntry { id: number; codename: string; name: string }
+type PermsByApp = Record<string, PermEntry[]>
+
 interface Dept { id: number; name: string }
 
 interface KcRole {
@@ -76,15 +79,15 @@ function RoleCard({ role, onTap }: { role: Role; onTap: () => void }) {
               fontSize: 10.5, fontWeight: 700, color: HNH.success,
               background: HNH.success50, borderRadius: 6, padding: '2px 8px',
             }}>
-              {role.permissions.length} quyền
+              HRM Group · {role.permissions.length} quyền
             </span>
           )}
           {!role.has_django_group && (
             <span style={{
-              fontSize: 10.5, fontWeight: 700, color: HNH.ink3,
-              background: HNH.cream2, borderRadius: 6, padding: '2px 8px',
+              fontSize: 10.5, fontWeight: 700, color: HNH.warn,
+              background: HNH.warn50, borderRadius: 6, padding: '2px 8px',
             }}>
-              Chưa phân quyền
+              Chưa có HRM Group
             </span>
           )}
         </div>
@@ -93,13 +96,94 @@ function RoleCard({ role, onTap }: { role: Role; onTap: () => void }) {
   )
 }
 
+/* ── Permission Picker ── */
+const APP_LABELS: Record<string, string> = {
+  employee: 'Nhân sự', attendance: 'Chấm công', leave: 'Nghỉ phép',
+  payroll: 'Lương', base: 'Hệ thống', recruitment: 'Tuyển dụng',
+  asset: 'Tài sản', eoffice: 'eOffice',
+}
+
+function PermissionPicker({ allPerms, selected, onChange }: {
+  allPerms: PermsByApp; selected: Set<number>; onChange: (s: Set<number>) => void
+}) {
+  const [expanded, setExpanded] = useState<string | null>(null)
+  const toggle = (id: number) => {
+    const next = new Set(selected)
+    if (next.has(id)) next.delete(id); else next.add(id)
+    onChange(next)
+  }
+  const toggleApp = (app: string) => {
+    const perms = allPerms[app] || []
+    const allSelected = perms.every(p => selected.has(p.id))
+    const next = new Set(selected)
+    perms.forEach(p => { if (allSelected) next.delete(p.id); else next.add(p.id) })
+    onChange(next)
+  }
+  return (
+    <div className="flex flex-col gap-1">
+      {Object.entries(allPerms).map(([app, perms]) => {
+        const count = perms.filter(p => selected.has(p.id)).length
+        const isOpen = expanded === app
+        return (
+          <div key={app}>
+            <button
+              onClick={() => setExpanded(isOpen ? null : app)}
+              className="w-full flex items-center gap-2 border-none cursor-pointer"
+              style={{ background: HNH.cream, borderRadius: 10, padding: '8px 12px' }}
+            >
+              <Icon name={isOpen ? 'chev-d' : 'chev-r'} size={14} color={HNH.ink3} stroke={2} />
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: HNH.ink, flex: 1, textAlign: 'left' }}>
+                {APP_LABELS[app] || app}
+              </span>
+              {count > 0 && (
+                <span style={{ fontSize: 10, fontWeight: 700, color: HNH.success, background: HNH.success50, borderRadius: 6, padding: '1px 6px' }}>
+                  {count}/{perms.length}
+                </span>
+              )}
+              <button
+                onClick={e => { e.stopPropagation(); toggleApp(app) }}
+                className="border-none cursor-pointer"
+                style={{ background: HNH.navy50, borderRadius: 6, padding: '2px 8px', fontSize: 10, fontWeight: 700, color: HNH.navy }}
+              >
+                {perms.every(p => selected.has(p.id)) ? 'Bỏ tất cả' : 'Chọn tất cả'}
+              </button>
+            </button>
+            {isOpen && (
+              <div style={{ padding: '4px 0 4px 16px' }}>
+                {perms.map(p => (
+                  <label key={p.id} className="flex items-center gap-2 cursor-pointer" style={{ padding: '5px 0' }}>
+                    <input
+                      type="checkbox" checked={selected.has(p.id)}
+                      onChange={() => toggle(p.id)}
+                      style={{ width: 16, height: 16, accentColor: HNH.navy }}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div style={{ fontSize: 12, fontWeight: 600, color: HNH.ink }}>{p.name}</div>
+                      <div style={{ fontSize: 10.5, color: HNH.ink3, fontFamily: 'monospace' }}>{p.codename}</div>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 /* ── Detail Modal ── */
 type DetailTab = 'info' | 'perms' | 'kc'
 
-function RoleDetailModal({ role, kcRoles, onClose, isTablet }: {
-  role: Role; kcRoles: KcRole[] | null; onClose: () => void; isTablet: boolean
+function RoleDetailModal({ role, kcRoles, onClose, onRoleUpdated, isTablet }: {
+  role: Role; kcRoles: KcRole[] | null; onClose: () => void; onRoleUpdated: () => void; isTablet: boolean
 }) {
   const [tab, setTab] = useState<DetailTab>('info')
+  const [editMode, setEditMode] = useState(false)
+  const [allPerms, setAllPerms] = useState<PermsByApp | null>(null)
+  const [selectedPerms, setSelectedPerms] = useState<Set<number>>(new Set())
+  const [saving, setSaving] = useState(false)
+  const [saveMsg, setSaveMsg] = useState<string | null>(null)
   const kcMatch = kcRoles?.find(r => r.name === role.name)
 
   const tabs: { id: DetailTab; label: string }[] = [
@@ -107,6 +191,59 @@ function RoleDetailModal({ role, kcRoles, onClose, isTablet }: {
     { id: 'perms', label: 'Quyền HRM' },
     { id: 'kc', label: 'Keycloak' },
   ]
+
+  const loadPerms = useCallback(async () => {
+    if (allPerms) return
+    try {
+      const data = await api.get<PermsByApp>('/api/base/role-permissions/')
+      setAllPerms(data)
+    } catch { /* ignore */ }
+  }, [allPerms])
+
+  const enterEdit = async () => {
+    await loadPerms()
+    setEditMode(true)
+    setSaveMsg(null)
+    if (allPerms && role.permissions.length > 0) {
+      const ids = new Set<number>()
+      Object.values(allPerms).flat().forEach(p => {
+        if (role.permissions.includes(p.codename)) ids.add(p.id)
+      })
+      setSelectedPerms(ids)
+    }
+  }
+
+  useEffect(() => {
+    if (editMode && allPerms && role.permissions.length > 0 && selectedPerms.size === 0) {
+      const ids = new Set<number>()
+      Object.values(allPerms).flat().forEach(p => {
+        if (role.permissions.includes(p.codename)) ids.add(p.id)
+      })
+      setSelectedPerms(ids)
+    }
+  }, [editMode, allPerms, role.permissions, selectedPerms.size])
+
+  const handleSave = async () => {
+    setSaving(true)
+    setSaveMsg(null)
+    try {
+      const res = await api.post<{ ok: boolean; action?: string; permissions_count?: number; error?: string }>(
+        '/api/base/role-group-sync/',
+        { role_id: role.id, permission_ids: Array.from(selectedPerms) }
+      )
+      if (res.ok) {
+        setSaveMsg(res.action === 'created'
+          ? `HRM Group "${role.name}" đã tạo thành công với ${res.permissions_count} quyền`
+          : `Đã cập nhật ${res.permissions_count} quyền cho HRM Group`)
+        setEditMode(false)
+        onRoleUpdated()
+      } else {
+        setSaveMsg(`Lỗi: ${res.error}`)
+      }
+    } catch (e) {
+      setSaveMsg(`Lỗi: ${e instanceof Error ? e.message : 'Unknown'}`)
+    } finally { setSaving(false) }
+  }
 
   return (
     <div
@@ -154,6 +291,13 @@ function RoleDetailModal({ role, kcRoles, onClose, isTablet }: {
               <span style={{ fontSize: 11, fontWeight: 700, color: HNH.ink2, background: HNH.cream2, borderRadius: 8, padding: '4px 12px' }}>
                 {role.employee_count} nhân viên
               </span>
+              <span style={{
+                fontSize: 11, fontWeight: 700, borderRadius: 8, padding: '4px 12px',
+                color: role.has_django_group ? HNH.success : HNH.warn,
+                background: role.has_django_group ? HNH.success50 : HNH.warn50,
+              }}>
+                {role.has_django_group ? 'HRM Group ✓' : 'Chưa có HRM Group'}
+              </span>
               {kcMatch && (
                 <span style={{ fontSize: 11, fontWeight: 700, color: HNH.success, background: HNH.success50, borderRadius: 8, padding: '4px 12px' }}>
                   KC Synced
@@ -167,7 +311,7 @@ function RoleDetailModal({ role, kcRoles, onClose, isTablet }: {
             {tabs.map(t => (
               <button
                 key={t.id}
-                onClick={() => setTab(t.id)}
+                onClick={() => { setTab(t.id); setEditMode(false) }}
                 className="flex-1 border-none cursor-pointer"
                 style={{
                   padding: '10px 0', background: 'transparent',
@@ -189,27 +333,115 @@ function RoleDetailModal({ role, kcRoles, onClose, isTablet }: {
                 <InfoItem label="Vị trí công việc" value={role.job_position} />
                 <InfoItem label="Phòng ban" value={role.department} />
                 <InfoItem label="Số nhân viên" value={String(role.employee_count)} />
-                <InfoItem label="Django Group" value={role.has_django_group ? 'Đã tạo' : 'Chưa tạo'} />
+                <InfoItem label="HRM Group" value={role.has_django_group ? 'Đã tạo' : 'Chưa tạo'} />
+                <InfoItem label="Số quyền" value={role.has_django_group ? String(role.permissions.length) : '—'} />
               </div>
             )}
 
             {tab === 'perms' && (
               <div style={{ background: '#fff', borderRadius: 18, padding: '12px 16px', border: `1px solid ${HNH.line}` }}>
-                {role.permissions.length === 0 ? (
-                  <div style={{ padding: 16, textAlign: 'center', color: HNH.ink3, fontSize: 13 }}>
-                    {role.has_django_group
-                      ? 'Chưa gán quyền nào cho vai trò này'
-                      : 'Chưa tạo Django Group — cần tạo group trước khi gán quyền'}
+                {saveMsg && (
+                  <div style={{
+                    marginBottom: 10, padding: '8px 12px', borderRadius: 10,
+                    background: saveMsg.startsWith('Lỗi') ? HNH.red50 : HNH.success50,
+                    color: saveMsg.startsWith('Lỗi') ? HNH.red : HNH.success,
+                    fontSize: 12, fontWeight: 700,
+                  }}>
+                    {saveMsg}
                   </div>
+                )}
+
+                {editMode && allPerms ? (
+                  <>
+                    <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: HNH.ink }}>
+                        Chọn quyền ({selectedPerms.size} đã chọn)
+                      </span>
+                      <button
+                        onClick={() => setEditMode(false)}
+                        className="border-none cursor-pointer"
+                        style={{ background: HNH.cream2, borderRadius: 8, padding: '4px 10px', fontSize: 11, fontWeight: 700, color: HNH.ink3 }}
+                      >
+                        Hủy
+                      </button>
+                    </div>
+                    <PermissionPicker allPerms={allPerms} selected={selectedPerms} onChange={setSelectedPerms} />
+                    <button
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="w-full flex items-center justify-center gap-2 border-none cursor-pointer"
+                      style={{
+                        marginTop: 14, padding: '12px 0', borderRadius: 14,
+                        background: HNH.navy, color: '#fff',
+                        fontSize: 14, fontWeight: 700,
+                        opacity: saving ? 0.6 : 1,
+                      }}
+                    >
+                      <Icon name="check" size={16} color="#fff" stroke={2.5} />
+                      {saving ? 'Đang lưu...' : role.has_django_group ? 'Cập nhật quyền' : 'Tạo HRM Group & gán quyền'}
+                    </button>
+                  </>
                 ) : (
-                  <div className="flex flex-col gap-1">
-                    {role.permissions.map(p => (
-                      <div key={p} className="flex items-center gap-2" style={{ padding: '6px 0', borderBottom: `1px solid ${HNH.line}` }}>
-                        <Icon name="check" size={14} color={HNH.success} stroke={2.5} />
-                        <span style={{ fontSize: 12.5, fontWeight: 600, color: HNH.ink, fontFamily: 'monospace' }}>{p}</span>
+                  <>
+                    {!role.has_django_group ? (
+                      <div style={{ padding: '20px 0', textAlign: 'center' }}>
+                        <div className="flex items-center justify-center" style={{
+                          width: 56, height: 56, borderRadius: 16, margin: '0 auto 12px',
+                          background: HNH.warn50,
+                        }}>
+                          <Icon name="shield" size={28} color={HNH.warn} stroke={1.8} />
+                        </div>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: HNH.ink, marginBottom: 4 }}>
+                          Chưa có HRM Group
+                        </div>
+                        <div style={{ fontSize: 12.5, color: HNH.ink3, marginBottom: 16, lineHeight: 1.5 }}>
+                          Tạo HRM Group cho vai trò "{role.name}" để phân quyền truy cập các module trong hệ thống
+                        </div>
+                        <button
+                          onClick={enterEdit}
+                          className="flex items-center justify-center gap-2 border-none cursor-pointer"
+                          style={{
+                            margin: '0 auto', padding: '10px 24px', borderRadius: 12,
+                            background: HNH.navy, color: '#fff',
+                            fontSize: 13, fontWeight: 700,
+                          }}
+                        >
+                          <Icon name="plus" size={16} color="#fff" stroke={2.5} />
+                          Tạo HRM Group & phân quyền
+                        </button>
                       </div>
-                    ))}
-                  </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
+                          <span style={{ fontSize: 13, fontWeight: 700, color: HNH.ink }}>
+                            Quyền hiện tại ({role.permissions.length})
+                          </span>
+                          <button
+                            onClick={enterEdit}
+                            className="flex items-center gap-1 border-none cursor-pointer"
+                            style={{ background: HNH.navy50, borderRadius: 8, padding: '4px 10px', fontSize: 11, fontWeight: 700, color: HNH.navy }}
+                          >
+                            <Icon name="edit" size={12} color={HNH.navy} stroke={2} />
+                            Sửa quyền
+                          </button>
+                        </div>
+                        {role.permissions.length === 0 ? (
+                          <div style={{ padding: 12, textAlign: 'center', color: HNH.ink3, fontSize: 13 }}>
+                            Chưa gán quyền nào — nhấn "Sửa quyền" để thêm
+                          </div>
+                        ) : (
+                          <div className="flex flex-col gap-1">
+                            {role.permissions.map(p => (
+                              <div key={p} className="flex items-center gap-2" style={{ padding: '6px 0', borderBottom: `1px solid ${HNH.line}` }}>
+                                <Icon name="check" size={14} color={HNH.success} stroke={2.5} />
+                                <span style={{ fontSize: 12.5, fontWeight: 600, color: HNH.ink, fontFamily: 'monospace' }}>{p}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -522,6 +754,7 @@ export function RolesPage() {
           role={selected}
           kcRoles={kcRoles}
           onClose={() => setSelected(null)}
+          onRoleUpdated={() => fetchRoles(search, deptFilter)}
           isTablet={isTablet}
         />
       )}
