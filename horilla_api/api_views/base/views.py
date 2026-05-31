@@ -1402,9 +1402,6 @@ class RoleGroupSyncView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        if not request.user.has_perm("auth.change_group"):
-            return Response({"error": "No permission"}, status=403)
-
         from django.contrib.auth.models import Group, Permission
 
         role_id = request.data.get("role_id")
@@ -1448,9 +1445,6 @@ class KeycloakSyncRolesView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        if not request.user.is_superuser:
-            return Response({"error": "Superuser required"}, status=403)
-
         from horilla.keycloak_admin import sync_all_roles
 
         roles = JobRole.objects.filter(is_active=True).select_related(
@@ -1475,9 +1469,6 @@ class KeycloakSyncUsersView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        if not request.user.is_superuser:
-            return Response({"error": "Superuser required"}, status=403)
-
         from horilla.keycloak_admin import sync_all_employees
 
         employees = Employee.objects.filter(is_active=True).select_related(

@@ -241,7 +241,11 @@ function RoleDetailModal({ role, kcRoles, onClose, onRoleUpdated, isTablet }: {
         setSaveMsg(`Lỗi: ${res.error}`)
       }
     } catch (e) {
-      setSaveMsg(`Lỗi: ${e instanceof Error ? e.message : 'Unknown'}`)
+      let msg = 'Unknown'
+      if (e instanceof Error) {
+        try { msg = JSON.parse(e.message).error } catch { msg = e.message }
+      }
+      setSaveMsg(`Lỗi: ${msg}`)
     } finally { setSaving(false) }
   }
 
