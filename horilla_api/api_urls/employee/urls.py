@@ -129,4 +129,9 @@ urlpatterns = [
         views.DepartmentListView.as_view(),
         name="api-department-list",
     ),
+    path(
+        "companies/",
+        views.CompanyListView.as_view(),
+        name="api-company-list",
+    ),
 ]

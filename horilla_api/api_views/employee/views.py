@@ -1002,6 +1002,19 @@ class EmployeeDirectoryView(APIView):
         if dept:
             qs = qs.filter(employee_work_info__department_id=dept)
 
+        company = request.query_params.get("company")
+        if company:
+            qs = qs.filter(employee_work_info__company_id=company)
+
+        status = request.query_params.get("status")
+        if status == "pending":
+            qs = qs.filter(
+                Q(employee_work_info__isnull=True)
+                | Q(employee_work_info__job_position_id__isnull=True)
+            )
+        elif status == "assigned":
+            qs = qs.filter(employee_work_info__job_position_id__isnull=False)
+
         qs = qs.order_by("employee_first_name", "employee_last_name")
 
         paginator = PageNumberPagination()
@@ -1080,4 +1093,18 @@ class DepartmentListView(APIView):
         depts = Department.objects.filter(is_active=True).order_by("department")
         return Response(
             [{"id": d.pk, "name": d.department} for d in depts]
+        )
+
+
+class CompanyListView(APIView):
+    """List companies for filter chips."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from base.models import Company
+
+        companies = Company.objects.filter(is_active=True).order_by("company")
+        return Response(
+            [{"id": c.pk, "name": c.company} for c in companies]
         )

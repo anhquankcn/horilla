@@ -1660,3 +1660,45 @@ class KeycloakSelectiveSyncView(APIView):
             return Response(result)
 
         return Response({"error": "Invalid type, use 'roles' or 'users'"}, status=400)
+
+
+class KeycloakDeleteSyncView(APIView):
+    """Delete KC sync mapping and optionally delete the role on Keycloak."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from base.models import KCRoleMapping
+        from horilla.keycloak_admin import _get_admin
+
+        role_ids = request.data.get("role_ids", [])
+        delete_on_kc = request.data.get("delete_on_kc", False)
+
+        if not role_ids:
+            return Response({"error": "No role_ids provided"}, status=400)
+
+        mappings = KCRoleMapping.objects.filter(job_role_id__in=role_ids)
+        deleted_mappings = 0
+        deleted_kc = 0
+        errors = []
+
+        if delete_on_kc:
+            admin = _get_admin()
+            if not admin:
+                return Response({"error": "Keycloak not configured"}, status=503)
+            for m in mappings:
+                try:
+                    admin.delete_realm_role(m.kc_role_name)
+                    deleted_kc += 1
+                except Exception as exc:
+                    errors.append({"role": m.kc_role_name, "error": str(exc)})
+
+        deleted_mappings = mappings.count()
+        mappings.delete()
+
+        return Response({
+            "ok": True,
+            "deleted_mappings": deleted_mappings,
+            "deleted_kc": deleted_kc,
+            "errors": errors,
+        })

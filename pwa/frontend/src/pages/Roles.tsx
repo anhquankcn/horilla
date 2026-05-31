@@ -612,6 +612,33 @@ function KCSyncModal({ onClose, isTablet, kcConnected }: {
     } finally { setSyncing(false) }
   }
 
+  const handleDelete = async (deleteOnKc: boolean) => {
+    if (tab !== 'roles') return
+    const syncedIds = Array.from(selectedRoles).filter(id => allRoles.find(r => r.id === id)?.kc_synced)
+    if (syncedIds.length === 0) return
+    const action = deleteOnKc ? 'Xóa mapping + Role trên KC' : 'Xóa mapping'
+    if (!confirm(`${action} cho ${syncedIds.length} vai trò?`)) return
+    setSyncing(true)
+    setResult(null)
+    try {
+      const res = await api.post<{
+        ok: boolean; deleted_mappings?: number; deleted_kc?: number; errors?: { role: string; error: string }[]
+      }>('/api/base/keycloak/delete-sync/', { role_ids: syncedIds, delete_on_kc: deleteOnKc })
+      if (res.ok) {
+        const parts: string[] = [`${res.deleted_mappings} mapping đã xóa`]
+        if (deleteOnKc && res.deleted_kc) parts.push(`${res.deleted_kc} role KC đã xóa`)
+        if (res.errors?.length) parts.push(`${res.errors.length} lỗi`)
+        setResult({ ok: true, msg: parts.join(', ') })
+        setSelectedRoles(new Set())
+        fetchOverview()
+      } else {
+        setResult({ ok: false, msg: 'Lỗi xóa đồng bộ' })
+      }
+    } catch (e) {
+      setResult({ ok: false, msg: e instanceof Error ? e.message : 'Lỗi' })
+    } finally { setSyncing(false) }
+  }
+
   const selCount = tab === 'roles' ? selectedRoles.size : selectedUsers.size
   const syncedCount = tab === 'roles'
     ? allRoles.filter(r => r.kc_synced).length
@@ -624,6 +651,9 @@ function KCSyncModal({ onClose, isTablet, kcConnected }: {
   const selectedHasNew = tab === 'roles'
     ? allRoles.some(r => selectedRoles.has(r.id) && !r.kc_synced)
     : allEmps.some(e => selectedUsers.has(e.id) && !e.kc_synced)
+  const selectedSyncedCount = tab === 'roles'
+    ? allRoles.filter(r => selectedRoles.has(r.id) && r.kc_synced).length
+    : 0
 
   const formatDate = (iso: string | null) => {
     if (!iso) return ''
@@ -899,30 +929,67 @@ function KCSyncModal({ onClose, isTablet, kcConnected }: {
             </div>
           )}
 
-          <button
-            onClick={handleSync}
-            disabled={selCount === 0 || syncing || !kcConnected}
-            className="w-full flex items-center justify-center gap-2 border-none cursor-pointer"
-            style={{
-              padding: '12px 0', borderRadius: 14,
-              background: selCount > 0 && kcConnected ? HNH.navy : HNH.cream2,
-              color: selCount > 0 && kcConnected ? '#fff' : HNH.ink3,
-              fontSize: 14, fontWeight: 700,
-              opacity: syncing ? 0.6 : 1,
-            }}
-          >
-            <Icon
-              name={syncing ? 'refresh' : selectedHasSynced && !selectedHasNew ? 'refresh' : 'upload'}
-              size={16}
-              color={selCount > 0 && kcConnected ? '#fff' : HNH.ink3}
-              stroke={2}
-            />
-            {syncing
-              ? 'Đang đồng bộ...'
-              : selCount === 0
-                ? 'Chọn mục để đồng bộ'
-                : `Đồng bộ ${selCount} ${tab === 'roles' ? 'vai trò' : 'nhân viên'}`}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={handleSync}
+              disabled={selCount === 0 || syncing || !kcConnected}
+              className="flex-1 flex items-center justify-center gap-2 border-none cursor-pointer"
+              style={{
+                padding: '12px 0', borderRadius: 14,
+                background: selCount > 0 && kcConnected ? HNH.navy : HNH.cream2,
+                color: selCount > 0 && kcConnected ? '#fff' : HNH.ink3,
+                fontSize: 13, fontWeight: 700,
+                opacity: syncing ? 0.6 : 1,
+              }}
+            >
+              <Icon
+                name={syncing ? 'refresh' : selectedHasSynced && !selectedHasNew ? 'refresh' : 'upload'}
+                size={16}
+                color={selCount > 0 && kcConnected ? '#fff' : HNH.ink3}
+                stroke={2}
+              />
+              {syncing
+                ? 'Đang...'
+                : selCount === 0
+                  ? 'Chọn mục để đồng bộ'
+                  : `Đồng bộ ${selCount}`}
+            </button>
+
+            {tab === 'roles' && selectedSyncedCount > 0 && (
+              <>
+                <button
+                  onClick={() => handleDelete(false)}
+                  disabled={syncing}
+                  className="flex items-center justify-center gap-1.5 border-none cursor-pointer"
+                  style={{
+                    padding: '12px 14px', borderRadius: 14,
+                    background: HNH.warn50, color: HNH.warn,
+                    fontSize: 12, fontWeight: 700,
+                    opacity: syncing ? 0.6 : 1,
+                  }}
+                  title="Xóa mapping (giữ role trên KC)"
+                >
+                  <Icon name="x" size={14} color={HNH.warn} stroke={2.5} />
+                  Xóa map
+                </button>
+                <button
+                  onClick={() => handleDelete(true)}
+                  disabled={syncing}
+                  className="flex items-center justify-center gap-1.5 border-none cursor-pointer"
+                  style={{
+                    padding: '12px 14px', borderRadius: 14,
+                    background: HNH.red50, color: HNH.red,
+                    fontSize: 12, fontWeight: 700,
+                    opacity: syncing ? 0.6 : 1,
+                  }}
+                  title="Xóa mapping + xóa role trên KC"
+                >
+                  <Icon name="x" size={14} color={HNH.red} stroke={2.5} />
+                  Xóa KC
+                </button>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>

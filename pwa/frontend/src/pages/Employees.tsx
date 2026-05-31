@@ -28,6 +28,9 @@ interface Emp {
 }
 
 interface Dept { id: number; name: string }
+interface Comp { id: number; name: string }
+
+type EmpTab = 'assigned' | 'pending'
 
 interface PageResp { count: number; results: Emp[] }
 
@@ -329,18 +332,23 @@ export function EmployeesPage() {
   const isTablet = useTablet()
   const [employees, setEmployees] = useState<Emp[]>([])
   const [depts, setDepts] = useState<Dept[]>([])
+  const [companies, setCompanies] = useState<Comp[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [deptFilter, setDeptFilter] = useState<number | null>(null)
+  const [companyFilter, setCompanyFilter] = useState<number | null>(null)
+  const [tab, setTab] = useState<EmpTab>('assigned')
   const [selected, setSelected] = useState<Emp | null>(null)
   const [total, setTotal] = useState(0)
 
-  const fetchEmployees = useCallback(async (s: string, dept: number | null) => {
+  const fetchEmployees = useCallback(async (s: string, dept: number | null, company: number | null, status: EmpTab) => {
     setLoading(true)
     try {
       let path = '/api/employee/directory/?page_size=50'
       if (s) path += `&search=${encodeURIComponent(s)}`
       if (dept) path += `&department=${dept}`
+      if (company) path += `&company=${company}`
+      path += `&status=${status}`
       const data = await api.get<PageResp>(path)
       setEmployees(data.results)
       setTotal(data.count)
@@ -353,12 +361,13 @@ export function EmployeesPage() {
 
   useEffect(() => {
     api.get<Dept[]>('/api/employee/departments/').then(setDepts).catch(() => {})
+    api.get<Comp[]>('/api/employee/companies/').then(setCompanies).catch(() => {})
   }, [])
 
   useEffect(() => {
-    const timer = setTimeout(() => fetchEmployees(search, deptFilter), search ? 300 : 0)
+    const timer = setTimeout(() => fetchEmployees(search, deptFilter, companyFilter, tab), search ? 300 : 0)
     return () => clearTimeout(timer)
-  }, [search, deptFilter, fetchEmployees])
+  }, [search, deptFilter, companyFilter, tab, fetchEmployees])
 
   const deptName = useMemo(() => {
     if (!deptFilter) return null
@@ -377,18 +386,76 @@ export function EmployeesPage() {
       />
 
       <div style={{ padding: '0 16px 32px', maxWidth: 900, margin: '0 auto' }}>
+        {/* Tabs: Assigned / Pending */}
+        <div className="flex" style={{ background: '#fff', borderRadius: 12, padding: 3, border: `1px solid ${HNH.line}`, marginBottom: 10 }}>
+          {([
+            { id: 'assigned' as EmpTab, label: 'Phòng ban', icon: 'users' },
+            { id: 'pending' as EmpTab, label: 'Chờ / Tạm nghỉ', icon: 'clock' },
+          ]).map(t => (
+            <button
+              key={t.id}
+              onClick={() => { setTab(t.id); setDeptFilter(null); setCompanyFilter(null) }}
+              className="flex-1 flex items-center justify-center gap-1.5 border-none cursor-pointer"
+              style={{
+                padding: '9px 0', borderRadius: 10,
+                background: tab === t.id ? HNH.navy : 'transparent',
+                color: tab === t.id ? '#fff' : HNH.ink3,
+                fontSize: 12.5, fontWeight: 700,
+              }}
+            >
+              <Icon name={t.icon} size={14} color={tab === t.id ? '#fff' : HNH.ink3} stroke={2} />
+              {t.label}
+            </button>
+          ))}
+        </div>
+
         {/* Search */}
         <SearchBar value={search} onChange={setSearch} />
 
+        {/* Company filter */}
+        {tab === 'assigned' && companies.length > 1 && (
+          <div className="flex gap-2 overflow-x-auto" style={{ marginTop: 10, padding: '2px 0', scrollbarWidth: 'none' }}>
+            <button
+              onClick={() => setCompanyFilter(null)}
+              className="shrink-0 border-none cursor-pointer whitespace-nowrap"
+              style={{
+                padding: '5px 12px', borderRadius: 8,
+                background: companyFilter === null ? HNH.red : '#fff',
+                color: companyFilter === null ? '#fff' : HNH.ink2,
+                fontSize: 11, fontWeight: 700,
+                border: `1px solid ${companyFilter === null ? HNH.red : HNH.line}`,
+              }}
+            >
+              Tất cả Cty
+            </button>
+            {companies.map(c => (
+              <button
+                key={c.id}
+                onClick={() => setCompanyFilter(c.id === companyFilter ? null : c.id)}
+                className="shrink-0 border-none cursor-pointer whitespace-nowrap"
+                style={{
+                  padding: '5px 12px', borderRadius: 8,
+                  background: c.id === companyFilter ? HNH.red : '#fff',
+                  color: c.id === companyFilter ? '#fff' : HNH.ink2,
+                  fontSize: 11, fontWeight: 700,
+                  border: `1px solid ${c.id === companyFilter ? HNH.red : HNH.line}`,
+                }}
+              >
+                {c.name}
+              </button>
+            ))}
+          </div>
+        )}
+
         {/* Department filters */}
-        {depts.length > 0 && (
-          <div style={{ marginTop: 10 }}>
+        {tab === 'assigned' && depts.length > 0 && (
+          <div style={{ marginTop: 8 }}>
             <DeptChips depts={depts} active={deptFilter} onPick={setDeptFilter} />
           </div>
         )}
 
         {/* Active filter label */}
-        {deptName && (
+        {tab === 'assigned' && deptName && (
           <div className="flex items-center gap-2" style={{ marginTop: 10 }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: HNH.ink2 }}>Phòng ban:</span>
             <span style={{ fontSize: 12, fontWeight: 700, color: HNH.navy, background: HNH.navy50, borderRadius: 6, padding: '2px 8px' }}>
