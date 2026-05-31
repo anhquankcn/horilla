@@ -16,6 +16,9 @@ interface Role {
   employee_count: number
   permissions: string[]
   has_django_group: boolean
+  kc_role_id: string | null
+  kc_role_name: string | null
+  kc_synced: boolean
 }
 
 interface PermEntry { id: number; codename: string; name: string }
@@ -88,6 +91,14 @@ function RoleCard({ role, onTap }: { role: Role; onTap: () => void }) {
               background: HNH.warn50, borderRadius: 6, padding: '2px 8px',
             }}>
               Chưa có HRM Group
+            </span>
+          )}
+          {role.kc_synced && (
+            <span style={{
+              fontSize: 10.5, fontWeight: 700, color: '#7c3aed',
+              background: '#f3e8ff', borderRadius: 6, padding: '2px 8px',
+            }}>
+              KC ✓
             </span>
           )}
         </div>
@@ -184,7 +195,7 @@ function RoleDetailModal({ role, kcRoles, onClose, onRoleUpdated, isTablet }: {
   const [selectedPerms, setSelectedPerms] = useState<Set<number>>(new Set())
   const [saving, setSaving] = useState(false)
   const [saveMsg, setSaveMsg] = useState<string | null>(null)
-  const kcMatch = kcRoles?.find(r => r.name === role.name)
+  const kcMatch = role.kc_synced ? { id: role.kc_role_id!, name: role.kc_role_name! } : kcRoles?.find(r => r.name === role.name) || null
 
   const tabs: { id: DetailTab; label: string }[] = [
     { id: 'info', label: 'Thông tin' },
@@ -452,24 +463,27 @@ function RoleDetailModal({ role, kcRoles, onClose, onRoleUpdated, isTablet }: {
 
             {tab === 'kc' && (
               <div style={{ background: '#fff', borderRadius: 18, padding: '12px 16px', border: `1px solid ${HNH.line}` }}>
-                {kcRoles === null ? (
+                {kcMatch ? (
+                  <div>
+                    <div className="flex items-center gap-2" style={{ padding: '10px 0' }}>
+                      <Icon name="check" size={18} color={HNH.success} stroke={2.5} />
+                      <span style={{ fontSize: 14, fontWeight: 700, color: HNH.success }}>Đã map với Keycloak Realm Role</span>
+                    </div>
+                    <InfoItem label="KC Role ID" value={kcMatch.id} />
+                    <InfoItem label="KC Role Name" value={kcMatch.name} />
+                    {role.kc_synced && (
+                      <InfoItem label="Trạng thái" value="Đã lưu mapping trong HRM" />
+                    )}
+                  </div>
+                ) : kcRoles === null ? (
                   <div style={{ padding: 16, textAlign: 'center', color: HNH.warn, fontSize: 13 }}>
                     <Icon name="alert" size={20} color={HNH.warn} />
                     <div style={{ marginTop: 8 }}>Keycloak chưa được cấu hình hoặc không kết nối được</div>
                   </div>
-                ) : kcMatch ? (
-                  <div>
-                    <div className="flex items-center gap-2" style={{ padding: '10px 0' }}>
-                      <Icon name="check" size={18} color={HNH.success} stroke={2.5} />
-                      <span style={{ fontSize: 14, fontWeight: 700, color: HNH.success }}>Đã đồng bộ lên Keycloak</span>
-                    </div>
-                    <InfoItem label="KC Role ID" value={kcMatch.id} />
-                    <InfoItem label="KC Role Name" value={kcMatch.name} />
-                    <InfoItem label="Mô tả" value={kcMatch.description || '—'} />
-                  </div>
                 ) : (
                   <div style={{ padding: 16, textAlign: 'center', color: HNH.ink3, fontSize: 13 }}>
-                    Vai trò này chưa được đồng bộ lên Keycloak Realm
+                    <div style={{ marginBottom: 8 }}>Vai trò này chưa được map với Keycloak Realm</div>
+                    <div style={{ fontSize: 12, color: HNH.ink4 }}>Nhấn "Sync Roles → KC" ở trang chính để tạo và map tự động</div>
                   </div>
                 )}
               </div>

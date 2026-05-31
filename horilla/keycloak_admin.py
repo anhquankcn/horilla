@@ -37,16 +37,15 @@ def _get_admin():
     try:
         conn = KeycloakOpenIDConnection(
             server_url=server,
-            realm_name="master",
+            realm_name=realm,
+            user_realm_name="master",
             client_id=client_id,
             client_secret_key=client_secret or None,
             username=username or None,
             password=password or None,
             verify=getattr(settings, "OIDC_VERIFY_SSL", False),
         )
-        admin = KeycloakAdmin(connection=conn)
-        admin.realm_name = realm
-        return admin
+        return KeycloakAdmin(connection=conn)
     except Exception as exc:
         logger.error("Keycloak admin connection failed: %s", exc)
         return None
@@ -93,27 +92,40 @@ def sync_role_to_kc(role_name, description=""):
 
 
 def sync_all_roles(roles_data):
+    """Create missing KC realm roles and return mapping data for each."""
     admin = _get_admin()
     if not admin:
         return {"ok": False, "error": "Keycloak not configured"}
 
-    results = {"created": 0, "exists": 0, "errors": []}
+    results = {"created": 0, "exists": 0, "errors": [], "mappings": []}
     try:
-        existing = admin.get_realm_roles(brief_representation=True)
-        names = {r["name"] for r in existing}
+        existing = admin.get_realm_roles(brief_representation=False)
+        by_name = {r["name"]: r for r in existing}
 
         for rd in roles_data:
             name = rd["name"]
             desc = rd.get("description", "")
-            if name in names:
+            job_role_id = rd.get("job_role_id")
+            if name in by_name:
                 results["exists"] += 1
+                results["mappings"].append({
+                    "job_role_id": job_role_id,
+                    "kc_role_id": by_name[name]["id"],
+                    "kc_role_name": name,
+                })
                 continue
             try:
                 admin.create_realm_role(
                     payload={"name": name, "description": desc},
                     skip_exists=True,
                 )
+                role = admin.get_realm_role(name)
                 results["created"] += 1
+                results["mappings"].append({
+                    "job_role_id": job_role_id,
+                    "kc_role_id": role["id"],
+                    "kc_role_name": name,
+                })
             except Exception as exc:
                 results["errors"].append({"role": name, "error": str(exc)})
     except Exception as exc:

@@ -1318,6 +1318,7 @@ class RoleDirectoryView(APIView):
     def get(self, request):
         from django.contrib.auth.models import Group, Permission
         from employee.models import EmployeeWorkInformation
+        from base.models import KCRoleMapping
 
         qs = JobRole.objects.filter(is_active=True).select_related(
             "job_position_id", "job_position_id__department_id"
@@ -1335,6 +1336,11 @@ class RoleDirectoryView(APIView):
                 | Q(job_position_id__job_position__icontains=search)
             )
 
+        kc_map = {
+            m.job_role_id: m
+            for m in KCRoleMapping.objects.filter(job_role__in=qs)
+        }
+
         results = []
         for role in qs:
             pos = role.job_position_id
@@ -1350,6 +1356,7 @@ class RoleDirectoryView(APIView):
                     group.permissions.values_list("codename", flat=True)
                 )
 
+            mapping = kc_map.get(role.pk)
             results.append({
                 "id": role.pk,
                 "name": role.job_role,
@@ -1360,6 +1367,9 @@ class RoleDirectoryView(APIView):
                 "employee_count": emp_count,
                 "permissions": perms,
                 "has_django_group": group is not None,
+                "kc_role_id": mapping.kc_role_id if mapping else None,
+                "kc_role_name": mapping.kc_role_name if mapping else None,
+                "kc_synced": mapping is not None,
             })
 
         return Response(results)
@@ -1445,6 +1455,7 @@ class KeycloakSyncRolesView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        from base.models import KCRoleMapping
         from horilla.keycloak_admin import sync_all_roles
 
         roles = JobRole.objects.filter(is_active=True).select_related(
@@ -1455,11 +1466,25 @@ class KeycloakSyncRolesView(APIView):
             pos = r.job_position_id
             dept = pos.department_id if pos else None
             roles_data.append({
+                "job_role_id": r.pk,
                 "name": r.job_role,
                 "description": f"{pos.job_position if pos else ''} - {dept.department if dept else ''}",
             })
 
         result = sync_all_roles(roles_data)
+
+        if result.get("ok"):
+            for m in result.get("mappings", []):
+                if m.get("job_role_id") and m.get("kc_role_id"):
+                    KCRoleMapping.objects.update_or_create(
+                        job_role_id=m["job_role_id"],
+                        defaults={
+                            "kc_role_id": m["kc_role_id"],
+                            "kc_role_name": m["kc_role_name"],
+                        },
+                    )
+            result.pop("mappings", None)
+
         return Response(result)
 
 
