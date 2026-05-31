@@ -3,11 +3,12 @@ import { HNH } from '../../lib/theme'
 
 const tabs = [
   { id: 'home', label: 'Trang chủ', path: '/', icon: 'home' },
-  { id: 'attend', label: 'Chấm công', path: '/attendance', icon: 'clock' },
+  { id: 'apps', label: 'Ứng dụng', path: '/apps', icon: 'grid' },
   { id: 'ruby', label: 'Ruby AI', path: '/ruby', icon: 'ruby' },
-  { id: 'tasks', label: 'Công việc', path: '/tasks', icon: 'tasks' },
   { id: 'me', label: 'Cá nhân', path: '/profile', icon: 'user' },
 ] as const
+
+const appChildPaths = ['/attendance', '/tasks']
 
 function NavIcon({ icon, active }: { icon: string; active: boolean }) {
   const c = active ? '#fff' : 'rgba(255,255,255,0.5)'
@@ -15,10 +16,8 @@ function NavIcon({ icon, active }: { icon: string; active: boolean }) {
   switch (icon) {
     case 'home':
       return <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1v-8Z" stroke={c} strokeWidth={sw} strokeLinejoin="round" fill={active ? 'rgba(255,255,255,0.15)' : 'none'}/></svg>
-    case 'clock':
-      return <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8.5" stroke={c} strokeWidth={sw} fill={active ? 'rgba(255,255,255,0.15)' : 'none'}/><path d="M12 7.5V12l3 2" stroke={c} strokeWidth={sw} strokeLinecap="round"/></svg>
-    case 'tasks':
-      return <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="2" stroke={c} strokeWidth={sw} fill={active ? 'rgba(255,255,255,0.15)' : 'none'}/><path d="M9 12l2 2 4-4" stroke={c} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round"/></svg>
+    case 'grid':
+      return <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke={c} strokeWidth={sw} fill={active ? 'rgba(255,255,255,0.15)' : 'none'}/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke={c} strokeWidth={sw} fill={active ? 'rgba(255,255,255,0.15)' : 'none'}/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke={c} strokeWidth={sw} fill={active ? 'rgba(255,255,255,0.15)' : 'none'}/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke={c} strokeWidth={sw} fill={active ? 'rgba(255,255,255,0.15)' : 'none'}/></svg>
     case 'user':
       return <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.5" r="3.5" stroke={c} strokeWidth={sw} fill={active ? 'rgba(255,255,255,0.15)' : 'none'}/><path d="M4.5 20c1.5-3.5 4.5-5 7.5-5s6 1.5 7.5 5" stroke={c} strokeWidth={sw} strokeLinecap="round" fill="none"/></svg>
     case 'ruby':
@@ -43,7 +42,14 @@ function NavIcon({ icon, active }: { icon: string; active: boolean }) {
 export function SideNav() {
   const location = useLocation()
   const navigate = useNavigate()
-  const activeTab = tabs.find(t => t.path === location.pathname)?.id ?? 'home'
+
+  function getActiveTab() {
+    const path = location.pathname
+    if (appChildPaths.some(p => path.startsWith(p))) return 'apps'
+    return tabs.find(t => t.path === path)?.id ?? 'home'
+  }
+
+  const activeTab = getActiveTab()
 
   return (
     <nav

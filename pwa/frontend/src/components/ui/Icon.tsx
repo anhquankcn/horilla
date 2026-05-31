@@ -41,6 +41,10 @@ export function Icon({ name, size = 18, color = HNH.ink, stroke: sw = 1.8 }: Ico
     case 'smartphone': return <svg width={size} height={size} viewBox="0 0 24 24"><rect x="6" y="3" width="12" height="18" rx="2" {...p}/><path d="M12 18h.01" {...p}/></svg>
     case 'camera': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" {...p}/><circle cx="12" cy="13" r="4" {...p}/></svg>
     case 'map': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="m1 6 8-3 6 3 8-3v15l-8 3-6-3-8 3V6Z" {...p}/><path d="M9 3v15M15 6v15" {...p}/></svg>
+    case 'grid': return <svg width={size} height={size} viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5" {...p}/><rect x="14" y="3" width="7" height="7" rx="1.5" {...p}/><rect x="3" y="14" width="7" height="7" rx="1.5" {...p}/><rect x="14" y="14" width="7" height="7" rx="1.5" {...p}/></svg>
+    case 'users': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" {...p}/><circle cx="9" cy="7" r="4" {...p}/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" {...p}/></svg>
+    case 'folder': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" {...p}/></svg>
+    case 'send': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4 20-7Z" {...p}/><path d="m22 2-11 11" {...p}/></svg>
     default: return null
   }
 }

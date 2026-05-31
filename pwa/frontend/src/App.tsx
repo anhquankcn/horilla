@@ -14,6 +14,7 @@ import { NotificationsPage } from './pages/Notifications'
 import { RubyPage } from './pages/Ruby'
 import { TasksPage } from './pages/Tasks'
 import { TaskWebViewPage } from './pages/TaskWebView'
+import { AppsPage } from './pages/Apps'
 
 export function App() {
   return (
@@ -22,6 +23,7 @@ export function App() {
 
       <Route element={<ProtectedRoute><AppShell /></ProtectedRoute>}>
         <Route path="/" element={<HomePage />} />
+        <Route path="/apps" element={<AppsPage />} />
         <Route path="/attendance" element={<AttendancePage />} />
         <Route path="/attendance/office" element={<OfficeCheckinPage />} />
         <Route path="/ruby" element={<RubyPage />} />
