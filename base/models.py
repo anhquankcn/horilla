@@ -303,6 +303,26 @@ class JobRole(HorillaModel):
         return f"{self.job_role} - {self.job_position_id.job_position}"
 
 
+class KCRoleMapping(models.Model):
+    """Maps HRM JobRole ↔ Keycloak realm role."""
+
+    job_role = models.OneToOneField(
+        JobRole, on_delete=models.CASCADE, related_name="kc_mapping",
+        verbose_name=_("Job Role"),
+    )
+    kc_role_id = models.CharField(max_length=255, verbose_name=_("KC Role ID"))
+    kc_role_name = models.CharField(max_length=255, verbose_name=_("KC Role Name"))
+    synced_at = models.DateTimeField(auto_now=True, verbose_name=_("Last Synced"))
+
+    class Meta:
+        verbose_name = _("KC Role Mapping")
+        verbose_name_plural = _("KC Role Mappings")
+        db_table = "base_kcrolemapping"
+
+    def __str__(self):
+        return f"{self.job_role.job_role} → {self.kc_role_name}"
+
+
 class WorkType(HorillaModel):
     """
     WorkType model

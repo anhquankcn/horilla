@@ -10,7 +10,11 @@ logger = logging.getLogger(__name__)
 
 
 def _get_admin():
-    """Lazy-init KeycloakAdmin, returns None if not configured."""
+    """Lazy-init KeycloakAdmin, returns None if not configured.
+
+    Admin credentials authenticate against the 'master' realm, then
+    the connection targets the application realm for management ops.
+    """
     try:
         from keycloak import KeycloakAdmin, KeycloakOpenIDConnection
     except ImportError:
@@ -27,17 +31,22 @@ def _get_admin():
     client_id = getattr(settings, "KC_ADMIN_CLIENT_ID", "admin-cli")
     client_secret = getattr(settings, "KC_ADMIN_CLIENT_SECRET", "")
 
+    if not username and not client_secret:
+        return None
+
     try:
         conn = KeycloakOpenIDConnection(
             server_url=server,
-            realm_name=realm,
+            realm_name="master",
             client_id=client_id,
             client_secret_key=client_secret or None,
             username=username or None,
             password=password or None,
             verify=getattr(settings, "OIDC_VERIFY_SSL", False),
         )
-        return KeycloakAdmin(connection=conn)
+        admin = KeycloakAdmin(connection=conn)
+        admin.realm_name = realm
+        return admin
     except Exception as exc:
         logger.error("Keycloak admin connection failed: %s", exc)
         return None
