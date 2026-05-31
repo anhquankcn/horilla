@@ -159,4 +159,30 @@ urlpatterns = [
         views.ChangeRoleView.as_view(),
         name="api-change-role",
     ),
+    # ── Permission Groups ──
+    path(
+        "groups/",
+        views.GroupListView.as_view(),
+        name="api-group-list",
+    ),
+    path(
+        "groups/<int:pk>/",
+        views.GroupDetailView.as_view(),
+        name="api-group-detail",
+    ),
+    path(
+        "groups/<int:pk>/add-members/",
+        views.GroupAddMembersView.as_view(),
+        name="api-group-add-members",
+    ),
+    path(
+        "groups/<int:pk>/remove-members/",
+        views.GroupRemoveMembersView.as_view(),
+        name="api-group-remove-members",
+    ),
+    path(
+        "groups/<int:pk>/available-employees/",
+        views.GroupAvailableEmployeesView.as_view(),
+        name="api-group-available-employees",
+    ),
 ]

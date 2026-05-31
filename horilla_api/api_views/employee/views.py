@@ -1280,3 +1280,178 @@ class ChangeRoleView(APIView):
         wi.job_role_id = role
         wi.save()
         return Response({"ok": True, "role": role.job_role})
+
+
+class GroupListView(APIView):
+    """List all Django auth groups with permissions & member count."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from django.contrib.auth.models import Group
+
+        groups = Group.objects.prefetch_related("permissions", "user_set").order_by("name")
+        results = []
+        for g in groups:
+            members = Employee.objects.filter(
+                employee_user_id__groups=g, is_active=True
+            ).count()
+            perms = [
+                {"id": p.pk, "codename": p.codename, "name": p.name}
+                for p in g.permissions.all()
+            ]
+            results.append({
+                "id": g.pk,
+                "name": g.name,
+                "member_count": members,
+                "permissions": perms,
+            })
+        return Response(results)
+
+
+class GroupDetailView(APIView):
+    """Group detail: permissions + member list."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        from django.contrib.auth.models import Group
+
+        try:
+            group = Group.objects.prefetch_related("permissions").get(pk=pk)
+        except Group.DoesNotExist:
+            return Response({"error": "Group not found"}, status=404)
+
+        members = Employee.objects.filter(
+            employee_user_id__groups=group, is_active=True
+        ).select_related(
+            "employee_work_info",
+            "employee_work_info__department_id",
+            "employee_work_info__job_position_id",
+        ).order_by("employee_first_name")
+
+        member_list = []
+        for emp in members:
+            wi = getattr(emp, "employee_work_info", None)
+            member_list.append({
+                "id": emp.pk,
+                "first_name": emp.employee_first_name,
+                "last_name": emp.employee_last_name or "",
+                "badge_id": emp.badge_id,
+                "department": (
+                    wi.department_id.department if wi and wi.department_id else None
+                ),
+                "department_id": wi.department_id_id if wi and wi.department_id else None,
+                "job_position": (
+                    wi.job_position_id.job_position if wi and wi.job_position_id else None
+                ),
+            })
+
+        perms = [
+            {"id": p.pk, "codename": p.codename, "name": p.name}
+            for p in group.permissions.all()
+        ]
+
+        return Response({
+            "id": group.pk,
+            "name": group.name,
+            "permissions": perms,
+            "members": member_list,
+        })
+
+
+class GroupAddMembersView(APIView):
+    """Add employees to a group."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        from django.contrib.auth.models import Group
+
+        try:
+            group = Group.objects.get(pk=pk)
+        except Group.DoesNotExist:
+            return Response({"error": "Group not found"}, status=404)
+
+        employee_ids = request.data.get("employee_ids", [])
+        if not employee_ids:
+            return Response({"error": "employee_ids required"}, status=400)
+
+        employees = Employee.objects.filter(pk__in=employee_ids, is_active=True)
+        added = 0
+        for emp in employees:
+            user = emp.employee_user_id
+            if user and not user.groups.filter(pk=group.pk).exists():
+                user.groups.add(group)
+                added += 1
+
+        return Response({"ok": True, "added": added})
+
+
+class GroupRemoveMembersView(APIView):
+    """Remove employees from a group."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        from django.contrib.auth.models import Group
+
+        try:
+            group = Group.objects.get(pk=pk)
+        except Group.DoesNotExist:
+            return Response({"error": "Group not found"}, status=404)
+
+        employee_ids = request.data.get("employee_ids", [])
+        if not employee_ids:
+            return Response({"error": "employee_ids required"}, status=400)
+
+        employees = Employee.objects.filter(pk__in=employee_ids, is_active=True)
+        removed = 0
+        for emp in employees:
+            user = emp.employee_user_id
+            if user and user.groups.filter(pk=group.pk).exists():
+                user.groups.remove(group)
+                removed += 1
+
+        return Response({"ok": True, "removed": removed})
+
+
+class GroupAvailableEmployeesView(APIView):
+    """List employees NOT in this group, optionally filtered by department."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        from django.contrib.auth.models import Group
+
+        try:
+            group = Group.objects.get(pk=pk)
+        except Group.DoesNotExist:
+            return Response({"error": "Group not found"}, status=404)
+
+        qs = Employee.objects.filter(is_active=True).exclude(
+            employee_user_id__groups=group
+        ).select_related(
+            "employee_work_info",
+            "employee_work_info__department_id",
+        ).order_by("employee_first_name")
+
+        dept = request.query_params.get("department")
+        if dept:
+            qs = qs.filter(employee_work_info__department_id=dept)
+
+        results = []
+        for emp in qs[:100]:
+            wi = getattr(emp, "employee_work_info", None)
+            results.append({
+                "id": emp.pk,
+                "first_name": emp.employee_first_name,
+                "last_name": emp.employee_last_name or "",
+                "badge_id": emp.badge_id,
+                "department": (
+                    wi.department_id.department if wi and wi.department_id else None
+                ),
+                "department_id": wi.department_id_id if wi and wi.department_id else None,
+            })
+
+        return Response(results)
