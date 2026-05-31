@@ -92,7 +92,11 @@ def sync_role_to_kc(role_name, description=""):
 
 
 def sync_all_roles(roles_data):
-    """Create missing KC realm roles and return mapping data for each."""
+    """Create missing KC realm roles and return mapping data for each.
+
+    Optimized: creates all missing roles first, then fetches the full
+    role list once to resolve IDs — avoids per-role API calls.
+    """
     admin = _get_admin()
     if not admin:
         return {"ok": False, "error": "Keycloak not configured"}
@@ -102,6 +106,7 @@ def sync_all_roles(roles_data):
         existing = admin.get_realm_roles(brief_representation=False)
         by_name = {r["name"]: r for r in existing}
 
+        created_names = []
         for rd in roles_data:
             name = rd["name"]
             desc = rd.get("description", "")
@@ -119,15 +124,28 @@ def sync_all_roles(roles_data):
                     payload={"name": name, "description": desc},
                     skip_exists=True,
                 )
-                role = admin.get_realm_role(name)
                 results["created"] += 1
-                results["mappings"].append({
-                    "job_role_id": job_role_id,
-                    "kc_role_id": role["id"],
-                    "kc_role_name": name,
-                })
+                created_names.append(rd)
             except Exception as exc:
                 results["errors"].append({"role": name, "error": str(exc)})
+
+        if created_names:
+            all_roles = admin.get_realm_roles(brief_representation=False)
+            by_name_final = {r["name"]: r for r in all_roles}
+            for rd in created_names:
+                name = rd["name"]
+                role = by_name_final.get(name)
+                if role:
+                    results["mappings"].append({
+                        "job_role_id": rd.get("job_role_id"),
+                        "kc_role_id": role["id"],
+                        "kc_role_name": name,
+                    })
+                else:
+                    results["errors"].append({
+                        "role": name,
+                        "error": "Created but not found in re-fetch",
+                    })
     except Exception as exc:
         return {"ok": False, "error": str(exc)}
 
