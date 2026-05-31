@@ -5,12 +5,15 @@ import { Icon } from '../components/ui/Icon'
 import { TopBar } from '../components/layout/TopBar'
 import { useTablet } from '../lib/useTablet'
 
+type FeatureGroup = 'use' | 'manage'
+
 interface AppFeature {
   icon: string
   label: string
   desc: string
   path: string | null
   tone: 'navy' | 'red' | 'gold' | 'success'
+  group: FeatureGroup
 }
 
 interface AppCard {
@@ -24,6 +27,11 @@ interface AppCard {
   features: AppFeature[]
 }
 
+const GROUP_LABELS: Record<FeatureGroup, { label: string; icon: string }> = {
+  use: { label: 'Sử dụng', icon: 'star' },
+  manage: { label: 'Quản lý', icon: 'gear' },
+}
+
 const apps: AppCard[] = [
   {
     id: 'hrm',
@@ -34,9 +42,9 @@ const apps: AppCard[] = [
     accentBg: HNH.navy50,
     icon: 'users',
     features: [
-      { icon: 'users', label: 'Nhân sự', desc: 'Danh sách, hồ sơ nhân viên', path: '/employees', tone: 'navy' },
-      { icon: 'clock', label: 'Chấm công', desc: 'Check-in, lịch sử, GPS', path: '/attendance', tone: 'navy' },
-      { icon: 'shield', label: 'Quản lý Vai trò', desc: 'Phân quyền, nhóm vai trò', path: '/roles', tone: 'navy' },
+      { icon: 'clock', label: 'Chấm công', desc: 'Check-in, lịch sử, GPS', path: '/attendance', tone: 'navy', group: 'use' },
+      { icon: 'users', label: 'Nhân sự', desc: 'Danh sách, hồ sơ nhân viên', path: '/employees', tone: 'navy', group: 'manage' },
+      { icon: 'shield', label: 'Vai trò & Quyền', desc: 'Phân quyền, nhóm vai trò', path: '/roles', tone: 'navy', group: 'manage' },
     ],
   },
   {
@@ -48,9 +56,9 @@ const apps: AppCard[] = [
     accentBg: HNH.red50,
     icon: 'doc',
     features: [
-      { icon: 'check', label: 'Công việc', desc: 'Tasks, deadline, phân công', path: '/tasks', tone: 'red' },
-      { icon: 'folder', label: 'Dự án', desc: 'Quản lý dự án, tiến độ', path: null, tone: 'gold' },
-      { icon: 'send', label: 'Đề xuất', desc: 'Tạo & duyệt đề xuất nội bộ', path: null, tone: 'success' },
+      { icon: 'check', label: 'Công việc', desc: 'Tasks, deadline, phân công', path: '/tasks', tone: 'red', group: 'use' },
+      { icon: 'folder', label: 'Dự án', desc: 'Quản lý dự án, tiến độ', path: null, tone: 'gold', group: 'use' },
+      { icon: 'send', label: 'Đề xuất', desc: 'Tạo & duyệt đề xuất nội bộ', path: null, tone: 'success', group: 'use' },
     ],
   },
 ]
@@ -60,6 +68,29 @@ const toneBg: Record<string, string> = {
 }
 const toneColor: Record<string, string> = {
   navy: HNH.navy, red: HNH.red, gold: '#a87908', success: HNH.success,
+}
+
+function groupFeatures(features: AppFeature[]): { group: FeatureGroup; items: AppFeature[] }[] {
+  const order: FeatureGroup[] = ['use', 'manage']
+  return order
+    .map(g => ({ group: g, items: features.filter(f => f.group === g) }))
+    .filter(g => g.items.length > 0)
+}
+
+function GroupLabel({ group, variant }: { group: FeatureGroup; variant: 'light' | 'dark' }) {
+  const { label, icon } = GROUP_LABELS[group]
+  const isLight = variant === 'light'
+  return (
+    <div className="flex items-center gap-1.5" style={{ padding: '4px 0 6px' }}>
+      <Icon name={icon} size={12} color={isLight ? HNH.ink3 : 'rgba(255,255,255,0.55)'} stroke={2} />
+      <span style={{
+        fontSize: 10.5, fontWeight: 700, letterSpacing: 0.4, textTransform: 'uppercase',
+        color: isLight ? HNH.ink3 : 'rgba(255,255,255,0.55)',
+      }}>
+        {label}
+      </span>
+    </div>
+  )
 }
 
 type ViewMode = 'launcher' | 'list'
@@ -248,9 +279,16 @@ export function AppsPage() {
                   <div style={{ marginBottom: 10 }}>
                     <AppHeader app={app} />
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    {app.features.map(f => (
-                      <FeatureRow key={f.label} f={f} onTap={() => f.path && navigate(f.path)} />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                    {groupFeatures(app.features).map(({ group, items }) => (
+                      <div key={group}>
+                        <GroupLabel group={group} variant="light" />
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          {items.map(f => (
+                            <FeatureRow key={f.label} f={f} onTap={() => f.path && navigate(f.path)} />
+                          ))}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </>
@@ -290,22 +328,29 @@ export function AppsPage() {
                       </div>
                     </div>
                   </div>
-                  {/* Feature icon grid */}
+                  {/* Feature icon grid — grouped */}
                   <div
-                    className="relative flex flex-wrap gap-4"
+                    className="relative"
                     style={{
                       background: 'rgba(255,255,255,0.92)',
                       backdropFilter: 'blur(12px)',
-                      borderRadius: 16, padding: '18px 16px',
+                      borderRadius: 16, padding: '14px 16px',
                     }}
                   >
-                    {app.features.map(f => (
-                      <FeatureIcon
-                        key={f.label}
-                        f={f}
-                        iconBox={iconBox}
-                        onTap={() => f.path && navigate(f.path)}
-                      />
+                    {groupFeatures(app.features).map(({ group, items }, gi) => (
+                      <div key={group} style={{ marginTop: gi > 0 ? 10 : 0 }}>
+                        <GroupLabel group={group} variant="light" />
+                        <div className="flex flex-wrap gap-4" style={{ paddingTop: 2 }}>
+                          {items.map(f => (
+                            <FeatureIcon
+                              key={f.label}
+                              f={f}
+                              iconBox={iconBox}
+                              onTap={() => f.path && navigate(f.path)}
+                            />
+                          ))}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </div>
