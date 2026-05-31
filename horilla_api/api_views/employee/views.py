@@ -1108,3 +1108,175 @@ class CompanyListView(APIView):
         return Response(
             [{"id": c.pk, "name": c.company} for c in companies]
         )
+
+
+class PositionListView(APIView):
+    """List job positions filtered by department."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from base.models import JobPosition
+
+        dept = request.query_params.get("department")
+        qs = JobPosition.objects.filter(is_active=True)
+        if dept:
+            qs = qs.filter(department_id=dept)
+        qs = qs.order_by("job_position")
+        return Response(
+            [{"id": p.pk, "name": p.job_position, "department_id": p.department_id_id} for p in qs]
+        )
+
+
+class RolesForPositionView(APIView):
+    """List job roles for a given position."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from base.models import JobRole
+
+        position = request.query_params.get("position")
+        if not position:
+            return Response([], status=200)
+        qs = JobRole.objects.filter(
+            job_position_id=position, is_active=True
+        ).order_by("job_role")
+        return Response(
+            [{"id": r.pk, "name": r.job_role} for r in qs]
+        )
+
+
+class AssignPositionView(APIView):
+    """Assign position to employee, auto-assigns first role."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from base.models import Company, Department, JobPosition, JobRole
+
+        employee_id = request.data.get("employee_id")
+        company_id = request.data.get("company_id")
+        department_id = request.data.get("department_id")
+        position_id = request.data.get("position_id")
+        role_id = request.data.get("role_id")
+
+        if not employee_id or not position_id:
+            return Response(
+                {"error": "employee_id and position_id are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            emp = Employee.objects.get(pk=employee_id, is_active=True)
+        except Employee.DoesNotExist:
+            return Response({"error": "Employee not found"}, status=404)
+
+        try:
+            position = JobPosition.objects.get(pk=position_id)
+        except JobPosition.DoesNotExist:
+            return Response({"error": "Position not found"}, status=404)
+
+        if not department_id:
+            department_id = position.department_id_id
+        if not company_id:
+            companies = position.company_id.all()
+            company_id = companies.first().pk if companies.exists() else None
+
+        if not role_id:
+            first_role = JobRole.objects.filter(
+                job_position_id=position, is_active=True
+            ).order_by("pk").first()
+            role_id = first_role.pk if first_role else None
+
+        wi, created = EmployeeWorkInformation.objects.get_or_create(
+            employee_id=emp,
+            defaults={
+                "company_id_id": company_id,
+                "department_id_id": department_id,
+                "job_position_id_id": position_id,
+                "job_role_id_id": role_id,
+            },
+        )
+        if not created:
+            wi.company_id_id = company_id
+            wi.department_id_id = department_id
+            wi.job_position_id_id = position_id
+            wi.job_role_id_id = role_id
+            wi.save()
+
+        return Response({
+            "ok": True,
+            "position": position.job_position,
+            "role": wi.job_role_id.job_role if wi.job_role_id else None,
+        })
+
+
+class RevokePositionView(APIView):
+    """Revoke position from employee (clear position & role)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        employee_id = request.data.get("employee_id")
+        if not employee_id:
+            return Response(
+                {"error": "employee_id is required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            emp = Employee.objects.get(pk=employee_id, is_active=True)
+        except Employee.DoesNotExist:
+            return Response({"error": "Employee not found"}, status=404)
+
+        wi = getattr(emp, "employee_work_info", None)
+        if not wi:
+            return Response({"error": "No work info"}, status=400)
+
+        wi.job_position_id = None
+        wi.job_role_id = None
+        wi.save()
+        return Response({"ok": True})
+
+
+class ChangeRoleView(APIView):
+    """Change role within the same position."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from base.models import JobRole
+
+        employee_id = request.data.get("employee_id")
+        role_id = request.data.get("role_id")
+
+        if not employee_id or not role_id:
+            return Response(
+                {"error": "employee_id and role_id are required"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            emp = Employee.objects.get(pk=employee_id, is_active=True)
+        except Employee.DoesNotExist:
+            return Response({"error": "Employee not found"}, status=404)
+
+        wi = getattr(emp, "employee_work_info", None)
+        if not wi or not wi.job_position_id:
+            return Response({"error": "Employee has no position"}, status=400)
+
+        try:
+            role = JobRole.objects.get(pk=role_id, is_active=True)
+        except JobRole.DoesNotExist:
+            return Response({"error": "Role not found"}, status=404)
+
+        if role.job_position_id_id != wi.job_position_id_id:
+            return Response(
+                {"error": "Role does not belong to the current position"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        wi.job_role_id = role
+        wi.save()
+        return Response({"ok": True, "role": role.job_role})

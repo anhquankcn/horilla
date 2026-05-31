@@ -29,6 +29,8 @@ interface Emp {
 
 interface Dept { id: number; name: string }
 interface Comp { id: number; name: string }
+interface Pos { id: number; name: string; department_id: number }
+interface RoleOpt { id: number; name: string }
 
 type EmpTab = 'assigned' | 'pending'
 
@@ -142,13 +144,234 @@ function InfoRow({ label, value, icon }: { label: string; value: string | null; 
   )
 }
 
-function DetailModal({ emp, onClose, isTablet }: { emp: Emp; onClose: () => void; isTablet: boolean }) {
+function SelectField({ label, value, options, onChange, disabled }: {
+  label: string; value: number | null; options: { id: number; name: string }[];
+  onChange: (v: number | null) => void; disabled?: boolean
+}) {
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: HNH.ink3, letterSpacing: 0.3, textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
+      <select
+        value={value ?? ''}
+        onChange={e => onChange(e.target.value ? Number(e.target.value) : null)}
+        disabled={disabled}
+        className="w-full border-none outline-none"
+        style={{
+          padding: '10px 12px', borderRadius: 10, fontSize: 13, fontWeight: 600,
+          background: disabled ? HNH.cream2 : '#fff', color: HNH.ink,
+          border: `1px solid ${HNH.line}`,
+        }}
+      >
+        <option value="">— Chọn —</option>
+        {options.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+      </select>
+    </div>
+  )
+}
+
+function AssignPositionPanel({ emp, onDone }: { emp: Emp; onDone: (updated: Partial<Emp>) => void }) {
+  const [companies, setCompanies] = useState<Comp[]>([])
+  const [depts, setDepts] = useState<Dept[]>([])
+  const [positions, setPositions] = useState<Pos[]>([])
+  const [roles, setRoles] = useState<RoleOpt[]>([])
+
+  const [selCompany, setSelCompany] = useState<number | null>(null)
+  const [selDept, setSelDept] = useState<number | null>(null)
+  const [selPos, setSelPos] = useState<number | null>(null)
+  const [selRole, setSelRole] = useState<number | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    api.get<Comp[]>('/api/employee/companies/').then(setCompanies).catch(() => {})
+    api.get<Dept[]>('/api/employee/departments/').then(setDepts).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (selDept) {
+      api.get<Pos[]>(`/api/employee/positions/?department=${selDept}`).then(setPositions).catch(() => {})
+    } else {
+      setPositions([])
+    }
+    setSelPos(null)
+    setSelRole(null)
+  }, [selDept])
+
+  useEffect(() => {
+    if (selPos) {
+      api.get<RoleOpt[]>(`/api/employee/roles-for-position/?position=${selPos}`).then(r => {
+        setRoles(r)
+        if (r.length > 0) setSelRole(r[0].id)
+      }).catch(() => {})
+    } else {
+      setRoles([])
+      setSelRole(null)
+    }
+  }, [selPos])
+
+  const handleAssign = async () => {
+    if (!selPos) return
+    setSaving(true)
+    try {
+      const res = await api.post<{ ok: boolean; position: string; role: string | null }>('/api/employee/assign-position/', {
+        employee_id: emp.id,
+        company_id: selCompany,
+        department_id: selDept,
+        position_id: selPos,
+        role_id: selRole,
+      })
+      if (res.ok) {
+        const dept = depts.find(d => d.id === selDept)
+        const company = companies.find(c => c.id === selCompany)
+        onDone({
+          job_position: res.position,
+          job_role: res.role,
+          department: dept?.name ?? null,
+          department_id: selDept,
+          company: company?.name ?? null,
+        })
+      }
+    } catch { /* ignore */ } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div style={{ padding: '12px 0' }}>
+      <div className="flex items-center gap-2" style={{ marginBottom: 12 }}>
+        <Icon name="briefcase" size={16} color={HNH.navy} stroke={2} />
+        <span style={{ fontSize: 13, fontWeight: 700, color: HNH.navy }}>Giao Vị Trí</span>
+      </div>
+      <SelectField label="Công ty" value={selCompany} options={companies} onChange={setSelCompany} />
+      <SelectField label="Phòng ban" value={selDept} options={depts} onChange={setSelDept} />
+      <SelectField label="Vị trí" value={selPos} options={positions} onChange={setSelPos} disabled={!selDept} />
+      <SelectField label="Vai trò" value={selRole} options={roles} onChange={setSelRole} disabled={!selPos} />
+      <button
+        onClick={handleAssign}
+        disabled={!selPos || saving}
+        className="w-full flex items-center justify-center gap-2 border-none cursor-pointer"
+        style={{
+          padding: '12px', borderRadius: 12, marginTop: 6,
+          background: selPos ? HNH.navy : HNH.cream2,
+          color: selPos ? '#fff' : HNH.ink3,
+          fontSize: 13, fontWeight: 700, opacity: saving ? 0.6 : 1,
+        }}
+      >
+        <Icon name="check" size={16} color={selPos ? '#fff' : HNH.ink3} stroke={2.2} />
+        {saving ? 'Đang lưu...' : 'Giao Vị Trí'}
+      </button>
+    </div>
+  )
+}
+
+function ChangeRolePanel({ emp, onDone }: { emp: Emp; onDone: (role: string) => void }) {
+  const [roles, setRoles] = useState<RoleOpt[]>([])
+  const [selRole, setSelRole] = useState<number | null>(null)
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    if (!emp.department_id) return
+    api.get<Pos[]>(`/api/employee/positions/?department=${emp.department_id}`).then(positions => {
+      const pos = positions.find(p => p.name === emp.job_position)
+      if (pos) {
+        api.get<RoleOpt[]>(`/api/employee/roles-for-position/?position=${pos.id}`).then(r => {
+          setRoles(r)
+          const current = r.find(rl => rl.name === emp.job_role)
+          if (current) setSelRole(current.id)
+        }).catch(() => {})
+      }
+    }).catch(() => {})
+  }, [emp.department_id, emp.job_position, emp.job_role])
+
+  const handleChange = async () => {
+    if (!selRole) return
+    setSaving(true)
+    try {
+      const res = await api.post<{ ok: boolean; role: string }>('/api/employee/change-role/', {
+        employee_id: emp.id,
+        role_id: selRole,
+      })
+      if (res.ok) onDone(res.role)
+    } catch { /* ignore */ } finally {
+      setSaving(false)
+    }
+  }
+
+  if (roles.length <= 1) return null
+
+  return (
+    <div style={{ padding: '10px 0', borderTop: `1px solid ${HNH.line}` }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: HNH.ink3, letterSpacing: 0.3, textTransform: 'uppercase', marginBottom: 6 }}>
+        Đổi Vai trò
+      </div>
+      <div className="flex gap-2">
+        <select
+          value={selRole ?? ''}
+          onChange={e => setSelRole(e.target.value ? Number(e.target.value) : null)}
+          className="flex-1 border-none outline-none"
+          style={{
+            padding: '9px 12px', borderRadius: 10, fontSize: 13, fontWeight: 600,
+            background: '#fff', color: HNH.ink, border: `1px solid ${HNH.line}`,
+          }}
+        >
+          {roles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+        </select>
+        <button
+          onClick={handleChange}
+          disabled={saving}
+          className="border-none cursor-pointer flex items-center justify-center"
+          style={{ padding: '8px 14px', borderRadius: 10, background: HNH.navy, opacity: saving ? 0.6 : 1 }}
+        >
+          <Icon name="check" size={15} color="#fff" stroke={2.2} />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function DetailModal({ emp: initialEmp, onClose, isTablet, onEmpUpdated }: {
+  emp: Emp; onClose: () => void; isTablet: boolean; onEmpUpdated?: (emp: Emp) => void
+}) {
+  const [emp, setEmp] = useState(initialEmp)
   const [tab, setTab] = useState<DetailTab>('info')
+  const [showAssign, setShowAssign] = useState(false)
+  const [revoking, setRevoking] = useState(false)
 
   const tabs: { id: DetailTab; label: string }[] = [
     { id: 'info', label: 'Thông tin' },
     { id: 'work', label: 'Công việc' },
   ]
+
+  const hasPosition = !!emp.job_position
+
+  const handleRevoke = async () => {
+    if (!confirm('Thu hồi Vị trí của nhân viên này?')) return
+    setRevoking(true)
+    try {
+      const res = await api.post<{ ok: boolean }>('/api/employee/revoke-position/', {
+        employee_id: emp.id,
+      })
+      if (res.ok) {
+        const updated = { ...emp, job_position: null, job_role: null }
+        setEmp(updated)
+        onEmpUpdated?.(updated)
+      }
+    } catch { /* ignore */ } finally {
+      setRevoking(false)
+    }
+  }
+
+  const handleAssigned = (partial: Partial<Emp>) => {
+    const updated = { ...emp, ...partial }
+    setEmp(updated)
+    setShowAssign(false)
+    onEmpUpdated?.(updated)
+  }
+
+  const handleRoleChanged = (role: string) => {
+    const updated = { ...emp, job_role: role }
+    setEmp(updated)
+    onEmpUpdated?.(updated)
+  }
 
   return (
     <div
@@ -255,6 +478,47 @@ function DetailModal({ emp, onClose, isTablet }: { emp: Emp; onClose: () => void
                   <InfoRow icon="flag" label="Loại NV" value={emp.employee_type} />
                   <InfoRow icon="cal" label="Ngày vào làm" value={formatDate(emp.date_joining)} />
                   <InfoRow icon="users" label="Quản lý" value={emp.reporting_manager} />
+
+                  {/* Change role (only when has position and multiple roles) */}
+                  {hasPosition && <ChangeRolePanel emp={emp} onDone={handleRoleChanged} />}
+
+                  {/* Action buttons */}
+                  <div style={{ padding: '14px 0 4px' }}>
+                    {hasPosition ? (
+                      <button
+                        onClick={handleRevoke}
+                        disabled={revoking}
+                        className="w-full flex items-center justify-center gap-2 border-none cursor-pointer"
+                        style={{
+                          padding: '11px', borderRadius: 12,
+                          background: '#fef2f2', color: '#dc2626',
+                          fontSize: 13, fontWeight: 700, opacity: revoking ? 0.6 : 1,
+                          border: '1px solid #fecaca',
+                        }}
+                      >
+                        <Icon name="trash" size={15} color="#dc2626" stroke={2} />
+                        {revoking ? 'Đang thu hồi...' : 'Thu hồi Vị trí'}
+                      </button>
+                    ) : !showAssign ? (
+                      <button
+                        onClick={() => setShowAssign(true)}
+                        className="w-full flex items-center justify-center gap-2 border-none cursor-pointer"
+                        style={{
+                          padding: '11px', borderRadius: 12,
+                          background: HNH.navy, color: '#fff',
+                          fontSize: 13, fontWeight: 700,
+                        }}
+                      >
+                        <Icon name="briefcase" size={15} color="#fff" stroke={2} />
+                        Giao Vị Trí
+                      </button>
+                    ) : null}
+                  </div>
+
+                  {/* Assign form */}
+                  {!hasPosition && showAssign && (
+                    <AssignPositionPanel emp={emp} onDone={handleAssigned} />
+                  )}
                 </>
               )}
             </div>
@@ -374,6 +638,11 @@ export function EmployeesPage() {
     return depts.find(d => d.id === deptFilter)?.name ?? null
   }, [deptFilter, depts])
 
+  const handleEmpUpdated = useCallback((updated: Emp) => {
+    setEmployees(prev => prev.map(e => e.id === updated.id ? updated : e))
+    setSelected(updated)
+  }, [])
+
   return (
     <div style={{ background: HNH.cream, minHeight: '100%' }}>
       <TopBar
@@ -486,7 +755,7 @@ export function EmployeesPage() {
       </div>
 
       {selected && (
-        <DetailModal emp={selected} onClose={() => setSelected(null)} isTablet={isTablet} />
+        <DetailModal emp={selected} onClose={() => setSelected(null)} isTablet={isTablet} onEmpUpdated={handleEmpUpdated} />
       )}
     </div>
   )

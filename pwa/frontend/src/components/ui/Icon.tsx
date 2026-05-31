@@ -49,6 +49,8 @@ export function Icon({ name, size = 18, color = HNH.ink, stroke: sw = 1.8 }: Ico
     case 'refresh': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M1 4v6h6" {...p}/><path d="M23 20v-6h-6" {...p}/><path d="M20.5 9A9 9 0 0 0 5.6 5.6L1 10M23 14l-4.6 4.4A9 9 0 0 1 3.5 15" {...p}/></svg>
     case 'link': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7.1-7.1l-1.7 1.7" {...p}/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7.1 7.1l1.7-1.7" {...p}/></svg>
     case 'upload': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" {...p}/><path d="m17 8-5-5-5 5" {...p}/><path d="M12 3v12" {...p}/></svg>
+    case 'trash': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" {...p}/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" {...p}/><path d="M10 11v6M14 11v6" {...p}/></svg>
+    case 'briefcase': return <svg width={size} height={size} viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" {...p}/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" {...p}/><path d="M12 12v.01" {...p}/></svg>
     default: return null
   }
 }

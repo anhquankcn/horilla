@@ -134,4 +134,29 @@ urlpatterns = [
         views.CompanyListView.as_view(),
         name="api-company-list",
     ),
+    path(
+        "positions/",
+        views.PositionListView.as_view(),
+        name="api-position-list",
+    ),
+    path(
+        "roles-for-position/",
+        views.RolesForPositionView.as_view(),
+        name="api-roles-for-position",
+    ),
+    path(
+        "assign-position/",
+        views.AssignPositionView.as_view(),
+        name="api-assign-position",
+    ),
+    path(
+        "revoke-position/",
+        views.RevokePositionView.as_view(),
+        name="api-revoke-position",
+    ),
+    path(
+        "change-role/",
+        views.ChangeRoleView.as_view(),
+        name="api-change-role",
+    ),
 ]
