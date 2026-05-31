@@ -8,7 +8,7 @@ const tabs = [
   { id: 'me', label: 'Cá nhân', path: '/profile', icon: 'user' },
 ] as const
 
-const appChildPaths = ['/attendance', '/tasks', '/employees']
+const appChildPaths = ['/attendance', '/tasks', '/employees', '/roles']
 
 function NavIcon({ icon, active }: { icon: string; active: boolean }) {
   const c = active ? '#fff' : 'rgba(255,255,255,0.5)'

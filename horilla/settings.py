@@ -286,6 +286,14 @@ OIDC_STORE_ACCESS_TOKEN = True
 OIDC_STORE_ID_TOKEN = True
 OIDC_REDIRECT_BASE_URL = env("OIDC_REDIRECT_BASE_URL", default="https://qlns.hnhtravel.work")
 
+# ── Keycloak Admin API ─────────────────────────────────────────────
+KC_SERVER_URL = env("KC_SERVER_URL", default="https://sso.hnhtravel.work")
+KC_REALM = env("KC_REALM", default="HNHTravel-SGN")
+KC_ADMIN_CLIENT_ID = env("KC_ADMIN_CLIENT_ID", default="admin-cli")
+KC_ADMIN_CLIENT_SECRET = env("KC_ADMIN_CLIENT_SECRET", default="")
+KC_ADMIN_USERNAME = env("KC_ADMIN_USERNAME", default="")
+KC_ADMIN_PASSWORD = env("KC_ADMIN_PASSWORD", default="")
+
 # ── External Task System (1StopShop) deeplink ─────────────────────
 TASK_SYSTEM_URL = env("TASK_SYSTEM_URL", default="https://task.hnhtravel.work")
 TASK_KC_CLIENT_ID = env("TASK_KC_CLIENT_ID", default="")

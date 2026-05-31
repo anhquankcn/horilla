@@ -1308,3 +1308,181 @@ class CheckUserLevel(APIView):
         if request.user.has_perm(perm):
             return Response(status=200)
         return Response({"error": "No permission"}, status=400)
+
+
+class RoleDirectoryView(APIView):
+    """Rich role list for PWA with department/position info and employee count."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from django.contrib.auth.models import Group, Permission
+        from employee.models import EmployeeWorkInformation
+
+        qs = JobRole.objects.filter(is_active=True).select_related(
+            "job_position_id", "job_position_id__department_id"
+        ).order_by("job_position_id__department_id__department", "job_role")
+
+        dept = request.query_params.get("department")
+        if dept:
+            qs = qs.filter(job_position_id__department_id=dept)
+
+        search = request.query_params.get("search", "").strip()
+        if search:
+            from django.db.models import Q
+            qs = qs.filter(
+                Q(job_role__icontains=search)
+                | Q(job_position_id__job_position__icontains=search)
+            )
+
+        results = []
+        for role in qs:
+            pos = role.job_position_id
+            dept_obj = pos.department_id if pos else None
+            emp_count = EmployeeWorkInformation.objects.filter(
+                job_role_id=role, employee_id__is_active=True
+            ).count()
+
+            group = Group.objects.filter(name=role.job_role).first()
+            perms = []
+            if group:
+                perms = list(
+                    group.permissions.values_list("codename", flat=True)
+                )
+
+            results.append({
+                "id": role.pk,
+                "name": role.job_role,
+                "job_position": pos.job_position if pos else None,
+                "job_position_id": pos.pk if pos else None,
+                "department": dept_obj.department if dept_obj else None,
+                "department_id": dept_obj.pk if dept_obj else None,
+                "employee_count": emp_count,
+                "permissions": perms,
+                "has_django_group": group is not None,
+            })
+
+        return Response(results)
+
+
+class RolePermissionsView(APIView):
+    """List all available Django permissions for assignment."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from django.contrib.auth.models import Permission
+        from django.contrib.contenttypes.models import ContentType
+
+        app_labels = [
+            "employee", "attendance", "leave", "payroll", "base",
+            "eoffice", "recruitment", "asset",
+        ]
+        perms = (
+            Permission.objects.filter(content_type__app_label__in=app_labels)
+            .select_related("content_type")
+            .order_by("content_type__app_label", "codename")
+        )
+        grouped = {}
+        for p in perms:
+            app = p.content_type.app_label
+            if app not in grouped:
+                grouped[app] = []
+            grouped[app].append({
+                "id": p.pk,
+                "codename": p.codename,
+                "name": p.name,
+            })
+        return Response(grouped)
+
+
+class RoleGroupSyncView(APIView):
+    """Create/update Django Group matching a JobRole and assign permissions."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if not request.user.has_perm("auth.change_group"):
+            return Response({"error": "No permission"}, status=403)
+
+        from django.contrib.auth.models import Group, Permission
+
+        role_id = request.data.get("role_id")
+        perm_ids = request.data.get("permission_ids", [])
+
+        role = JobRole.objects.filter(pk=role_id, is_active=True).first()
+        if not role:
+            return Response({"error": "Role not found"}, status=404)
+
+        group, created = Group.objects.get_or_create(name=role.job_role)
+        group.permissions.set(Permission.objects.filter(pk__in=perm_ids))
+
+        return Response({
+            "ok": True,
+            "group_id": group.pk,
+            "action": "created" if created else "updated",
+            "permissions_count": group.permissions.count(),
+        })
+
+
+class KeycloakRolesView(APIView):
+    """List Keycloak realm roles."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from horilla.keycloak_admin import get_realm_roles
+
+        roles = get_realm_roles()
+        if roles is None:
+            return Response(
+                {"error": "Keycloak not configured or unreachable"},
+                status=503,
+            )
+        return Response(roles)
+
+
+class KeycloakSyncRolesView(APIView):
+    """Sync HRM JobRoles → Keycloak realm roles."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if not request.user.is_superuser:
+            return Response({"error": "Superuser required"}, status=403)
+
+        from horilla.keycloak_admin import sync_all_roles
+
+        roles = JobRole.objects.filter(is_active=True).select_related(
+            "job_position_id", "job_position_id__department_id"
+        )
+        roles_data = []
+        for r in roles:
+            pos = r.job_position_id
+            dept = pos.department_id if pos else None
+            roles_data.append({
+                "name": r.job_role,
+                "description": f"{pos.job_position if pos else ''} - {dept.department if dept else ''}",
+            })
+
+        result = sync_all_roles(roles_data)
+        return Response(result)
+
+
+class KeycloakSyncUsersView(APIView):
+    """Sync HRM employees → Keycloak users."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if not request.user.is_superuser:
+            return Response({"error": "Superuser required"}, status=403)
+
+        from horilla.keycloak_admin import sync_all_employees
+
+        employees = Employee.objects.filter(is_active=True).select_related(
+            "employee_work_info",
+            "employee_work_info__job_role_id",
+        )
+        result = sync_all_employees(employees)
+        return Response(result)

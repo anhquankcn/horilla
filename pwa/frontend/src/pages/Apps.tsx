@@ -36,7 +36,7 @@ const apps: AppCard[] = [
     features: [
       { icon: 'users', label: 'Nhân sự', desc: 'Danh sách, hồ sơ nhân viên', path: '/employees', tone: 'navy' },
       { icon: 'clock', label: 'Chấm công', desc: 'Check-in, lịch sử, GPS', path: '/attendance', tone: 'navy' },
-      { icon: 'shield', label: 'Quản lý Vai trò', desc: 'Phân quyền, nhóm vai trò', path: null, tone: 'navy' },
+      { icon: 'shield', label: 'Quản lý Vai trò', desc: 'Phân quyền, nhóm vai trò', path: '/roles', tone: 'navy' },
     ],
   },
   {

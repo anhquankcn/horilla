@@ -16,6 +16,7 @@ import { TasksPage } from './pages/Tasks'
 import { TaskWebViewPage } from './pages/TaskWebView'
 import { AppsPage } from './pages/Apps'
 import { EmployeesPage } from './pages/Employees'
+import { RolesPage } from './pages/Roles'
 
 export function App() {
   return (
@@ -26,6 +27,7 @@ export function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/apps" element={<AppsPage />} />
         <Route path="/employees" element={<EmployeesPage />} />
+        <Route path="/roles" element={<RolesPage />} />
         <Route path="/attendance" element={<AttendancePage />} />
         <Route path="/attendance/office" element={<OfficeCheckinPage />} />
         <Route path="/ruby" element={<RubyPage />} />

@@ -265,4 +265,11 @@ urlpatterns = [
     path(
         "check-user-level", views.CheckUserLevel.as_view(), name="api-check-user-level"
     ),
+    # ── Role management & Keycloak sync ──
+    path("role-directory/", views.RoleDirectoryView.as_view(), name="api-role-directory"),
+    path("role-permissions/", views.RolePermissionsView.as_view(), name="api-role-permissions"),
+    path("role-group-sync/", views.RoleGroupSyncView.as_view(), name="api-role-group-sync"),
+    path("keycloak/roles/", views.KeycloakRolesView.as_view(), name="api-kc-roles"),
+    path("keycloak/sync-roles/", views.KeycloakSyncRolesView.as_view(), name="api-kc-sync-roles"),
+    path("keycloak/sync-users/", views.KeycloakSyncUsersView.as_view(), name="api-kc-sync-users"),
 ]

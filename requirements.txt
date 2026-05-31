@@ -77,4 +77,5 @@ psycopg2-binary
 whitenoise
 django-storages
 mozilla-django-oidc
+python-keycloak
 josepy
