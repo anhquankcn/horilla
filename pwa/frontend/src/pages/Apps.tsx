@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { TopBar } from '../components/layout/TopBar'
+import { useTablet } from '../lib/useTablet'
 
 interface AppFeature {
   icon: string
@@ -17,6 +19,7 @@ interface AppCard {
   subtitle: string
   gradient: string
   shadow: string
+  accentBg: string
   icon: string
   features: AppFeature[]
 }
@@ -28,6 +31,7 @@ const apps: AppCard[] = [
     subtitle: 'Quản lý nhân sự',
     gradient: `linear-gradient(135deg, ${HNH.navy} 0%, ${HNH.navy2} 100%)`,
     shadow: '0 10px 28px rgba(20,43,111,0.22)',
+    accentBg: HNH.navy50,
     icon: 'users',
     features: [
       { icon: 'clock', label: 'Chấm công', desc: 'Check-in, lịch sử, GPS', path: '/attendance', tone: 'navy' },
@@ -40,6 +44,7 @@ const apps: AppCard[] = [
     subtitle: 'Văn phòng điện tử',
     gradient: `linear-gradient(135deg, ${HNH.red} 0%, ${HNH.redDark} 100%)`,
     shadow: '0 10px 28px rgba(192,34,43,0.22)',
+    accentBg: HNH.red50,
     icon: 'doc',
     features: [
       { icon: 'check', label: 'Công việc', desc: 'Tasks, deadline, phân công', path: '/tasks', tone: 'red' },
@@ -50,18 +55,15 @@ const apps: AppCard[] = [
 ]
 
 const toneBg: Record<string, string> = {
-  navy: HNH.navy50,
-  red: HNH.red50,
-  gold: '#faf1d6',
-  success: HNH.success50,
+  navy: HNH.navy50, red: HNH.red50, gold: '#faf1d6', success: HNH.success50,
 }
 const toneColor: Record<string, string> = {
-  navy: HNH.navy,
-  red: HNH.red,
-  gold: '#a87908',
-  success: HNH.success,
+  navy: HNH.navy, red: HNH.red, gold: '#a87908', success: HNH.success,
 }
 
+type ViewMode = 'launcher' | 'list'
+
+/* ── List view: feature as a row ── */
 function FeatureRow({ f, onTap }: { f: AppFeature; onTap: () => void }) {
   const available = !!f.path
   return (
@@ -70,11 +72,8 @@ function FeatureRow({ f, onTap }: { f: AppFeature; onTap: () => void }) {
       disabled={!available}
       className="flex items-center gap-3 w-full border-none cursor-pointer text-left"
       style={{
-        background: '#fff',
-        borderRadius: 16,
-        padding: '14px 16px',
+        background: '#fff', borderRadius: 16, padding: '14px 16px',
         opacity: available ? 1 : 0.55,
-        transition: 'transform 0.12s',
       }}
     >
       <div
@@ -86,15 +85,7 @@ function FeatureRow({ f, onTap }: { f: AppFeature; onTap: () => void }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span style={{ fontSize: 14, fontWeight: 700, color: HNH.ink }}>{f.label}</span>
-          {!available && (
-            <span style={{
-              fontSize: 9.5, fontWeight: 700, color: HNH.ink3,
-              background: HNH.cream2, borderRadius: 6, padding: '2px 7px',
-              letterSpacing: 0.3, textTransform: 'uppercase',
-            }}>
-              Sắp ra mắt
-            </span>
-          )}
+          {!available && <SoonBadge />}
         </div>
         <div style={{ fontSize: 12, color: HNH.ink3, fontWeight: 500, marginTop: 1 }}>{f.desc}</div>
       </div>
@@ -103,64 +94,221 @@ function FeatureRow({ f, onTap }: { f: AppFeature; onTap: () => void }) {
   )
 }
 
+/* ── Launcher view: feature as an icon tile ── */
+function FeatureIcon({ f, onTap, iconBox }: { f: AppFeature; onTap: () => void; iconBox: number }) {
+  const available = !!f.path
+  const iconSize = iconBox >= 56 ? 26 : 18
+  const radius = iconBox >= 56 ? 18 : 14
+  return (
+    <button
+      onClick={onTap}
+      disabled={!available}
+      className="flex flex-col items-center gap-1.5 border-none cursor-pointer bg-transparent"
+      style={{ opacity: available ? 1 : 0.5, padding: 0, width: iconBox + 24 }}
+    >
+      <div
+        className="flex items-center justify-center relative"
+        style={{
+          width: iconBox, height: iconBox, borderRadius: radius,
+          background: toneBg[f.tone],
+          boxShadow: available ? '0 2px 8px rgba(0,0,0,0.06)' : 'none',
+        }}
+      >
+        <Icon name={f.icon} size={iconSize} color={toneColor[f.tone]} stroke={2.2} />
+        {!available && (
+          <div
+            className="absolute flex items-center justify-center"
+            style={{
+              top: -4, right: -4, width: 16, height: 16, borderRadius: '50%',
+              background: HNH.cream2, border: `1.5px solid ${HNH.line}`,
+            }}
+          >
+            <Icon name="clock" size={9} color={HNH.ink3} stroke={2} />
+          </div>
+        )}
+      </div>
+      <span
+        className="text-center"
+        style={{
+          fontSize: iconBox >= 56 ? 11.5 : 10,
+          fontWeight: 600, color: HNH.ink,
+          lineHeight: 1.2, maxWidth: iconBox + 20,
+          wordBreak: 'break-word',
+        }}
+      >
+        {f.label}
+      </span>
+    </button>
+  )
+}
+
+function SoonBadge() {
+  return (
+    <span style={{
+      fontSize: 9.5, fontWeight: 700, color: HNH.ink3,
+      background: HNH.cream2, borderRadius: 6, padding: '2px 7px',
+      letterSpacing: 0.3, textTransform: 'uppercase',
+    }}>
+      Sắp ra mắt
+    </span>
+  )
+}
+
+/* ── App card header (shared) ── */
+function AppHeader({ app }: { app: AppCard }) {
+  return (
+    <div
+      className="relative overflow-hidden"
+      style={{
+        background: app.gradient, borderRadius: 22,
+        padding: '20px 20px 16px', boxShadow: app.shadow,
+      }}
+    >
+      <div
+        className="absolute"
+        style={{
+          right: -40, top: -40, width: 140, height: 140,
+          borderRadius: '50%', background: 'rgba(255,255,255,0.08)',
+        }}
+      />
+      <div className="relative flex items-center gap-3">
+        <div
+          className="flex items-center justify-center"
+          style={{
+            width: 48, height: 48, borderRadius: 14,
+            background: 'rgba(255,255,255,0.18)',
+            backdropFilter: 'blur(8px)',
+          }}
+        >
+          <Icon name={app.icon} size={24} color="#fff" stroke={2} />
+        </div>
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: '#fff', letterSpacing: -0.3 }}>
+            {app.title}
+          </div>
+          <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}>
+            {app.subtitle}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ── Toggle button ── */
+function ViewToggle({ mode, onChange }: { mode: ViewMode; onChange: (m: ViewMode) => void }) {
+  return (
+    <div className="flex" style={{
+      background: HNH.cream2, borderRadius: 10, padding: 3,
+      border: `1px solid ${HNH.line}`,
+    }}>
+      {(['launcher', 'list'] as const).map(m => (
+        <button
+          key={m}
+          onClick={() => onChange(m)}
+          className="flex items-center justify-center border-none cursor-pointer"
+          style={{
+            width: 32, height: 28, borderRadius: 8,
+            background: mode === m ? '#fff' : 'transparent',
+            boxShadow: mode === m ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+          }}
+        >
+          <Icon
+            name={m === 'launcher' ? 'grid' : 'doc'}
+            size={14}
+            color={mode === m ? HNH.ink : HNH.ink3}
+            stroke={2}
+          />
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export function AppsPage() {
   const navigate = useNavigate()
+  const isTablet = useTablet()
+  const [mode, setMode] = useState<ViewMode>('launcher')
+
+  const iconBox = isTablet ? 56 : 48
 
   return (
     <div style={{ background: HNH.cream, minHeight: '100%' }}>
-      <TopBar title="Ứng dụng" />
-      <div style={{ padding: '16px 16px 32px', maxWidth: 720, margin: '0 auto' }}>
+      <TopBar
+        title="Ứng dụng"
+        trailing={<ViewToggle mode={mode} onChange={setMode} />}
+      />
+      <div style={{ padding: '12px 16px 32px', maxWidth: 720, margin: '0 auto' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {apps.map(app => (
             <div key={app.id}>
-              <div
-                className="relative overflow-hidden"
-                style={{
-                  background: app.gradient,
-                  borderRadius: 22,
-                  padding: '20px 20px 16px',
-                  boxShadow: app.shadow,
-                  marginBottom: 10,
-                }}
-              >
+              {mode === 'list' ? (
+                <>
+                  <div style={{ marginBottom: 10 }}>
+                    <AppHeader app={app} />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {app.features.map(f => (
+                      <FeatureRow key={f.label} f={f} onTap={() => f.path && navigate(f.path)} />
+                    ))}
+                  </div>
+                </>
+              ) : (
                 <div
-                  className="absolute"
+                  className="relative overflow-hidden"
                   style={{
-                    right: -40, top: -40, width: 140, height: 140,
-                    borderRadius: '50%', background: 'rgba(255,255,255,0.08)',
+                    background: app.gradient, borderRadius: 22,
+                    padding: '20px 20px 20px', boxShadow: app.shadow,
                   }}
-                />
-                <div className="relative flex items-center gap-3">
+                >
                   <div
-                    className="flex items-center justify-center"
+                    className="absolute"
                     style={{
-                      width: 48, height: 48, borderRadius: 14,
-                      background: 'rgba(255,255,255,0.18)',
-                      backdropFilter: 'blur(8px)',
+                      right: -40, top: -40, width: 140, height: 140,
+                      borderRadius: '50%', background: 'rgba(255,255,255,0.08)',
+                    }}
+                  />
+                  {/* App title row */}
+                  <div className="relative flex items-center gap-3" style={{ marginBottom: 18 }}>
+                    <div
+                      className="flex items-center justify-center"
+                      style={{
+                        width: 44, height: 44, borderRadius: 13,
+                        background: 'rgba(255,255,255,0.18)',
+                        backdropFilter: 'blur(8px)',
+                      }}
+                    >
+                      <Icon name={app.icon} size={22} color="#fff" stroke={2} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 18, fontWeight: 800, color: '#fff', letterSpacing: -0.3 }}>
+                        {app.title}
+                      </div>
+                      <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}>
+                        {app.subtitle}
+                      </div>
+                    </div>
+                  </div>
+                  {/* Feature icon grid */}
+                  <div
+                    className="relative flex flex-wrap gap-4"
+                    style={{
+                      background: 'rgba(255,255,255,0.92)',
+                      backdropFilter: 'blur(12px)',
+                      borderRadius: 16, padding: '18px 16px',
                     }}
                   >
-                    <Icon name={app.icon} size={24} color="#fff" stroke={2} />
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 20, fontWeight: 800, color: '#fff', letterSpacing: -0.3 }}>
-                      {app.title}
-                    </div>
-                    <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.7)', fontWeight: 500 }}>
-                      {app.subtitle}
-                    </div>
+                    {app.features.map(f => (
+                      <FeatureIcon
+                        key={f.label}
+                        f={f}
+                        iconBox={iconBox}
+                        onTap={() => f.path && navigate(f.path)}
+                      />
+                    ))}
                   </div>
                 </div>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {app.features.map(f => (
-                  <FeatureRow
-                    key={f.label}
-                    f={f}
-                    onTap={() => f.path && navigate(f.path)}
-                  />
-                ))}
-              </div>
+              )}
             </div>
           ))}
         </div>
