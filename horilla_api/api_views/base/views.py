@@ -397,9 +397,9 @@ class WorkTypeRequestView(APIView):
                     redirect=f"/employee/work-type-request-view?id={instance.id}",
                     api_redirect=f"/api/base/worktype-requests/{instance.id}",
                 )
-                return Response(serializer.data, status=201)
-            except Exception as E:
-                return Response(serializer.errors, status=400)
+            except Exception:
+                pass
+            return Response(serializer.data, status=201)
         return Response(serializer.errors, status=400)
 
     @check_approval_status(WorkTypeRequest, "base.change_worktyperequest")
