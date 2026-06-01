@@ -3,15 +3,15 @@ from django.urls import path, re_path
 from ...api_views.notifications import views
 
 urlpatterns = [
-    path("notifications/list/<str:type>", views.NotificationView.as_view()),
-    path("notifications/<int:id>/", views.NotificationReadDelView.as_view()),
+    path("list/<str:type>", views.NotificationView.as_view()),
+    path("<int:id>/", views.NotificationReadDelView.as_view()),
     path(
-        "notifications/bulk-delete-unread/",
+        "bulk-delete-unread/",
         views.NotificationBulkDelUnreadMessageView.as_view(),
     ),
-    path("notifications/bulk-read/", views.NotificationBulkReadDelView.as_view()),
-    path("notifications/bulk-delete/", views.NotificationBulkReadDelView.as_view()),
-    path("notifications/summary/", views.NotificationSummaryView.as_view()),
+    path("bulk-read/", views.NotificationBulkReadDelView.as_view()),
+    path("bulk-delete/", views.NotificationBulkReadDelView.as_view()),
+    path("summary/", views.NotificationSummaryView.as_view()),
     path("push/vapid-key/", views.VapidPublicKeyView.as_view()),
     path("push/subscribe/", views.PushSubscribeView.as_view()),
     path("announcements/", views.AnnouncementCreateView.as_view()),
