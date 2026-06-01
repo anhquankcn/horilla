@@ -48,6 +48,7 @@ const apps: AppCard[] = [
       { slug: 'proposals', icon: 'send', label: 'Đề xuất', desc: 'Nghỉ phép, đổi ca, ngày công', path: '/proposals', tone: 'success', group: 'use' },
       { slug: 'approvals', icon: 'check', label: 'Phê duyệt', desc: 'Duyệt đề xuất nhân viên', path: '/approvals', tone: 'gold', group: 'use' },
       { slug: 'payslip', icon: 'doc', label: 'Phiếu lương', desc: 'Xem chi tiết lương hàng tháng', path: '/payslip', tone: 'navy', group: 'use' },
+      { slug: 'notifications', icon: 'bell', label: 'Thông báo', desc: 'Xem thông báo hệ thống', path: '/notifications', tone: 'navy', group: 'use' },
       { slug: 'employees', icon: 'users', label: 'Nhân sự', desc: 'Danh sách, hồ sơ nhân viên', path: '/employees', tone: 'navy', group: 'manage' },
       { slug: 'roles', icon: 'shield', label: 'Vai trò & Quyền', desc: 'Phân quyền, nhóm vai trò', path: '/roles', tone: 'navy', group: 'manage' },
       { slug: 'groups', icon: 'folder', label: 'Nhóm Quyền', desc: 'Quản lý nhóm, phân nhân sự', path: '/groups', tone: 'navy', group: 'manage' },
