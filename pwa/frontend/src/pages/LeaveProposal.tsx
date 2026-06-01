@@ -122,7 +122,7 @@ function LeaveForm({ leaveTypes, managers, watchers, onSubmit, submitting }: {
     )
   }
 
-  const canSubmit = !!leaveTypeId && !!startDate && !!description && selectedManagers.length > 0
+  const canSubmit = !!leaveTypeId && !!startDate && (isHourly || !!description) && selectedManagers.length > 0
 
   const handleSubmit = () => {
     if (!canSubmit) return
@@ -133,7 +133,7 @@ function LeaveForm({ leaveTypes, managers, watchers, onSubmit, submitting }: {
       start_date_breakdown: isHourly ? 'full_day' : startBreakdown,
       end_date_breakdown: isHourly ? 'full_day' : endBreakdown,
       description: isHourly
-        ? `[Nghỉ theo giờ] ${startTime}–${endTime}. ${description}`
+        ? `[Nghỉ theo giờ] ${startTime}–${endTime}${description ? '. ' + description : ''}`
         : description,
       approval_mode: approvalMode,
       approver_ids: selectedManagers,
@@ -150,7 +150,12 @@ function LeaveForm({ leaveTypes, managers, watchers, onSubmit, submitting }: {
         <input
           type="checkbox"
           checked={isHourly}
-          onChange={e => setIsHourly(e.target.checked)}
+          onChange={e => {
+            setIsHourly(e.target.checked)
+            if (e.target.checked && !leaveTypeId && leaveTypes.length > 0) {
+              setLeaveTypeId(String(leaveTypes[0].id))
+            }
+          }}
           style={{ width: 18, height: 18, accentColor: HNH.navy }}
         />
         <div>
