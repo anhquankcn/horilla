@@ -1160,6 +1160,45 @@ from employee.models import Employee, EmployeeWorkInformation
 from leave.models import AvailableLeave, LeaveType, LeaveRequest, LeaveRequestConditionApproval
 
 
+class MyProposalsView(APIView):
+    """List current user's leave requests for proposals hub."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        employee = request.user.employee_get
+        status_filter = request.GET.get("status", "")
+        leave_type_filter = request.GET.get("leave_type", "")
+
+        qs = LeaveRequest.objects.filter(
+            employee_id=employee
+        ).select_related("leave_type_id").order_by("-id")
+
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        if leave_type_filter:
+            qs = qs.filter(leave_type_id__id=leave_type_filter)
+
+        data = []
+        for lr in qs[:50]:
+            data.append({
+                "id": lr.id,
+                "leave_type": lr.leave_type_id.name if lr.leave_type_id else None,
+                "leave_type_id": lr.leave_type_id.id if lr.leave_type_id else None,
+                "start_date": lr.start_date.isoformat() if lr.start_date else None,
+                "end_date": lr.end_date.isoformat() if lr.end_date else None,
+                "start_date_breakdown": lr.start_date_breakdown,
+                "end_date_breakdown": lr.end_date_breakdown,
+                "requested_days": lr.requested_days,
+                "description": lr.description or "",
+                "status": lr.status,
+                "created_at": lr.created_at.isoformat() if lr.created_at else None,
+                "reject_reason": lr.reject_reason or "",
+            })
+
+        return Response(data)
+
+
 class WatcherCandidatesView(APIView):
     """List C&B employees as watcher candidates."""
 

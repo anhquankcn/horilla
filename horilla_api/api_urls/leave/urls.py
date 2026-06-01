@@ -46,6 +46,7 @@ urlpatterns = [
     path("check-assign/", LeaveAssignGetPermissionCheckAPIView.as_view()),
     path("check-perm/", LeavePermissionCheckAPIView.as_view()),
     # ── PWA Proposals & Approvals ──
+    path("my-proposals/", MyProposalsView.as_view(), name="api-leave-my-proposals"),
     path("my-summary/", MyLeaveSummaryView.as_view(), name="api-leave-my-summary"),
     path("available-managers/", AvailableManagersView.as_view(), name="api-leave-available-managers"),
     path("watcher-candidates/", WatcherCandidatesView.as_view(), name="api-leave-watcher-candidates"),

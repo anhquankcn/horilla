@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { TopBar } from '../components/layout/TopBar'
@@ -81,22 +82,23 @@ function BalanceCard({ b }: { b: LeaveBalance }) {
 }
 
 /* ── Leave Form ── */
-function LeaveForm({ leaveTypes, managers, watchers, onSubmit, submitting }: {
+function LeaveForm({ leaveTypes, managers, watchers, onSubmit, submitting, editData }: {
   leaveTypes: LeaveTypeOption[]
   managers: Manager[]
   watchers: Watcher[]
   onSubmit: (data: Record<string, unknown>) => void
   submitting: boolean
+  editData?: EditData | null
 }) {
-  const [leaveTypeId, setLeaveTypeId] = useState('')
-  const [isHourly, setIsHourly] = useState(false)
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
-  const [startBreakdown, setStartBreakdown] = useState('full_day')
-  const [endBreakdown, setEndBreakdown] = useState('full_day')
+  const [leaveTypeId, setLeaveTypeId] = useState(editData?.leave_type_id || '')
+  const [isHourly, setIsHourly] = useState(editData?.isHourly || false)
+  const [startDate, setStartDate] = useState(editData?.start_date || '')
+  const [endDate, setEndDate] = useState(editData?.end_date || '')
+  const [startBreakdown, setStartBreakdown] = useState(editData?.start_date_breakdown || 'full_day')
+  const [endBreakdown, setEndBreakdown] = useState(editData?.end_date_breakdown || 'full_day')
   const [startTime, setStartTime] = useState('08:00')
   const [endTime, setEndTime] = useState('12:00')
-  const [description, setDescription] = useState('')
+  const [description, setDescription] = useState(editData?.description || '')
   const [selectedManagers, setSelectedManagers] = useState<number[]>([])
   const [selectedWatchers, setSelectedWatchers] = useState<number[]>([])
   const [approvalMode, setApprovalMode] = useState<ApprovalMode>('single')
@@ -384,15 +386,30 @@ const inputStyle: React.CSSProperties = {
   outline: 'none', boxSizing: 'border-box',
 }
 
+interface EditData {
+  leave_type_id: string
+  start_date: string
+  end_date: string
+  start_date_breakdown: string
+  end_date_breakdown: string
+  description: string
+  isHourly: boolean
+}
+
 /* ── Main Page ── */
 export function LeaveProposalPage() {
-  const [view, setView] = useState<ViewState>('overview')
+  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const editId = searchParams.get('edit')
+
+  const [view, setView] = useState<ViewState>(editId ? 'form' : 'overview')
   const [summary, setSummary] = useState<LeaveSummary | null>(null)
   const [leaveTypes, setLeaveTypes] = useState<LeaveTypeOption[]>([])
   const [managers, setManagers] = useState<Manager[]>([])
   const [watchers, setWatchers] = useState<Watcher[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
+  const [editData, setEditData] = useState<EditData | null>(null)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
@@ -407,8 +424,26 @@ export function LeaveProposalPage() {
       setWatchers(watchRes)
       const types = sumRes.balances.map(b => ({ id: b.leave_type_id, name: b.leave_type_name }))
       setLeaveTypes(types)
+
+      if (editId) {
+        const proposals = await api.get<Array<Record<string, unknown>>>(`/api/leave/my-proposals/`)
+        const target = proposals.find((p: Record<string, unknown>) => String(p.id) === editId)
+        if (target) {
+          const desc = (target.description as string) || ''
+          const isHourly = desc.startsWith('[Nghỉ theo giờ]')
+          setEditData({
+            leave_type_id: target.leave_type_id ? String(target.leave_type_id) : '',
+            start_date: (target.start_date as string) || '',
+            end_date: (target.end_date as string) || '',
+            start_date_breakdown: (target.start_date_breakdown as string) || 'full_day',
+            end_date_breakdown: (target.end_date_breakdown as string) || 'full_day',
+            description: isHourly ? desc.replace(/^\[Nghỉ theo giờ\]\s*\d{2}:\d{2}–\d{2}:\d{2}\.?\s*/, '') : desc,
+            isHourly,
+          })
+        }
+      }
     } catch { /* ignore */ } finally { setLoading(false) }
-  }, [])
+  }, [editId])
 
   useEffect(() => { fetchData() }, [fetchData])
 
@@ -416,8 +451,12 @@ export function LeaveProposalPage() {
     setSubmitting(true)
     try {
       await api.post('/api/leave/user-request/', data)
-      setView('overview')
-      fetchData()
+      if (editId) {
+        navigate('/proposals', { replace: true })
+      } else {
+        setView('overview')
+        fetchData()
+      }
     } catch { /* ignore */ } finally { setSubmitting(false) }
   }
 
@@ -501,6 +540,7 @@ export function LeaveProposalPage() {
             watchers={watchers}
             onSubmit={handleSubmit}
             submitting={submitting}
+            editData={editData}
           />
         )}
       </div>
