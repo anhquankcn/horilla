@@ -16,9 +16,19 @@ self.addEventListener("push", (event) => {
     tag: "hnh-push-" + Date.now(),
     data: { url: payload.url || "/notifications" },
     vibrate: [200, 100, 200],
+    silent: false,
   };
 
-  event.waitUntil(self.registration.showNotification(title, options));
+  event.waitUntil(
+    self.registration.showNotification(title, options).then(() => {
+      // Notify all open app windows so they can play in-app sound
+      return self.clients.matchAll({ type: "window" }).then((windowClients) => {
+        for (const client of windowClients) {
+          client.postMessage({ type: "PUSH_RECEIVED", title, body: options.body });
+        }
+      });
+    })
+  );
 });
 
 self.addEventListener("notificationclick", (event) => {

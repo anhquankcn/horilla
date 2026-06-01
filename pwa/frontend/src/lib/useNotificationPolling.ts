@@ -4,12 +4,11 @@ import { playNotificationSound, warmUpAudio } from './notificationSound'
 
 interface Summary { unread: number; total: number }
 
-const POLL_INTERVAL = 30_000
+const POLL_INTERVAL = 15_000
 
 export function useNotificationPolling() {
   const prevUnread = useRef<number | null>(null)
 
-  // Warm up AudioContext on first user gesture (required by browsers)
   useEffect(() => {
     const handler = () => {
       warmUpAudio()
@@ -45,9 +44,27 @@ export function useNotificationPolling() {
     check()
     timer = setInterval(check, POLL_INTERVAL)
 
+    // Check immediately when tab becomes visible again
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') check()
+    }
+    document.addEventListener('visibilitychange', onVisible)
+
+    // Listen for push messages forwarded by service worker
+    const onSwMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'PUSH_RECEIVED') {
+        playNotificationSound()
+        // Also refresh count
+        check()
+      }
+    }
+    navigator.serviceWorker?.addEventListener('message', onSwMessage)
+
     return () => {
       mounted = false
       clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisible)
+      navigator.serviceWorker?.removeEventListener('message', onSwMessage)
     }
   }, [])
 }
