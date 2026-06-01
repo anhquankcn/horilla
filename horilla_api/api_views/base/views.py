@@ -1764,3 +1764,164 @@ class MyWorkTypeRequestsView(APIView):
                 "status": status,
             })
         return Response(data)
+
+
+class ApprovalHistoryView(APIView):
+    """Processed (approved/rejected) requests that the current manager handled."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from django.db.models import Q
+        from employee.models import EmployeeWorkInformation
+
+        emp = getattr(request.user, "employee_get", None)
+        if not emp:
+            return Response([], status=200)
+
+        subordinate_ids = set(
+            EmployeeWorkInformation.objects.filter(
+                reporting_manager_id=emp
+            ).values_list("employee_id", flat=True)
+        )
+
+        results = []
+
+        # ── Leave ──
+        try:
+            from leave.models import LeaveRequest, LeaveRequestConditionApproval
+
+            cond_ids = set(
+                LeaveRequestConditionApproval.objects.filter(
+                    manager_id=emp
+                ).filter(
+                    Q(is_approved=True) | Q(is_rejected=True)
+                ).values_list("leave_request_id", flat=True)
+            )
+            sub_qs = LeaveRequest.objects.filter(
+                employee_id__in=subordinate_ids,
+                status__in=["approved", "cancelled", "rejected"],
+            ).values_list("id", flat=True)
+            all_ids = cond_ids | set(sub_qs)
+
+            for lr in LeaveRequest.objects.filter(id__in=all_ids).select_related(
+                "employee_id", "leave_type_id"
+            ).order_by("-id")[:50]:
+                e = lr.employee_id
+                results.append({
+                    "kind": "leave",
+                    "id": lr.id,
+                    "employee_name": f"{e.employee_first_name} {e.employee_last_name or ''}".strip(),
+                    "badge_id": e.badge_id,
+                    "title": lr.leave_type_id.name if lr.leave_type_id else "Nghỉ phép",
+                    "detail": f"{lr.start_date or '—'} → {lr.end_date or '—'}",
+                    "description": lr.description or "",
+                    "status": lr.status,
+                    "date": str(lr.requested_date) if lr.requested_date else "",
+                })
+        except Exception:
+            pass
+
+        # ── Shift ──
+        try:
+            for r in ShiftRequest.objects.filter(
+                employee_id__in=subordinate_ids
+            ).filter(
+                Q(approved=True) | Q(canceled=True)
+            ).select_related(
+                "employee_id", "shift_id", "previous_shift_id"
+            ).order_by("-id")[:50]:
+                e = r.employee_id
+                status = "rejected" if r.canceled else "approved"
+                results.append({
+                    "kind": "shift",
+                    "id": r.id,
+                    "employee_name": f"{e.employee_first_name} {e.employee_last_name or ''}".strip(),
+                    "badge_id": e.badge_id,
+                    "title": f"{r.previous_shift_id or '—'} → {r.shift_id or '—'}",
+                    "detail": f"{r.requested_date or '—'}",
+                    "description": r.description or "",
+                    "status": status,
+                    "date": str(r.requested_date) if r.requested_date else "",
+                })
+        except Exception:
+            pass
+
+        # ── WorkType ──
+        try:
+            for r in WorkTypeRequest.objects.filter(
+                employee_id__in=subordinate_ids
+            ).filter(
+                Q(approved=True) | Q(canceled=True)
+            ).select_related(
+                "employee_id", "work_type_id", "previous_work_type_id"
+            ).order_by("-id")[:50]:
+                e = r.employee_id
+                status = "rejected" if r.canceled else "approved"
+                wt = r.work_type_id.work_type if r.work_type_id else "—"
+                pwt = r.previous_work_type_id.work_type if r.previous_work_type_id else "—"
+                results.append({
+                    "kind": "worktype",
+                    "id": r.id,
+                    "employee_name": f"{e.employee_first_name} {e.employee_last_name or ''}".strip(),
+                    "badge_id": e.badge_id,
+                    "title": f"{pwt} → {wt}",
+                    "detail": f"{r.requested_date or '—'}",
+                    "description": r.description or "",
+                    "status": status,
+                    "date": str(r.requested_date) if r.requested_date else "",
+                })
+        except Exception:
+            pass
+
+        # ── Attendance ──
+        try:
+            from attendance.models import Attendance
+
+            for a in Attendance.objects.filter(
+                approved_by=emp
+            ).select_related("employee_id").order_by("-id")[:50]:
+                e = a.employee_id
+                results.append({
+                    "kind": "attendance",
+                    "id": a.id,
+                    "employee_name": f"{e.employee_first_name} {e.employee_last_name or ''}".strip(),
+                    "badge_id": e.badge_id,
+                    "title": str(a.attendance_date) if a.attendance_date else "Ngày công",
+                    "detail": f"{a.attendance_clock_in or '—'} → {a.attendance_clock_out or '—'}",
+                    "description": a.request_description or "",
+                    "status": "approved",
+                    "date": str(a.attendance_date) if a.attendance_date else "",
+                })
+        except Exception:
+            pass
+
+        # ── Asset ──
+        try:
+            from asset.models import AssetRequest
+
+            for ar in AssetRequest.objects.filter(
+                asset_request_status__in=["Approved", "Rejected"],
+            ).select_related(
+                "requested_employee_id", "asset_category_id"
+            ).order_by("-id")[:50]:
+                if not subordinate_ids or (
+                    ar.requested_employee_id and ar.requested_employee_id.id in subordinate_ids
+                ):
+                    e = ar.requested_employee_id
+                    results.append({
+                        "kind": "asset",
+                        "id": ar.id,
+                        "employee_name": e.get_full_name() if e else "—",
+                        "badge_id": e.badge_id if e else None,
+                        "title": ar.asset_category_id.asset_category_name if ar.asset_category_id else "Tài sản",
+                        "detail": str(ar.asset_request_date) if ar.asset_request_date else "",
+                        "description": ar.description or "",
+                        "status": ar.asset_request_status.lower(),
+                        "date": str(ar.asset_request_date) if ar.asset_request_date else "",
+                    })
+        except Exception:
+            pass
+
+        results.sort(key=lambda x: x.get("date", ""), reverse=True)
+        return Response(results[:100])

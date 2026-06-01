@@ -277,4 +277,5 @@ urlpatterns = [
     path("keycloak/delete-sync/", views.KeycloakDeleteSyncView.as_view(), name="api-kc-delete-sync"),
     path("my-shift-requests/", views.MyShiftRequestsView.as_view(), name="api-my-shift-requests"),
     path("my-worktype-requests/", views.MyWorkTypeRequestsView.as_view(), name="api-my-worktype-requests"),
+    path("approval-history/", views.ApprovalHistoryView.as_view(), name="api-approval-history"),
 ]

@@ -83,6 +83,43 @@ interface AssetApprovalRequest {
 
 interface PaginatedResponse<T> { count: number; results: T[] }
 
+interface HistoryItem {
+  kind: 'leave' | 'shift' | 'worktype' | 'attendance' | 'asset'
+  id: number
+  employee_name: string
+  badge_id: string | null
+  title: string
+  detail: string
+  description: string
+  status: string
+  date: string
+}
+
+type PageMode = 'pending' | 'history'
+
+const KIND_META: Record<string, { label: string; icon: string; color: string; bg: string }> = {
+  leave:      { label: 'Nghỉ phép',  icon: 'palm',      color: HNH.warn,    bg: HNH.warn50 },
+  shift:      { label: 'Đổi Ca',     icon: 'clock',     color: '#a87908',   bg: '#faf1d6' },
+  worktype:   { label: 'Loại CV',    icon: 'briefcase', color: HNH.navy,    bg: HNH.navy50 },
+  attendance: { label: 'Ngày công',  icon: 'cal',       color: HNH.success, bg: HNH.success50 },
+  asset:      { label: 'Tài sản',    icon: 'monitor',   color: HNH.red,     bg: HNH.red50 },
+}
+
+const STATUS_BADGE: Record<string, { label: string; color: string; bg: string }> = {
+  approved:  { label: 'Đã duyệt',  color: HNH.success, bg: HNH.success50 },
+  rejected:  { label: 'Từ chối',   color: HNH.red,     bg: HNH.red50 },
+  cancelled: { label: 'Đã hủy',    color: HNH.ink3,    bg: HNH.cream2 },
+}
+
+const HISTORY_FILTERS = [
+  { value: '', label: 'Tất cả' },
+  { value: 'leave', label: 'Nghỉ phép' },
+  { value: 'shift', label: 'Đổi Ca' },
+  { value: 'worktype', label: 'Loại CV' },
+  { value: 'attendance', label: 'Ngày công' },
+  { value: 'asset', label: 'Tài sản' },
+]
+
 const TABS: { id: ApprovalTab; label: string; icon: string }[] = [
   { id: 'leave', label: 'Nghỉ phép', icon: 'palm' },
   { id: 'shift', label: 'Đổi Ca', icon: 'clock' },
@@ -764,16 +801,110 @@ function AttendanceDetailModal({ req, onClose, onAction }: {
   )
 }
 
+/* ── History Card ── */
+function HistoryCard({ item, onTap }: { item: HistoryItem; onTap: () => void }) {
+  const km = KIND_META[item.kind] || KIND_META.leave
+  const sb = STATUS_BADGE[item.status] || STATUS_BADGE.approved
+  return (
+    <button
+      onClick={onTap}
+      className="w-full border-none cursor-pointer text-left"
+      style={{
+        background: '#fff', borderRadius: 16, padding: '14px 16px',
+        border: `1px solid ${HNH.line}`, boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+      }}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className="flex items-center justify-center shrink-0"
+          style={{ width: 40, height: 40, borderRadius: 12, background: km.bg }}
+        >
+          <Icon name={km.icon} size={20} color={km.color} stroke={2} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span style={{ fontSize: 13.5, fontWeight: 700, color: HNH.ink }}>{item.employee_name}</span>
+            {item.badge_id && (
+              <span style={{ fontSize: 10.5, color: HNH.ink3, fontWeight: 500 }}>{item.badge_id}</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2" style={{ marginTop: 2 }}>
+            <span style={{
+              fontSize: 10, fontWeight: 700, color: km.color,
+              background: km.bg, borderRadius: 5, padding: '1px 6px',
+            }}>
+              {km.label}
+            </span>
+            <span style={{ fontSize: 12, color: HNH.navy, fontWeight: 600 }}>{item.title}</span>
+          </div>
+          <div style={{ fontSize: 11.5, color: HNH.ink3, fontWeight: 500, marginTop: 2 }}>
+            {formatDate(item.date)}
+          </div>
+        </div>
+        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+          <div style={{
+            fontSize: 10, fontWeight: 700, color: sb.color,
+            background: sb.bg, borderRadius: 6, padding: '2px 7px',
+          }}>
+            {sb.label}
+          </div>
+          <div style={{ fontSize: 10, color: HNH.ink3, marginTop: 4 }}>
+            {daysSince(item.date)}
+          </div>
+        </div>
+      </div>
+    </button>
+  )
+}
+
+/* ── History Detail Modal ── */
+function HistoryDetailModal({ item, onClose }: { item: HistoryItem; onClose: () => void }) {
+  const km = KIND_META[item.kind] || KIND_META.leave
+  const sb = STATUS_BADGE[item.status] || STATUS_BADGE.approved
+  return (
+    <ModalShell title="Chi tiết phê duyệt" onClose={onClose}>
+      <EmployeeAvatar name={item.employee_name} />
+      <div style={{
+        background: '#fff', borderRadius: 16, padding: 14, border: `1px solid ${HNH.line}`,
+        display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 16px',
+      }}>
+        <DetailField label="Loại" value={km.label} />
+        <div>
+          <div style={{ fontSize: 10.5, fontWeight: 600, color: HNH.ink3, marginBottom: 2 }}>Trạng thái</div>
+          <span style={{
+            fontSize: 12, fontWeight: 700, color: sb.color,
+            background: sb.bg, borderRadius: 6, padding: '2px 8px',
+          }}>
+            {sb.label}
+          </span>
+        </div>
+        <DetailField label="Nội dung" value={item.title} />
+        <DetailField label="Ngày" value={formatDate(item.date)} />
+        {item.detail && (
+          <div style={{ gridColumn: '1/-1' }}>
+            <DetailField label="Chi tiết" value={item.detail} />
+          </div>
+        )}
+        {item.description && (
+          <div style={{ gridColumn: '1/-1' }}>
+            <DetailField label="Lý do" value={item.description} />
+          </div>
+        )}
+      </div>
+    </ModalShell>
+  )
+}
+
 /* ── Empty State ── */
-function EmptyState() {
+function EmptyState({ message, sub }: { message?: string; sub?: string }) {
   return (
     <div style={{ textAlign: 'center', padding: 50 }}>
       <Icon name="check" size={40} color={HNH.success} stroke={1.5} />
       <div style={{ fontSize: 14, fontWeight: 700, color: HNH.ink, marginTop: 12 }}>
-        Không có đề xuất nào chờ duyệt
+        {message || 'Không có đề xuất nào chờ duyệt'}
       </div>
       <div style={{ fontSize: 12.5, color: HNH.ink3, marginTop: 4 }}>
-        Các đề xuất mới sẽ hiển thị tại đây
+        {sub || 'Các đề xuất mới sẽ hiển thị tại đây'}
       </div>
     </div>
   )
@@ -782,7 +913,10 @@ function EmptyState() {
 /* ── Main Page ── */
 export function ApprovalsPage() {
   const { toast } = useToast()
+  const [mode, setMode] = useState<PageMode>('pending')
   const [tab, setTab] = useState<ApprovalTab>('leave')
+
+  // Pending state
   const [leaveReqs, setLeaveReqs] = useState<LeaveRequest[]>([])
   const [shiftReqs, setShiftReqs] = useState<ShiftRequest[]>([])
   const [wtReqs, setWtReqs] = useState<WorkTypeRequest[]>([])
@@ -795,6 +929,12 @@ export function ApprovalsPage() {
   const [selectedWt, setSelectedWt] = useState<WorkTypeRequest | null>(null)
   const [selectedAtt, setSelectedAtt] = useState<AttendanceRequest | null>(null)
   const [selectedAsset, setSelectedAsset] = useState<AssetApprovalRequest | null>(null)
+
+  // History state
+  const [historyItems, setHistoryItems] = useState<HistoryItem[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyFilter, setHistoryFilter] = useState('')
+  const [selectedHistory, setSelectedHistory] = useState<HistoryItem | null>(null)
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
@@ -822,9 +962,23 @@ export function ApprovalsPage() {
     }
   }, [])
 
+  const fetchHistory = useCallback(async () => {
+    setHistoryLoading(true)
+    try {
+      const data = await api.get<HistoryItem[]>('/api/base/approval-history/')
+      setHistoryItems(Array.isArray(data) ? data : [])
+    } catch {
+      setHistoryItems([])
+    } finally {
+      setHistoryLoading(false)
+    }
+  }, [])
+
   useEffect(() => { fetchAll() }, [fetchAll])
+  useEffect(() => { if (mode === 'history') fetchHistory() }, [mode])
 
   const totalPending = leaveReqs.length + shiftReqs.length + wtReqs.length + attReqs.length + assetReqs.length
+  const filteredHistory = historyFilter ? historyItems.filter(h => h.kind === historyFilter) : historyItems
 
   const handleLeaveAction = async (action: 'approve' | 'reject', reason?: string) => {
     if (!selectedLeave) return
@@ -905,124 +1059,222 @@ export function ApprovalsPage() {
       <TopBar
         title="Phê duyệt"
         trailing={
-          <div style={{
-            fontSize: 12, fontWeight: 700,
-            color: totalPending > 0 ? HNH.warn : HNH.ink3,
-            background: totalPending > 0 ? HNH.warn50 : HNH.cream2,
-            borderRadius: 8, padding: '4px 10px',
-          }}>
-            {totalPending} chờ duyệt
-          </div>
+          mode === 'pending' ? (
+            <div style={{
+              fontSize: 12, fontWeight: 700,
+              color: totalPending > 0 ? HNH.warn : HNH.ink3,
+              background: totalPending > 0 ? HNH.warn50 : HNH.cream2,
+              borderRadius: 8, padding: '4px 10px',
+            }}>
+              {totalPending} chờ duyệt
+            </div>
+          ) : (
+            <div style={{
+              fontSize: 12, fontWeight: 700, color: HNH.ink3,
+              background: HNH.cream2, borderRadius: 8, padding: '4px 10px',
+            }}>
+              {filteredHistory.length} mục
+            </div>
+          )
         }
       />
 
-      {/* Tabs */}
-      <div style={{
-        display: 'flex', gap: 0, padding: '0 16px', maxWidth: 600, margin: '0 auto',
-        borderBottom: `1.5px solid ${HNH.line}`,
-      }}>
-        {TABS.map(t => {
-          const active = tab === t.id
-          const count = tabCounts[t.id]
-          return (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className="flex items-center justify-center gap-1.5 border-none cursor-pointer"
-              style={{
-                flex: 1, padding: '10px 4px', background: 'transparent',
-                borderBottom: active ? `2.5px solid ${HNH.navy}` : '2.5px solid transparent',
-                marginBottom: -1.5,
-              }}
-            >
-              <Icon name={t.icon} size={14} color={active ? HNH.navy : HNH.ink3} stroke={2} />
-              <span style={{
-                fontSize: 12, fontWeight: 700,
-                color: active ? HNH.navy : HNH.ink3,
-              }}>
-                {t.label}
-              </span>
-              {count > 0 && (
-                <span style={{
-                  fontSize: 10, fontWeight: 800, color: '#fff',
-                  background: active ? HNH.navy : HNH.ink3,
-                  borderRadius: 6, padding: '1px 5px', minWidth: 16, textAlign: 'center',
-                }}>
-                  {count}
-                </span>
-              )}
-            </button>
-          )
-        })}
+      {/* Mode toggle */}
+      <div style={{ padding: '0 16px', maxWidth: 600, margin: '0 auto' }}>
+        <div className="flex" style={{
+          background: HNH.cream2, borderRadius: 12, padding: 3, gap: 3,
+        }}>
+          {([
+            { id: 'pending' as PageMode, label: 'Chờ duyệt', icon: 'clock' },
+            { id: 'history' as PageMode, label: 'Đã xử lý', icon: 'check' },
+          ]).map(m => {
+            const active = mode === m.id
+            return (
+              <button
+                key={m.id}
+                onClick={() => setMode(m.id)}
+                className="flex-1 flex items-center justify-center gap-1.5 border-none cursor-pointer"
+                style={{
+                  padding: '9px 8px', borderRadius: 10,
+                  background: active ? '#fff' : 'transparent',
+                  boxShadow: active ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+                  fontSize: 13, fontWeight: 700,
+                  color: active ? HNH.navy : HNH.ink3,
+                }}
+              >
+                <Icon name={m.icon} size={14} color={active ? HNH.navy : HNH.ink3} stroke={2} />
+                {m.label}
+                {m.id === 'pending' && totalPending > 0 && (
+                  <span style={{
+                    fontSize: 10, fontWeight: 800, color: '#fff',
+                    background: HNH.warn, borderRadius: 6, padding: '1px 5px',
+                    minWidth: 16, textAlign: 'center',
+                  }}>
+                    {totalPending}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
       </div>
 
-      <PullToRefresh onRefresh={fetchAll}>
-        <div style={{ padding: '12px 16px 32px', maxWidth: 600, margin: '0 auto' }}>
-          {loading ? (
-            <div style={{ textAlign: 'center', padding: 40, color: HNH.ink3, fontSize: 13, fontWeight: 600 }}>
-              Đang tải...
+      {mode === 'pending' ? (
+        <>
+          {/* Category tabs */}
+          <div style={{
+            display: 'flex', gap: 0, padding: '0 16px', maxWidth: 600, margin: '0 auto',
+            borderBottom: `1.5px solid ${HNH.line}`, marginTop: 8,
+          }}>
+            {TABS.map(t => {
+              const active = tab === t.id
+              const count = tabCounts[t.id]
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  className="flex items-center justify-center gap-1.5 border-none cursor-pointer"
+                  style={{
+                    flex: 1, padding: '10px 4px', background: 'transparent',
+                    borderBottom: active ? `2.5px solid ${HNH.navy}` : '2.5px solid transparent',
+                    marginBottom: -1.5,
+                  }}
+                >
+                  <Icon name={t.icon} size={14} color={active ? HNH.navy : HNH.ink3} stroke={2} />
+                  <span style={{
+                    fontSize: 12, fontWeight: 700,
+                    color: active ? HNH.navy : HNH.ink3,
+                  }}>
+                    {t.label}
+                  </span>
+                  {count > 0 && (
+                    <span style={{
+                      fontSize: 10, fontWeight: 800, color: '#fff',
+                      background: active ? HNH.navy : HNH.ink3,
+                      borderRadius: 6, padding: '1px 5px', minWidth: 16, textAlign: 'center',
+                    }}>
+                      {count}
+                    </span>
+                  )}
+                </button>
+              )
+            })}
+          </div>
+
+          <PullToRefresh onRefresh={fetchAll}>
+            <div style={{ padding: '12px 16px 32px', maxWidth: 600, margin: '0 auto' }}>
+              {loading ? (
+                <div style={{ textAlign: 'center', padding: 40, color: HNH.ink3, fontSize: 13, fontWeight: 600 }}>
+                  Đang tải...
+                </div>
+              ) : (
+                <>
+                  {tab === 'leave' && (
+                    leaveReqs.length === 0 ? <EmptyState /> : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {leaveReqs.map(r => (
+                          <LeaveCard key={r.id} req={r} onTap={() => setSelectedLeave(r)} />
+                        ))}
+                      </div>
+                    )
+                  )}
+                  {tab === 'shift' && (
+                    shiftReqs.length === 0 ? <EmptyState /> : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {shiftReqs.map(r => (
+                          <ShiftCard key={r.id} req={r} onTap={() => setSelectedShift(r)} />
+                        ))}
+                      </div>
+                    )
+                  )}
+                  {tab === 'worktype' && (
+                    wtReqs.length === 0 ? <EmptyState /> : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {wtReqs.map(r => (
+                          <WorkTypeCard key={r.id} req={r} onTap={() => setSelectedWt(r)} />
+                        ))}
+                      </div>
+                    )
+                  )}
+                  {tab === 'attendance' && (
+                    attReqs.length === 0 ? <EmptyState /> : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {attReqs.map(r => (
+                          <AttendanceCard key={r.id} req={r} onTap={() => setSelectedAtt(r)} />
+                        ))}
+                      </div>
+                    )
+                  )}
+                  {tab === 'asset' && (
+                    assetReqs.length === 0 ? <EmptyState /> : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                        {assetReqs.map(r => (
+                          <AssetApprovalCard key={r.id} req={r} onTap={() => setSelectedAsset(r)} />
+                        ))}
+                      </div>
+                    )
+                  )}
+                </>
+              )}
             </div>
-          ) : (
-            <>
-              {/* Leave tab */}
-              {tab === 'leave' && (
-                leaveReqs.length === 0 ? <EmptyState /> : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {leaveReqs.map(r => (
-                      <LeaveCard key={r.id} req={r} onTap={() => setSelectedLeave(r)} />
-                    ))}
-                  </div>
-                )
-              )}
+          </PullToRefresh>
+        </>
+      ) : (
+        <>
+          {/* History filter chips */}
+          <div style={{
+            display: 'flex', gap: 6, padding: '10px 16px 0', maxWidth: 600, margin: '0 auto',
+            overflowX: 'auto', WebkitOverflowScrolling: 'touch',
+          }}>
+            {HISTORY_FILTERS.map(f => {
+              const active = historyFilter === f.value
+              return (
+                <button
+                  key={f.value}
+                  onClick={() => setHistoryFilter(f.value)}
+                  className="border-none cursor-pointer shrink-0"
+                  style={{
+                    padding: '6px 12px', borderRadius: 20,
+                    background: active ? HNH.navy : '#fff',
+                    color: active ? '#fff' : HNH.ink2,
+                    fontSize: 12, fontWeight: 700,
+                    border: `1.5px solid ${active ? HNH.navy : HNH.line}`,
+                  }}
+                >
+                  {f.label}
+                </button>
+              )
+            })}
+          </div>
 
-              {/* Shift tab */}
-              {tab === 'shift' && (
-                shiftReqs.length === 0 ? <EmptyState /> : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {shiftReqs.map(r => (
-                      <ShiftCard key={r.id} req={r} onTap={() => setSelectedShift(r)} />
-                    ))}
-                  </div>
-                )
+          <PullToRefresh onRefresh={fetchHistory}>
+            <div style={{ padding: '12px 16px 32px', maxWidth: 600, margin: '0 auto' }}>
+              {historyLoading ? (
+                <div style={{ textAlign: 'center', padding: 40, color: HNH.ink3, fontSize: 13, fontWeight: 600 }}>
+                  Đang tải...
+                </div>
+              ) : filteredHistory.length === 0 ? (
+                <EmptyState
+                  message="Chưa có phê duyệt nào"
+                  sub="Các đề xuất đã xử lý sẽ hiển thị tại đây"
+                />
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {filteredHistory.map(item => (
+                    <HistoryCard
+                      key={`${item.kind}-${item.id}`}
+                      item={item}
+                      onTap={() => setSelectedHistory(item)}
+                    />
+                  ))}
+                </div>
               )}
+            </div>
+          </PullToRefresh>
+        </>
+      )}
 
-              {/* WorkType tab */}
-              {tab === 'worktype' && (
-                wtReqs.length === 0 ? <EmptyState /> : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {wtReqs.map(r => (
-                      <WorkTypeCard key={r.id} req={r} onTap={() => setSelectedWt(r)} />
-                    ))}
-                  </div>
-                )
-              )}
-
-              {/* Attendance tab */}
-              {tab === 'attendance' && (
-                attReqs.length === 0 ? <EmptyState /> : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {attReqs.map(r => (
-                      <AttendanceCard key={r.id} req={r} onTap={() => setSelectedAtt(r)} />
-                    ))}
-                  </div>
-                )
-              )}
-
-              {/* Asset tab */}
-              {tab === 'asset' && (
-                assetReqs.length === 0 ? <EmptyState /> : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                    {assetReqs.map(r => (
-                      <AssetApprovalCard key={r.id} req={r} onTap={() => setSelectedAsset(r)} />
-                    ))}
-                  </div>
-                )
-              )}
-            </>
-          )}
-        </div>
-      </PullToRefresh>
-
+      {/* Pending modals */}
       {selectedLeave && (
         <LeaveDetailModal
           req={selectedLeave}
@@ -1056,6 +1308,14 @@ export function ApprovalsPage() {
           req={selectedAsset}
           onClose={() => setSelectedAsset(null)}
           onReject={handleAssetReject}
+        />
+      )}
+
+      {/* History detail modal */}
+      {selectedHistory && (
+        <HistoryDetailModal
+          item={selectedHistory}
+          onClose={() => setSelectedHistory(null)}
         />
       )}
     </div>
