@@ -303,6 +303,8 @@ class AnnouncementCreateView(APIView):
                 recipient=recipient_users,
                 verb=f"[{sender_label}] {title}",
                 description=body[:200],
+                redirect="/",
+                icon="chatbubbles",
             )
 
         return Response(_serialize_announcement(ann), status=201)
@@ -404,6 +406,8 @@ class AnnouncementFeedbackView(APIView):
             recipient=[ann.sender],
             verb=f"Phản hồi thông báo: {ann.title}",
             description=message[:200],
+            redirect="/",
+            icon="chatbubbles",
         )
 
         return Response(
