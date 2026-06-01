@@ -48,6 +48,7 @@ urlpatterns = [
     # ── PWA Proposals & Approvals ──
     path("my-summary/", MyLeaveSummaryView.as_view(), name="api-leave-my-summary"),
     path("available-managers/", AvailableManagersView.as_view(), name="api-leave-available-managers"),
+    path("watcher-candidates/", WatcherCandidatesView.as_view(), name="api-leave-watcher-candidates"),
     path("pending-approvals/", PendingApprovalsView.as_view(), name="api-leave-pending-approvals"),
     path("pwa-approve/<int:pk>/", ApproveLeaveView.as_view(), name="api-leave-pwa-approve"),
     path("pwa-reject/<int:pk>/", RejectLeaveView.as_view(), name="api-leave-pwa-reject"),

@@ -57,6 +57,9 @@ class EmployeeLeaveRequestGetCreateAPIView(APIView):
         data = request.data
         if isinstance(data, QueryDict):
             data = data.dict()
+        approver_ids = data.pop("approver_ids", None) or []
+        watcher_ids = data.pop("watcher_ids", None) or []
+        data.pop("approval_mode", None)
         data["employee_id"] = employee_id
         data["end_date"] = (
             data.get("start_date") if not data.get("end_date") else data.get("end_date")
@@ -64,19 +67,52 @@ class EmployeeLeaveRequestGetCreateAPIView(APIView):
         serializer = LeaveRequestCreateUpdateSerializer(data=data)
         if serializer.is_valid():
             leave_request = serializer.save()
+            actor = request.user.employee_get
+            emp_name = f"{actor.employee_first_name} {actor.employee_last_name or ''}".strip()
+
             with contextlib.suppress(Exception):
                 notify.send(
-                    request.user.employee_get,
+                    actor,
                     recipient=leave_request.employee_id.employee_work_info.reporting_manager_id.employee_user_id,
-                    verb="You have a new leave request to validate.",
-                    verb_ar="لديك طلب إجازة جديد يجب التحقق منه.",
-                    verb_de="Sie haben eine neue Urlaubsanfrage zur Validierung.",
-                    verb_es="Tiene una nueva solicitud de permiso que debe validar.",
-                    verb_fr="Vous avez une nouvelle demande de congé à valider.",
+                    verb=f"{emp_name} đã gửi đề xuất nghỉ phép",
                     icon="people-circle",
                     redirect=f"/leave/request-view?id={leave_request.id}",
                     api_redirect=f"/api/leave/request/{leave_request.id}/",
                 )
+
+            from employee.models import Employee
+            notified_user_ids = set()
+            with contextlib.suppress(Exception):
+                rm = leave_request.employee_id.employee_work_info.reporting_manager_id
+                if rm:
+                    notified_user_ids.add(rm.employee_user_id.id)
+
+            for aid in approver_ids:
+                with contextlib.suppress(Exception):
+                    approver = Employee.objects.get(id=aid, is_active=True)
+                    if approver.employee_user_id.id not in notified_user_ids:
+                        notify.send(
+                            actor,
+                            recipient=approver.employee_user_id,
+                            verb=f"{emp_name} đã gửi đề xuất nghỉ phép cần phê duyệt",
+                            icon="people-circle",
+                            redirect=f"/leave/request-view?id={leave_request.id}",
+                        )
+                        notified_user_ids.add(approver.employee_user_id.id)
+
+            for wid in watcher_ids:
+                with contextlib.suppress(Exception):
+                    watcher = Employee.objects.get(id=wid, is_active=True)
+                    if watcher.employee_user_id.id not in notified_user_ids:
+                        notify.send(
+                            actor,
+                            recipient=watcher.employee_user_id,
+                            verb=f"{emp_name} đã gửi đề xuất nghỉ phép (theo dõi)",
+                            icon="people-circle",
+                            redirect=f"/leave/request-view?id={leave_request.id}",
+                        )
+                        notified_user_ids.add(watcher.employee_user_id.id)
+
             return Response(
                 userLeaveRequestGetAllSerilaizer(leave_request).data, status=201
             )
@@ -1111,6 +1147,64 @@ class LeavePermissionCheckAPIView(APIView):
 from datetime import datetime
 from employee.models import Employee, EmployeeWorkInformation
 from leave.models import AvailableLeave, LeaveType, LeaveRequest, LeaveRequestConditionApproval
+
+
+class WatcherCandidatesView(APIView):
+    """List C&B / Kế toán employees as watcher candidates."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from base.models import Department, JobPosition
+
+        candidates = []
+        seen = set()
+
+        cb_positions = JobPosition.objects.filter(
+            job_position__icontains="C&B"
+        )
+        cb_employees = Employee.objects.filter(
+            employee_work_info__job_position_id__in=cb_positions,
+            is_active=True,
+        ).select_related("employee_work_info__job_position_id")
+
+        for emp in cb_employees:
+            if emp.id not in seen:
+                pos = None
+                wi = getattr(emp, "employee_work_info", None)
+                if wi and wi.job_position_id:
+                    pos = wi.job_position_id.job_position
+                candidates.append({
+                    "id": emp.id,
+                    "name": f"{emp.employee_first_name} {emp.employee_last_name or ''}".strip(),
+                    "position": pos,
+                    "department": wi.department_id.department if wi and wi.department_id else None,
+                })
+                seen.add(emp.id)
+
+        kt_dept = Department.objects.filter(
+            department__icontains="Kế toán"
+        ).first()
+        if kt_dept:
+            kt_employees = Employee.objects.filter(
+                employee_work_info__department_id=kt_dept,
+                is_active=True,
+            ).select_related("employee_work_info__job_position_id", "employee_work_info__department_id")
+            for emp in kt_employees:
+                if emp.id not in seen:
+                    pos = None
+                    wi = getattr(emp, "employee_work_info", None)
+                    if wi and wi.job_position_id:
+                        pos = wi.job_position_id.job_position
+                    candidates.append({
+                        "id": emp.id,
+                        "name": f"{emp.employee_first_name} {emp.employee_last_name or ''}".strip(),
+                        "position": pos,
+                        "department": wi.department_id.department if wi and wi.department_id else None,
+                    })
+                    seen.add(emp.id)
+
+        return Response(candidates)
 
 
 class MyLeaveSummaryView(APIView):

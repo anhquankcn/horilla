@@ -32,6 +32,13 @@ interface Manager {
   is_direct: boolean
 }
 
+interface Watcher {
+  id: number
+  name: string
+  position: string | null
+  department: string | null
+}
+
 type ViewState = 'overview' | 'form'
 type ApprovalMode = 'single' | 'all' | 'sequential'
 
@@ -74,9 +81,10 @@ function BalanceCard({ b }: { b: LeaveBalance }) {
 }
 
 /* ── Leave Form ── */
-function LeaveForm({ leaveTypes, managers, onSubmit, submitting }: {
+function LeaveForm({ leaveTypes, managers, watchers, onSubmit, submitting }: {
   leaveTypes: LeaveTypeOption[]
   managers: Manager[]
+  watchers: Watcher[]
   onSubmit: (data: Record<string, unknown>) => void
   submitting: boolean
 }) {
@@ -90,6 +98,7 @@ function LeaveForm({ leaveTypes, managers, onSubmit, submitting }: {
   const [endTime, setEndTime] = useState('12:00')
   const [description, setDescription] = useState('')
   const [selectedManagers, setSelectedManagers] = useState<number[]>([])
+  const [selectedWatchers, setSelectedWatchers] = useState<number[]>([])
   const [approvalMode, setApprovalMode] = useState<ApprovalMode>('single')
 
   useEffect(() => {
@@ -97,14 +106,26 @@ function LeaveForm({ leaveTypes, managers, onSubmit, submitting }: {
     if (direct) setSelectedManagers([direct.id])
   }, [managers])
 
+  useEffect(() => {
+    if (watchers.length > 0) setSelectedWatchers(watchers.map(w => w.id))
+  }, [watchers])
+
   const toggleManager = (id: number) => {
     setSelectedManagers(prev =>
       prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
     )
   }
 
+  const toggleWatcher = (id: number) => {
+    setSelectedWatchers(prev =>
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    )
+  }
+
+  const canSubmit = !!leaveTypeId && !!startDate && !!description && selectedManagers.length > 0
+
   const handleSubmit = () => {
-    if (!leaveTypeId || !startDate || !description || selectedManagers.length === 0) return
+    if (!canSubmit) return
     onSubmit({
       leave_type_id: parseInt(leaveTypeId),
       start_date: startDate,
@@ -116,11 +137,9 @@ function LeaveForm({ leaveTypes, managers, onSubmit, submitting }: {
         : description,
       approval_mode: approvalMode,
       approver_ids: selectedManagers,
+      watcher_ids: selectedWatchers,
     })
   }
-
-  const HOURLY_LEAVE_NAME = 'Nghỉ theo Giờ'
-  const hourlyType = leaveTypes.find(t => t.name === HOURLY_LEAVE_NAME)
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -131,14 +150,7 @@ function LeaveForm({ leaveTypes, managers, onSubmit, submitting }: {
         <input
           type="checkbox"
           checked={isHourly}
-          onChange={e => {
-            setIsHourly(e.target.checked)
-            if (e.target.checked && hourlyType) {
-              setLeaveTypeId(String(hourlyType.id))
-            } else {
-              setLeaveTypeId('')
-            }
-          }}
+          onChange={e => setIsHourly(e.target.checked)}
           style={{ width: 18, height: 18, accentColor: HNH.navy }}
         />
         <div>
@@ -148,20 +160,18 @@ function LeaveForm({ leaveTypes, managers, onSubmit, submitting }: {
       </div>
 
       {/* Leave type */}
-      {!isHourly && (
-        <Field label="Loại nghỉ phép">
-          <select
-            value={leaveTypeId}
-            onChange={e => setLeaveTypeId(e.target.value)}
-            style={inputStyle}
-          >
-            <option value="">Chọn loại nghỉ phép</option>
-            {leaveTypes.filter(t => t.name !== HOURLY_LEAVE_NAME).map(t => (
-              <option key={t.id} value={t.id}>{t.name}</option>
-            ))}
-          </select>
-        </Field>
-      )}
+      <Field label="Loại nghỉ phép">
+        <select
+          value={leaveTypeId}
+          onChange={e => setLeaveTypeId(e.target.value)}
+          style={inputStyle}
+        >
+          <option value="">Chọn loại nghỉ phép</option>
+          {leaveTypes.map(t => (
+            <option key={t.id} value={t.id}>{t.name}</option>
+          ))}
+        </select>
+      </Field>
 
       {/* Dates */}
       <div className="flex gap-3">
@@ -288,19 +298,64 @@ function LeaveForm({ leaveTypes, managers, onSubmit, submitting }: {
         </Field>
       )}
 
+      {/* Watchers */}
+      {watchers.length > 0 && (
+        <Field label="Người theo dõi (C&B)">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {watchers.map(w => {
+              const checked = selectedWatchers.includes(w.id)
+              return (
+                <button
+                  key={w.id}
+                  type="button"
+                  onClick={() => toggleWatcher(w.id)}
+                  className="flex items-center gap-3 w-full border-none cursor-pointer text-left"
+                  style={{
+                    background: checked ? HNH.success50 : '#fff',
+                    borderRadius: 10, padding: '8px 12px',
+                    border: `1.5px solid ${checked ? HNH.success : HNH.line}`,
+                  }}
+                >
+                  <div style={{
+                    width: 18, height: 18, borderRadius: 5,
+                    background: checked ? HNH.success : '#fff',
+                    border: checked ? 'none' : `2px solid ${HNH.line}`,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {checked && <Icon name="check" size={11} color="#fff" stroke={2.5} />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span style={{ fontSize: 12.5, fontWeight: 700, color: HNH.ink }}>{w.name}</span>
+                    {w.position && (
+                      <span style={{ fontSize: 11, color: HNH.ink3, marginLeft: 6 }}>{w.position}</span>
+                    )}
+                  </div>
+                  <span style={{
+                    fontSize: 9.5, fontWeight: 700, color: HNH.success,
+                    background: HNH.success50, borderRadius: 5, padding: '2px 6px',
+                  }}>
+                    C&B
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </Field>
+      )}
+
       {/* Submit */}
       <button
         onClick={handleSubmit}
-        disabled={!leaveTypeId || !startDate || !description || selectedManagers.length === 0 || submitting}
+        disabled={!canSubmit || submitting}
         className="w-full flex items-center justify-center gap-2 border-none cursor-pointer"
         style={{
           padding: '14px', borderRadius: 14, marginTop: 4,
-          background: (leaveTypeId && startDate && description && selectedManagers.length > 0) ? HNH.navy : HNH.cream2,
-          color: (leaveTypeId && startDate && description && selectedManagers.length > 0) ? '#fff' : HNH.ink3,
+          background: canSubmit ? HNH.navy : HNH.cream2,
+          color: canSubmit ? '#fff' : HNH.ink3,
           fontSize: 14, fontWeight: 700, opacity: submitting ? 0.6 : 1,
         }}
       >
-        <Icon name="send" size={16} color={(leaveTypeId && startDate && description && selectedManagers.length > 0) ? '#fff' : HNH.ink3} stroke={2} />
+        <Icon name="send" size={16} color={canSubmit ? '#fff' : HNH.ink3} stroke={2} />
         {submitting ? 'Đang gửi...' : 'Gửi đề xuất'}
       </button>
     </div>
@@ -330,18 +385,21 @@ export function LeaveProposalPage() {
   const [summary, setSummary] = useState<LeaveSummary | null>(null)
   const [leaveTypes, setLeaveTypes] = useState<LeaveTypeOption[]>([])
   const [managers, setManagers] = useState<Manager[]>([])
+  const [watchers, setWatchers] = useState<Watcher[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
 
   const fetchData = useCallback(async () => {
     setLoading(true)
     try {
-      const [sumRes, mgrRes] = await Promise.all([
+      const [sumRes, mgrRes, watchRes] = await Promise.all([
         api.get<LeaveSummary>('/api/leave/my-summary/'),
         api.get<Manager[]>('/api/leave/available-managers/'),
+        api.get<Watcher[]>('/api/leave/watcher-candidates/'),
       ])
       setSummary(sumRes)
       setManagers(mgrRes)
+      setWatchers(watchRes)
       const types = sumRes.balances.map(b => ({ id: b.leave_type_id, name: b.leave_type_name }))
       setLeaveTypes(types)
     } catch { /* ignore */ } finally { setLoading(false) }
@@ -435,6 +493,7 @@ export function LeaveProposalPage() {
           <LeaveForm
             leaveTypes={leaveTypes}
             managers={managers}
+            watchers={watchers}
             onSubmit={handleSubmit}
             submitting={submitting}
           />
