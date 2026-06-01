@@ -1102,3 +1102,229 @@ class LeavePermissionCheckAPIView(APIView):
         except:
             pass
         return Response({"perm_list": perm_list}, status=200)
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# PWA Proposals & Approvals API (HNH custom)
+# ──────────────────────────────────────────────────────────────────────────────
+
+from datetime import datetime
+from employee.models import Employee, EmployeeWorkInformation
+from leave.models import AvailableLeave, LeaveType, LeaveRequest, LeaveRequestConditionApproval
+
+
+class MyLeaveSummaryView(APIView):
+    """Leave balance summary for current user."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        employee = request.user.employee_get
+        balances = AvailableLeave.objects.filter(
+            employee_id=employee
+        ).select_related("leave_type_id")
+
+        data = []
+        for al in balances:
+            lt = al.leave_type_id
+            if lt is None:
+                continue
+            data.append({
+                "id": al.id,
+                "leave_type_id": lt.id,
+                "leave_type_name": lt.name,
+                "available_days": al.available_days,
+                "carryforward_days": al.carryforward_days,
+                "total_days": al.total_leave_days,
+            })
+
+        pending = LeaveRequest.objects.filter(
+            employee_id=employee, status="requested"
+        ).count()
+        approved = LeaveRequest.objects.filter(
+            employee_id=employee, status="approved"
+        ).count()
+
+        return Response({
+            "balances": data,
+            "pending_count": pending,
+            "approved_count": approved,
+        })
+
+
+class AvailableManagersView(APIView):
+    """List managers the employee can select for approval."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        employee = request.user.employee_get
+        wi = getattr(employee, "employee_work_info", None)
+
+        managers = []
+        seen = set()
+
+        if wi and wi.reporting_manager_id:
+            rm = wi.reporting_manager_id
+            managers.append({
+                "id": rm.id,
+                "name": f"{rm.employee_first_name} {rm.employee_last_name or ''}".strip(),
+                "position": getattr(getattr(rm, "employee_work_info", None), "job_position_id", None) and rm.employee_work_info.job_position_id.job_position or None,
+                "is_direct": True,
+            })
+            seen.add(rm.id)
+
+        all_managers = Employee.objects.filter(
+            reporting_manager__isnull=False,
+            is_active=True,
+        ).distinct()
+        for m in all_managers[:20]:
+            if m.id not in seen:
+                managers.append({
+                    "id": m.id,
+                    "name": f"{m.employee_first_name} {m.employee_last_name or ''}".strip(),
+                    "position": getattr(getattr(m, "employee_work_info", None), "job_position_id", None) and m.employee_work_info.job_position_id.job_position or None,
+                    "is_direct": False,
+                })
+                seen.add(m.id)
+
+        return Response(managers)
+
+
+class PendingApprovalsView(APIView):
+    """Pending leave/request approvals for the current manager."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        employee = request.user.employee_get
+
+        subordinate_ids = EmployeeWorkInformation.objects.filter(
+            reporting_manager_id=employee
+        ).values_list("employee_id", flat=True)
+
+        pending = LeaveRequest.objects.filter(
+            employee_id__in=subordinate_ids,
+            status="requested",
+        ).select_related("employee_id", "leave_type_id").order_by("id")
+
+        cond_approvals = LeaveRequestConditionApproval.objects.filter(
+            manager_id=employee,
+            is_approved=False,
+            is_rejected=False,
+        ).select_related("leave_request_id", "leave_request_id__employee_id", "leave_request_id__leave_type_id")
+
+        cond_request_ids = set()
+        for ca in cond_approvals:
+            if ca.leave_request_id.status == "requested":
+                cond_request_ids.add(ca.leave_request_id.id)
+
+        all_requests = list(pending) + list(
+            LeaveRequest.objects.filter(id__in=cond_request_ids).exclude(
+                id__in=pending.values_list("id", flat=True)
+            ).select_related("employee_id", "leave_type_id")
+        )
+
+        all_requests.sort(key=lambda r: r.id)
+
+        data = []
+        for lr in all_requests:
+            emp = lr.employee_id
+            data.append({
+                "id": lr.id,
+                "employee_id": emp.id,
+                "employee_name": f"{emp.employee_first_name} {emp.employee_last_name or ''}".strip(),
+                "badge_id": emp.badge_id,
+                "leave_type": lr.leave_type_id.name if lr.leave_type_id else None,
+                "start_date": lr.start_date.isoformat() if lr.start_date else None,
+                "end_date": lr.end_date.isoformat() if lr.end_date else None,
+                "requested_days": lr.requested_days,
+                "description": lr.description,
+                "status": lr.status,
+                "requested_date": lr.requested_date.isoformat() if lr.requested_date else None,
+                "start_date_breakdown": lr.start_date_breakdown,
+                "end_date_breakdown": lr.end_date_breakdown,
+            })
+
+        return Response(data)
+
+
+class ApproveLeaveView(APIView):
+    """Approve a leave request (for managers via PWA)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            lr = LeaveRequest.objects.get(pk=pk)
+        except LeaveRequest.DoesNotExist:
+            return Response({"error": "Not found"}, status=404)
+
+        if lr.status != "requested":
+            return Response({"error": "Already processed"}, status=400)
+
+        available_leave = AvailableLeave.objects.filter(
+            employee_id=lr.employee_id,
+            leave_type_id=lr.leave_type_id,
+        ).first()
+
+        if available_leave and lr.requested_days:
+            if lr.requested_days > available_leave.available_days:
+                overflow = lr.requested_days - available_leave.available_days
+                lr.approved_available_days = available_leave.available_days
+                available_leave.available_days = 0
+                available_leave.carryforward_days -= overflow
+                lr.approved_carryforward_days = overflow
+            else:
+                available_leave.available_days -= lr.requested_days
+                lr.approved_available_days = lr.requested_days
+            available_leave.save()
+
+        lr.status = "approved"
+        lr.save()
+
+        import contextlib
+        from notifications.signals import notify
+        with contextlib.suppress(Exception):
+            notify.send(
+                request.user.employee_get,
+                recipient=lr.employee_id.employee_user_id,
+                verb="Đề xuất nghỉ phép của bạn đã được duyệt",
+                icon="people-circle",
+                redirect=f"/leave/user-request-view?id={lr.id}",
+            )
+
+        return Response({"status": "approved"})
+
+
+class RejectLeaveView(APIView):
+    """Reject a leave request with reason (for managers via PWA)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        try:
+            lr = LeaveRequest.objects.get(pk=pk)
+        except LeaveRequest.DoesNotExist:
+            return Response({"error": "Not found"}, status=404)
+
+        if lr.status != "requested":
+            return Response({"error": "Already processed"}, status=400)
+
+        reason = request.data.get("reason", "")
+        lr.status = "rejected"
+        lr.reject_reason = reason
+        lr.save()
+
+        import contextlib
+        from notifications.signals import notify
+        with contextlib.suppress(Exception):
+            notify.send(
+                request.user.employee_get,
+                recipient=lr.employee_id.employee_user_id,
+                verb="Đề xuất nghỉ phép của bạn đã bị từ chối",
+                icon="people-circle",
+                redirect=f"/leave/user-request-view?id={lr.id}",
+            )
+
+        return Response({"status": "rejected"})

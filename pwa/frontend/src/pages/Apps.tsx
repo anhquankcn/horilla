@@ -43,6 +43,8 @@ const apps: AppCard[] = [
     icon: 'users',
     features: [
       { icon: 'clock', label: 'Chấm công', desc: 'Check-in, lịch sử, GPS', path: '/attendance', tone: 'navy', group: 'use' },
+      { icon: 'send', label: 'Đề xuất', desc: 'Nghỉ phép, đổi ca, ngày công', path: '/proposals', tone: 'success', group: 'use' },
+      { icon: 'check', label: 'Phê duyệt', desc: 'Duyệt đề xuất nhân viên', path: '/approvals', tone: 'gold', group: 'use' },
       { icon: 'users', label: 'Nhân sự', desc: 'Danh sách, hồ sơ nhân viên', path: '/employees', tone: 'navy', group: 'manage' },
       { icon: 'shield', label: 'Vai trò & Quyền', desc: 'Phân quyền, nhóm vai trò', path: '/roles', tone: 'navy', group: 'manage' },
       { icon: 'folder', label: 'Nhóm Quyền', desc: 'Quản lý nhóm, phân nhân sự', path: '/groups', tone: 'navy', group: 'manage' },
@@ -60,7 +62,6 @@ const apps: AppCard[] = [
     features: [
       { icon: 'check', label: 'Công việc', desc: 'Tasks, deadline, phân công', path: '/tasks', tone: 'red', group: 'use' },
       { icon: 'folder', label: 'Dự án', desc: 'Quản lý dự án, tiến độ', path: null, tone: 'gold', group: 'use' },
-      { icon: 'send', label: 'Đề xuất', desc: 'Tạo & duyệt đề xuất nội bộ', path: null, tone: 'success', group: 'use' },
     ],
   },
 ]

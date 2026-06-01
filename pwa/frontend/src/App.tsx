@@ -19,6 +19,9 @@ import { EmployeesPage } from './pages/Employees'
 import { RolesPage } from './pages/Roles'
 import { GroupsPage } from './pages/Groups'
 import { AttendanceActivityPage } from './pages/AttendanceActivity'
+import { ProposalsPage } from './pages/Proposals'
+import { LeaveProposalPage } from './pages/LeaveProposal'
+import { ApprovalsPage } from './pages/Approvals'
 
 export function App() {
   return (
@@ -32,6 +35,9 @@ export function App() {
         <Route path="/roles" element={<RolesPage />} />
         <Route path="/groups" element={<GroupsPage />} />
         <Route path="/attendance-activity" element={<AttendanceActivityPage />} />
+        <Route path="/proposals" element={<ProposalsPage />} />
+        <Route path="/proposals/leave" element={<LeaveProposalPage />} />
+        <Route path="/approvals" element={<ApprovalsPage />} />
         <Route path="/attendance" element={<AttendancePage />} />
         <Route path="/attendance/office" element={<OfficeCheckinPage />} />
         <Route path="/ruby" element={<RubyPage />} />
