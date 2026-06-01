@@ -40,4 +40,9 @@ urlpatterns = [
         MyAssetRequestsView.as_view(),
         name="api-my-asset-requests",
     ),
+    path(
+        "pwa-dashboard/",
+        AssetPWADashboardView.as_view(),
+        name="api-asset-pwa-dashboard",
+    ),
 ]

@@ -11,4 +11,5 @@ urlpatterns = [
     path("leave/", include("horilla_api.api_urls.leave.urls")),
     path("tourism/", include("horilla_api.api_urls.tourism.urls")),
     path("eoffice/", include("horilla_api.api_urls.eoffice.urls")),
+    path("project/", include("horilla_api.api_urls.project.urls")),
 ]

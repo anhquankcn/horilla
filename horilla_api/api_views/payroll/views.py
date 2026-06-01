@@ -480,3 +480,159 @@ class MyMonthlyPayrollView(APIView):
             })
 
         return Response(results)
+
+
+class PayrollManagementView(APIView):
+    """Payroll overview for managers: summary + employee payroll entries for a month."""
+
+    permission_classes = [IsAuthenticated]
+
+    MONTH_VI = [
+        "", "Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5", "Tháng 6",
+        "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12",
+    ]
+
+    CONTRACT_LABELS = {
+        "trial": "HĐ Thử việc",
+        "official": "HĐ Chính thức",
+        "performance": "HĐ Hiệu suất",
+    }
+
+    def get(self, request):
+        from datetime import date
+
+        from base.models import Department
+        from employee.models import Employee
+        from payroll.models.contract_models import MonthlyPayrollEntry
+        from payroll.views.contract_hnh_views import (
+            _compute_entry_formulas,
+            _get_bhxh_caps,
+        )
+
+        year = request.query_params.get("year")
+        month_param = request.query_params.get("month")
+        dept_id = request.query_params.get("department", "")
+        ctype = request.query_params.get("contract_type", "")
+        search = request.query_params.get("search", "").strip()
+
+        today = date.today()
+        if year and month_param:
+            try:
+                year = int(year)
+                month_val = int(month_param)
+            except ValueError:
+                year, month_val = today.year, today.month
+        else:
+            year, month_val = today.year, today.month
+
+        departments = []
+        for d in Department.objects.all().order_by("department"):
+            departments.append({"id": d.id, "name": d.department})
+
+        qs = MonthlyPayrollEntry.objects.filter(
+            year=year, month=month_val,
+        ).select_related(
+            "employee_id",
+            "employee_id__employee_work_info",
+            "employee_id__employee_work_info__department_id",
+            "trial_contract",
+            "official_contract",
+            "performance_contract",
+        ).order_by("employee_id__employee_first_name")
+
+        if dept_id:
+            qs = qs.filter(
+                employee_id__employee_work_info__department_id=int(dept_id)
+            )
+        if ctype == "trial":
+            qs = qs.filter(trial_contract__isnull=False)
+        elif ctype == "official":
+            qs = qs.filter(official_contract__isnull=False)
+        elif ctype == "performance":
+            qs = qs.filter(performance_contract__isnull=False)
+        if search:
+            from django.db.models import Q
+            qs = qs.filter(
+                Q(employee_id__employee_first_name__icontains=search)
+                | Q(employee_id__employee_last_name__icontains=search)
+            )
+
+        bhxh_cap, bhtn_cap = _get_bhxh_caps()
+
+        rows = []
+        total_gross_sum = 0
+        total_net_sum = 0
+        total_bhxh_sum = 0
+        total_pit_sum = 0
+
+        for e in qs[:200]:
+            f = _compute_entry_formulas(e, bhxh_cap, bhtn_cap)
+
+            emp = e.employee_id
+            dept_name = ""
+            position = ""
+            if emp and hasattr(emp, "employee_work_info") and emp.employee_work_info:
+                wi = emp.employee_work_info
+                dept_name = str(wi.department_id) if wi.department_id else ""
+                position = str(wi.job_position_id) if wi.job_position_id else ""
+
+            ct = "—"
+            if e.trial_contract_id:
+                ct = "HĐ Thử việc"
+            elif e.official_contract_id:
+                ct = "HĐ Chính thức"
+            elif e.performance_contract_id:
+                ct = "HĐ Hiệu suất"
+
+            ab = f.get("AB", 0)
+            ak = f.get("AK", 0)
+            af = f.get("AF", 0)
+            ai = f.get("AI", 0)
+
+            total_gross_sum += ab
+            total_net_sum += ak
+            total_bhxh_sum += af
+            total_pit_sum += ai
+
+            rows.append({
+                "id": e.pk,
+                "employee_id": emp.id if emp else None,
+                "name": emp.get_full_name() if emp else "—",
+                "department": dept_name,
+                "position": position,
+                "contract_type": ct,
+                "standard_days": float(e.standard_days),
+                "actual_days": float(e.actual_days),
+                "lcb_bhxh": int(e.lcb_bhxh),
+                "total_gross": int(e.total_gross),
+                "pc_chuc_vu": int(e.pc_chuc_vu),
+                "pc_travel": int(e.pc_travel),
+                "night_shifts": float(e.night_shifts),
+                "ot_normal": float(e.ot_normal),
+                "ot_weekend": float(e.ot_weekend),
+                "ot_holiday": float(e.ot_holiday),
+                "kpi_pct": float(e.kpi_pct),
+                "incentive": int(e.incentive),
+                "bonus": int(e.bonus),
+                "tam_ung": int(e.tam_ung),
+                "npt": e.npt,
+                **f,
+            })
+
+        emp_count = len(rows)
+
+        return Response({
+            "year": year,
+            "month": month_val,
+            "month_label": self.MONTH_VI[month_val] if 1 <= month_val <= 12 else f"T{month_val}",
+            "departments": departments,
+            "summary": {
+                "employees": emp_count,
+                "total_gross": total_gross_sum,
+                "total_net": total_net_sum,
+                "total_bhxh": total_bhxh_sum,
+                "total_pit": total_pit_sum,
+                "avg_net": round(total_net_sum / emp_count) if emp_count else 0,
+            },
+            "rows": rows,
+        })

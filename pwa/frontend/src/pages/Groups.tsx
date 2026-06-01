@@ -66,6 +66,14 @@ const APP_FEATURES = [
   { slug: 'announcement-hub', label: 'Hub Thông Báo', icon: 'send', section: 'hrm' },
   { slug: 'tasks', label: 'Công việc', icon: 'check', section: 'eoffice' },
   { slug: 'projects', label: 'Dự án', icon: 'folder', section: 'eoffice' },
+  { slug: 'dashboard', label: 'Dashboard', icon: 'grid', section: 'hrm' },
+  { slug: 'unified-calendar', label: 'Lịch tổng hợp', icon: 'cal', section: 'eoffice' },
+  { slug: 'assets', label: 'Tài sản', icon: 'doc', section: 'hrm' },
+  { slug: 'reports', label: 'Báo cáo', icon: 'grid', section: 'hrm' },
+  { slug: 'payroll-mgmt', label: 'Bảng lương', icon: 'doc', section: 'hrm' },
+  { slug: 'documents', label: 'Tài liệu', icon: 'folder', section: 'hrm' },
+  { slug: 'onboarding', label: 'On/Offboarding', icon: 'star', section: 'hrm' },
+  { slug: 'journey', label: 'Hành trình NV', icon: 'layers', section: 'hrm' },
 ]
 
 /* ── Group Card ── */

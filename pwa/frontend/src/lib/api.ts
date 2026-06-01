@@ -8,7 +8,7 @@ export class ApiError extends Error {
 
 export async function apiFetch<T = unknown>(path: string, init?: RequestInit): Promise<T> {
   const headers: Record<string, string> = { ...init?.headers as Record<string, string> };
-  if (init?.body) {
+  if (init?.body && !(init.body instanceof FormData)) {
     headers['Content-Type'] ??= 'application/json';
   }
 

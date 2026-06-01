@@ -340,3 +340,134 @@ class MyAssetRequestsView(APIView):
             })
 
         return Response(data)
+
+
+class AssetPWADashboardView(APIView):
+    """Combined asset data for PWA management page."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        status_filter = request.GET.get("status", "")
+        category_filter = request.GET.get("category", "")
+        tab = request.GET.get("tab", "assets")
+        search = request.GET.get("search", "").strip()
+
+        total = Asset.objects.count()
+        in_use = Asset.objects.filter(asset_status="In use").count()
+        available = Asset.objects.filter(asset_status="Available").count()
+        not_available = Asset.objects.filter(asset_status="Not-Available").count()
+        pending_requests = AssetRequest.objects.filter(
+            asset_request_status="Requested"
+        ).count()
+
+        categories = []
+        for cat in AssetCategory.objects.all().order_by("asset_category_name"):
+            categories.append({
+                "id": cat.id,
+                "name": cat.asset_category_name,
+                "count": cat.asset_set.count(),
+            })
+
+        result = {
+            "summary": {
+                "total": total,
+                "in_use": in_use,
+                "available": available,
+                "not_available": not_available,
+                "pending_requests": pending_requests,
+            },
+            "categories": categories,
+        }
+
+        if tab == "assets":
+            qs = Asset.objects.select_related(
+                "asset_category_id", "owner", "asset_lot_number_id"
+            ).order_by("-created_at")
+            if status_filter:
+                qs = qs.filter(asset_status=status_filter)
+            if category_filter:
+                qs = qs.filter(asset_category_id=int(category_filter))
+            if search:
+                qs = qs.filter(
+                    models.Q(asset_name__icontains=search)
+                    | models.Q(asset_tracking_id__icontains=search)
+                )
+            assets = []
+            for a in qs[:100]:
+                assets.append({
+                    "id": a.id,
+                    "name": a.asset_name,
+                    "tracking_id": a.asset_tracking_id,
+                    "status": a.asset_status,
+                    "category": a.asset_category_id.asset_category_name if a.asset_category_id else None,
+                    "category_id": a.asset_category_id.id if a.asset_category_id else None,
+                    "owner_name": a.owner.get_full_name() if a.owner else None,
+                    "owner_id": a.owner.id if a.owner else None,
+                    "purchase_date": a.asset_purchase_date.isoformat() if a.asset_purchase_date else None,
+                    "cost": str(a.asset_purchase_cost) if a.asset_purchase_cost else None,
+                    "description": a.asset_description or "",
+                    "lot": a.asset_lot_number_id.lot_number if a.asset_lot_number_id else None,
+                    "expiry_date": a.expiry_date.isoformat() if a.expiry_date else None,
+                })
+            result["assets"] = assets
+
+        elif tab == "assignments":
+            qs = AssetAssignment.objects.filter(
+                return_date__isnull=True
+            ).select_related(
+                "asset_id", "asset_id__asset_category_id",
+                "assigned_to_employee_id", "assigned_by_employee_id",
+            ).order_by("-assigned_date")
+            if search:
+                qs = qs.filter(
+                    models.Q(asset_id__asset_name__icontains=search)
+                    | models.Q(assigned_to_employee_id__employee_first_name__icontains=search)
+                    | models.Q(assigned_to_employee_id__employee_last_name__icontains=search)
+                )
+            assignments = []
+            for aa in qs[:100]:
+                emp = aa.assigned_to_employee_id
+                dept = ""
+                if hasattr(emp, "employee_work_info") and emp.employee_work_info:
+                    dept = str(emp.employee_work_info.department_id or "")
+                assignments.append({
+                    "id": aa.id,
+                    "asset_name": aa.asset_id.asset_name if aa.asset_id else "—",
+                    "asset_tracking_id": aa.asset_id.asset_tracking_id if aa.asset_id else "",
+                    "category": aa.asset_id.asset_category_id.asset_category_name if aa.asset_id and aa.asset_id.asset_category_id else "",
+                    "employee_name": emp.get_full_name() if emp else "—",
+                    "employee_id": emp.id if emp else None,
+                    "department": dept,
+                    "assigned_date": aa.assigned_date.isoformat() if aa.assigned_date else None,
+                    "return_request": aa.return_request,
+                })
+            result["assignments"] = assignments
+
+        elif tab == "requests":
+            qs = AssetRequest.objects.select_related(
+                "requested_employee_id", "asset_category_id"
+            ).order_by("-id")
+            req_status = request.GET.get("req_status", "")
+            if req_status:
+                qs = qs.filter(asset_request_status=req_status)
+            if search:
+                qs = qs.filter(
+                    models.Q(requested_employee_id__employee_first_name__icontains=search)
+                    | models.Q(requested_employee_id__employee_last_name__icontains=search)
+                    | models.Q(asset_category_id__asset_category_name__icontains=search)
+                )
+            requests_list = []
+            for ar in qs[:100]:
+                requests_list.append({
+                    "id": ar.id,
+                    "employee_name": ar.requested_employee_id.get_full_name() if ar.requested_employee_id else "—",
+                    "employee_id": ar.requested_employee_id.id if ar.requested_employee_id else None,
+                    "category_name": ar.asset_category_id.asset_category_name if ar.asset_category_id else "—",
+                    "description": ar.description or "",
+                    "status": ar.asset_request_status or "Requested",
+                    "request_date": ar.asset_request_date.isoformat() if ar.asset_request_date else None,
+                })
+            result["requests"] = requests_list
+
+        return Response(result)

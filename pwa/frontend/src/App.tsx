@@ -29,6 +29,16 @@ import { AttendanceProposalPage } from './pages/AttendanceProposal'
 import { AssetProposalPage } from './pages/AssetProposal'
 import { CalendarPage } from './pages/Calendar'
 import { AnnouncementHubPage } from './pages/AnnouncementHub'
+import { ProjectsPage } from './pages/Projects'
+import { DashboardPage } from './pages/Dashboard'
+import { EmployeeProfilePage } from './pages/EmployeeProfile'
+import { UnifiedCalendarPage } from './pages/UnifiedCalendar'
+import { AssetsPage } from './pages/Assets'
+import { ReportsPage } from './pages/Reports'
+import { PayrollMgmtPage } from './pages/PayrollMgmt'
+import { DocumentsPage } from './pages/Documents'
+import { OnboardingPage } from './pages/Onboarding'
+import { JourneyPage } from './pages/Journey'
 
 export function App() {
   return (
@@ -61,6 +71,16 @@ export function App() {
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
         <Route path="/announcement-hub" element={<AnnouncementHubPage />} />
+        <Route path="/projects" element={<ProjectsPage />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/employees/:id" element={<EmployeeProfilePage />} />
+        <Route path="/unified-calendar" element={<UnifiedCalendarPage />} />
+        <Route path="/assets" element={<AssetsPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/payroll-mgmt" element={<PayrollMgmtPage />} />
+        <Route path="/documents" element={<DocumentsPage />} />
+        <Route path="/onboarding" element={<OnboardingPage />} />
+        <Route path="/journey" element={<JourneyPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
 

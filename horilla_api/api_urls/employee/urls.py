@@ -200,4 +200,39 @@ urlpatterns = [
         views.MyAppsView.as_view(),
         name="api-my-apps",
     ),
+    path(
+        "dashboard/",
+        views.DashboardView.as_view(),
+        name="api-dashboard",
+    ),
+    path(
+        "<int:pk>/profile/",
+        views.EmployeeProfileView.as_view(),
+        name="api-employee-profile",
+    ),
+    path(
+        "unified-calendar/",
+        views.UnifiedCalendarView.as_view(),
+        name="api-unified-calendar",
+    ),
+    path(
+        "reports/",
+        views.ReportsView.as_view(),
+        name="api-reports",
+    ),
+    path(
+        "documents-pwa/",
+        views.DocumentsPWAView.as_view(),
+        name="api-documents-pwa",
+    ),
+    path(
+        "onboarding-offboarding/",
+        views.OnboardingOffboardingPWAView.as_view(),
+        name="api-onboarding-offboarding",
+    ),
+    path(
+        "employee-journey/",
+        views.EmployeeJourneyPWAView.as_view(),
+        name="api-employee-journey",
+    ),
 ]

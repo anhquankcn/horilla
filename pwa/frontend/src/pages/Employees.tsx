@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { TopBar } from '../components/layout/TopBar'
@@ -328,8 +329,9 @@ function ChangeRolePanel({ emp, onDone }: { emp: Emp; onDone: (role: string) => 
   )
 }
 
-function DetailModal({ emp: initialEmp, onClose, isTablet, onEmpUpdated }: {
+function DetailModal({ emp: initialEmp, onClose, isTablet, onEmpUpdated, onViewProfile }: {
   emp: Emp; onClose: () => void; isTablet: boolean; onEmpUpdated?: (emp: Emp) => void
+  onViewProfile?: (id: number) => void
 }) {
   const [emp, setEmp] = useState(initialEmp)
   const [tab, setTab] = useState<DetailTab>('info')
@@ -393,7 +395,14 @@ function DetailModal({ emp: initialEmp, onClose, isTablet, onEmpUpdated }: {
               <Icon name="x" size={18} color={HNH.ink} stroke={2} />
             </button>
             <div style={{ fontSize: 15, fontWeight: 700, color: HNH.ink }}>Hồ sơ nhân viên</div>
-            <div style={{ width: 36 }} />
+            <button
+              onClick={() => onViewProfile?.(emp.id)}
+              className="flex items-center gap-1 border-none cursor-pointer"
+              style={{ background: HNH.navy50, borderRadius: 8, padding: '6px 10px', fontSize: 11, fontWeight: 700, color: HNH.navy }}
+            >
+              <Icon name="doc" size={12} color={HNH.navy} stroke={2} />
+              Chi tiết
+            </button>
           </div>
 
           {/* Profile header */}
@@ -593,6 +602,7 @@ function DeptChips({ depts, active, onPick }: { depts: Dept[]; active: number | 
 
 /* ── Main page ── */
 export function EmployeesPage() {
+  const navigate = useNavigate()
   const isTablet = useTablet()
   const [employees, setEmployees] = useState<Emp[]>([])
   const [depts, setDepts] = useState<Dept[]>([])
@@ -755,7 +765,13 @@ export function EmployeesPage() {
       </div>
 
       {selected && (
-        <DetailModal emp={selected} onClose={() => setSelected(null)} isTablet={isTablet} onEmpUpdated={handleEmpUpdated} />
+        <DetailModal
+          emp={selected}
+          onClose={() => setSelected(null)}
+          isTablet={isTablet}
+          onEmpUpdated={handleEmpUpdated}
+          onViewProfile={(id) => { setSelected(null); navigate(`/employees/${id}`) }}
+        />
       )}
     </div>
   )

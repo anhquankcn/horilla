@@ -51,6 +51,11 @@ export function Icon({ name, size = 18, color = HNH.ink, stroke: sw = 1.8 }: Ico
     case 'upload': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" {...p}/><path d="m17 8-5-5-5 5" {...p}/><path d="M12 3v12" {...p}/></svg>
     case 'trash': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" {...p}/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" {...p}/><path d="M10 11v6M14 11v6" {...p}/></svg>
     case 'briefcase': return <svg width={size} height={size} viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" {...p}/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" {...p}/><path d="M12 12v.01" {...p}/></svg>
+    case 'trending-up': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="m23 6-9.5 9.5-5-5L1 18" {...p}/><path d="M17 6h6v6" {...p}/></svg>
+    case 'award': return <svg width={size} height={size} viewBox="0 0 24 24"><circle cx="12" cy="8" r="6" {...p}/><path d="M15.5 14.5 17 21l-5-3-5 3 1.5-6.5" {...p}/></svg>
+    case 'log-out': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" {...p}/></svg>
+    case 'bot': return <svg width={size} height={size} viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="12" rx="3" {...p}/><path d="M12 8V5M8 14h.01M16 14h.01M9 17h6" {...p}/></svg>
+    case 'layers': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="m12 2 10 6-10 6L2 8l10-6Z" {...p}/><path d="m2 14 10 6 10-6" {...p}/><path d="m2 8 10 6 10-6" {...p}/></svg>
     default: return null
   }
 }

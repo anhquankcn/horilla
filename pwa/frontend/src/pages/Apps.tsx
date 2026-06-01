@@ -54,6 +54,13 @@ const apps: AppCard[] = [
       { slug: 'groups', icon: 'folder', label: 'Nhóm Quyền', desc: 'Quản lý nhóm, phân nhân sự', path: '/groups', tone: 'navy', group: 'manage' },
       { slug: 'attendance-activity', icon: 'clock', label: 'HĐ Chấm công', desc: 'Tổng hợp hoạt động chấm công', path: '/attendance-activity', tone: 'navy', group: 'manage' },
       { slug: 'announcement-hub', icon: 'send', label: 'Hub Thông Báo', desc: 'Tạo & quản lý thông báo nội bộ', path: '/announcement-hub', tone: 'red', group: 'manage' },
+      { slug: 'dashboard', icon: 'grid', label: 'Dashboard', desc: 'Tổng quan công ty, nhân sự, chấm công', path: '/dashboard', tone: 'navy', group: 'manage' },
+      { slug: 'assets', icon: 'doc', label: 'Tài sản', desc: 'Quản lý tài sản, cấp phát, yêu cầu', path: '/assets', tone: 'navy', group: 'manage' },
+      { slug: 'reports', icon: 'grid', label: 'Báo cáo', desc: 'Chấm công, nghỉ phép, đề xuất', path: '/reports', tone: 'red', group: 'manage' },
+      { slug: 'payroll-mgmt', icon: 'doc', label: 'Bảng lương', desc: 'Tổng hợp lương tháng, BHXH, thuế', path: '/payroll-mgmt', tone: 'gold', group: 'manage' },
+      { slug: 'documents', icon: 'folder', label: 'Tài liệu', desc: 'Giấy tờ yêu cầu nộp, theo dõi trạng thái', path: '/documents', tone: 'navy', group: 'use' },
+      { slug: 'onboarding', icon: 'star', label: 'On/Offboarding', desc: 'Onboarding, offboarding, đơn nghỉ việc', path: '/onboarding', tone: 'red', group: 'manage' },
+      { slug: 'journey', icon: 'layers', label: 'Hành trình NV', desc: 'Vòng đời nhân viên, AI hỗ trợ', path: '/journey', tone: 'navy', group: 'manage' },
     ],
   },
   {
@@ -66,7 +73,8 @@ const apps: AppCard[] = [
     icon: 'doc',
     features: [
       { slug: 'tasks', icon: 'check', label: 'Công việc', desc: 'Tasks, deadline, phân công', path: '/tasks', tone: 'red', group: 'use' },
-      { slug: 'projects', icon: 'folder', label: 'Dự án', desc: 'Quản lý dự án, tiến độ', path: null, tone: 'gold', group: 'use' },
+      { slug: 'projects', icon: 'folder', label: 'Dự án', desc: 'Quản lý dự án, tiến độ', path: '/projects', tone: 'gold', group: 'use' },
+      { slug: 'unified-calendar', icon: 'cal', label: 'Lịch tổng hợp', desc: 'Nghỉ phép, deadline, tour, dự án', path: '/unified-calendar', tone: 'gold', group: 'use' },
     ],
   },
 ]
