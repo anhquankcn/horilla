@@ -2947,6 +2947,7 @@ class EmployeeJourneyPWAView(APIView):
         {"id": "perf", "title": "Performance", "icon": "trending-up", "color": "#db2777"},
         {"id": "growth", "title": "Thăng tiến", "icon": "award", "color": "#7c3aed"},
         {"id": "off", "title": "Offboarding", "icon": "log-out", "color": "#dc2626"},
+        {"id": "alumni", "title": "Alumni", "icon": "users", "color": "#6b7280"},
     ]
 
     def get(self, request):
@@ -3001,6 +3002,8 @@ class EmployeeJourneyPWAView(APIView):
                 if e.id in assigned:
                     continue
                 phase_data["active"]["employees"].append(self._emp_row(e))
+
+            self._populate_alumni(phase_data)
 
             for pid in phase_data:
                 phase_data[pid]["count"] = len(phase_data[pid]["employees"])
@@ -3173,3 +3176,20 @@ class EmployeeJourneyPWAView(APIView):
                     id_set.add(e.id)
         except Exception:
             pass
+
+    def _populate_alumni(self, phase_data):
+        """Nhân viên đã nghỉ việc (is_active=False) = Alumni."""
+        alumni = Employee.objects.filter(
+            is_active=False
+        ).select_related(
+            "employee_work_info",
+            "employee_work_info__department_id",
+            "employee_work_info__job_position_id",
+            "employee_work_info__company_id",
+        ).order_by("-id")[:200]
+        for e in alumni:
+            row = self._emp_row(e)
+            wi = getattr(e, "employee_work_info", None)
+            row["contract_end"] = wi.contract_end_date.isoformat() if wi and wi.contract_end_date else None
+            row["is_alumni"] = True
+            phase_data["alumni"]["employees"].append(row)

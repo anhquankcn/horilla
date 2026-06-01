@@ -23,6 +23,8 @@ interface EmpRow {
   off_type?: string
   progress?: string
   has_objectives?: boolean
+  is_alumni?: boolean
+  contract_end?: string | null
 }
 
 interface Phase {
@@ -49,6 +51,7 @@ const PHASE_META: Record<string, { bg: string; emoji: string }> = {
   perf:   { bg: '#fce7f3', emoji: '📊' },
   growth: { bg: '#ede9fe', emoji: '🌟' },
   off:    { bg: '#fee2e2', emoji: '👋' },
+  alumni: { bg: '#f3f4f6', emoji: '🎓' },
 }
 
 export function JourneyPage() {
@@ -440,6 +443,16 @@ function EmployeeCard({
             padding: '1px 6px', borderRadius: 6,
           }}>
             {emp.stage}
+          </span>
+        )}
+
+        {phaseId === 'alumni' && (
+          <span style={{
+            fontSize: 9, fontWeight: 600, marginTop: 3, display: 'inline-block',
+            color: '#6b7280', background: '#f3f4f6',
+            padding: '1px 6px', borderRadius: 6,
+          }}>
+            {emp.contract_end ? `Nghỉ ${emp.contract_end}` : 'Đã nghỉ việc'}
           </span>
         )}
       </div>
