@@ -17,6 +17,91 @@ class Notification(AbstractNotification):
         swappable = swappable_setting("notifications", "Notification")
 
 
+class Announcement(models.Model):
+    TARGET_INDIVIDUAL = "individual"
+    TARGET_MULTI = "multi_user"
+    TARGET_DEPARTMENT = "department"
+    TARGET_COMPANY = "company"
+    TARGET_CHOICES = [
+        (TARGET_INDIVIDUAL, "Cá nhân"),
+        (TARGET_MULTI, "Nhiều người"),
+        (TARGET_DEPARTMENT, "Phòng ban"),
+        (TARGET_COMPANY, "Toàn công ty"),
+    ]
+
+    sender = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="sent_announcements",
+    )
+    title = models.CharField(max_length=255)
+    body = models.TextField()
+    target_type = models.CharField(max_length=20, choices=TARGET_CHOICES)
+    target_department = models.ForeignKey(
+        "base.Department",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
+    target_company = models.ForeignKey(
+        "base.Company",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "notifications_announcement"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.title} ({self.get_target_type_display()})"
+
+
+class AnnouncementRecipient(models.Model):
+    announcement = models.ForeignKey(
+        Announcement,
+        on_delete=models.CASCADE,
+        related_name="recipients",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="received_announcements",
+    )
+    read = models.BooleanField(default=False)
+    read_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = "notifications_announcementrecipient"
+        unique_together = [("announcement", "user")]
+
+    def __str__(self):
+        return f"{self.user} ← {self.announcement.title}"
+
+
+class AnnouncementFeedback(models.Model):
+    announcement = models.ForeignKey(
+        Announcement,
+        on_delete=models.CASCADE,
+        related_name="feedbacks",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+    )
+    message = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "notifications_announcementfeedback"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Feedback by {self.user} on {self.announcement.title}"
+
+
 class PushSubscription(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,

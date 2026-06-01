@@ -14,4 +14,10 @@ urlpatterns = [
     path("notifications/summary/", views.NotificationSummaryView.as_view()),
     path("push/vapid-key/", views.VapidPublicKeyView.as_view()),
     path("push/subscribe/", views.PushSubscribeView.as_view()),
+    path("announcements/", views.AnnouncementCreateView.as_view()),
+    path("announcements/history/", views.AnnouncementHistoryView.as_view()),
+    path("announcements/received/", views.AnnouncementReceivedView.as_view()),
+    path("announcements/<int:pk>/", views.AnnouncementDetailView.as_view()),
+    path("announcements/<int:pk>/feedback/", views.AnnouncementFeedbackView.as_view()),
+    path("announcements/targets/", views.AnnouncementTargetsView.as_view()),
 ]

@@ -28,6 +28,7 @@ import { WorkTypeProposalPage } from './pages/WorkTypeProposal'
 import { AttendanceProposalPage } from './pages/AttendanceProposal'
 import { AssetProposalPage } from './pages/AssetProposal'
 import { CalendarPage } from './pages/Calendar'
+import { AnnouncementHubPage } from './pages/AnnouncementHub'
 
 export function App() {
   return (
@@ -59,6 +60,7 @@ export function App() {
         <Route path="/payslip" element={<PayslipPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
+        <Route path="/announcement-hub" element={<AnnouncementHubPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
 

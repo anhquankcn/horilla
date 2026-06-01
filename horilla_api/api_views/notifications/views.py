@@ -1,10 +1,18 @@
 from django.conf import settings
+from django.utils import timezone
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from notifications.models import PushSubscription
+from employee.models import Employee, EmployeeWorkInformation
+from notifications.models import (
+    Announcement,
+    AnnouncementFeedback,
+    AnnouncementRecipient,
+    PushSubscription,
+)
+from notifications.signals import notify
 
 from ...api_serializers.notifications.serializers import NotificationSerializer
 
@@ -122,3 +130,283 @@ class PushSubscribeView(APIView):
             user=request.user, endpoint=endpoint
         ).delete()
         return Response({"status": "unsubscribed"})
+
+
+# ── Announcement Hub ──────────────────────────────────────────────
+
+
+def _resolve_recipients(target_type, data):
+    if target_type == Announcement.TARGET_INDIVIDUAL:
+        user_id = data.get("user_id")
+        if user_id:
+            return Employee.objects.filter(
+                id=user_id, is_active=True
+            ).values_list("employee_user_id", flat=True)
+        return []
+
+    if target_type == Announcement.TARGET_MULTI:
+        user_ids = data.get("user_ids", [])
+        return Employee.objects.filter(
+            id__in=user_ids, is_active=True
+        ).values_list("employee_user_id", flat=True)
+
+    if target_type == Announcement.TARGET_DEPARTMENT:
+        dept_id = data.get("department_id")
+        return EmployeeWorkInformation.objects.filter(
+            department_id=dept_id,
+            employee_id__is_active=True,
+        ).values_list("employee_id__employee_user_id", flat=True)
+
+    if target_type == Announcement.TARGET_COMPANY:
+        company_id = data.get("company_id")
+        if company_id:
+            return EmployeeWorkInformation.objects.filter(
+                company_id=company_id,
+                employee_id__is_active=True,
+            ).values_list("employee_id__employee_user_id", flat=True)
+        return Employee.objects.filter(
+            is_active=True
+        ).values_list("employee_user_id", flat=True)
+
+    return []
+
+
+def _serialize_announcement(ann, include_feedback=False):
+    result = {
+        "id": ann.id,
+        "title": ann.title,
+        "body": ann.body,
+        "target_type": ann.target_type,
+        "target_label": ann.get_target_type_display(),
+        "target_department": (
+            str(ann.target_department) if ann.target_department else None
+        ),
+        "target_company": (
+            str(ann.target_company) if ann.target_company else None
+        ),
+        "sender_name": (
+            str(ann.sender.employee_get)
+            if hasattr(ann.sender, "employee_get")
+            else str(ann.sender)
+        ),
+        "created_at": ann.created_at.isoformat(),
+        "recipient_count": ann.recipients.count(),
+        "read_count": ann.recipients.filter(read=True).count(),
+        "feedback_count": ann.feedbacks.count(),
+    }
+    if include_feedback:
+        result["feedbacks"] = [
+            {
+                "id": fb.id,
+                "user_name": (
+                    str(fb.user.employee_get)
+                    if hasattr(fb.user, "employee_get")
+                    else str(fb.user)
+                ),
+                "message": fb.message,
+                "created_at": fb.created_at.isoformat(),
+            }
+            for fb in ann.feedbacks.select_related("user").all()[:50]
+        ]
+        result["recipients_detail"] = [
+            {
+                "user_name": (
+                    str(r.user.employee_get)
+                    if hasattr(r.user, "employee_get")
+                    else str(r.user)
+                ),
+                "read": r.read,
+                "read_at": r.read_at.isoformat() if r.read_at else None,
+            }
+            for r in ann.recipients.select_related("user").all()[:100]
+        ]
+    return result
+
+
+class AnnouncementCreateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        title = request.data.get("title", "").strip()
+        body = request.data.get("body", "").strip()
+        target_type = request.data.get("target_type")
+
+        if not title or not body or not target_type:
+            return Response(
+                {"error": "Thiếu tiêu đề, nội dung hoặc đối tượng"},
+                status=400,
+            )
+
+        dept_id = request.data.get("department_id")
+        company_id = request.data.get("company_id")
+
+        from base.models import Company, Department
+
+        ann = Announcement.objects.create(
+            sender=request.user,
+            title=title,
+            body=body,
+            target_type=target_type,
+            target_department=(
+                Department.objects.filter(id=dept_id).first()
+                if dept_id
+                else None
+            ),
+            target_company=(
+                Company.objects.filter(id=company_id).first()
+                if company_id
+                else None
+            ),
+        )
+
+        user_ids = list(_resolve_recipients(target_type, request.data))
+        user_ids_set = set(user_ids)
+        user_ids_set.discard(request.user.id)
+
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        recipients = []
+        for uid in user_ids_set:
+            recipients.append(
+                AnnouncementRecipient(announcement=ann, user_id=uid)
+            )
+        AnnouncementRecipient.objects.bulk_create(recipients)
+
+        recipient_users = list(User.objects.filter(id__in=user_ids_set))
+        if recipient_users:
+            actor = request.user.employee_get if hasattr(request.user, "employee_get") else request.user
+            notify.send(
+                actor,
+                recipient=recipient_users,
+                verb=title,
+                description=body[:200],
+            )
+
+        return Response(_serialize_announcement(ann), status=201)
+
+
+class AnnouncementHistoryView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        qs = Announcement.objects.filter(sender=request.user)
+        items = [_serialize_announcement(a) for a in qs[:50]]
+        return Response(items)
+
+
+class AnnouncementReceivedView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        recs = (
+            AnnouncementRecipient.objects.filter(user=request.user)
+            .select_related("announcement", "announcement__sender")
+            .order_by("-announcement__created_at")[:50]
+        )
+        items = []
+        for r in recs:
+            ann = r.announcement
+            items.append(
+                {
+                    **_serialize_announcement(ann),
+                    "read": r.read,
+                    "read_at": r.read_at.isoformat() if r.read_at else None,
+                }
+            )
+        return Response(items)
+
+
+class AnnouncementDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        ann = Announcement.objects.filter(pk=pk).first()
+        if not ann:
+            return Response({"error": "Not found"}, status=404)
+
+        is_sender = ann.sender == request.user
+        is_recipient = ann.recipients.filter(user=request.user).exists()
+        if not is_sender and not is_recipient:
+            return Response({"error": "Forbidden"}, status=403)
+
+        if is_recipient:
+            ann.recipients.filter(user=request.user, read=False).update(
+                read=True, read_at=timezone.now()
+            )
+
+        return Response(
+            {
+                **_serialize_announcement(ann, include_feedback=is_sender),
+                "is_sender": is_sender,
+                "my_feedback": None
+                if is_sender
+                else (
+                    {
+                        "message": fb.message,
+                        "created_at": fb.created_at.isoformat(),
+                    }
+                    if (
+                        fb := ann.feedbacks.filter(user=request.user).first()
+                    )
+                    else None
+                ),
+            }
+        )
+
+
+class AnnouncementFeedbackView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        ann = Announcement.objects.filter(pk=pk).first()
+        if not ann:
+            return Response({"error": "Not found"}, status=404)
+
+        if not ann.recipients.filter(user=request.user).exists():
+            return Response({"error": "Forbidden"}, status=403)
+
+        message = request.data.get("message", "").strip()
+        if not message:
+            return Response({"error": "Thiếu nội dung phản hồi"}, status=400)
+
+        fb, created = AnnouncementFeedback.objects.update_or_create(
+            announcement=ann,
+            user=request.user,
+            defaults={"message": message},
+        )
+
+        actor = request.user.employee_get if hasattr(request.user, "employee_get") else request.user
+        notify.send(
+            actor,
+            recipient=[ann.sender],
+            verb=f"Phản hồi thông báo: {ann.title}",
+            description=message[:200],
+        )
+
+        return Response(
+            {
+                "id": fb.id,
+                "message": fb.message,
+                "created_at": fb.created_at.isoformat(),
+            },
+            status=201 if created else 200,
+        )
+
+
+class AnnouncementTargetsView(APIView):
+    """Returns departments and companies for the target picker."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from base.models import Company, Department
+
+        departments = Department.objects.all().values("id", "department")
+        companies = Company.objects.all().values("id", "company")
+
+        return Response(
+            {
+                "departments": list(departments),
+                "companies": list(companies),
+            }
+        )

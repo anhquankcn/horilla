@@ -53,6 +53,7 @@ const apps: AppCard[] = [
       { slug: 'roles', icon: 'shield', label: 'Vai trò & Quyền', desc: 'Phân quyền, nhóm vai trò', path: '/roles', tone: 'navy', group: 'manage' },
       { slug: 'groups', icon: 'folder', label: 'Nhóm Quyền', desc: 'Quản lý nhóm, phân nhân sự', path: '/groups', tone: 'navy', group: 'manage' },
       { slug: 'attendance-activity', icon: 'clock', label: 'HĐ Chấm công', desc: 'Tổng hợp hoạt động chấm công', path: '/attendance-activity', tone: 'navy', group: 'manage' },
+      { slug: 'announcement-hub', icon: 'send', label: 'Hub Thông Báo', desc: 'Tạo & quản lý thông báo nội bộ', path: '/announcement-hub', tone: 'red', group: 'manage' },
     ],
   },
   {
