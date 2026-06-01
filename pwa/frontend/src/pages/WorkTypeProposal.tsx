@@ -29,8 +29,8 @@ export function WorkTypeProposalPage() {
   const [success, setSuccess] = useState(false)
 
   useEffect(() => {
-    api.get<PaginatedResponse<WorkType>>('/api/base/worktypes/?page_size=100')
-      .then(d => setWorkTypes(d.results))
+    api.get<WorkType[] | PaginatedResponse<WorkType>>('/api/base/worktypes/?page_size=100')
+      .then(d => setWorkTypes(Array.isArray(d) ? d : d.results))
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])

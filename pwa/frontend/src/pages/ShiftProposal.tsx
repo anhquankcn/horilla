@@ -29,8 +29,8 @@ export function ShiftProposalPage() {
   const [success, setSuccess] = useState(false)
 
   useEffect(() => {
-    api.get<PaginatedResponse<Shift>>('/api/base/employee-shift/?page_size=100')
-      .then(d => setShifts(d.results))
+    api.get<Shift[] | PaginatedResponse<Shift>>('/api/base/employee-shift/?page_size=100')
+      .then(d => setShifts(Array.isArray(d) ? d : d.results))
       .catch(() => {})
       .finally(() => setLoading(false))
   }, [])

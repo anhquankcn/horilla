@@ -109,8 +109,8 @@ export function AssetProposalPage() {
   const [statusFilter, setStatusFilter] = useState('')
 
   useEffect(() => {
-    api.get<PaginatedResponse<AssetCategory>>('/api/asset/asset-categories/?page_size=100')
-      .then(d => setCategories(d.results))
+    api.get<AssetCategory[] | PaginatedResponse<AssetCategory>>('/api/asset/asset-categories/?page_size=100')
+      .then(d => setCategories(Array.isArray(d) ? d : d.results))
       .catch(() => {})
       .finally(() => setCatLoading(false))
   }, [])
