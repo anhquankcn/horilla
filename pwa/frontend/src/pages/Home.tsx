@@ -569,6 +569,7 @@ export function HomePage() {
           <QuickAction icon="money" label="Lương" tone="navy" onClick={() => navigate('/payslip')} />
           <QuickAction icon="send" label="Đề xuất" tone="gold" onClick={() => navigate('/proposals')} />
           <QuickAction icon="check" label="Phê duyệt" tone="success" onClick={() => navigate('/approvals')} />
+          <QuickAction icon="cal" label="Lịch ca" tone="navy" onClick={() => navigate('/calendar')} />
         </div>
       </div>
 

@@ -1433,6 +1433,156 @@ class MyAttendanceRequestsView(APIView):
         return Response(data)
 
 
+class MyCalendarView(APIView):
+    """Monthly calendar data: shift schedule + attendance + approved leaves + holidays."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        import calendar as cal_mod
+        from leave.models import LeaveRequest
+        from leave.models import Holiday, CompanyLeave
+
+        employee = request.user.employee_get
+        month_str = request.query_params.get("month")
+        today = date.today()
+        if month_str:
+            try:
+                parts = month_str.split("-")
+                year, month = int(parts[0]), int(parts[1])
+            except (ValueError, IndexError):
+                year, month = today.year, today.month
+        else:
+            year, month = today.year, today.month
+
+        _, last_day = cal_mod.monthrange(year, month)
+        start = date(year, month, 1)
+        end = date(year, month, last_day)
+
+        # Shift schedule
+        work_info = getattr(employee, "employee_work_info", None)
+        shift = work_info.shift_id if work_info else None
+        shift_data = None
+        schedule_map = {}
+        if shift:
+            shift_data = {"name": shift.employee_shift}
+            for s in EmployeeShiftSchedule.objects.filter(
+                shift_id=shift
+            ).select_related("day"):
+                day_name = s.day.day if s.day else None
+                if day_name:
+                    schedule_map[day_name] = {
+                        "start_time": s.start_time.strftime("%H:%M") if s.start_time else None,
+                        "end_time": s.end_time.strftime("%H:%M") if s.end_time else None,
+                        "is_night_shift": s.is_night_shift,
+                    }
+
+        DAY_NAMES = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+
+        # Attendance records for the month
+        att_map = {}
+        for a in Attendance.objects.filter(
+            employee_id=employee,
+            attendance_date__range=[start, end],
+        ).order_by("attendance_date"):
+            d = a.attendance_date.isoformat()
+            att_map[d] = {
+                "clock_in": a.attendance_clock_in.strftime("%H:%M") if a.attendance_clock_in else None,
+                "clock_out": a.attendance_clock_out.strftime("%H:%M") if a.attendance_clock_out else None,
+                "worked_hours": a.attendance_worked_hour or None,
+                "overtime": a.attendance_overtime or None,
+                "validated": a.attendance_validated,
+            }
+
+        # Approved leaves in the month
+        leave_map = {}
+        for lr in LeaveRequest.objects.filter(
+            employee_id=employee,
+            status="approved",
+            start_date__lte=end,
+            end_date__gte=start,
+        ).select_related("leave_type_id"):
+            d = lr.start_date
+            while d <= (lr.end_date or lr.start_date):
+                if start <= d <= end:
+                    leave_map[d.isoformat()] = lr.leave_type_id.name if lr.leave_type_id else "Nghỉ phép"
+                d += timedelta(days=1)
+
+        # Holidays
+        holiday_map = {}
+        for h in Holiday.objects.filter(start_date__lte=end, end_date__gte=start):
+            d = h.start_date
+            while d <= (h.end_date or h.start_date):
+                if start <= d <= end:
+                    holiday_map[d.isoformat()] = h.name
+                d += timedelta(days=1)
+
+        # Company leaves (recurring weekly days off)
+        company_leave_days = set()
+        try:
+            for cl in CompanyLeave.objects.all():
+                if cl.based_on_week_day:
+                    company_leave_days.add(cl.based_on_week_day)
+        except Exception:
+            pass
+
+        # Build day-by-day data
+        days = {}
+        for day_num in range(1, last_day + 1):
+            d = date(year, month, day_num)
+            d_iso = d.isoformat()
+            weekday_name = DAY_NAMES[d.weekday()]
+
+            sched = schedule_map.get(weekday_name)
+            att = att_map.get(d_iso)
+            leave_name = leave_map.get(d_iso)
+            holiday_name = holiday_map.get(d_iso)
+            is_company_leave = str(d.weekday()) in company_leave_days
+
+            if holiday_name:
+                day_type = "holiday"
+            elif leave_name:
+                day_type = "leave"
+            elif is_company_leave or not sched:
+                day_type = "off"
+            else:
+                day_type = "workday"
+
+            if d > today:
+                day_status = "future"
+            elif holiday_name:
+                day_status = "holiday"
+            elif leave_name:
+                day_status = "leave"
+            elif att:
+                day_status = "present"
+            elif day_type == "workday" and d <= today:
+                day_status = "absent"
+            else:
+                day_status = "off"
+
+            days[d_iso] = {
+                "type": day_type,
+                "status": day_status,
+                "shift_start": sched["start_time"] if sched else None,
+                "shift_end": sched["end_time"] if sched else None,
+                "clock_in": att["clock_in"] if att else None,
+                "clock_out": att["clock_out"] if att else None,
+                "worked_hours": att["worked_hours"] if att else None,
+                "overtime": att["overtime"] if att else None,
+                "leave_type": leave_name,
+                "holiday_name": holiday_name,
+            }
+
+        return Response({
+            "year": year,
+            "month": month,
+            "shift": shift_data,
+            "schedule": schedule_map,
+            "days": days,
+        })
+
+
 class PWAAttendanceRequestView(APIView):
     """PWA-friendly endpoint to create/update attendance adjustment requests."""
 

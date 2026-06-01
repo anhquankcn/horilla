@@ -75,4 +75,5 @@ urlpatterns = [
         PWAAttendanceRequestView.as_view(),
         name="api-pwa-attendance-request",
     ),
+    path("my-calendar/", MyCalendarView.as_view(), name="api-my-calendar"),
 ]
