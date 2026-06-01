@@ -42,12 +42,14 @@ class Announcement(models.Model):
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
+        related_name="notification_announcements",
     )
     target_company = models.ForeignKey(
         "base.Company",
         null=True,
         blank=True,
         on_delete=models.SET_NULL,
+        related_name="notification_announcements",
     )
     created_at = models.DateTimeField(auto_now_add=True)
 
