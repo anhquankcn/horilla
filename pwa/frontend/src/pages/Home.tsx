@@ -44,6 +44,70 @@ interface TaskSummary {
   }[]
 }
 
+interface PayrollEntry {
+  month: number
+  year: number
+  col_AK: number | null
+  col_AB: number | null
+  contract_type: string
+}
+
+interface NotifSummary {
+  unread: number
+  total: number
+}
+
+interface Notification {
+  id: number
+  level: string
+  unread: boolean
+  verb: string
+  description: string | null
+  timestamp: string
+  actor_name: string | null
+}
+
+/* ── Helpers ── */
+function fmtMoney(n: number | null | undefined): string {
+  if (n == null || n === 0) return '—'
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}tr`
+  if (n >= 1_000) return `${Math.round(n / 1_000)}k`
+  return String(Math.round(n))
+}
+
+function relativeTime(ts: string): string {
+  const diff = Date.now() - new Date(ts).getTime()
+  const mins = Math.floor(diff / 60000)
+  if (mins < 1) return 'Vừa xong'
+  if (mins < 60) return `${mins}p`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h`
+  const days = Math.floor(hours / 24)
+  return `${days}d`
+}
+
+type NotifTone = 'success' | 'red' | 'warn' | 'navy' | 'gold' | 'ink'
+
+function notifMeta(verb: string, level: string): { bg: string; tone: NotifTone; icon: string } {
+  const v = verb.toLowerCase()
+  if (v.includes('duyệt') || v.includes('approved'))
+    return { bg: HNH.success, tone: 'success', icon: 'check' }
+  if (v.includes('từ chối') || v.includes('rejected'))
+    return { bg: HNH.red, tone: 'red', icon: 'x' }
+  if (v.includes('nghỉ phép') || v.includes('leave') || v.includes('đề xuất'))
+    return { bg: HNH.navy, tone: 'navy', icon: 'send' }
+  if (v.includes('chấm công') || v.includes('attendance'))
+    return { bg: HNH.warn, tone: 'warn', icon: 'clock' }
+  if (v.includes('lương') || v.includes('payroll'))
+    return { bg: '#a87908', tone: 'gold', icon: 'doc' }
+  if (level === 'warning')
+    return { bg: HNH.warn, tone: 'warn', icon: 'bell' }
+  if (level === 'error')
+    return { bg: HNH.red, tone: 'red', icon: 'x' }
+  return { bg: HNH.ink2, tone: 'ink', icon: 'bell' }
+}
+
+/* ── Components ── */
 function StatChip({ icon, label, value, sub, tone = 'navy' }: {
   icon: string; label: string; value: string; sub: string; tone?: string
 }) {
@@ -233,6 +297,51 @@ function TaskRow({ t, onClick }: { t: TaskSummary['recent_tasks'][number]; onCli
   )
 }
 
+function NotifRow({ n, onClick }: { n: Notification; onClick: () => void }) {
+  const meta = notifMeta(n.verb, n.level)
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-3 w-full text-left border-none cursor-pointer"
+      style={{
+        padding: '10px 14px',
+        background: n.unread ? `${HNH.navy}06` : 'transparent',
+        borderBottom: `1px solid ${HNH.line}`,
+      }}
+    >
+      <div
+        className="flex items-center justify-center shrink-0"
+        style={{ width: 32, height: 32, borderRadius: 10, background: `${meta.bg}18` }}
+      >
+        <Icon name={meta.icon} size={14} color={meta.bg} stroke={2} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div style={{
+          fontSize: 12.5, fontWeight: n.unread ? 700 : 600, color: HNH.ink,
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>
+          {n.verb}
+        </div>
+        {n.description && (
+          <div style={{
+            fontSize: 11, color: HNH.ink3, fontWeight: 500, marginTop: 1,
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+          }}>
+            {n.description}
+          </div>
+        )}
+      </div>
+      <div className="flex items-center gap-1.5 shrink-0">
+        <span style={{ fontSize: 10.5, color: HNH.ink3, fontWeight: 500 }}>{relativeTime(n.timestamp)}</span>
+        {n.unread && (
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: HNH.red }} />
+        )}
+      </div>
+    </button>
+  )
+}
+
+/* ── Main ── */
 export function HomePage() {
   const navigate = useNavigate()
   const { employee } = useAuth()
@@ -244,7 +353,9 @@ export function HomePage() {
     '/api/attendance/my-attendance/?page_size=50'
   )
   const { data: leaveData } = useApi<PaginatedResponse<LeaveAvailable>>('/api/leave/available-leave/?page_size=20')
-  const { data: unreadData } = useApi<PaginatedResponse<{ id: number }>>('/api/notifications/list/unread')
+  const { data: notifSummary } = useApi<NotifSummary>('/api/notifications/summary/')
+  const { data: recentNotifs } = useApi<PaginatedResponse<Notification>>('/api/notifications/list/all?page_size=5')
+  const { data: payrollData } = useApi<PayrollEntry[]>('/api/payroll/my-monthly-payroll/')
   const isTablet = useTablet()
   const px = isTablet ? 28 : 20
   const activeCount = tasks ? tasks.to_do + tasks.in_progress + tasks.blocked : 0
@@ -272,7 +383,15 @@ export function HomePage() {
     l.leave_type_id?.name?.toLowerCase().includes('annual')
   )
   const leaveRemaining = annualLeave ? annualLeave.available_days : (leaveData?.results?.[0]?.available_days ?? 0)
-  const unreadCount = unreadData?.count ?? 0
+  const unreadCount = notifSummary?.unread ?? 0
+
+  const latestPayroll = payrollData?.[0] ?? null
+  const netPay = latestPayroll?.col_AK ?? null
+  const netPayLabel = fmtMoney(netPay)
+  const payrollMonth = latestPayroll ? `T${latestPayroll.month}/${String(latestPayroll.year).slice(2)}` : ''
+
+  const notifications = recentNotifs?.results ?? []
+
   const dayName = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'][now.getDay()]
   const dateStr = `${dayName.toUpperCase()}, ${String(now.getDate()).padStart(2, '0')} / ${String(now.getMonth() + 1).padStart(2, '0')}`
 
@@ -399,10 +518,43 @@ export function HomePage() {
         <div className={isTablet ? 'grid grid-cols-4 gap-2.5' : 'grid grid-cols-2 gap-2.5'}>
           <StatChip icon="cal" label="Ngày công" value={String(workingDays)} sub={`/ ${totalWorkDaysInMonth}`} tone="navy" />
           <StatChip icon="leaf" label="Nghỉ phép còn" value={String(leaveRemaining)} sub=" ngày" tone="success" />
+          <StatChip icon="money" label={payrollMonth ? `Lương ${payrollMonth}` : 'Lương tháng'} value={netPayLabel} sub={netPay != null ? ' đ' : ''} tone="gold" />
           <StatChip icon="doc" label="Công việc" value={String(activeCount)} sub={tasks ? ` / ${tasks.total}` : ''} tone="red" />
-          <StatChip icon="shield" label="Trễ hạn" value={String(tasks?.overdue ?? 0)} sub=" việc" tone="gold" />
         </div>
       </div>
+
+      {/* Recent notifications */}
+      {notifications.length > 0 && (
+        <div style={{ padding: `16px ${px}px 0` }}>
+          <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
+            <div className="flex items-center gap-2">
+              <div style={{ fontSize: 15, fontWeight: 700, color: HNH.ink }}>Thông báo</div>
+              {unreadCount > 0 && (
+                <span style={{
+                  fontSize: 10, fontWeight: 800, color: '#fff', background: HNH.red,
+                  borderRadius: 8, padding: '2px 7px', lineHeight: 1.4,
+                }}>
+                  {unreadCount}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={() => navigate('/notifications')}
+              className="border-none bg-transparent cursor-pointer"
+              style={{ fontSize: 12, color: HNH.red, fontWeight: 600 }}
+            >Xem tất cả →</button>
+          </div>
+          <div style={{
+            background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`, overflow: 'hidden',
+          }}>
+            {notifications.slice(0, 3).map((n, i) => (
+              <div key={n.id} style={{ borderBottom: i < Math.min(notifications.length, 3) - 1 ? undefined : 'none' }}>
+                <NotifRow n={n} onClick={() => navigate('/notifications')} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Quick actions */}
       <div style={{ padding: `16px ${px}px 0` }}>
@@ -410,8 +562,8 @@ export function HomePage() {
         <div className="grid grid-cols-4 gap-2">
           <QuickAction icon="leaf" label="Xin nghỉ" tone="red" onClick={() => navigate('/leave')} />
           <QuickAction icon="money" label="Lương" tone="navy" onClick={() => navigate('/payslip')} />
-          <QuickAction icon="doc" label="Công việc" tone="gold" onClick={() => navigate('/tasks')} />
-          <QuickAction icon="shield" label="Phê duyệt" tone="success" onClick={() => navigate(TASK_WEBVIEW)} />
+          <QuickAction icon="send" label="Đề xuất" tone="gold" onClick={() => navigate('/proposals')} />
+          <QuickAction icon="check" label="Phê duyệt" tone="success" onClick={() => navigate('/approvals')} />
         </div>
       </div>
 
