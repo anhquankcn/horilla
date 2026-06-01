@@ -70,6 +70,18 @@ class EmployeeLeaveRequestGetCreateAPIView(APIView):
             actor = request.user.employee_get
             emp_name = f"{actor.employee_first_name} {actor.employee_last_name or ''}".strip()
 
+            from employee.models import Employee
+            from leave.models import LeaveRequestConditionApproval
+
+            for seq, aid in enumerate(approver_ids, start=1):
+                with contextlib.suppress(Exception):
+                    approver = Employee.objects.get(id=aid, is_active=True)
+                    LeaveRequestConditionApproval.objects.get_or_create(
+                        leave_request_id=leave_request,
+                        manager_id=approver,
+                        defaults={"sequence": seq, "is_approved": False, "is_rejected": False},
+                    )
+
             with contextlib.suppress(Exception):
                 notify.send(
                     actor,
@@ -80,7 +92,6 @@ class EmployeeLeaveRequestGetCreateAPIView(APIView):
                     api_redirect=f"/api/leave/request/{leave_request.id}/",
                 )
 
-            from employee.models import Employee
             notified_user_ids = set()
             with contextlib.suppress(Exception):
                 rm = leave_request.employee_id.employee_work_info.reporting_manager_id
