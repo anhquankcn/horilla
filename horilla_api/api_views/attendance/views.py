@@ -1241,3 +1241,143 @@ class MyScheduleAPIView(APIView):
                 }
             )
         return Response(data, status=200)
+
+
+def _hnh_working_days(n, ref_date=None):
+    """Return the last `n` HNH working days (Mon-Sat) ending at ref_date."""
+    if ref_date is None:
+        ref_date = date.today()
+    days = []
+    d = ref_date
+    while len(days) < n:
+        if d.weekday() < 6:  # Mon(0)–Sat(5)
+            days.append(d)
+        d -= timedelta(days=1)
+    days.reverse()
+    return days
+
+
+class AttendanceActivityOverviewView(APIView):
+    """
+    Manager view: attendance activities for all employees.
+    Query params:
+      mode = today | 3days | 7days | month | range
+      month, year  (for mode=month)
+      date_from, date_to  (for mode=range)
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from employee.models import Employee, EmployeeWorkInformation
+
+        mode = request.GET.get("mode", "today")
+        today = date.today()
+
+        if mode == "today":
+            dates = [today]
+        elif mode == "3days":
+            dates = _hnh_working_days(3, today)
+        elif mode == "7days":
+            dates = _hnh_working_days(7, today)
+        elif mode == "month":
+            y = int(request.GET.get("year", today.year))
+            m = int(request.GET.get("month", today.month))
+            d = date(y, m, 1)
+            end = date(y + (1 if m == 12 else 0), (m % 12) + 1, 1)
+            dates = []
+            while d < end:
+                dates.append(d)
+                d += timedelta(days=1)
+        elif mode == "range":
+            d_from = request.GET.get("date_from")
+            d_to = request.GET.get("date_to")
+            if not d_from or not d_to:
+                return Response(
+                    {"error": "date_from and date_to required"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            d = date.fromisoformat(d_from)
+            end = date.fromisoformat(d_to)
+            dates = []
+            while d <= end:
+                dates.append(d)
+                d += timedelta(days=1)
+        else:
+            dates = [today]
+
+        total_employees = Employee.objects.filter(is_active=True).exclude(
+            employee_work_info__isnull=True
+        ).count()
+
+        activities = (
+            AttendanceActivity.objects.filter(
+                attendance_date__in=dates,
+                employee_id__is_active=True,
+            )
+            .select_related("employee_id")
+            .order_by("-attendance_date", "-clock_in")
+        )
+
+        grid_mode = mode in ("today", "3days", "7days")
+
+        grid = []
+        if grid_mode:
+            SLOTS_AM = []
+            t = datetime(2000, 1, 1, 7, 30)
+            end_am = datetime(2000, 1, 1, 9, 0)
+            while t < end_am:
+                SLOTS_AM.append(t.time())
+                t += timedelta(minutes=15)
+
+            SLOTS_PM = []
+            t = datetime(2000, 1, 1, 16, 30)
+            end_pm = datetime(2000, 1, 1, 18, 0)
+            while t < end_pm:
+                SLOTS_PM.append(t.time())
+                t += timedelta(minutes=15)
+
+            all_slots = SLOTS_AM + SLOTS_PM
+
+            for d in dates:
+                day_acts = [a for a in activities if a.attendance_date == d]
+                slots_data = []
+                for slot_start in all_slots:
+                    slot_end_dt = datetime.combine(d, slot_start) + timedelta(minutes=15)
+                    slot_end = slot_end_dt.time()
+                    count = 0
+                    for a in day_acts:
+                        if a.clock_in and slot_start <= a.clock_in < slot_end:
+                            count += 1
+                    slots_data.append({
+                        "time": slot_start.strftime("%H:%M"),
+                        "count": count,
+                    })
+                grid.append({
+                    "date": d.isoformat(),
+                    "weekday": d.strftime("%a"),
+                    "slots": slots_data,
+                })
+
+        list_data = []
+        for a in activities:
+            emp = a.employee_id
+            list_data.append({
+                "id": a.id,
+                "employee_id": emp.id,
+                "employee_name": f"{emp.employee_first_name} {emp.employee_last_name or ''}".strip(),
+                "badge_id": emp.badge_id,
+                "date": a.attendance_date.isoformat(),
+                "clock_in": a.clock_in.strftime("%H:%M") if a.clock_in else None,
+                "clock_out": a.clock_out.strftime("%H:%M") if a.clock_out else None,
+                "clock_in_date": a.clock_in_date.isoformat() if a.clock_in_date else None,
+                "clock_out_date": a.clock_out_date.isoformat() if a.clock_out_date else None,
+            })
+
+        return Response({
+            "mode": mode,
+            "dates": [d.isoformat() for d in dates],
+            "total_employees": total_employees,
+            "grid": grid,
+            "activities": list_data,
+        })

@@ -46,6 +46,7 @@ const apps: AppCard[] = [
       { icon: 'users', label: 'Nhân sự', desc: 'Danh sách, hồ sơ nhân viên', path: '/employees', tone: 'navy', group: 'manage' },
       { icon: 'shield', label: 'Vai trò & Quyền', desc: 'Phân quyền, nhóm vai trò', path: '/roles', tone: 'navy', group: 'manage' },
       { icon: 'folder', label: 'Nhóm Quyền', desc: 'Quản lý nhóm, phân nhân sự', path: '/groups', tone: 'navy', group: 'manage' },
+      { icon: 'clock', label: 'HĐ Chấm công', desc: 'Tổng hợp hoạt động chấm công', path: '/attendance-activity', tone: 'navy', group: 'manage' },
     ],
   },
   {

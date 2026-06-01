@@ -60,4 +60,9 @@ urlpatterns = [
     path("my-attendance-detailed/<int:id>/", UserAttendanceDetailedView.as_view()),
     path("my-attendance/<int:id>/activities/", MyAttendanceActivitiesView.as_view()),
     path("my-schedule/", MyScheduleAPIView.as_view(), name="api-my-schedule"),
+    path(
+        "activity-overview/",
+        AttendanceActivityOverviewView.as_view(),
+        name="api-attendance-activity-overview",
+    ),
 ]
