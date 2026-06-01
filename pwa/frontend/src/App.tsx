@@ -23,6 +23,8 @@ import { ProposalsPage } from './pages/Proposals'
 import { LeaveProposalPage } from './pages/LeaveProposal'
 import { ApprovalsPage } from './pages/Approvals'
 import { SettingsPage } from './pages/Settings'
+import { ShiftProposalPage } from './pages/ShiftProposal'
+import { WorkTypeProposalPage } from './pages/WorkTypeProposal'
 
 export function App() {
   return (
@@ -38,6 +40,8 @@ export function App() {
         <Route path="/attendance-activity" element={<AttendanceActivityPage />} />
         <Route path="/proposals" element={<ProposalsPage />} />
         <Route path="/proposals/leave" element={<LeaveProposalPage />} />
+        <Route path="/proposals/shift" element={<ShiftProposalPage />} />
+        <Route path="/proposals/worktype" element={<WorkTypeProposalPage />} />
         <Route path="/approvals" element={<ApprovalsPage />} />
         <Route path="/attendance" element={<AttendancePage />} />
         <Route path="/attendance/office" element={<OfficeCheckinPage />} />

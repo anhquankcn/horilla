@@ -32,9 +32,9 @@ interface MyProposal {
 
 const proposals: ProposalType[] = [
   { id: 'leave', icon: 'palm', label: 'Nghỉ phép', desc: 'Xin nghỉ phép, nghỉ theo giờ', path: '/proposals/leave', tone: 'navy' },
-  { id: 'shift', icon: 'clock', label: 'Đổi Ca', desc: 'Đề xuất đổi ca làm việc', path: null, tone: 'gold' },
+  { id: 'shift', icon: 'clock', label: 'Đổi Ca', desc: 'Đề xuất đổi ca làm việc', path: '/proposals/shift', tone: 'gold' },
   { id: 'workday', icon: 'cal', label: 'Ngày Công', desc: 'Điều chỉnh ngày công', path: null, tone: 'success' },
-  { id: 'worktype', icon: 'briefcase', label: 'Loại Hình LV', desc: 'Thay đổi loại hình làm việc', path: null, tone: 'navy' },
+  { id: 'worktype', icon: 'briefcase', label: 'Loại Hình LV', desc: 'Thay đổi loại hình làm việc', path: '/proposals/worktype', tone: 'navy' },
   { id: 'asset', icon: 'monitor', label: 'Tài sản Công cụ', desc: 'Yêu cầu cấp tài sản, công cụ', path: null, tone: 'red' },
 ]
 
