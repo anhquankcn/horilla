@@ -22,6 +22,7 @@ import { AttendanceActivityPage } from './pages/AttendanceActivity'
 import { ProposalsPage } from './pages/Proposals'
 import { LeaveProposalPage } from './pages/LeaveProposal'
 import { ApprovalsPage } from './pages/Approvals'
+import { SettingsPage } from './pages/Settings'
 
 export function App() {
   return (
@@ -48,6 +49,7 @@ export function App() {
         <Route path="/leave" element={<LeavePage />} />
         <Route path="/payslip" element={<PayslipPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
       </Route>
 
       <Route path="/leave/new" element={<ProtectedRoute><LeaveNewPage /></ProtectedRoute>} />

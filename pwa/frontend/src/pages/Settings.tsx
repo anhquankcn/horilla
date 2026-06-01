@@ -1,0 +1,304 @@
+import { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { HNH } from '../lib/theme'
+import { Icon } from '../components/ui/Icon'
+import { TopBar } from '../components/layout/TopBar'
+
+/* ── Helpers ── */
+type NotifPerm = 'default' | 'granted' | 'denied' | 'unsupported'
+
+function getNotifPerm(): NotifPerm {
+  if (!('Notification' in window)) return 'unsupported'
+  return Notification.permission as NotifPerm
+}
+
+function permLabel(p: NotifPerm): string {
+  if (p === 'granted') return 'Đã bật'
+  if (p === 'denied') return 'Đã chặn (mở trong cài đặt trình duyệt)'
+  if (p === 'unsupported') return 'Trình duyệt không hỗ trợ'
+  return 'Chưa bật'
+}
+
+function permTone(p: NotifPerm): 'success' | 'red' | 'warn' {
+  if (p === 'granted') return 'success'
+  if (p === 'denied') return 'red'
+  return 'warn'
+}
+
+async function estimateStorage(): Promise<string> {
+  if (navigator.storage?.estimate) {
+    const est = await navigator.storage.estimate()
+    const used = est.usage ?? 0
+    if (used > 1_048_576) return `${(used / 1_048_576).toFixed(1)} MB`
+    if (used > 1024) return `${Math.round(used / 1024)} KB`
+    return `${used} B`
+  }
+  return '—'
+}
+
+/* ── Components ── */
+function SectionTitle({ title }: { title: string }) {
+  return (
+    <div style={{
+      fontSize: 11, fontWeight: 700, color: HNH.ink3,
+      letterSpacing: 0.6, textTransform: 'uppercase',
+      padding: '0 6px 6px',
+    }}>
+      {title}
+    </div>
+  )
+}
+
+function SettingCard({ children }: { children: React.ReactNode }) {
+  return (
+    <div style={{
+      background: '#fff', borderRadius: 18,
+      border: `1px solid ${HNH.line}`, overflow: 'hidden',
+      marginBottom: 14,
+    }}>
+      {children}
+    </div>
+  )
+}
+
+function SettingRow({ icon, label, detail, tone, last, onClick, trailing }: {
+  icon: string
+  label: string
+  detail?: string
+  tone?: 'ink' | 'red' | 'success' | 'warn' | 'navy'
+  last?: boolean
+  onClick?: () => void
+  trailing?: React.ReactNode
+}) {
+  const t = tone ?? 'ink'
+  const iconColor = t === 'red' ? HNH.red : t === 'success' ? HNH.success : t === 'warn' ? HNH.warn : t === 'navy' ? HNH.navy : HNH.ink2
+  const iconBg = t === 'red' ? HNH.red50 : t === 'success' ? HNH.success50 : t === 'warn' ? HNH.warn50 : t === 'navy' ? HNH.navy50 : HNH.cream
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={!onClick}
+      className={`flex items-center gap-3 w-full text-left border-none ${onClick ? 'cursor-pointer' : ''}`}
+      style={{
+        padding: '12px 14px',
+        borderBottom: last ? 'none' : `1px solid ${HNH.line}`,
+        background: 'transparent',
+      }}
+    >
+      <div
+        className="flex items-center justify-center shrink-0"
+        style={{ width: 32, height: 32, borderRadius: 10, background: iconBg }}
+      >
+        <Icon name={icon} size={15} color={iconColor} stroke={1.9} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div style={{ fontSize: 14, fontWeight: 600, color: t === 'red' ? HNH.red : HNH.ink }}>{label}</div>
+        {detail && (
+          <div style={{ fontSize: 11.5, color: HNH.ink3, fontWeight: 500, marginTop: 1 }}>{detail}</div>
+        )}
+      </div>
+      {trailing}
+      {onClick && !trailing && <Icon name="chev-r" size={16} color={HNH.ink4} stroke={2} />}
+    </button>
+  )
+}
+
+function StatusDot({ tone }: { tone: 'success' | 'red' | 'warn' }) {
+  const color = tone === 'success' ? HNH.success : tone === 'red' ? HNH.red : HNH.warn
+  return (
+    <span style={{
+      display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
+      background: color, marginRight: 6,
+    }} />
+  )
+}
+
+/* ── Main ── */
+export function SettingsPage() {
+  const navigate = useNavigate()
+  const [notifPerm, setNotifPerm] = useState<NotifPerm>(getNotifPerm)
+  const [storageUsed, setStorageUsed] = useState('—')
+  const [clearing, setClearing] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
+  const [swStatus, setSwStatus] = useState<'active' | 'waiting' | 'none'>('none')
+
+  useEffect(() => {
+    estimateStorage().then(setStorageUsed)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistration().then(reg => {
+        if (reg?.active) setSwStatus(reg.waiting ? 'waiting' : 'active')
+      })
+    }
+  }, [])
+
+  const showToast = useCallback((msg: string) => {
+    setToast(msg)
+    setTimeout(() => setToast(null), 2500)
+  }, [])
+
+  const requestNotifPermission = async () => {
+    if (notifPerm === 'unsupported' || notifPerm === 'denied') return
+    try {
+      const result = await Notification.requestPermission()
+      setNotifPerm(result as NotifPerm)
+      if (result === 'granted') {
+        showToast('Thông báo đẩy đã bật')
+      }
+    } catch {
+      showToast('Không thể yêu cầu quyền thông báo')
+    }
+  }
+
+  const clearCache = async () => {
+    setClearing(true)
+    try {
+      if ('caches' in window) {
+        const names = await caches.keys()
+        await Promise.all(names.map(n => caches.delete(n)))
+      }
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.getRegistration()
+        if (reg) await reg.unregister()
+      }
+      showToast('Đã xóa bộ nhớ cache')
+      setStorageUsed('0 B')
+      setTimeout(() => window.location.reload(), 1500)
+    } catch {
+      showToast('Lỗi khi xóa cache')
+    } finally {
+      setClearing(false)
+    }
+  }
+
+  const checkUpdate = async () => {
+    if ('serviceWorker' in navigator) {
+      const reg = await navigator.serviceWorker.getRegistration()
+      if (reg) {
+        await reg.update()
+        if (reg.waiting) {
+          reg.waiting.postMessage({ type: 'SKIP_WAITING' })
+          showToast('Đang cập nhật phiên bản mới...')
+          setTimeout(() => window.location.reload(), 1000)
+        } else {
+          showToast('Đang dùng phiên bản mới nhất')
+        }
+      }
+    }
+  }
+
+  const handleLogout = () => {
+    window.location.href = '/bff/auth/logout'
+  }
+
+  const isPWA = window.matchMedia('(display-mode: standalone)').matches
+    || (window.navigator as unknown as { standalone?: boolean }).standalone === true
+
+  return (
+    <div style={{ background: HNH.cream, minHeight: '100%' }}>
+      <TopBar title="Cài đặt" onBack={() => navigate(-1)} />
+
+      <div style={{ padding: '0 16px 32px', maxWidth: 600, margin: '0 auto' }}>
+
+        {/* Notifications */}
+        <SectionTitle title="Thông báo" />
+        <SettingCard>
+          <SettingRow
+            icon="bell"
+            label="Thông báo đẩy"
+            detail={permLabel(notifPerm)}
+            tone={notifPerm === 'granted' ? 'success' : notifPerm === 'denied' ? 'red' : 'warn'}
+            onClick={notifPerm === 'default' ? requestNotifPermission : undefined}
+            trailing={
+              <StatusDot tone={permTone(notifPerm)} />
+            }
+            last
+          />
+        </SettingCard>
+
+        {/* App */}
+        <SectionTitle title="Ứng dụng" />
+        <SettingCard>
+          <SettingRow
+            icon="star"
+            label="Kiểm tra cập nhật"
+            detail={swStatus === 'waiting' ? 'Có phiên bản mới' : 'Service Worker ' + (swStatus === 'active' ? 'hoạt động' : '—')}
+            tone={swStatus === 'waiting' ? 'warn' : 'navy'}
+            onClick={checkUpdate}
+          />
+          <SettingRow
+            icon="x"
+            label={clearing ? 'Đang xóa...' : 'Xóa bộ nhớ cache'}
+            detail={`Đang dùng: ${storageUsed}`}
+            onClick={!clearing ? clearCache : undefined}
+          />
+          <SettingRow
+            icon="globe"
+            label="Giao diện Desktop"
+            detail="Mở Horilla HRM trên trình duyệt"
+            onClick={() => { window.location.href = '/' }}
+            last
+          />
+        </SettingCard>
+
+        {/* Info */}
+        <SectionTitle title="Thông tin" />
+        <SettingCard>
+          <SettingRow
+            icon="doc"
+            label="Phiên bản"
+            detail="HNH HRM PWA v1.0.0"
+            trailing={
+              <span style={{
+                fontSize: 10, fontWeight: 700, color: HNH.navy,
+                background: HNH.navy50, borderRadius: 6, padding: '3px 8px',
+              }}>
+                {isPWA ? 'PWA' : 'WEB'}
+              </span>
+            }
+          />
+          <SettingRow
+            icon="briefcase"
+            label="Công ty"
+            detail="Công ty Du lịch Hồng Ngọc Hà"
+          />
+          <SettingRow
+            icon="shield"
+            label="Bảo mật"
+            detail="Xác thực qua HNHSSO (Keycloak OIDC)"
+            last
+          />
+        </SettingCard>
+
+        {/* Account */}
+        <SectionTitle title="Tài khoản" />
+        <SettingCard>
+          <SettingRow
+            icon="logout"
+            label="Đăng xuất"
+            detail="Thoát tài khoản HNH HRM"
+            tone="red"
+            onClick={handleLogout}
+            last
+          />
+        </SettingCard>
+      </div>
+
+      {/* Toast */}
+      {toast && (
+        <div
+          className="fixed flex items-center gap-2"
+          style={{
+            bottom: 90, left: '50%', transform: 'translateX(-50%)',
+            background: HNH.ink, color: '#fff', borderRadius: 14,
+            padding: '10px 20px', fontSize: 13, fontWeight: 700,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.2)', zIndex: 1100,
+            whiteSpace: 'nowrap',
+          }}
+        >
+          <Icon name="check" size={14} color="#fff" stroke={2} />
+          {toast}
+        </div>
+      )}
+    </div>
+  )
+}

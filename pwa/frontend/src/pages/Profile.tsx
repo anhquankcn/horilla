@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { Avatar } from '../components/ui/Avatar'
@@ -338,6 +339,7 @@ function EditModal({ form, setForm, tab, setTab, saving, onSave, onClose }: {
 
 /* ── Main ── */
 export function ProfilePage() {
+  const navigate = useNavigate()
   const { employee, refresh } = useAuth()
   const isTablet = useTablet()
   const px = isTablet ? 28 : 20
@@ -463,6 +465,7 @@ export function ProfilePage() {
     <>
       <SectionTitle title="Khác" />
       <InfoCard>
+        <InfoRow icon="gear" label="Cài đặt" value="Thông báo, cache, phiên bản" onClick={() => navigate('/settings')} />
         <InfoRow icon="logout" label="Đăng xuất" value="Thoát tài khoản" tone="red" last onClick={handleLogout} />
       </InfoCard>
     </>
