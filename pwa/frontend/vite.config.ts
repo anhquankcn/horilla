@@ -23,6 +23,7 @@ export default defineConfig(({ command }) => ({
         ],
       },
       workbox: {
+        importScripts: ['push-sw.js'],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,

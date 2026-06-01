@@ -1,7 +1,10 @@
+from django.conf import settings
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+from notifications.models import PushSubscription
 
 from ...api_serializers.notifications.serializers import NotificationSerializer
 
@@ -80,3 +83,42 @@ class NotificationSummaryView(APIView):
         unread = request.user.notifications.unread().count()
         total = request.user.notifications.filter(deleted=False).count()
         return Response({"unread": unread, "total": total})
+
+
+class VapidPublicKeyView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        return Response({"public_key": settings.VAPID_PUBLIC_KEY})
+
+
+class PushSubscribeView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        endpoint = request.data.get("endpoint")
+        keys = request.data.get("keys", {})
+        p256dh = keys.get("p256dh", "")
+        auth = keys.get("auth", "")
+
+        if not endpoint or not p256dh or not auth:
+            return Response({"error": "Missing subscription data"}, status=400)
+
+        PushSubscription.objects.update_or_create(
+            endpoint=endpoint,
+            defaults={
+                "user": request.user,
+                "p256dh": p256dh,
+                "auth": auth,
+            },
+        )
+        return Response({"status": "subscribed"})
+
+    def delete(self, request):
+        endpoint = request.data.get("endpoint")
+        if not endpoint:
+            return Response({"error": "Missing endpoint"}, status=400)
+        PushSubscription.objects.filter(
+            user=request.user, endpoint=endpoint
+        ).delete()
+        return Response({"status": "unsubscribed"})

@@ -12,4 +12,6 @@ urlpatterns = [
     path("notifications/bulk-read/", views.NotificationBulkReadDelView.as_view()),
     path("notifications/bulk-delete/", views.NotificationBulkReadDelView.as_view()),
     path("notifications/summary/", views.NotificationSummaryView.as_view()),
+    path("push/vapid-key/", views.VapidPublicKeyView.as_view()),
+    path("push/subscribe/", views.PushSubscribeView.as_view()),
 ]

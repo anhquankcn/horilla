@@ -4,25 +4,22 @@ import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { TopBar } from '../components/layout/TopBar'
 import { useToast } from '../components/ui/Toast'
+import { subscribeToPush, unsubscribeFromPush, isPushSubscribed } from '../lib/push'
 
 /* ── Helpers ── */
-type NotifPerm = 'default' | 'granted' | 'denied' | 'unsupported'
+type PushState = 'on' | 'off' | 'denied' | 'unsupported' | 'loading'
 
-function getNotifPerm(): NotifPerm {
-  if (!('Notification' in window)) return 'unsupported'
-  return Notification.permission as NotifPerm
+function pushLabel(s: PushState): string {
+  if (s === 'on') return 'Đã bật'
+  if (s === 'denied') return 'Đã chặn (mở trong cài đặt trình duyệt)'
+  if (s === 'unsupported') return 'Trình duyệt không hỗ trợ'
+  if (s === 'loading') return 'Đang xử lý...'
+  return 'Chưa bật — nhấn để bật'
 }
 
-function permLabel(p: NotifPerm): string {
-  if (p === 'granted') return 'Đã bật'
-  if (p === 'denied') return 'Đã chặn (mở trong cài đặt trình duyệt)'
-  if (p === 'unsupported') return 'Trình duyệt không hỗ trợ'
-  return 'Chưa bật'
-}
-
-function permTone(p: NotifPerm): 'success' | 'red' | 'warn' {
-  if (p === 'granted') return 'success'
-  if (p === 'denied') return 'red'
+function pushTone(s: PushState): 'success' | 'red' | 'warn' {
+  if (s === 'on') return 'success'
+  if (s === 'denied') return 'red'
   return 'warn'
 }
 
@@ -117,7 +114,7 @@ function StatusDot({ tone }: { tone: 'success' | 'red' | 'warn' }) {
 /* ── Main ── */
 export function SettingsPage() {
   const navigate = useNavigate()
-  const [notifPerm, setNotifPerm] = useState<NotifPerm>(getNotifPerm)
+  const [pushState, setPushState] = useState<PushState>('loading')
   const [storageUsed, setStorageUsed] = useState('—')
   const [clearing, setClearing] = useState(false)
   const { toast: showToast } = useToast()
@@ -125,6 +122,13 @@ export function SettingsPage() {
 
   useEffect(() => {
     estimateStorage().then(setStorageUsed)
+    if (!('Notification' in window) || !('PushManager' in window)) {
+      setPushState('unsupported')
+    } else if (Notification.permission === 'denied') {
+      setPushState('denied')
+    } else {
+      isPushSubscribed().then(ok => setPushState(ok ? 'on' : 'off'))
+    }
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistration().then(reg => {
         if (reg?.active) setSwStatus(reg.waiting ? 'waiting' : 'active')
@@ -132,16 +136,29 @@ export function SettingsPage() {
     }
   }, [])
 
-  const requestNotifPermission = async () => {
-    if (notifPerm === 'unsupported' || notifPerm === 'denied') return
+  const togglePush = async () => {
+    if (pushState === 'unsupported' || pushState === 'denied' || pushState === 'loading') return
+    setPushState('loading')
     try {
-      const result = await Notification.requestPermission()
-      setNotifPerm(result as NotifPerm)
-      if (result === 'granted') {
-        showToast('Thông báo đẩy đã bật')
+      if (pushState === 'on') {
+        await unsubscribeFromPush()
+        setPushState('off')
+        showToast('Đã tắt thông báo đẩy')
+      } else {
+        const ok = await subscribeToPush()
+        if (ok) {
+          setPushState('on')
+          showToast('Thông báo đẩy đã bật')
+        } else {
+          setPushState(Notification.permission === 'denied' ? 'denied' : 'off')
+          if (Notification.permission === 'denied') {
+            showToast('Quyền thông báo bị chặn')
+          }
+        }
       }
     } catch {
-      showToast('Không thể yêu cầu quyền thông báo')
+      setPushState('off')
+      showToast('Lỗi khi cài đặt thông báo đẩy')
     }
   }
 
@@ -201,11 +218,11 @@ export function SettingsPage() {
           <SettingRow
             icon="bell"
             label="Thông báo đẩy"
-            detail={permLabel(notifPerm)}
-            tone={notifPerm === 'granted' ? 'success' : notifPerm === 'denied' ? 'red' : 'warn'}
-            onClick={notifPerm === 'default' ? requestNotifPermission : undefined}
+            detail={pushLabel(pushState)}
+            tone={pushState === 'on' ? 'success' : pushState === 'denied' ? 'red' : 'warn'}
+            onClick={pushState !== 'unsupported' && pushState !== 'denied' && pushState !== 'loading' ? togglePush : undefined}
             trailing={
-              <StatusDot tone={permTone(notifPerm)} />
+              <StatusDot tone={pushTone(pushState)} />
             }
             last
           />

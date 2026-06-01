@@ -304,6 +304,18 @@ USE_X_FORWARDED_HOST = True
 USE_X_FORWARDED_PORT = True
 # ────────────────────────────────────────────────────────────────────
 
+# ── Web Push Notifications (VAPID) ────────────────────────────────
+VAPID_PUBLIC_KEY = env(
+    "VAPID_PUBLIC_KEY",
+    default="BN_pBg64Zg504PSFLtSJoNnDnEPI74mHm-oq-FaYh88KZWou1xiQ44W_7mC1VLkk0ImTvepK3izbzRApDfdSYhM",
+)
+VAPID_PRIVATE_KEY = env(
+    "VAPID_PRIVATE_KEY",
+    default="xntjHaCqI_jWWONEJvPGyIh56c27I2tvVXxa7cC6jgY",
+)
+VAPID_ADMIN_EMAIL = env("VAPID_ADMIN_EMAIL", default="anhquankcn2412@gmail.com")
+# ────────────────────────────────────────────────────────────────────
+
 AUTHENTICATION_BACKENDS = [
     #    "django_auth_ldap.backend.LDAPBackend",
     "horilla.oidc_backend.HorillaOIDCBackend",

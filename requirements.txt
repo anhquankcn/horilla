@@ -79,3 +79,4 @@ django-storages
 mozilla-django-oidc
 python-keycloak
 josepy
+pywebpush
