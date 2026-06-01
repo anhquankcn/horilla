@@ -1150,59 +1150,34 @@ from leave.models import AvailableLeave, LeaveType, LeaveRequest, LeaveRequestCo
 
 
 class WatcherCandidatesView(APIView):
-    """List C&B / Kế toán employees as watcher candidates."""
+    """List C&B employees as watcher candidates."""
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from base.models import Department, JobPosition
-
-        candidates = []
-        seen = set()
+        from base.models import JobPosition
 
         cb_positions = JobPosition.objects.filter(
+            job_position__icontains="tiền lương"
+        ) | JobPosition.objects.filter(
             job_position__icontains="C&B"
         )
+
         cb_employees = Employee.objects.filter(
             employee_work_info__job_position_id__in=cb_positions,
             is_active=True,
-        ).select_related("employee_work_info__job_position_id")
+        ).select_related("employee_work_info__job_position_id", "employee_work_info__department_id")
 
+        candidates = []
         for emp in cb_employees:
-            if emp.id not in seen:
-                pos = None
-                wi = getattr(emp, "employee_work_info", None)
-                if wi and wi.job_position_id:
-                    pos = wi.job_position_id.job_position
-                candidates.append({
-                    "id": emp.id,
-                    "name": f"{emp.employee_first_name} {emp.employee_last_name or ''}".strip(),
-                    "position": pos,
-                    "department": wi.department_id.department if wi and wi.department_id else None,
-                })
-                seen.add(emp.id)
-
-        kt_dept = Department.objects.filter(
-            department__icontains="Kế toán"
-        ).first()
-        if kt_dept:
-            kt_employees = Employee.objects.filter(
-                employee_work_info__department_id=kt_dept,
-                is_active=True,
-            ).select_related("employee_work_info__job_position_id", "employee_work_info__department_id")
-            for emp in kt_employees:
-                if emp.id not in seen:
-                    pos = None
-                    wi = getattr(emp, "employee_work_info", None)
-                    if wi and wi.job_position_id:
-                        pos = wi.job_position_id.job_position
-                    candidates.append({
-                        "id": emp.id,
-                        "name": f"{emp.employee_first_name} {emp.employee_last_name or ''}".strip(),
-                        "position": pos,
-                        "department": wi.department_id.department if wi and wi.department_id else None,
-                    })
-                    seen.add(emp.id)
+            wi = getattr(emp, "employee_work_info", None)
+            pos = wi.job_position_id.job_position if wi and wi.job_position_id else None
+            candidates.append({
+                "id": emp.id,
+                "name": f"{emp.employee_first_name} {emp.employee_last_name or ''}".strip(),
+                "position": pos,
+                "department": wi.department_id.department if wi and wi.department_id else None,
+            })
 
         return Response(candidates)
 
