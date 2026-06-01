@@ -65,4 +65,14 @@ urlpatterns = [
         AttendanceActivityOverviewView.as_view(),
         name="api-attendance-activity-overview",
     ),
+    path(
+        "my-attendance-requests/",
+        MyAttendanceRequestsView.as_view(),
+        name="api-my-attendance-requests",
+    ),
+    path(
+        "pwa-attendance-request/",
+        PWAAttendanceRequestView.as_view(),
+        name="api-pwa-attendance-request",
+    ),
 ]

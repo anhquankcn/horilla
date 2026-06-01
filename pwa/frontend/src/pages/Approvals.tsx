@@ -5,7 +5,7 @@ import { TopBar } from '../components/layout/TopBar'
 import { api } from '../lib/api'
 
 /* ── Types ── */
-type ApprovalTab = 'leave' | 'shift' | 'worktype'
+type ApprovalTab = 'leave' | 'shift' | 'worktype' | 'attendance'
 
 interface LeaveRequest {
   id: number
@@ -53,12 +53,30 @@ interface WorkTypeRequest {
   canceled: boolean
 }
 
+interface AttendanceRequest {
+  id: number
+  employee_id: number
+  employee_first_name: string
+  employee_last_name: string
+  badge_id: string | null
+  attendance_date: string | null
+  attendance_clock_in: string | null
+  attendance_clock_out: string | null
+  attendance_clock_in_date: string | null
+  attendance_clock_out_date: string | null
+  attendance_worked_hour: string | null
+  shift_name: string | null
+  request_description: string | null
+  requested_data: string | null
+}
+
 interface PaginatedResponse<T> { count: number; results: T[] }
 
 const TABS: { id: ApprovalTab; label: string; icon: string }[] = [
   { id: 'leave', label: 'Nghỉ phép', icon: 'palm' },
   { id: 'shift', label: 'Đổi Ca', icon: 'clock' },
   { id: 'worktype', label: 'Loại CV', icon: 'briefcase' },
+  { id: 'attendance', label: 'Ngày công', icon: 'cal' },
 ]
 
 const BREAKDOWN_VI: Record<string, string> = {
@@ -218,6 +236,57 @@ function WorkTypeCard({ req, onTap }: { req: WorkTypeRequest; onTap: () => void 
           <div style={{ fontSize: 10, color: HNH.ink3, marginTop: 4 }}>
             {daysSince(req.requested_date)}
           </div>
+        </div>
+      </div>
+    </button>
+  )
+}
+
+/* ── Attendance Card ── */
+function AttendanceCard({ req, onTap }: { req: AttendanceRequest; onTap: () => void }) {
+  const name = `${req.employee_first_name} ${req.employee_last_name}`.trim()
+  return (
+    <button
+      onClick={onTap}
+      className="w-full border-none cursor-pointer text-left"
+      style={{
+        background: '#fff', borderRadius: 16, padding: '14px 16px',
+        border: `1px solid ${HNH.line}`, boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+      }}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className="flex items-center justify-center shrink-0"
+          style={{ width: 40, height: 40, borderRadius: 12, background: HNH.success50 }}
+        >
+          <Icon name="cal" size={20} color={HNH.success} stroke={2} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span style={{ fontSize: 13.5, fontWeight: 700, color: HNH.ink }}>{name}</span>
+            {req.badge_id && (
+              <span style={{ fontSize: 10.5, color: HNH.ink3, fontWeight: 500 }}>{req.badge_id}</span>
+            )}
+          </div>
+          <div style={{ fontSize: 12, color: HNH.navy, fontWeight: 600, marginTop: 2 }}>
+            {formatDate(req.attendance_date)}
+            {req.attendance_clock_in ? ` · ${req.attendance_clock_in}` : ''}
+            {req.attendance_clock_out ? ` → ${req.attendance_clock_out}` : ''}
+          </div>
+          {req.request_description && (
+            <div style={{
+              fontSize: 11, color: HNH.ink3, marginTop: 2,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {req.request_description}
+            </div>
+          )}
+        </div>
+        <div style={{
+          fontSize: 10, fontWeight: 700, color: HNH.warn,
+          background: HNH.warn50, borderRadius: 6, padding: '2px 7px', flexShrink: 0,
+        }}>
+          Chờ duyệt
         </div>
       </div>
     </button>
@@ -513,6 +582,77 @@ function WorkTypeDetailModal({ req, onClose, onAction }: {
   )
 }
 
+/* ── Attendance Detail Modal ── */
+function AttendanceDetailModal({ req, onClose, onAction }: {
+  req: AttendanceRequest; onClose: () => void
+  onAction: (action: 'approve' | 'reject') => void
+}) {
+  const [acting, setActing] = useState(false)
+  const name = `${req.employee_first_name} ${req.employee_last_name}`.trim()
+
+  let requestedIn = req.attendance_clock_in
+  let requestedOut = req.attendance_clock_out
+  if (req.requested_data) {
+    try {
+      const rd = JSON.parse(req.requested_data)
+      if (rd.attendance_clock_in) requestedIn = rd.attendance_clock_in
+      if (rd.attendance_clock_out) requestedOut = rd.attendance_clock_out
+    } catch { /* ignore */ }
+  }
+
+  return (
+    <ModalShell title="Phê duyệt ngày công" onClose={onClose}>
+      <EmployeeAvatar name={name} />
+      <div style={{
+        background: '#fff', borderRadius: 16, padding: 14, border: `1px solid ${HNH.line}`,
+        display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 16px',
+      }}>
+        <DetailField label="Ngày" value={formatDate(req.attendance_date)} />
+        <DetailField label="Ca" value={req.shift_name || '—'} />
+        <DetailField label="Giờ vào (yêu cầu)" value={requestedIn || '—'} />
+        <DetailField label="Giờ ra (yêu cầu)" value={requestedOut || '—'} />
+        {req.attendance_clock_in && req.requested_data && (
+          <>
+            <DetailField label="Giờ vào (hiện tại)" value={req.attendance_clock_in || '—'} />
+            <DetailField label="Giờ ra (hiện tại)" value={req.attendance_clock_out || '—'} />
+          </>
+        )}
+        <div style={{ gridColumn: '1/-1' }}>
+          <DetailField label="Lý do" value={req.request_description || '—'} />
+        </div>
+      </div>
+      <div className="flex gap-3" style={{ marginTop: 20 }}>
+        <button
+          onClick={() => { setActing(true); onAction('approve') }}
+          disabled={acting}
+          className="flex-1 flex items-center justify-center gap-2 border-none cursor-pointer"
+          style={{
+            padding: '13px', borderRadius: 12,
+            background: HNH.success, color: '#fff',
+            fontSize: 13.5, fontWeight: 700, opacity: acting ? 0.6 : 1,
+          }}
+        >
+          <Icon name="check" size={16} color="#fff" stroke={2.5} />
+          Duyệt
+        </button>
+        <button
+          onClick={() => { setActing(true); onAction('reject') }}
+          disabled={acting}
+          className="flex-1 flex items-center justify-center gap-2 border-none cursor-pointer"
+          style={{
+            padding: '13px', borderRadius: 12,
+            background: HNH.red, color: '#fff',
+            fontSize: 13.5, fontWeight: 700, opacity: acting ? 0.6 : 1,
+          }}
+        >
+          <Icon name="x" size={16} color="#fff" stroke={2.5} />
+          Từ chối
+        </button>
+      </div>
+    </ModalShell>
+  )
+}
+
 /* ── Empty State ── */
 function EmptyState() {
   return (
@@ -534,27 +674,32 @@ export function ApprovalsPage() {
   const [leaveReqs, setLeaveReqs] = useState<LeaveRequest[]>([])
   const [shiftReqs, setShiftReqs] = useState<ShiftRequest[]>([])
   const [wtReqs, setWtReqs] = useState<WorkTypeRequest[]>([])
+  const [attReqs, setAttReqs] = useState<AttendanceRequest[]>([])
   const [loading, setLoading] = useState(true)
 
   const [selectedLeave, setSelectedLeave] = useState<LeaveRequest | null>(null)
   const [selectedShift, setSelectedShift] = useState<ShiftRequest | null>(null)
   const [selectedWt, setSelectedWt] = useState<WorkTypeRequest | null>(null)
+  const [selectedAtt, setSelectedAtt] = useState<AttendanceRequest | null>(null)
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
     try {
-      const [leaveData, shiftData, wtData] = await Promise.all([
+      const [leaveData, shiftData, wtData, attData] = await Promise.all([
         api.get<LeaveRequest[]>('/api/leave/pending-approvals/'),
         api.get<PaginatedResponse<ShiftRequest>>('/api/base/shift-requests/?approved=false&canceled=false&page_size=100'),
         api.get<PaginatedResponse<WorkTypeRequest>>('/api/base/worktype-requests/?approved=false&canceled=false&page_size=100'),
+        api.get<PaginatedResponse<AttendanceRequest>>('/api/attendance/attendance-request/?page_size=100'),
       ])
       setLeaveReqs(leaveData)
       setShiftReqs(shiftData.results)
       setWtReqs(wtData.results)
+      setAttReqs(attData.results)
     } catch {
       setLeaveReqs([])
       setShiftReqs([])
       setWtReqs([])
+      setAttReqs([])
     } finally {
       setLoading(false)
     }
@@ -562,7 +707,7 @@ export function ApprovalsPage() {
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
-  const totalPending = leaveReqs.length + shiftReqs.length + wtReqs.length
+  const totalPending = leaveReqs.length + shiftReqs.length + wtReqs.length + attReqs.length
 
   const handleLeaveAction = async (action: 'approve' | 'reject', reason?: string) => {
     if (!selectedLeave) return
@@ -603,10 +748,24 @@ export function ApprovalsPage() {
     } catch { /* ignore */ }
   }
 
+  const handleAttAction = async (action: 'approve' | 'reject') => {
+    if (!selectedAtt) return
+    try {
+      if (action === 'approve') {
+        await api.put(`/api/attendance/attendance-request-approve/${selectedAtt.id}`, {})
+      } else {
+        await api.put(`/api/attendance/attendance-request-cancel/${selectedAtt.id}`, {})
+      }
+      setSelectedAtt(null)
+      fetchAll()
+    } catch { /* ignore */ }
+  }
+
   const tabCounts: Record<ApprovalTab, number> = {
     leave: leaveReqs.length,
     shift: shiftReqs.length,
     worktype: wtReqs.length,
+    attendance: attReqs.length,
   }
 
   return (
@@ -704,6 +863,17 @@ export function ApprovalsPage() {
                 </div>
               )
             )}
+
+            {/* Attendance tab */}
+            {tab === 'attendance' && (
+              attReqs.length === 0 ? <EmptyState /> : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {attReqs.map(r => (
+                    <AttendanceCard key={r.id} req={r} onTap={() => setSelectedAtt(r)} />
+                  ))}
+                </div>
+              )
+            )}
           </>
         )}
       </div>
@@ -727,6 +897,13 @@ export function ApprovalsPage() {
           req={selectedWt}
           onClose={() => setSelectedWt(null)}
           onAction={handleWtAction}
+        />
+      )}
+      {selectedAtt && (
+        <AttendanceDetailModal
+          req={selectedAtt}
+          onClose={() => setSelectedAtt(null)}
+          onAction={handleAttAction}
         />
       )}
     </div>

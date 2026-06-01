@@ -5,6 +5,7 @@ from django import template
 from django.conf import settings
 from django.utils import timezone as django_tz
 from django.core.mail import EmailMessage
+from django.db import models
 from django.db.models import Case, CharField, F, Value, When
 from django.http import QueryDict
 from django.shortcuts import get_object_or_404
@@ -1381,3 +1382,128 @@ class AttendanceActivityOverviewView(APIView):
             "grid": grid,
             "activities": list_data,
         })
+
+
+class MyAttendanceRequestsView(APIView):
+    """List current user's attendance adjustment requests (is_validate_request)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        employee = request.user.employee_get
+        status_filter = request.GET.get("status", "")
+
+        qs = Attendance.objects.filter(employee_id=employee).order_by("-id")
+
+        if status_filter == "pending":
+            qs = qs.filter(is_validate_request=True, is_validate_request_approved=False)
+        elif status_filter == "approved":
+            qs = qs.filter(is_validate_request_approved=True)
+        elif status_filter == "all_requests":
+            qs = qs.filter(
+                models.Q(is_validate_request=True)
+                | models.Q(is_validate_request_approved=True)
+            )
+        else:
+            qs = qs.filter(
+                models.Q(is_validate_request=True)
+                | models.Q(is_validate_request_approved=True)
+            )
+
+        data = []
+        for att in qs[:50]:
+            att_status = "approved" if att.is_validate_request_approved else (
+                "pending" if att.is_validate_request else "normal"
+            )
+            data.append({
+                "id": att.id,
+                "attendance_date": att.attendance_date.isoformat() if att.attendance_date else None,
+                "clock_in": att.attendance_clock_in.strftime("%H:%M") if att.attendance_clock_in else None,
+                "clock_out": att.attendance_clock_out.strftime("%H:%M") if att.attendance_clock_out else None,
+                "clock_in_date": att.attendance_clock_in_date.isoformat() if att.attendance_clock_in_date else None,
+                "clock_out_date": att.attendance_clock_out_date.isoformat() if att.attendance_clock_out_date else None,
+                "worked_hour": att.attendance_worked_hour or "00:00",
+                "shift_name": att.shift_id.employee_shift if att.shift_id else None,
+                "work_type_name": att.work_type_id.work_type if att.work_type_id else None,
+                "description": att.request_description or "",
+                "request_type": att.request_type or "",
+                "status": att_status,
+            })
+
+        return Response(data)
+
+
+class PWAAttendanceRequestView(APIView):
+    """PWA-friendly endpoint to create/update attendance adjustment requests."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        import json as _json
+
+        employee = request.user.employee_get
+        data = request.data
+
+        attendance_date_str = data.get("attendance_date")
+        clock_in_str = data.get("attendance_clock_in")
+        clock_out_str = data.get("attendance_clock_out")
+        description = data.get("description", "")
+
+        if not attendance_date_str or not clock_in_str:
+            return Response(
+                {"error": "Vui lòng nhập ngày và giờ vào"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            att_date = date.fromisoformat(attendance_date_str)
+        except ValueError:
+            return Response(
+                {"error": "Ngày không hợp lệ"}, status=status.HTTP_400_BAD_REQUEST
+            )
+
+        clock_in_date_str = data.get("attendance_clock_in_date", attendance_date_str)
+        clock_out_date_str = data.get("attendance_clock_out_date", attendance_date_str)
+
+        existing = Attendance.objects.filter(
+            employee_id=employee, attendance_date=att_date
+        ).first()
+
+        work_info = getattr(employee, "employee_work_info", None)
+        shift = work_info.shift_id if work_info else None
+        work_type = work_info.work_type_id if work_info else None
+
+        if existing:
+            requested = {
+                "attendance_date": attendance_date_str,
+                "attendance_clock_in_date": clock_in_date_str,
+                "attendance_clock_in": clock_in_str,
+                "attendance_clock_out_date": clock_out_date_str if clock_out_str else None,
+                "attendance_clock_out": clock_out_str if clock_out_str else None,
+            }
+            existing.requested_data = _json.dumps(requested)
+            existing.request_description = description
+            existing.is_validate_request = True
+            existing.is_validate_request_approved = False
+            existing.request_type = "update_request"
+            existing.save()
+            return Response({"status": "updated", "id": existing.id}, status=200)
+        else:
+            att = Attendance(
+                employee_id=employee,
+                attendance_date=att_date,
+                attendance_clock_in_date=date.fromisoformat(clock_in_date_str),
+                attendance_clock_in=clock_in_str,
+                attendance_clock_out_date=(
+                    date.fromisoformat(clock_out_date_str) if clock_out_str else None
+                ),
+                attendance_clock_out=clock_out_str if clock_out_str else None,
+                shift_id=shift,
+                work_type_id=work_type,
+                request_description=description,
+                is_validate_request=True,
+                is_validate_request_approved=False,
+                request_type="create_request",
+            )
+            att.save()
+            return Response({"status": "created", "id": att.id}, status=201)
