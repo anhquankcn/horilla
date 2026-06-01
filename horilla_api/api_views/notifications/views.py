@@ -172,6 +172,13 @@ def _resolve_recipients(target_type, data):
 
 
 def _serialize_announcement(ann, include_feedback=False):
+    if ann.send_as_system:
+        sender_display = "HRM System"
+    elif hasattr(ann.sender, "employee_get"):
+        sender_display = str(ann.sender.employee_get)
+    else:
+        sender_display = str(ann.sender)
+
     result = {
         "id": ann.id,
         "title": ann.title,
@@ -184,11 +191,8 @@ def _serialize_announcement(ann, include_feedback=False):
         "target_company": (
             str(ann.target_company) if ann.target_company else None
         ),
-        "sender_name": (
-            str(ann.sender.employee_get)
-            if hasattr(ann.sender, "employee_get")
-            else str(ann.sender)
-        ),
+        "send_as_system": ann.send_as_system,
+        "sender_name": sender_display,
         "created_at": ann.created_at.isoformat(),
         "recipient_count": ann.recipients.count(),
         "read_count": ann.recipients.filter(read=True).count(),
@@ -242,11 +246,14 @@ class AnnouncementCreateView(APIView):
 
         from base.models import Company, Department
 
+        send_as_system = bool(request.data.get("send_as_system", False))
+
         ann = Announcement.objects.create(
             sender=request.user,
             title=title,
             body=body,
             target_type=target_type,
+            send_as_system=send_as_system,
             target_department=(
                 Department.objects.filter(id=dept_id).first()
                 if dept_id
@@ -260,8 +267,7 @@ class AnnouncementCreateView(APIView):
         )
 
         user_ids = list(_resolve_recipients(target_type, request.data))
-        user_ids_set = set(user_ids)
-        user_ids_set.discard(request.user.id)
+        user_ids_set = {uid for uid in user_ids if uid is not None}
 
         from django.contrib.auth import get_user_model
         User = get_user_model()
@@ -270,15 +276,19 @@ class AnnouncementCreateView(APIView):
             recipients.append(
                 AnnouncementRecipient(announcement=ann, user_id=uid)
             )
-        AnnouncementRecipient.objects.bulk_create(recipients)
+        if recipients:
+            AnnouncementRecipient.objects.bulk_create(
+                recipients, ignore_conflicts=True
+            )
 
         recipient_users = list(User.objects.filter(id__in=user_ids_set))
         if recipient_users:
             actor = request.user.employee_get if hasattr(request.user, "employee_get") else request.user
+            sender_label = "HRM System" if send_as_system else str(actor)
             notify.send(
                 actor,
                 recipient=recipient_users,
-                verb=title,
+                verb=f"[{sender_label}] {title}",
                 description=body[:200],
             )
 

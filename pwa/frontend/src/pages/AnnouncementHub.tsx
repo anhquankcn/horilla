@@ -439,6 +439,7 @@ export function AnnouncementHubPage() {
   const [selectedUsers, setSelectedUsers] = useState<Set<number>>(new Set())
   const [selectedDept, setSelectedDept] = useState<number | null>(null)
   const [selectedCompany, setSelectedCompany] = useState<number | null>(null)
+  const [sendAsSystem, setSendAsSystem] = useState(false)
   const [empSearch, setEmpSearch] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
@@ -538,7 +539,7 @@ export function AnnouncementHubPage() {
     if (!canSend() || submitting) return
     setSubmitting(true)
     try {
-      const payload: Record<string, any> = { title: title.trim(), body: body.trim(), target_type: targetType }
+      const payload: Record<string, any> = { title: title.trim(), body: body.trim(), target_type: targetType, send_as_system: sendAsSystem }
       if (targetType === 'individual') payload.user_id = [...selectedUsers][0]
       if (targetType === 'multi_user') payload.user_ids = [...selectedUsers]
       if (targetType === 'department') payload.department_id = selectedDept
@@ -546,7 +547,7 @@ export function AnnouncementHubPage() {
 
       await api.post('/api/notifications/announcements/', payload)
       toast('Đã gửi thông báo thành công!')
-      setTitle(''); setBody(''); setSelectedUsers(new Set()); setEmpSearch('')
+      setTitle(''); setBody(''); setSelectedUsers(new Set()); setEmpSearch(''); setSendAsSystem(false)
       setTab('history')
       loadHistory()
     } catch {
@@ -638,6 +639,29 @@ export function AnnouncementHubPage() {
                   }}
                 />
               </div>
+
+              {/* Send as system toggle */}
+              <button
+                onClick={() => setSendAsSystem(v => !v)}
+                className="flex items-center gap-3 w-full border-none cursor-pointer text-left"
+                style={{
+                  padding: '12px 14px', borderRadius: 14, background: '#fff',
+                  border: `1.5px solid ${sendAsSystem ? HNH.navy : HNH.line}`,
+                }}
+              >
+                <div style={{
+                  width: 22, height: 22, borderRadius: 7, flexShrink: 0,
+                  border: `2px solid ${sendAsSystem ? HNH.navy : HNH.ink4}`,
+                  background: sendAsSystem ? HNH.navy : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {sendAsSystem && <Icon name="check" size={13} color="#fff" stroke={3} />}
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: HNH.ink }}>Gửi với tên HRM System</div>
+                  <div style={{ fontSize: 11, color: HNH.ink3 }}>Hiển thị "HRM System" thay vì tên cá nhân</div>
+                </div>
+              </button>
 
               <button
                 onClick={handleSend}

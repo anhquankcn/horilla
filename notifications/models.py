@@ -51,6 +51,7 @@ class Announcement(models.Model):
         on_delete=models.SET_NULL,
         related_name="notification_announcements",
     )
+    send_as_system = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
