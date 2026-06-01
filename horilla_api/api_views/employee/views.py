@@ -2986,17 +2986,17 @@ class EmployeeJourneyPWAView(APIView):
             )
 
             offboarding_emp_ids = set()
-            trial_emp_ids = set()
+            probation_emp_ids = set()
             perf_emp_ids = set()
             onb_emp_ids = set(
                 e["id"] for e in phase_data["onb"]["employees"]
             )
 
             self._populate_offboarding(phase_data, active_employees, offboarding_emp_ids)
-            self._populate_trial(phase_data, active_employees, trial_emp_ids, today)
+            self._populate_probation(phase_data, active_employees, probation_emp_ids, today)
             self._populate_performance(phase_data, active_employees, perf_emp_ids)
 
-            assigned = offboarding_emp_ids | trial_emp_ids | perf_emp_ids | onb_emp_ids
+            assigned = offboarding_emp_ids | probation_emp_ids | perf_emp_ids | onb_emp_ids
             for e in active_employees:
                 if e.id in assigned:
                     continue
@@ -3139,26 +3139,22 @@ class EmployeeJourneyPWAView(APIView):
         except Exception:
             pass
 
-    def _populate_trial(self, phase_data, employees, id_set, today):
-        try:
-            from payroll.models.contract_models import TrialContract
-            active_trials = TrialContract.objects.filter(
-                contract_status="active",
-                employee_id__is_active=True,
-            ).select_related("employee_id")
-            for tc in active_trials:
-                e = tc.employee_id
-                if not e:
-                    continue
+    def _populate_probation(self, phase_data, employees, id_set, today):
+        """Nhân viên thử việc = vào làm trong vòng 60 ngày gần đây."""
+        from datetime import timedelta
+        cutoff = today - timedelta(days=60)
+        for e in employees:
+            wi = getattr(e, "employee_work_info", None)
+            if not wi or not wi.date_joining:
+                continue
+            if wi.date_joining >= cutoff:
                 row = self._emp_row(e)
-                days_elapsed = (today - tc.contract_start_date).days if tc.contract_start_date else 0
-                row["trial_days"] = tc.probation_days
+                days_elapsed = (today - wi.date_joining).days
+                row["probation_days"] = 60
                 row["days_elapsed"] = days_elapsed
-                row["trial_pct"] = min(100, round(days_elapsed / tc.probation_days * 100)) if tc.probation_days else 0
+                row["probation_pct"] = min(100, round(days_elapsed / 60 * 100))
                 phase_data["prob"]["employees"].append(row)
                 id_set.add(e.id)
-        except Exception:
-            pass
 
     def _populate_performance(self, phase_data, employees, id_set):
         try:

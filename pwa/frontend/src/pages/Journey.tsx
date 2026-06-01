@@ -17,9 +17,9 @@ interface EmpRow {
   joining_date: string | null
   stage?: string | null
   is_candidate?: boolean
-  trial_days?: number
+  probation_days?: number
   days_elapsed?: number
-  trial_pct?: number
+  probation_pct?: number
   off_type?: string
   progress?: string
   has_objectives?: boolean
@@ -395,7 +395,7 @@ function EmployeeCard({
         </div>
 
         {/* Phase-specific info */}
-        {phaseId === 'prob' && emp.trial_pct !== undefined && (
+        {phaseId === 'prob' && emp.probation_pct !== undefined && (
           <div style={{ marginTop: 6 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
               <div style={{
@@ -404,13 +404,13 @@ function EmployeeCard({
               }}>
                 <div style={{
                   height: '100%', borderRadius: 3,
-                  background: emp.trial_pct >= 100 ? HNH.red : '#d97706',
-                  width: `${Math.min(100, emp.trial_pct)}%`,
+                  background: emp.probation_pct >= 100 ? HNH.success : '#d97706',
+                  width: `${Math.min(100, emp.probation_pct)}%`,
                   transition: 'width .3s',
                 }} />
               </div>
               <span style={{ fontSize: 10, fontWeight: 700, color: '#d97706' }}>
-                {emp.days_elapsed}/{emp.trial_days}d
+                {emp.days_elapsed}/{emp.probation_days} ngày
               </span>
             </div>
           </div>
