@@ -1,9 +1,11 @@
+import { useState, useEffect } from 'react'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { Avatar } from '../components/ui/Avatar'
 import { Badge } from '../components/ui/Badge'
 import { useAuth } from '../lib/auth'
 import { useTablet } from '../lib/useTablet'
+import { api } from '../lib/api'
 
 /* ── Helpers ── */
 function fmtDate(iso: string | null): string {
@@ -42,14 +44,16 @@ function fullAddress(e: { address: string; city: string; state: string; country:
 }
 
 /* ── Section components ── */
-function SectionTitle({ title }: { title: string }) {
+function SectionTitle({ title, action }: { title: string; action?: React.ReactNode }) {
   return (
-    <div style={{
-      fontSize: 11, fontWeight: 700, color: HNH.ink3,
-      letterSpacing: 0.6, padding: '0 6px 6px',
-      textTransform: 'uppercase',
-    }}>
-      {title}
+    <div className="flex items-center justify-between" style={{ padding: '0 6px 6px' }}>
+      <div style={{
+        fontSize: 11, fontWeight: 700, color: HNH.ink3,
+        letterSpacing: 0.6, textTransform: 'uppercase',
+      }}>
+        {title}
+      </div>
+      {action}
     </div>
   )
 }
@@ -112,11 +116,284 @@ function InfoRow({ icon, label, value, tone, last, onClick }: {
   )
 }
 
+function EditButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-1 border-none cursor-pointer"
+      style={{
+        background: HNH.navy50, borderRadius: 8, padding: '4px 10px',
+        fontSize: 11, fontWeight: 700, color: HNH.navy,
+      }}
+    >
+      <Icon name="gear" size={11} color={HNH.navy} stroke={2} />
+      Sửa
+    </button>
+  )
+}
+
+/* ── Edit Modal ── */
+interface EditForm {
+  phone: string
+  address: string
+  city: string
+  state: string
+  country: string
+  zip: string
+  marital_status: string
+  children: string
+  emergency_contact_name: string
+  emergency_contact_relation: string
+  emergency_contact: string
+}
+
+function FormField({ label, value, onChange, placeholder, type }: {
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string
+}) {
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <label style={{ fontSize: 11.5, fontWeight: 700, color: HNH.ink3, display: 'block', marginBottom: 4 }}>
+        {label}
+      </label>
+      <input
+        type={type ?? 'text'}
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={{
+          width: '100%', padding: '10px 12px', borderRadius: 12,
+          border: `1.5px solid ${HNH.line}`, fontSize: 14, fontWeight: 600,
+          color: HNH.ink, background: '#fff', outline: 'none',
+          boxSizing: 'border-box',
+        }}
+        onFocus={e => { e.target.style.borderColor = HNH.navy }}
+        onBlur={e => { e.target.style.borderColor = HNH.line }}
+      />
+    </div>
+  )
+}
+
+function SelectField({ label, value, onChange, options }: {
+  label: string; value: string; onChange: (v: string) => void
+  options: { value: string; label: string }[]
+}) {
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <label style={{ fontSize: 11.5, fontWeight: 700, color: HNH.ink3, display: 'block', marginBottom: 4 }}>
+        {label}
+      </label>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        style={{
+          width: '100%', padding: '10px 12px', borderRadius: 12,
+          border: `1.5px solid ${HNH.line}`, fontSize: 14, fontWeight: 600,
+          color: HNH.ink, background: '#fff', outline: 'none',
+          boxSizing: 'border-box', appearance: 'none',
+        }}
+      >
+        {options.map(o => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
+type EditTab = 'personal' | 'emergency'
+
+function EditModal({ form, setForm, tab, setTab, saving, onSave, onClose }: {
+  form: EditForm
+  setForm: React.Dispatch<React.SetStateAction<EditForm>>
+  tab: EditTab
+  setTab: (t: EditTab) => void
+  saving: boolean
+  onSave: () => void
+  onClose: () => void
+}) {
+  const upd = (field: keyof EditForm) => (v: string) => setForm(prev => ({ ...prev, [field]: v }))
+
+  return (
+    <div
+      className="fixed inset-0 flex items-end justify-center"
+      style={{ background: 'rgba(0,0,0,0.4)', zIndex: 1000 }}
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div
+        style={{
+          background: HNH.cream, borderRadius: '24px 24px 0 0',
+          width: '100%', maxWidth: 500, maxHeight: '88vh',
+          display: 'flex', flexDirection: 'column',
+        }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between" style={{ padding: '18px 20px 12px' }}>
+          <div style={{ fontSize: 17, fontWeight: 700, color: HNH.ink }}>Chỉnh sửa hồ sơ</div>
+          <button
+            onClick={onClose}
+            className="flex items-center justify-center border-none cursor-pointer"
+            style={{ width: 32, height: 32, borderRadius: 10, background: HNH.cream2 }}
+          >
+            <Icon name="x" size={16} color={HNH.ink2} stroke={2} />
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div className="flex gap-2" style={{ padding: '0 20px 12px' }}>
+          {([
+            { key: 'personal' as EditTab, label: 'Cá nhân' },
+            { key: 'emergency' as EditTab, label: 'Liên hệ khẩn cấp' },
+          ]).map(t => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className="border-none cursor-pointer"
+              style={{
+                padding: '6px 14px', borderRadius: 8,
+                background: tab === t.key ? HNH.navy : '#fff',
+                color: tab === t.key ? '#fff' : HNH.ink2,
+                fontSize: 12, fontWeight: 700,
+                border: `1.5px solid ${tab === t.key ? HNH.navy : HNH.line}`,
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px 20px' }}>
+          {tab === 'personal' ? (
+            <>
+              <FormField label="Số điện thoại" value={form.phone} onChange={upd('phone')} type="tel" placeholder="0901234567" />
+              <SelectField
+                label="Tình trạng hôn nhân"
+                value={form.marital_status}
+                onChange={upd('marital_status')}
+                options={[
+                  { value: '', label: '— Chọn —' },
+                  { value: 'single', label: 'Độc thân' },
+                  { value: 'married', label: 'Đã kết hôn' },
+                  { value: 'divorced', label: 'Đã ly hôn' },
+                ]}
+              />
+              <FormField label="Số con" value={form.children} onChange={upd('children')} type="number" />
+              <div style={{
+                fontSize: 11.5, fontWeight: 700, color: HNH.ink3,
+                letterSpacing: 0.4, textTransform: 'uppercase',
+                marginTop: 8, marginBottom: 8,
+              }}>
+                Địa chỉ
+              </div>
+              <FormField label="Địa chỉ" value={form.address} onChange={upd('address')} placeholder="Số nhà, đường..." />
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="Thành phố" value={form.city} onChange={upd('city')} />
+                <FormField label="Tỉnh/Bang" value={form.state} onChange={upd('state')} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField label="Quốc gia" value={form.country} onChange={upd('country')} />
+                <FormField label="Mã bưu điện" value={form.zip} onChange={upd('zip')} />
+              </div>
+            </>
+          ) : (
+            <>
+              <FormField label="Tên người liên hệ" value={form.emergency_contact_name} onChange={upd('emergency_contact_name')} placeholder="Nguyễn Văn A" />
+              <FormField label="Mối quan hệ" value={form.emergency_contact_relation} onChange={upd('emergency_contact_relation')} placeholder="Vợ / Chồng / Cha / Mẹ..." />
+              <FormField label="Số điện thoại" value={form.emergency_contact} onChange={upd('emergency_contact')} type="tel" placeholder="0901234567" />
+            </>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex gap-3" style={{ padding: '12px 20px 20px' }}>
+          <button
+            onClick={onClose}
+            className="flex-1 border-none cursor-pointer"
+            style={{
+              padding: '13px', borderRadius: 14, fontSize: 14, fontWeight: 700,
+              background: '#fff', color: HNH.ink2,
+              border: `1.5px solid ${HNH.line}`,
+            }}
+          >
+            Hủy
+          </button>
+          <button
+            onClick={onSave}
+            disabled={saving}
+            className="flex-1 border-none cursor-pointer"
+            style={{
+              padding: '13px', borderRadius: 14, fontSize: 14, fontWeight: 700,
+              background: HNH.navy, color: '#fff',
+              opacity: saving ? 0.6 : 1,
+              boxShadow: '0 4px 12px rgba(20,43,111,0.2)',
+            }}
+          >
+            {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Main ── */
 export function ProfilePage() {
-  const { employee } = useAuth()
+  const { employee, refresh } = useAuth()
   const isTablet = useTablet()
   const px = isTablet ? 28 : 20
+
+  const [editOpen, setEditOpen] = useState(false)
+  const [editTab, setEditTab] = useState<EditTab>('personal')
+  const [saving, setSaving] = useState(false)
+  const [toast, setToast] = useState<string | null>(null)
+
+  const emptyForm: EditForm = {
+    phone: '', address: '', city: '', state: '', country: '', zip: '',
+    marital_status: '', children: '0',
+    emergency_contact_name: '', emergency_contact_relation: '', emergency_contact: '',
+  }
+  const [form, setForm] = useState<EditForm>(emptyForm)
+
+  useEffect(() => {
+    if (editOpen && employee) {
+      setForm({
+        phone: employee.phone ?? '',
+        address: employee.address ?? '',
+        city: employee.city ?? '',
+        state: employee.state ?? '',
+        country: employee.country ?? '',
+        zip: employee.zip ?? '',
+        marital_status: employee.marital_status ?? '',
+        children: String(employee.children ?? 0),
+        emergency_contact_name: employee.emergency_contact_name ?? '',
+        emergency_contact_relation: employee.emergency_contact_relation ?? '',
+        emergency_contact: employee.emergency_contact ?? '',
+      })
+    }
+  }, [editOpen, employee])
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const payload: Record<string, string | number> = { ...form }
+      payload.children = parseInt(form.children, 10) || 0
+      await api.patch('/api/employee/me/', payload)
+      await refresh()
+      setEditOpen(false)
+      setToast('Cập nhật thành công')
+      setTimeout(() => setToast(null), 2500)
+    } catch {
+      setToast('Lỗi khi cập nhật')
+      setTimeout(() => setToast(null), 3000)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const openEdit = (tab: EditTab) => {
+    setEditTab(tab)
+    setEditOpen(true)
+  }
 
   const handleLogout = () => {
     window.location.href = '/bff/auth/logout'
@@ -134,7 +411,7 @@ export function ProfilePage() {
   /* ── Sections ── */
   const personalSection = (
     <>
-      <SectionTitle title="Thông tin cá nhân" />
+      <SectionTitle title="Thông tin cá nhân" action={<EditButton onClick={() => openEdit('personal')} />} />
       <InfoCard>
         <InfoRow icon="mail" label="Email" value={e?.email} />
         <InfoRow icon="phone" label="Số điện thoại" value={e?.phone} />
@@ -173,7 +450,7 @@ export function ProfilePage() {
 
   const emergencySection = (
     <>
-      <SectionTitle title="Liên hệ khẩn cấp" />
+      <SectionTitle title="Liên hệ khẩn cấp" action={<EditButton onClick={() => openEdit('emergency')} />} />
       <InfoCard>
         <InfoRow icon="users" label="Người liên hệ" value={e?.emergency_contact_name} />
         <InfoRow icon="star" label="Mối quan hệ" value={e?.emergency_contact_relation} />
@@ -255,6 +532,35 @@ export function ProfilePage() {
           </>
         )}
       </div>
+
+      {/* Edit modal */}
+      {editOpen && (
+        <EditModal
+          form={form}
+          setForm={setForm}
+          tab={editTab}
+          setTab={setEditTab}
+          saving={saving}
+          onSave={handleSave}
+          onClose={() => setEditOpen(false)}
+        />
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div
+          className="fixed flex items-center gap-2"
+          style={{
+            bottom: 90, left: '50%', transform: 'translateX(-50%)',
+            background: HNH.ink, color: '#fff', borderRadius: 14,
+            padding: '10px 20px', fontSize: 13, fontWeight: 700,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.2)', zIndex: 1100,
+          }}
+        >
+          <Icon name={toast.includes('thành công') ? 'check' : 'x'} size={14} color="#fff" stroke={2} />
+          {toast}
+        </div>
+      )}
     </div>
   )
 }

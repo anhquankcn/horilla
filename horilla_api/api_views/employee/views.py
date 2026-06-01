@@ -72,9 +72,23 @@ def object_delete(cls, pk):
 
 
 class EmployeeMeAPIView(APIView):
-    """Returns the authenticated user's own employee profile."""
+    """Returns / updates the authenticated user's own employee profile."""
 
     permission_classes = [IsAuthenticated]
+
+    SELF_EDITABLE_FIELDS = {
+        "phone",
+        "address",
+        "city",
+        "state",
+        "country",
+        "zip",
+        "emergency_contact",
+        "emergency_contact_name",
+        "emergency_contact_relation",
+        "marital_status",
+        "children",
+    }
 
     def get(self, request):
         try:
@@ -85,6 +99,26 @@ class EmployeeMeAPIView(APIView):
             )
         serializer = EmployeeMeSerializer(employee)
         return Response(serializer.data, status=200)
+
+    def patch(self, request):
+        try:
+            employee = request.user.employee_get
+        except Employee.DoesNotExist:
+            return Response(
+                {"error": "No employee record for this user"}, status=404
+            )
+
+        data = {
+            k: v for k, v in request.data.items() if k in self.SELF_EDITABLE_FIELDS
+        }
+        if not data:
+            return Response({"error": "No editable fields provided"}, status=400)
+
+        serializer = EmployeeMeSerializer(employee, data=data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(EmployeeMeSerializer(employee).data, status=200)
+        return Response(serializer.errors, status=400)
 
 
 class EmployeeTypeAPIView(APIView):
