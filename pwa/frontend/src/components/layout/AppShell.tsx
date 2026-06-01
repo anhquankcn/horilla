@@ -4,6 +4,7 @@ import { SideNav } from './SideNav'
 import { HNH } from '../../lib/theme'
 import { Icon } from '../ui/Icon'
 import { useTablet } from '../../lib/useTablet'
+import { useNotificationPolling } from '../../lib/useNotificationPolling'
 
 function switchToDesktop() {
   document.cookie = 'prefer_desktop=1;path=/;max-age=' + 60 * 60 * 24 * 365
@@ -12,6 +13,7 @@ function switchToDesktop() {
 
 export function AppShell() {
   const isTablet = useTablet()
+  useNotificationPolling()
 
   return (
     <div className="flex flex-col min-h-[100dvh]" style={{ background: HNH.cream }}>
