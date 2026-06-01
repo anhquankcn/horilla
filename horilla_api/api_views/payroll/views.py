@@ -396,3 +396,87 @@ class TaxBracketView(APIView):
         tax_bracket = TaxBracket.objects.get(id=pk)
         tax_bracket.delete()
         return Response(status=200)
+
+
+# ── HNH Monthly Payroll (Phiếu lương) ──────────────────────────────────────
+
+
+class MyMonthlyPayrollView(APIView):
+    """Return the current employee's MonthlyPayrollEntry list with computed formulas."""
+
+    permission_classes = [IsAuthenticated]
+
+    MONTH_VI = [
+        "", "Tháng 1", "Tháng 2", "Tháng 3", "Tháng 4", "Tháng 5", "Tháng 6",
+        "Tháng 7", "Tháng 8", "Tháng 9", "Tháng 10", "Tháng 11", "Tháng 12",
+    ]
+
+    def get(self, request):
+        from employee.models import Employee
+        from payroll.models.contract_models import MonthlyPayrollEntry
+        from payroll.views.contract_hnh_views import (
+            _compute_entry_formulas,
+            _get_bhxh_caps,
+        )
+
+        try:
+            employee = request.user.employee_get
+        except Exception:
+            return Response({"error": "No employee record"}, status=404)
+
+        year = request.query_params.get("year")
+        month = request.query_params.get("month")
+
+        qs = MonthlyPayrollEntry.objects.filter(
+            employee_id=employee,
+        ).order_by("-year", "-month")
+
+        if year:
+            qs = qs.filter(year=int(year))
+        if month:
+            qs = qs.filter(month=int(month))
+
+        bhxh_cap, bhtn_cap = _get_bhxh_caps()
+
+        results = []
+        for e in qs[:24]:
+            f = _compute_entry_formulas(e, bhxh_cap, bhtn_cap)
+
+            ctype = "—"
+            if e.trial_contract_id:
+                ctype = "HĐ Thử việc"
+            elif e.official_contract_id:
+                ctype = "HĐ Chính thức"
+            elif e.performance_contract_id:
+                ctype = "HĐ Hiệu suất"
+
+            results.append({
+                "id": e.pk,
+                "year": e.year,
+                "month": e.month,
+                "month_label": self.MONTH_VI[e.month] if 1 <= e.month <= 12 else f"T{e.month}",
+                "contract_type": ctype,
+                # Stored fields
+                "standard_days": float(e.standard_days),
+                "actual_days": float(e.actual_days),
+                "lcb_bhxh": int(e.lcb_bhxh),
+                "total_gross": int(e.total_gross),
+                "pc_chuc_vu": int(e.pc_chuc_vu),
+                "pc_travel": int(e.pc_travel),
+                "night_shifts": float(e.night_shifts),
+                "night_shift_rate": int(e.night_shift_rate),
+                "ot_normal": float(e.ot_normal),
+                "ot_weekend": float(e.ot_weekend),
+                "ot_holiday": float(e.ot_holiday),
+                "kpi_pct": float(e.kpi_pct),
+                "incentive": int(e.incentive),
+                "bonus": int(e.bonus),
+                "other_adjust": int(e.other_adjust),
+                "npt": e.npt,
+                "tam_ung": int(e.tam_ung),
+                "notes": e.notes,
+                # Computed formulas
+                **f,
+            })
+
+        return Response(results)

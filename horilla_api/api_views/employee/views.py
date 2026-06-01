@@ -1567,7 +1567,7 @@ class MyAppsView(APIView):
     permission_classes = [IsAuthenticated]
 
     ALL_APP_SLUGS = [
-        "attendance", "proposals", "approvals",
+        "attendance", "proposals", "approvals", "payslip",
         "employees", "roles", "groups", "attendance-activity",
         "tasks", "projects",
     ]

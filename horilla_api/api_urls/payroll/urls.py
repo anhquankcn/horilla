@@ -31,4 +31,6 @@ urlpatterns = [
     path("allowance/<int:pk>", AllowanceView.as_view(), name=""),
     path("deduction", DeductionView.as_view(), name=""),
     path("deduction/<int:pk>", DeductionView.as_view(), name=""),
+    # ── HNH Monthly Payroll (Phiếu lương) ──
+    path("my-monthly-payroll/", MyMonthlyPayrollView.as_view(), name="api-my-monthly-payroll"),
 ]

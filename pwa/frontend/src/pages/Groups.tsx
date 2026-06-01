@@ -57,6 +57,7 @@ const APP_FEATURES = [
   { slug: 'attendance', label: 'Chấm công', icon: 'clock', section: 'hrm' },
   { slug: 'proposals', label: 'Đề xuất', icon: 'send', section: 'hrm' },
   { slug: 'approvals', label: 'Phê duyệt', icon: 'check', section: 'hrm' },
+  { slug: 'payslip', label: 'Phiếu lương', icon: 'doc', section: 'hrm' },
   { slug: 'employees', label: 'Nhân sự', icon: 'users', section: 'hrm' },
   { slug: 'roles', label: 'Vai trò & Quyền', icon: 'shield', section: 'hrm' },
   { slug: 'groups', label: 'Nhóm Quyền', icon: 'folder', section: 'hrm' },
