@@ -35,4 +35,9 @@ urlpatterns = [
         AssetApproveAPIView.as_view(),
         name="api-asset-approve",
     ),
+    path(
+        "my-asset-requests/",
+        MyAssetRequestsView.as_view(),
+        name="api-my-asset-requests",
+    ),
 ]

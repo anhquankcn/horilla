@@ -26,6 +26,7 @@ import { SettingsPage } from './pages/Settings'
 import { ShiftProposalPage } from './pages/ShiftProposal'
 import { WorkTypeProposalPage } from './pages/WorkTypeProposal'
 import { AttendanceProposalPage } from './pages/AttendanceProposal'
+import { AssetProposalPage } from './pages/AssetProposal'
 
 export function App() {
   return (
@@ -44,6 +45,7 @@ export function App() {
         <Route path="/proposals/shift" element={<ShiftProposalPage />} />
         <Route path="/proposals/worktype" element={<WorkTypeProposalPage />} />
         <Route path="/proposals/attendance" element={<AttendanceProposalPage />} />
+        <Route path="/proposals/asset" element={<AssetProposalPage />} />
         <Route path="/approvals" element={<ApprovalsPage />} />
         <Route path="/attendance" element={<AttendancePage />} />
         <Route path="/attendance/office" element={<OfficeCheckinPage />} />

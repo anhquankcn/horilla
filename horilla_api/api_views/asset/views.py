@@ -310,3 +310,33 @@ class AssetReturnAPIView(APIView):
         else:
             AssetAssignment.objects.filter(id=pk).update(return_request=True)
             return Response(status=200)
+
+
+class MyAssetRequestsView(APIView):
+    """List current user's asset requests for proposals hub."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        employee = request.user.employee_get
+        status_filter = request.GET.get("status", "")
+
+        qs = AssetRequest.objects.filter(
+            requested_employee_id=employee
+        ).select_related("asset_category_id").order_by("-id")
+
+        if status_filter:
+            qs = qs.filter(asset_request_status=status_filter)
+
+        data = []
+        for ar in qs[:50]:
+            data.append({
+                "id": ar.id,
+                "category_name": ar.asset_category_id.asset_category_name if ar.asset_category_id else None,
+                "category_id": ar.asset_category_id.id if ar.asset_category_id else None,
+                "description": ar.description or "",
+                "status": ar.asset_request_status or "Requested",
+                "request_date": ar.asset_request_date.isoformat() if ar.asset_request_date else None,
+            })
+
+        return Response(data)

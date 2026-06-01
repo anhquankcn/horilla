@@ -35,7 +35,7 @@ const proposals: ProposalType[] = [
   { id: 'shift', icon: 'clock', label: 'Đổi Ca', desc: 'Đề xuất đổi ca làm việc', path: '/proposals/shift', tone: 'gold' },
   { id: 'workday', icon: 'cal', label: 'Ngày Công', desc: 'Điều chỉnh ngày công', path: '/proposals/attendance', tone: 'success' },
   { id: 'worktype', icon: 'briefcase', label: 'Loại Hình LV', desc: 'Thay đổi loại hình làm việc', path: '/proposals/worktype', tone: 'navy' },
-  { id: 'asset', icon: 'monitor', label: 'Tài sản Công cụ', desc: 'Yêu cầu cấp tài sản, công cụ', path: null, tone: 'red' },
+  { id: 'asset', icon: 'monitor', label: 'Tài sản Công cụ', desc: 'Yêu cầu cấp tài sản, công cụ', path: '/proposals/asset', tone: 'red' },
 ]
 
 const toneBg: Record<string, string> = {

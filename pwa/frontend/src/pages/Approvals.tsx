@@ -5,7 +5,7 @@ import { TopBar } from '../components/layout/TopBar'
 import { api } from '../lib/api'
 
 /* ── Types ── */
-type ApprovalTab = 'leave' | 'shift' | 'worktype' | 'attendance'
+type ApprovalTab = 'leave' | 'shift' | 'worktype' | 'attendance' | 'asset'
 
 interface LeaveRequest {
   id: number
@@ -70,6 +70,15 @@ interface AttendanceRequest {
   requested_data: string | null
 }
 
+interface AssetApprovalRequest {
+  id: number
+  asset_category_id: { id: number; asset_category_name: string }
+  requested_employee_id: { id: number; full_name: string; badge_id: string | null }
+  description: string | null
+  asset_request_status: string
+  asset_request_date: string | null
+}
+
 interface PaginatedResponse<T> { count: number; results: T[] }
 
 const TABS: { id: ApprovalTab; label: string; icon: string }[] = [
@@ -77,6 +86,7 @@ const TABS: { id: ApprovalTab; label: string; icon: string }[] = [
   { id: 'shift', label: 'Đổi Ca', icon: 'clock' },
   { id: 'worktype', label: 'Loại CV', icon: 'briefcase' },
   { id: 'attendance', label: 'Ngày công', icon: 'cal' },
+  { id: 'asset', label: 'Tài sản', icon: 'monitor' },
 ]
 
 const BREAKDOWN_VI: Record<string, string> = {
@@ -235,6 +245,62 @@ function WorkTypeCard({ req, onTap }: { req: WorkTypeRequest; onTap: () => void 
           </div>
           <div style={{ fontSize: 10, color: HNH.ink3, marginTop: 4 }}>
             {daysSince(req.requested_date)}
+          </div>
+        </div>
+      </div>
+    </button>
+  )
+}
+
+/* ── Asset Card ── */
+function AssetApprovalCard({ req, onTap }: { req: AssetApprovalRequest; onTap: () => void }) {
+  const name = req.requested_employee_id?.full_name || '—'
+  return (
+    <button
+      onClick={onTap}
+      className="w-full border-none cursor-pointer text-left"
+      style={{
+        background: '#fff', borderRadius: 16, padding: '14px 16px',
+        border: `1px solid ${HNH.line}`, boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+      }}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className="flex items-center justify-center shrink-0"
+          style={{ width: 40, height: 40, borderRadius: 12, background: HNH.red50 }}
+        >
+          <Icon name="monitor" size={20} color={HNH.red} stroke={2} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <span style={{ fontSize: 13.5, fontWeight: 700, color: HNH.ink }}>{name}</span>
+            {req.requested_employee_id?.badge_id && (
+              <span style={{ fontSize: 10.5, color: HNH.ink3, fontWeight: 500 }}>
+                {req.requested_employee_id.badge_id}
+              </span>
+            )}
+          </div>
+          <div style={{ fontSize: 12, color: HNH.navy, fontWeight: 600, marginTop: 2 }}>
+            {req.asset_category_id?.asset_category_name || 'Tài sản'}
+          </div>
+          {req.description && (
+            <div style={{
+              fontSize: 11, color: HNH.ink3, marginTop: 2,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {req.description}
+            </div>
+          )}
+        </div>
+        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+          <div style={{
+            fontSize: 10, fontWeight: 700, color: HNH.warn,
+            background: HNH.warn50, borderRadius: 6, padding: '2px 7px',
+          }}>
+            Chờ duyệt
+          </div>
+          <div style={{ fontSize: 10, color: HNH.ink3, marginTop: 4 }}>
+            {daysSince(req.asset_request_date)}
           </div>
         </div>
       </div>
@@ -582,6 +648,49 @@ function WorkTypeDetailModal({ req, onClose, onAction }: {
   )
 }
 
+/* ── Asset Detail Modal ── */
+function AssetDetailModal({ req, onClose, onReject }: {
+  req: AssetApprovalRequest; onClose: () => void
+  onReject: () => void
+}) {
+  const [acting, setActing] = useState(false)
+  const name = req.requested_employee_id?.full_name || '—'
+  return (
+    <ModalShell title="Yêu cầu tài sản" onClose={onClose}>
+      <EmployeeAvatar name={name} />
+      <div style={{
+        background: '#fff', borderRadius: 16, padding: 14, border: `1px solid ${HNH.line}`,
+        display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 16px',
+      }}>
+        <DetailField label="Loại tài sản" value={req.asset_category_id?.asset_category_name || '—'} />
+        <DetailField label="Ngày gửi" value={formatDate(req.asset_request_date)} />
+        <div style={{ gridColumn: '1/-1' }}>
+          <DetailField label="Mô tả" value={req.description || '—'} />
+        </div>
+      </div>
+      <div style={{
+        background: HNH.warn50, borderRadius: 12, padding: '10px 14px',
+        fontSize: 12, fontWeight: 600, color: '#a87908', marginTop: 16,
+      }}>
+        Duyệt cấp tài sản cần chọn tài sản cụ thể — vui lòng duyệt trên hệ thống web.
+      </div>
+      <button
+        onClick={() => { setActing(true); onReject() }}
+        disabled={acting}
+        className="w-full flex items-center justify-center gap-2 border-none cursor-pointer"
+        style={{
+          marginTop: 12, padding: '13px', borderRadius: 12,
+          background: HNH.red, color: '#fff',
+          fontSize: 13.5, fontWeight: 700, opacity: acting ? 0.6 : 1,
+        }}
+      >
+        <Icon name="x" size={16} color="#fff" stroke={2.5} />
+        Từ chối yêu cầu
+      </button>
+    </ModalShell>
+  )
+}
+
 /* ── Attendance Detail Modal ── */
 function AttendanceDetailModal({ req, onClose, onAction }: {
   req: AttendanceRequest; onClose: () => void
@@ -675,31 +784,36 @@ export function ApprovalsPage() {
   const [shiftReqs, setShiftReqs] = useState<ShiftRequest[]>([])
   const [wtReqs, setWtReqs] = useState<WorkTypeRequest[]>([])
   const [attReqs, setAttReqs] = useState<AttendanceRequest[]>([])
+  const [assetReqs, setAssetReqs] = useState<AssetApprovalRequest[]>([])
   const [loading, setLoading] = useState(true)
 
   const [selectedLeave, setSelectedLeave] = useState<LeaveRequest | null>(null)
   const [selectedShift, setSelectedShift] = useState<ShiftRequest | null>(null)
   const [selectedWt, setSelectedWt] = useState<WorkTypeRequest | null>(null)
   const [selectedAtt, setSelectedAtt] = useState<AttendanceRequest | null>(null)
+  const [selectedAsset, setSelectedAsset] = useState<AssetApprovalRequest | null>(null)
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
     try {
-      const [leaveData, shiftData, wtData, attData] = await Promise.all([
+      const [leaveData, shiftData, wtData, attData, assetData] = await Promise.all([
         api.get<LeaveRequest[]>('/api/leave/pending-approvals/'),
         api.get<PaginatedResponse<ShiftRequest>>('/api/base/shift-requests/?approved=false&canceled=false&page_size=100'),
         api.get<PaginatedResponse<WorkTypeRequest>>('/api/base/worktype-requests/?approved=false&canceled=false&page_size=100'),
         api.get<PaginatedResponse<AttendanceRequest>>('/api/attendance/attendance-request/?page_size=100'),
+        api.get<PaginatedResponse<AssetApprovalRequest>>('/api/asset/asset-requests/?asset_request_status=Requested&page_size=100'),
       ])
       setLeaveReqs(leaveData)
       setShiftReqs(shiftData.results)
       setWtReqs(wtData.results)
       setAttReqs(attData.results)
+      setAssetReqs(assetData.results)
     } catch {
       setLeaveReqs([])
       setShiftReqs([])
       setWtReqs([])
       setAttReqs([])
+      setAssetReqs([])
     } finally {
       setLoading(false)
     }
@@ -707,7 +821,7 @@ export function ApprovalsPage() {
 
   useEffect(() => { fetchAll() }, [fetchAll])
 
-  const totalPending = leaveReqs.length + shiftReqs.length + wtReqs.length + attReqs.length
+  const totalPending = leaveReqs.length + shiftReqs.length + wtReqs.length + attReqs.length + assetReqs.length
 
   const handleLeaveAction = async (action: 'approve' | 'reject', reason?: string) => {
     if (!selectedLeave) return
@@ -761,11 +875,21 @@ export function ApprovalsPage() {
     } catch { /* ignore */ }
   }
 
+  const handleAssetReject = async () => {
+    if (!selectedAsset) return
+    try {
+      await api.put(`/api/asset/asset-reject/${selectedAsset.id}`, {})
+      setSelectedAsset(null)
+      fetchAll()
+    } catch { /* ignore */ }
+  }
+
   const tabCounts: Record<ApprovalTab, number> = {
     leave: leaveReqs.length,
     shift: shiftReqs.length,
     worktype: wtReqs.length,
     attendance: attReqs.length,
+    asset: assetReqs.length,
   }
 
   return (
@@ -874,6 +998,17 @@ export function ApprovalsPage() {
                 </div>
               )
             )}
+
+            {/* Asset tab */}
+            {tab === 'asset' && (
+              assetReqs.length === 0 ? <EmptyState /> : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {assetReqs.map(r => (
+                    <AssetApprovalCard key={r.id} req={r} onTap={() => setSelectedAsset(r)} />
+                  ))}
+                </div>
+              )
+            )}
           </>
         )}
       </div>
@@ -904,6 +1039,13 @@ export function ApprovalsPage() {
           req={selectedAtt}
           onClose={() => setSelectedAtt(null)}
           onAction={handleAttAction}
+        />
+      )}
+      {selectedAsset && (
+        <AssetDetailModal
+          req={selectedAsset}
+          onClose={() => setSelectedAsset(null)}
+          onReject={handleAssetReject}
         />
       )}
     </div>
