@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { TopBar } from '../components/layout/TopBar'
+import { useToast } from '../components/ui/Toast'
 
 /* ── Helpers ── */
 type NotifPerm = 'default' | 'granted' | 'denied' | 'unsupported'
@@ -119,7 +120,7 @@ export function SettingsPage() {
   const [notifPerm, setNotifPerm] = useState<NotifPerm>(getNotifPerm)
   const [storageUsed, setStorageUsed] = useState('—')
   const [clearing, setClearing] = useState(false)
-  const [toast, setToast] = useState<string | null>(null)
+  const { toast: showToast } = useToast()
   const [swStatus, setSwStatus] = useState<'active' | 'waiting' | 'none'>('none')
 
   useEffect(() => {
@@ -129,11 +130,6 @@ export function SettingsPage() {
         if (reg?.active) setSwStatus(reg.waiting ? 'waiting' : 'active')
       })
     }
-  }, [])
-
-  const showToast = useCallback((msg: string) => {
-    setToast(msg)
-    setTimeout(() => setToast(null), 2500)
   }, [])
 
   const requestNotifPermission = async () => {
@@ -283,22 +279,6 @@ export function SettingsPage() {
         </SettingCard>
       </div>
 
-      {/* Toast */}
-      {toast && (
-        <div
-          className="fixed flex items-center gap-2"
-          style={{
-            bottom: 90, left: '50%', transform: 'translateX(-50%)',
-            background: HNH.ink, color: '#fff', borderRadius: 14,
-            padding: '10px 20px', fontSize: 13, fontWeight: 700,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.2)', zIndex: 1100,
-            whiteSpace: 'nowrap',
-          }}
-        >
-          <Icon name="check" size={14} color="#fff" stroke={2} />
-          {toast}
-        </div>
-      )}
     </div>
   )
 }

@@ -1702,3 +1702,65 @@ class KeycloakDeleteSyncView(APIView):
             "deleted_kc": deleted_kc,
             "errors": errors,
         })
+
+
+class MyShiftRequestsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        emp = getattr(request.user, "employee_get", None)
+        if not emp:
+            return Response([], status=200)
+        qs = ShiftRequest.objects.filter(employee_id=emp).select_related(
+            "shift_id", "previous_shift_id"
+        ).order_by("-id")
+        data = []
+        for r in qs:
+            if r.canceled:
+                status = "cancelled"
+            elif r.approved:
+                status = "approved"
+            else:
+                status = "requested"
+            data.append({
+                "id": r.id,
+                "shift_name": r.shift_id.employee_shift if r.shift_id else None,
+                "previous_shift_name": r.previous_shift_id.employee_shift if r.previous_shift_id else None,
+                "requested_date": str(r.requested_date) if r.requested_date else None,
+                "requested_till": str(r.requested_till) if r.requested_till else None,
+                "is_permanent_shift": r.is_permanent_shift,
+                "description": r.description or "",
+                "status": status,
+            })
+        return Response(data)
+
+
+class MyWorkTypeRequestsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        emp = getattr(request.user, "employee_get", None)
+        if not emp:
+            return Response([], status=200)
+        qs = WorkTypeRequest.objects.filter(employee_id=emp).select_related(
+            "work_type_id", "previous_work_type_id"
+        ).order_by("-id")
+        data = []
+        for r in qs:
+            if r.canceled:
+                status = "cancelled"
+            elif r.approved:
+                status = "approved"
+            else:
+                status = "requested"
+            data.append({
+                "id": r.id,
+                "work_type_name": r.work_type_id.work_type if r.work_type_id else None,
+                "previous_work_type_name": r.previous_work_type_id.work_type if r.previous_work_type_id else None,
+                "requested_date": str(r.requested_date) if r.requested_date else None,
+                "requested_till": str(r.requested_till) if r.requested_till else None,
+                "is_permanent_work_type": r.is_permanent_work_type,
+                "description": r.description or "",
+                "status": status,
+            })
+        return Response(data)

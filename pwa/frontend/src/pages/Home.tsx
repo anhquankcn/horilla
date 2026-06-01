@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { Avatar } from '../components/ui/Avatar'
+import { PullToRefresh } from '../components/ui/PullToRefresh'
 import { useAuth } from '../lib/auth'
 import { useClock } from '../lib/useClock'
 import { useLiveClock } from '../lib/useLiveClock'
@@ -348,14 +349,17 @@ export function HomePage() {
   const { isClockedIn, duration, clockInTime, clockIn, clockOut, acting } = useClock()
   const { now, time } = useLiveClock()
   const [clockModalOpen, setClockModalOpen] = useState(false)
-  const { data: tasks } = useApi<TaskSummary>('/api/eoffice/my-summary/')
-  const { data: attendanceData } = useApi<PaginatedResponse<AttendanceRecord>>(
+  const { data: tasks, refresh: rTasks } = useApi<TaskSummary>('/api/eoffice/my-summary/')
+  const { data: attendanceData, refresh: rAtt } = useApi<PaginatedResponse<AttendanceRecord>>(
     '/api/attendance/my-attendance/?page_size=50'
   )
-  const { data: leaveData } = useApi<PaginatedResponse<LeaveAvailable>>('/api/leave/available-leave/?page_size=20')
-  const { data: notifSummary } = useApi<NotifSummary>('/api/notifications/summary/')
-  const { data: recentNotifs } = useApi<PaginatedResponse<Notification>>('/api/notifications/list/all?page_size=5')
-  const { data: payrollData } = useApi<PayrollEntry[]>('/api/payroll/my-monthly-payroll/')
+  const { data: leaveData, refresh: rLeave } = useApi<PaginatedResponse<LeaveAvailable>>('/api/leave/available-leave/?page_size=20')
+  const { data: notifSummary, refresh: rNotif } = useApi<NotifSummary>('/api/notifications/summary/')
+  const { data: recentNotifs, refresh: rRecent } = useApi<PaginatedResponse<Notification>>('/api/notifications/list/all?page_size=5')
+  const { data: payrollData, refresh: rPay } = useApi<PayrollEntry[]>('/api/payroll/my-monthly-payroll/')
+  const refreshAll = useCallback(async () => {
+    rTasks(); rAtt(); rLeave(); rNotif(); rRecent(); rPay()
+  }, [rTasks, rAtt, rLeave, rNotif, rRecent, rPay])
   const isTablet = useTablet()
   const px = isTablet ? 28 : 20
   const activeCount = tasks ? tasks.to_do + tasks.in_progress + tasks.blocked : 0
@@ -401,6 +405,7 @@ export function HomePage() {
   const greeting = employee ? `Xin chào, ${employee.employee_first_name}!` : 'Xin chào!'
 
   return (
+    <PullToRefresh onRefresh={refreshAll}>
     <div style={{ padding: '6px 0 14px' }}>
       {/* Greeting header */}
       <div className="flex items-center gap-3" style={{ padding: `6px ${px}px 14px` }}>
@@ -579,5 +584,6 @@ export function HomePage() {
         onClockOut={clockOut}
       />
     </div>
+    </PullToRefresh>
   )
 }

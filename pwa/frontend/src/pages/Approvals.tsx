@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback } from 'react'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { TopBar } from '../components/layout/TopBar'
+import { PullToRefresh } from '../components/ui/PullToRefresh'
+import { useToast } from '../components/ui/Toast'
 import { api } from '../lib/api'
 
 /* ── Types ── */
@@ -779,6 +781,7 @@ function EmptyState() {
 
 /* ── Main Page ── */
 export function ApprovalsPage() {
+  const { toast } = useToast()
   const [tab, setTab] = useState<ApprovalTab>('leave')
   const [leaveReqs, setLeaveReqs] = useState<LeaveRequest[]>([])
   const [shiftReqs, setShiftReqs] = useState<ShiftRequest[]>([])
@@ -832,8 +835,9 @@ export function ApprovalsPage() {
         await api.post(`/api/leave/pwa-reject/${selectedLeave.id}/`, { reason })
       }
       setSelectedLeave(null)
+      toast(action === 'approve' ? 'Đã duyệt nghỉ phép' : 'Đã từ chối nghỉ phép', action === 'approve' ? 'success' : 'error')
       fetchAll()
-    } catch { /* ignore */ }
+    } catch { toast('Lỗi xử lý yêu cầu', 'error') }
   }
 
   const handleShiftAction = async (action: 'approve' | 'reject') => {
@@ -845,8 +849,9 @@ export function ApprovalsPage() {
         await api.post(`/api/base/shift-request-cancel/${selectedShift.id}`, {})
       }
       setSelectedShift(null)
+      toast(action === 'approve' ? 'Đã duyệt đổi ca' : 'Đã từ chối đổi ca', action === 'approve' ? 'success' : 'error')
       fetchAll()
-    } catch { /* ignore */ }
+    } catch { toast('Lỗi xử lý yêu cầu', 'error') }
   }
 
   const handleWtAction = async (action: 'approve' | 'reject') => {
@@ -858,8 +863,9 @@ export function ApprovalsPage() {
         await api.put(`/api/base/worktype-requests-cancel/${selectedWt.id}/`, {})
       }
       setSelectedWt(null)
+      toast(action === 'approve' ? 'Đã duyệt loại CV' : 'Đã từ chối loại CV', action === 'approve' ? 'success' : 'error')
       fetchAll()
-    } catch { /* ignore */ }
+    } catch { toast('Lỗi xử lý yêu cầu', 'error') }
   }
 
   const handleAttAction = async (action: 'approve' | 'reject') => {
@@ -871,8 +877,9 @@ export function ApprovalsPage() {
         await api.put(`/api/attendance/attendance-request-cancel/${selectedAtt.id}`, {})
       }
       setSelectedAtt(null)
+      toast(action === 'approve' ? 'Đã duyệt ngày công' : 'Đã từ chối ngày công', action === 'approve' ? 'success' : 'error')
       fetchAll()
-    } catch { /* ignore */ }
+    } catch { toast('Lỗi xử lý yêu cầu', 'error') }
   }
 
   const handleAssetReject = async () => {
@@ -880,8 +887,9 @@ export function ApprovalsPage() {
     try {
       await api.put(`/api/asset/asset-reject/${selectedAsset.id}`, {})
       setSelectedAsset(null)
+      toast('Đã từ chối yêu cầu tài sản', 'error')
       fetchAll()
-    } catch { /* ignore */ }
+    } catch { toast('Lỗi xử lý yêu cầu', 'error') }
   }
 
   const tabCounts: Record<ApprovalTab, number> = {
@@ -948,70 +956,72 @@ export function ApprovalsPage() {
         })}
       </div>
 
-      <div style={{ padding: '12px 16px 32px', maxWidth: 600, margin: '0 auto' }}>
-        {loading ? (
-          <div style={{ textAlign: 'center', padding: 40, color: HNH.ink3, fontSize: 13, fontWeight: 600 }}>
-            Đang tải...
-          </div>
-        ) : (
-          <>
-            {/* Leave tab */}
-            {tab === 'leave' && (
-              leaveReqs.length === 0 ? <EmptyState /> : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {leaveReqs.map(r => (
-                    <LeaveCard key={r.id} req={r} onTap={() => setSelectedLeave(r)} />
-                  ))}
-                </div>
-              )
-            )}
+      <PullToRefresh onRefresh={fetchAll}>
+        <div style={{ padding: '12px 16px 32px', maxWidth: 600, margin: '0 auto' }}>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 40, color: HNH.ink3, fontSize: 13, fontWeight: 600 }}>
+              Đang tải...
+            </div>
+          ) : (
+            <>
+              {/* Leave tab */}
+              {tab === 'leave' && (
+                leaveReqs.length === 0 ? <EmptyState /> : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {leaveReqs.map(r => (
+                      <LeaveCard key={r.id} req={r} onTap={() => setSelectedLeave(r)} />
+                    ))}
+                  </div>
+                )
+              )}
 
-            {/* Shift tab */}
-            {tab === 'shift' && (
-              shiftReqs.length === 0 ? <EmptyState /> : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {shiftReqs.map(r => (
-                    <ShiftCard key={r.id} req={r} onTap={() => setSelectedShift(r)} />
-                  ))}
-                </div>
-              )
-            )}
+              {/* Shift tab */}
+              {tab === 'shift' && (
+                shiftReqs.length === 0 ? <EmptyState /> : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {shiftReqs.map(r => (
+                      <ShiftCard key={r.id} req={r} onTap={() => setSelectedShift(r)} />
+                    ))}
+                  </div>
+                )
+              )}
 
-            {/* WorkType tab */}
-            {tab === 'worktype' && (
-              wtReqs.length === 0 ? <EmptyState /> : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {wtReqs.map(r => (
-                    <WorkTypeCard key={r.id} req={r} onTap={() => setSelectedWt(r)} />
-                  ))}
-                </div>
-              )
-            )}
+              {/* WorkType tab */}
+              {tab === 'worktype' && (
+                wtReqs.length === 0 ? <EmptyState /> : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {wtReqs.map(r => (
+                      <WorkTypeCard key={r.id} req={r} onTap={() => setSelectedWt(r)} />
+                    ))}
+                  </div>
+                )
+              )}
 
-            {/* Attendance tab */}
-            {tab === 'attendance' && (
-              attReqs.length === 0 ? <EmptyState /> : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {attReqs.map(r => (
-                    <AttendanceCard key={r.id} req={r} onTap={() => setSelectedAtt(r)} />
-                  ))}
-                </div>
-              )
-            )}
+              {/* Attendance tab */}
+              {tab === 'attendance' && (
+                attReqs.length === 0 ? <EmptyState /> : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {attReqs.map(r => (
+                      <AttendanceCard key={r.id} req={r} onTap={() => setSelectedAtt(r)} />
+                    ))}
+                  </div>
+                )
+              )}
 
-            {/* Asset tab */}
-            {tab === 'asset' && (
-              assetReqs.length === 0 ? <EmptyState /> : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {assetReqs.map(r => (
-                    <AssetApprovalCard key={r.id} req={r} onTap={() => setSelectedAsset(r)} />
-                  ))}
-                </div>
-              )
-            )}
-          </>
-        )}
-      </div>
+              {/* Asset tab */}
+              {tab === 'asset' && (
+                assetReqs.length === 0 ? <EmptyState /> : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {assetReqs.map(r => (
+                      <AssetApprovalCard key={r.id} req={r} onTap={() => setSelectedAsset(r)} />
+                    ))}
+                  </div>
+                )
+              )}
+            </>
+          )}
+        </div>
+      </PullToRefresh>
 
       {selectedLeave && (
         <LeaveDetailModal

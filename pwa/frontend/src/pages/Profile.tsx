@@ -4,6 +4,7 @@ import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { Avatar } from '../components/ui/Avatar'
 import { Badge } from '../components/ui/Badge'
+import { useToast } from '../components/ui/Toast'
 import { useAuth } from '../lib/auth'
 import { useTablet } from '../lib/useTablet'
 import { api } from '../lib/api'
@@ -344,10 +345,10 @@ export function ProfilePage() {
   const isTablet = useTablet()
   const px = isTablet ? 28 : 20
 
+  const { toast } = useToast()
   const [editOpen, setEditOpen] = useState(false)
   const [editTab, setEditTab] = useState<EditTab>('personal')
   const [saving, setSaving] = useState(false)
-  const [toast, setToast] = useState<string | null>(null)
 
   const emptyForm: EditForm = {
     phone: '', address: '', city: '', state: '', country: '', zip: '',
@@ -382,11 +383,9 @@ export function ProfilePage() {
       await api.patch('/api/employee/me/', payload)
       await refresh()
       setEditOpen(false)
-      setToast('Cập nhật thành công')
-      setTimeout(() => setToast(null), 2500)
+      toast('Cập nhật thành công')
     } catch {
-      setToast('Lỗi khi cập nhật')
-      setTimeout(() => setToast(null), 3000)
+      toast('Lỗi khi cập nhật', 'error')
     } finally {
       setSaving(false)
     }
@@ -549,21 +548,6 @@ export function ProfilePage() {
         />
       )}
 
-      {/* Toast */}
-      {toast && (
-        <div
-          className="fixed flex items-center gap-2"
-          style={{
-            bottom: 90, left: '50%', transform: 'translateX(-50%)',
-            background: HNH.ink, color: '#fff', borderRadius: 14,
-            padding: '10px 20px', fontSize: 13, fontWeight: 700,
-            boxShadow: '0 8px 24px rgba(0,0,0,0.2)', zIndex: 1100,
-          }}
-        >
-          <Icon name={toast.includes('thành công') ? 'check' : 'x'} size={14} color="#fff" stroke={2} />
-          {toast}
-        </div>
-      )}
     </div>
   )
 }

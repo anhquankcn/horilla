@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { TopBar } from '../components/layout/TopBar'
+import { PullToRefresh } from '../components/ui/PullToRefresh'
+import { useToast } from '../components/ui/Toast'
 import { api } from '../lib/api'
 
 /* ── Types ── */
@@ -156,6 +158,7 @@ function NotifCard({ n, onRead, onDelete }: {
 /* ── Main ── */
 export function NotificationsPage() {
   const navigate = useNavigate()
+  const { toast } = useToast()
   const [filter, setFilter] = useState<Filter>('all')
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
@@ -206,8 +209,13 @@ export function NotificationsPage() {
     try {
       await api.post('/api/notifications/bulk-read/', {})
       setNotifications(prev => prev.map(n => ({ ...n, unread: false })))
+      toast('Đã đọc tất cả thông báo')
     } finally { setMarkingAll(false) }
   }
+
+  const handleRefresh = useCallback(async () => {
+    await fetchNotifications(filter)
+  }, [filter, fetchNotifications])
 
   const unreadCount = notifications.filter(n => n.unread).length
 
@@ -246,6 +254,7 @@ export function NotificationsPage() {
         }
       />
 
+      <PullToRefresh onRefresh={handleRefresh}>
       <div style={{ padding: '0 16px 32px', maxWidth: 600, margin: '0 auto' }}>
         {/* Filters + count */}
         <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
@@ -340,6 +349,7 @@ export function NotificationsPage() {
           </div>
         )}
       </div>
+      </PullToRefresh>
     </div>
   )
 }
