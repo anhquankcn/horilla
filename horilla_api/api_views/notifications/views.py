@@ -1,9 +1,13 @@
+import logging
+
 from django.conf import settings
 from django.utils import timezone
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+
+logger = logging.getLogger(__name__)
 
 from employee.models import Employee, EmployeeWorkInformation
 from notifications.models import (
@@ -241,6 +245,15 @@ class AnnouncementCreateView(APIView):
                 status=400,
             )
 
+        try:
+            return self._do_send(request, title, body, target_type)
+        except Exception:
+            logger.exception("Announcement send failed")
+            return Response(
+                {"error": "Lỗi hệ thống khi gửi thông báo"}, status=500
+            )
+
+    def _do_send(self, request, title, body, target_type):
         dept_id = request.data.get("department_id")
         company_id = request.data.get("company_id")
 
