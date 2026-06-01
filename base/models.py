@@ -343,6 +343,30 @@ class KCUserMapping(models.Model):
         return f"{self.employee} → {self.kc_username}"
 
 
+class GroupAppVisibility(models.Model):
+    """Controls which PWA app features are visible per Django auth Group."""
+
+    group = models.OneToOneField(
+        "auth.Group",
+        on_delete=models.CASCADE,
+        related_name="app_visibility",
+        verbose_name=_("Group"),
+    )
+    allowed_apps = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name=_("Allowed Apps"),
+    )
+
+    class Meta:
+        verbose_name = _("Group App Visibility")
+        verbose_name_plural = _("Group App Visibilities")
+        db_table = "base_groupappvisibility"
+
+    def __str__(self):
+        return f"{self.group.name} → {len(self.allowed_apps)} apps"
+
+
 class WorkType(HorillaModel):
     """
     WorkType model

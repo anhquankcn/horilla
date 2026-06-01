@@ -1,13 +1,15 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { TopBar } from '../components/layout/TopBar'
 import { useTablet } from '../lib/useTablet'
+import { api } from '../lib/api'
 
 type FeatureGroup = 'use' | 'manage'
 
 interface AppFeature {
+  slug: string
   icon: string
   label: string
   desc: string
@@ -42,13 +44,13 @@ const apps: AppCard[] = [
     accentBg: HNH.navy50,
     icon: 'users',
     features: [
-      { icon: 'clock', label: 'Chấm công', desc: 'Check-in, lịch sử, GPS', path: '/attendance', tone: 'navy', group: 'use' },
-      { icon: 'send', label: 'Đề xuất', desc: 'Nghỉ phép, đổi ca, ngày công', path: '/proposals', tone: 'success', group: 'use' },
-      { icon: 'check', label: 'Phê duyệt', desc: 'Duyệt đề xuất nhân viên', path: '/approvals', tone: 'gold', group: 'use' },
-      { icon: 'users', label: 'Nhân sự', desc: 'Danh sách, hồ sơ nhân viên', path: '/employees', tone: 'navy', group: 'manage' },
-      { icon: 'shield', label: 'Vai trò & Quyền', desc: 'Phân quyền, nhóm vai trò', path: '/roles', tone: 'navy', group: 'manage' },
-      { icon: 'folder', label: 'Nhóm Quyền', desc: 'Quản lý nhóm, phân nhân sự', path: '/groups', tone: 'navy', group: 'manage' },
-      { icon: 'clock', label: 'HĐ Chấm công', desc: 'Tổng hợp hoạt động chấm công', path: '/attendance-activity', tone: 'navy', group: 'manage' },
+      { slug: 'attendance', icon: 'clock', label: 'Chấm công', desc: 'Check-in, lịch sử, GPS', path: '/attendance', tone: 'navy', group: 'use' },
+      { slug: 'proposals', icon: 'send', label: 'Đề xuất', desc: 'Nghỉ phép, đổi ca, ngày công', path: '/proposals', tone: 'success', group: 'use' },
+      { slug: 'approvals', icon: 'check', label: 'Phê duyệt', desc: 'Duyệt đề xuất nhân viên', path: '/approvals', tone: 'gold', group: 'use' },
+      { slug: 'employees', icon: 'users', label: 'Nhân sự', desc: 'Danh sách, hồ sơ nhân viên', path: '/employees', tone: 'navy', group: 'manage' },
+      { slug: 'roles', icon: 'shield', label: 'Vai trò & Quyền', desc: 'Phân quyền, nhóm vai trò', path: '/roles', tone: 'navy', group: 'manage' },
+      { slug: 'groups', icon: 'folder', label: 'Nhóm Quyền', desc: 'Quản lý nhóm, phân nhân sự', path: '/groups', tone: 'navy', group: 'manage' },
+      { slug: 'attendance-activity', icon: 'clock', label: 'HĐ Chấm công', desc: 'Tổng hợp hoạt động chấm công', path: '/attendance-activity', tone: 'navy', group: 'manage' },
     ],
   },
   {
@@ -60,8 +62,8 @@ const apps: AppCard[] = [
     accentBg: HNH.red50,
     icon: 'doc',
     features: [
-      { icon: 'check', label: 'Công việc', desc: 'Tasks, deadline, phân công', path: '/tasks', tone: 'red', group: 'use' },
-      { icon: 'folder', label: 'Dự án', desc: 'Quản lý dự án, tiến độ', path: null, tone: 'gold', group: 'use' },
+      { slug: 'tasks', icon: 'check', label: 'Công việc', desc: 'Tasks, deadline, phân công', path: '/tasks', tone: 'red', group: 'use' },
+      { slug: 'projects', icon: 'folder', label: 'Dự án', desc: 'Quản lý dự án, tiến độ', path: null, tone: 'gold', group: 'use' },
     ],
   },
 ]
@@ -73,10 +75,11 @@ const toneColor: Record<string, string> = {
   navy: HNH.navy, red: HNH.red, gold: '#a87908', success: HNH.success,
 }
 
-function groupFeatures(features: AppFeature[]): { group: FeatureGroup; items: AppFeature[] }[] {
+function groupFeatures(features: AppFeature[], allowed: Set<string> | null): { group: FeatureGroup; items: AppFeature[] }[] {
   const order: FeatureGroup[] = ['use', 'manage']
+  const visible = allowed ? features.filter(f => allowed.has(f.slug)) : features
   return order
-    .map(g => ({ group: g, items: features.filter(f => f.group === g) }))
+    .map(g => ({ group: g, items: visible.filter(f => f.group === g) }))
     .filter(g => g.items.length > 0)
 }
 
@@ -264,6 +267,13 @@ export function AppsPage() {
   const navigate = useNavigate()
   const isTablet = useTablet()
   const [mode, setMode] = useState<ViewMode>('launcher')
+  const [allowedApps, setAllowedApps] = useState<Set<string> | null>(null)
+
+  useEffect(() => {
+    api.get<{ allowed: string[]; is_admin: boolean }>('/api/employee/my-apps/')
+      .then(data => setAllowedApps(new Set(data.allowed)))
+      .catch(() => setAllowedApps(null))
+  }, [])
 
   const iconBox = isTablet ? 56 : 48
 
@@ -283,7 +293,7 @@ export function AppsPage() {
                     <AppHeader app={app} />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {groupFeatures(app.features).map(({ group, items }) => (
+                    {groupFeatures(app.features, allowedApps).map(({ group, items }) => (
                       <div key={group}>
                         <GroupLabel group={group} variant="light" />
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -340,7 +350,7 @@ export function AppsPage() {
                       borderRadius: 16, padding: '14px 16px',
                     }}
                   >
-                    {groupFeatures(app.features).map(({ group, items }, gi) => (
+                    {groupFeatures(app.features, allowedApps).map(({ group, items }, gi) => (
                       <div key={group} style={{ marginTop: gi > 0 ? 10 : 0 }}>
                         <GroupLabel group={group} variant="light" />
                         <div className="flex flex-wrap gap-4" style={{ paddingTop: 2 }}>

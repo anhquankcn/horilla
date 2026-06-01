@@ -185,4 +185,19 @@ urlpatterns = [
         views.GroupAvailableEmployeesView.as_view(),
         name="api-group-available-employees",
     ),
+    path(
+        "groups/<int:pk>/update/",
+        views.GroupUpdateView.as_view(),
+        name="api-group-update",
+    ),
+    path(
+        "groups/all-permissions/",
+        views.AllPermissionsView.as_view(),
+        name="api-group-all-permissions",
+    ),
+    path(
+        "my-apps/",
+        views.MyAppsView.as_view(),
+        name="api-my-apps",
+    ),
 ]

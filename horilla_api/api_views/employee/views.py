@@ -1310,12 +1310,13 @@ class GroupListView(APIView):
 
 
 class GroupDetailView(APIView):
-    """Group detail: permissions + member list."""
+    """Group detail: permissions + member list + app visibility."""
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request, pk):
         from django.contrib.auth.models import Group
+        from base.models import GroupAppVisibility
 
         try:
             group = Group.objects.prefetch_related("permissions").get(pk=pk)
@@ -1352,11 +1353,15 @@ class GroupDetailView(APIView):
             for p in group.permissions.all()
         ]
 
+        vis = GroupAppVisibility.objects.filter(group=group).first()
+        allowed_apps = vis.allowed_apps if vis else []
+
         return Response({
             "id": group.pk,
             "name": group.name,
             "permissions": perms,
             "members": member_list,
+            "allowed_apps": allowed_apps,
         })
 
 
@@ -1455,3 +1460,141 @@ class GroupAvailableEmployeesView(APIView):
             })
 
         return Response(results)
+
+
+# ── All available permissions (for permission picker) ──
+
+
+class AllPermissionsView(APIView):
+    """List all Django permissions grouped by app label."""
+
+    permission_classes = [IsAuthenticated]
+
+    APP_LABELS = [
+        "employee", "attendance", "leave", "payroll", "base",
+        "eoffice", "recruitment", "asset", "onboarding", "offboarding",
+        "pms", "helpdesk", "project", "tourism",
+    ]
+
+    APP_NAMES_VI = {
+        "employee": "Nhân sự",
+        "attendance": "Chấm công",
+        "leave": "Nghỉ phép",
+        "payroll": "Bảng lương",
+        "base": "Hệ thống",
+        "eoffice": "eOffice",
+        "recruitment": "Tuyển dụng",
+        "asset": "Tài sản",
+        "onboarding": "Onboarding",
+        "offboarding": "Offboarding",
+        "pms": "KPI",
+        "helpdesk": "Helpdesk",
+        "project": "Dự án",
+        "tourism": "Du lịch",
+    }
+
+    def get(self, request):
+        from django.contrib.auth.models import Permission
+
+        perms = (
+            Permission.objects.filter(content_type__app_label__in=self.APP_LABELS)
+            .select_related("content_type")
+            .order_by("content_type__app_label", "codename")
+        )
+        grouped = {}
+        for p in perms:
+            app = p.content_type.app_label
+            if app not in grouped:
+                grouped[app] = {
+                    "label": self.APP_NAMES_VI.get(app, app),
+                    "permissions": [],
+                }
+            grouped[app]["permissions"].append({
+                "id": p.pk,
+                "codename": p.codename,
+                "name": p.name,
+            })
+        return Response(grouped)
+
+
+class GroupUpdateView(APIView):
+    """Update group name, permissions, and app visibility."""
+
+    permission_classes = [IsAuthenticated]
+
+    def put(self, request, pk):
+        from django.contrib.auth.models import Group, Permission
+        from base.models import GroupAppVisibility
+
+        try:
+            group = Group.objects.get(pk=pk)
+        except Group.DoesNotExist:
+            return Response({"error": "Group not found"}, status=404)
+
+        name = request.data.get("name")
+        if name and name.strip():
+            if (
+                Group.objects.filter(name=name.strip())
+                .exclude(pk=pk)
+                .exists()
+            ):
+                return Response({"error": "Tên nhóm đã tồn tại"}, status=400)
+            group.name = name.strip()
+            group.save()
+
+        perm_ids = request.data.get("permission_ids")
+        if perm_ids is not None:
+            group.permissions.set(
+                Permission.objects.filter(pk__in=perm_ids)
+            )
+
+        allowed_apps = request.data.get("allowed_apps")
+        if allowed_apps is not None:
+            vis, _ = GroupAppVisibility.objects.get_or_create(group=group)
+            vis.allowed_apps = allowed_apps
+            vis.save()
+
+        return Response({
+            "ok": True,
+            "name": group.name,
+            "permissions_count": group.permissions.count(),
+        })
+
+
+class MyAppsView(APIView):
+    """Return list of allowed app slugs for the current user."""
+
+    permission_classes = [IsAuthenticated]
+
+    ALL_APP_SLUGS = [
+        "attendance", "proposals", "approvals",
+        "employees", "roles", "groups", "attendance-activity",
+        "tasks", "projects",
+    ]
+
+    def get(self, request):
+        from base.models import GroupAppVisibility
+
+        user = request.user
+        if user.is_superuser:
+            return Response({"allowed": self.ALL_APP_SLUGS, "is_admin": True})
+
+        groups = user.groups.all()
+        if not groups.exists():
+            return Response({"allowed": self.ALL_APP_SLUGS, "is_admin": False})
+
+        visibilities = GroupAppVisibility.objects.filter(group__in=groups)
+        if not visibilities.exists():
+            return Response({"allowed": self.ALL_APP_SLUGS, "is_admin": False})
+
+        allowed = set()
+        has_any_config = False
+        for vis in visibilities:
+            if vis.allowed_apps:
+                has_any_config = True
+                allowed.update(vis.allowed_apps)
+
+        if not has_any_config:
+            return Response({"allowed": self.ALL_APP_SLUGS, "is_admin": False})
+
+        return Response({"allowed": sorted(allowed), "is_admin": False})
