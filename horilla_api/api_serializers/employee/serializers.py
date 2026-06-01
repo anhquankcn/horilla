@@ -192,8 +192,12 @@ class EmployeeMeSerializer(serializers.ModelSerializer):
     company_name = serializers.CharField(
         source="employee_work_info.company_id.company", read_only=True
     )
+    job_role_name = serializers.CharField(
+        source="employee_work_info.job_role_id.job_role", read_only=True
+    )
     reporting_manager_name = serializers.SerializerMethodField()
     work_level_name = serializers.SerializerMethodField()
+    date_joining = serializers.SerializerMethodField()
 
     class Meta:
         model = Employee
@@ -223,10 +227,12 @@ class EmployeeMeSerializer(serializers.ModelSerializer):
             "is_active",
             "department_name",
             "job_position_name",
+            "job_role_name",
             "shift_name",
             "company_name",
             "reporting_manager_name",
             "work_level_name",
+            "date_joining",
         ]
 
     def get_full_name(self, obj):
@@ -242,5 +248,12 @@ class EmployeeMeSerializer(serializers.ModelSerializer):
     def get_work_level_name(self, obj):
         try:
             return obj.work_level.name if obj.work_level else None
+        except Exception:
+            return None
+
+    def get_date_joining(self, obj):
+        try:
+            d = obj.employee_work_info.date_joining
+            return d.isoformat() if d else None
         except Exception:
             return None

@@ -30,6 +30,8 @@ export interface Employee {
   company_name: string | null;
   reporting_manager_name: string | null;
   work_level_name: string | null;
+  job_role_name: string | null;
+  date_joining: string | null;
 }
 
 interface AuthState {
