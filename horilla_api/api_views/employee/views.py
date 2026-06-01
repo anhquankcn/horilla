@@ -1603,7 +1603,7 @@ class MyAppsView(APIView):
     ALL_APP_SLUGS = [
         "attendance", "proposals", "approvals", "payslip", "notifications",
         "employees", "roles", "groups", "attendance-activity",
-        "tasks", "projects",
+        "tasks", "projects", "announcement-hub",
     ]
 
     def get(self, request):

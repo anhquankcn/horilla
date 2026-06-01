@@ -63,6 +63,7 @@ const APP_FEATURES = [
   { slug: 'roles', label: 'Vai trò & Quyền', icon: 'shield', section: 'hrm' },
   { slug: 'groups', label: 'Nhóm Quyền', icon: 'folder', section: 'hrm' },
   { slug: 'attendance-activity', label: 'HĐ Chấm công', icon: 'clock', section: 'hrm' },
+  { slug: 'announcement-hub', label: 'Hub Thông Báo', icon: 'send', section: 'hrm' },
   { slug: 'tasks', label: 'Công việc', icon: 'check', section: 'eoffice' },
   { slug: 'projects', label: 'Dự án', icon: 'folder', section: 'eoffice' },
 ]
