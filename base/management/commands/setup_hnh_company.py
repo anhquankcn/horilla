@@ -334,6 +334,7 @@ class Command(BaseCommand):
         # ── 5. Employee Shifts ──────────────────────────────────────────
         if not options.get("skip_shift"):
             self.stdout.write(self.style.MIGRATE_HEADING("\n[5/6] Ca làm việc"))
+            all_companies = list(Company.objects.all())
             for shift_name, weekly_ft, full_ft in EMPLOYEE_SHIFTS:
                 shift, created = EmployeeShift.objects.get_or_create(
                     employee_shift=shift_name,
@@ -342,14 +343,14 @@ class Command(BaseCommand):
                         "full_time": full_ft,
                     },
                 )
-                if created and company not in shift.company_id.all():
-                    shift.company_id.add(company)
-                elif force and not created:
+                existing_cos = set(shift.company_id.values_list("id", flat=True))
+                for co in all_companies:
+                    if co.id not in existing_cos:
+                        shift.company_id.add(co)
+                if not created and force:
                     shift.weekly_full_time = weekly_ft
                     shift.full_time = full_ft
                     shift.save()
-                    if company not in shift.company_id.all():
-                        shift.company_id.add(company)
                 mark = "✔" if created else " "
                 self.stdout.write(f"  {mark} {shift_name}")
 
