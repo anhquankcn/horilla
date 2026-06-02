@@ -62,6 +62,8 @@ export function Icon({ name, size = 18, color = HNH.ink, stroke: sw = 1.8 }: Ico
     case 'book': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" {...p}/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" {...p}/></svg>
     case 'graduation': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="m2 10 10-5 10 5-10 5-10-5Z" {...p}/><path d="M22 10v6" {...p}/><path d="M6 12v5c0 2 3 3 6 3s6-1 6-3v-5" {...p}/></svg>
     case 'play': return <svg width={size} height={size} viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21" {...p}/></svg>
+    case 'sitemap': return <svg width={size} height={size} viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="5" rx="1" {...p}/><rect x="1" y="14" width="6" height="5" rx="1" {...p}/><rect x="9" y="14" width="6" height="5" rx="1" {...p}/><rect x="17" y="14" width="6" height="5" rx="1" {...p}/><path d="M12 7v4M12 11H4v3M12 11h8v3" {...p}/></svg>
+    case 'pencil': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3Z" {...p}/></svg>
     default: return null
   }
 }

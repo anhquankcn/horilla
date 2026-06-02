@@ -63,6 +63,7 @@ const apps: AppCard[] = [
       { slug: 'journey', icon: 'layers', label: 'Hành trình NV', desc: 'Vòng đời nhân viên, AI hỗ trợ', path: '/journey', tone: 'navy', group: 'manage' },
       { slug: 'pms', icon: 'target', label: 'Hiệu suất', desc: 'KPI, mục tiêu, Feedback 360', path: '/pms', tone: 'red', group: 'manage' },
       { slug: 'training', icon: 'book', label: 'Đào tạo', desc: 'Khóa học, chứng chỉ, phát triển NV', path: '/training', tone: 'gold', group: 'manage' },
+      { slug: 'org-chart', icon: 'sitemap', label: 'Cây tổ chức', desc: 'Sơ đồ phân cấp, phân công quản lý', path: '/org-chart', tone: 'navy', group: 'manage' },
     ],
   },
   {

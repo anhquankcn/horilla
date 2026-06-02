@@ -19,6 +19,7 @@ EMPLOYEE_APPS = [
     "journey",          # hành trình nhân viên
     "pms",              # KPI, mục tiêu, Feedback 360
     "training",         # khóa học, chứng chỉ
+    "org-chart",        # cây tổ chức (xem)
 ]
 
 # Django permissions cho nhân viên thông thường

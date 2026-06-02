@@ -2030,7 +2030,7 @@ class MyAppsView(APIView):
     ALL_APP_SLUGS = [
         "attendance", "proposals", "approvals", "payslip", "notifications",
         "employees", "roles", "groups", "attendance-activity",
-        "tasks", "projects", "announcement-hub", "dashboard", "unified-calendar", "assets", "reports", "payroll-mgmt", "documents", "onboarding", "journey", "pms", "training",
+        "tasks", "projects", "announcement-hub", "dashboard", "unified-calendar", "assets", "reports", "payroll-mgmt", "documents", "onboarding", "journey", "pms", "training", "org-chart",
     ]
 
     def get(self, request):
@@ -3985,4 +3985,237 @@ class TrainingPWAView(APIView):
             "can_manage": True,
             "courses": courses,
             "categories": categories,
+        })
+
+
+class OrgChartView(APIView):
+    """Org chart: tree view + manager assignment for PWA."""
+
+    permission_classes = [IsAuthenticated]
+
+    def _can_edit(self, request):
+        user = request.user
+        if user.is_superuser:
+            return True
+        if user.has_perm("employee.change_employeeworkinformation"):
+            return True
+        try:
+            from employee.models import EmployeeWorkInformation
+            emp = user.employee_get
+            return EmployeeWorkInformation.objects.filter(reporting_manager_id=emp).exists()
+        except Exception:
+            return False
+
+    def _avatar_url(self, emp):
+        try:
+            if emp.employee_profile:
+                return emp.employee_profile.url
+        except Exception:
+            pass
+        return None
+
+    def get(self, request):
+        tab = request.GET.get("tab", "tree")
+        if tab == "tree":
+            return self._tab_tree(request)
+        if tab == "list":
+            return self._tab_list(request)
+        return Response({"error": "Invalid tab"}, status=400)
+
+    def post(self, request):
+        action = request.data.get("action")
+        if action == "set_manager":
+            return self._set_manager(request)
+        return Response({"error": "Unknown action"}, status=400)
+
+    def _tab_tree(self, request):
+        from employee.models import Employee
+
+        all_emps = (
+            Employee.objects.filter(is_active=True)
+            .select_related(
+                "employee_work_info",
+                "employee_work_info__department_id",
+                "employee_work_info__job_position_id",
+                "employee_work_info__reporting_manager_id",
+            )
+            .order_by("employee_first_name", "employee_last_name")
+        )
+
+        valid_ids = {emp.id for emp in all_emps}
+        emp_map = {}
+        children_map = {}
+
+        for emp in all_emps:
+            wi = getattr(emp, "employee_work_info", None)
+            manager_id = None
+            if wi and wi.reporting_manager_id_id and wi.reporting_manager_id_id in valid_ids:
+                manager_id = wi.reporting_manager_id_id
+                children_map.setdefault(manager_id, []).append(emp.id)
+
+            emp_map[emp.id] = {
+                "id": emp.id,
+                "name": emp.get_full_name(),
+                "avatar": self._avatar_url(emp),
+                "badge_id": emp.badge_id or "",
+                "position": str(wi.job_position_id) if wi and wi.job_position_id else "",
+                "department": str(wi.department_id) if wi and wi.department_id else "",
+                "manager_id": manager_id,
+                "children": [],
+            }
+
+        visited = set()
+
+        def build_node(eid):
+            if eid in visited:
+                return None
+            visited.add(eid)
+            node = {**emp_map[eid], "children": []}
+            for cid in sorted(children_map.get(eid, []), key=lambda x: emp_map[x]["name"]):
+                child = build_node(cid)
+                if child:
+                    node["children"].append(child)
+            return node
+
+        roots = []
+        for eid, data in emp_map.items():
+            if not data["manager_id"]:
+                node = build_node(eid)
+                if node:
+                    roots.append(node)
+
+        roots.sort(key=lambda x: x["name"])
+
+        depts = sorted({d["department"] for d in emp_map.values() if d["department"]})
+
+        return Response({
+            "tab": "tree",
+            "tree": roots,
+            "total": len(emp_map),
+            "without_manager": sum(1 for d in emp_map.values() if not d["manager_id"]),
+            "departments": depts,
+            "can_edit": self._can_edit(request),
+        })
+
+    def _tab_list(self, request):
+        from employee.models import Employee
+
+        dept_filter = request.GET.get("department", "")
+        search = request.GET.get("q", "")
+
+        qs = (
+            Employee.objects.filter(is_active=True)
+            .select_related(
+                "employee_work_info",
+                "employee_work_info__department_id",
+                "employee_work_info__job_position_id",
+                "employee_work_info__reporting_manager_id",
+            )
+            .order_by("employee_first_name", "employee_last_name")
+        )
+
+        if dept_filter:
+            qs = qs.filter(employee_work_info__department_id__department=dept_filter)
+        if search:
+            from django.db.models import Q as DQ
+            qs = qs.filter(
+                DQ(employee_first_name__icontains=search)
+                | DQ(employee_last_name__icontains=search)
+                | DQ(badge_id__icontains=search)
+            )
+
+        employees = []
+        for emp in qs:
+            wi = getattr(emp, "employee_work_info", None)
+            mgr = wi.reporting_manager_id if wi else None
+            employees.append({
+                "id": emp.id,
+                "name": emp.get_full_name(),
+                "avatar": self._avatar_url(emp),
+                "badge_id": emp.badge_id or "",
+                "position": str(wi.job_position_id) if wi and wi.job_position_id else "",
+                "department": str(wi.department_id) if wi and wi.department_id else "",
+                "manager_id": mgr.id if mgr else None,
+                "manager_name": mgr.get_full_name() if mgr else "",
+            })
+
+        # Lightweight list of all active employees for picker
+        managers_qs = (
+            Employee.objects.filter(is_active=True)
+            .select_related("employee_work_info__job_position_id", "employee_work_info__department_id")
+            .order_by("employee_first_name", "employee_last_name")
+        )
+        managers_select = []
+        for e in managers_qs:
+            wi = getattr(e, "employee_work_info", None)
+            managers_select.append({
+                "id": e.id,
+                "name": e.get_full_name(),
+                "position": str(wi.job_position_id) if wi and wi.job_position_id else "",
+                "department": str(wi.department_id) if wi and wi.department_id else "",
+            })
+
+        depts = sorted({
+            str(e.employee_work_info.department_id)
+            for e in Employee.objects.filter(is_active=True)
+            .select_related("employee_work_info__department_id")
+            if getattr(e, "employee_work_info", None) and e.employee_work_info.department_id
+        })
+
+        return Response({
+            "tab": "list",
+            "employees": employees,
+            "managers_select": managers_select,
+            "departments": depts,
+            "can_edit": self._can_edit(request),
+        })
+
+    def _set_manager(self, request):
+        from employee.models import Employee, EmployeeWorkInformation
+
+        if not self._can_edit(request):
+            return Response({"error": "Không có quyền chỉnh sửa"}, status=403)
+
+        emp_id = request.data.get("employee_id")
+        manager_id = request.data.get("manager_id")  # None = clear
+
+        try:
+            emp = Employee.objects.get(pk=emp_id, is_active=True)
+        except Employee.DoesNotExist:
+            return Response({"error": "Nhân viên không tồn tại"}, status=404)
+
+        if manager_id:
+            if int(manager_id) == emp.id:
+                return Response({"error": "Nhân viên không thể tự báo cáo cho chính mình"}, status=400)
+
+            # Cycle detection: walk up from proposed manager, ensure emp is not an ancestor
+            visited = set()
+            cur = int(manager_id)
+            while cur:
+                if cur == emp.id:
+                    return Response({"error": "Phát hiện vòng lặp phân cấp"}, status=400)
+                if cur in visited:
+                    break
+                visited.add(cur)
+                try:
+                    cur_emp = Employee.objects.get(pk=cur)
+                    wi = getattr(cur_emp, "employee_work_info", None)
+                    cur = wi.reporting_manager_id_id if wi else None
+                except Employee.DoesNotExist:
+                    break
+
+            try:
+                mgr = Employee.objects.get(pk=manager_id, is_active=True)
+            except Employee.DoesNotExist:
+                return Response({"error": "Người quản lý không tồn tại"}, status=404)
+
+        wi, _ = EmployeeWorkInformation.objects.get_or_create(employee_id=emp)
+        wi.reporting_manager_id = mgr if manager_id else None
+        wi.save(update_fields=["reporting_manager_id"])
+
+        return Response({
+            "ok": True,
+            "employee_id": emp.id,
+            "manager_id": mgr.id if manager_id else None,
+            "manager_name": mgr.get_full_name() if manager_id else "",
         })

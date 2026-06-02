@@ -245,4 +245,9 @@ urlpatterns = [
         views.TrainingPWAView.as_view(),
         name="api-training-pwa",
     ),
+    path(
+        "org-chart/",
+        views.OrgChartView.as_view(),
+        name="api-org-chart",
+    ),
 ]
