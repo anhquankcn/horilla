@@ -2024,7 +2024,7 @@ class WorkInfoEditView(APIView):
             for p in JobPosition.objects.filter(is_active=True).order_by("job_position")
         ]
         roles = [
-            {"id": r.pk, "name": r.job_role, "position_id": r.job_position_id}
+            {"id": r.pk, "name": r.job_role, "position_id": r.job_position_id_id}
             for r in JobRole.objects.filter(is_active=True).order_by("job_role")
         ]
         shifts = [
