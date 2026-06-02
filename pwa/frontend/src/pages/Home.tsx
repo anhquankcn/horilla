@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
@@ -109,33 +109,7 @@ function notifMeta(verb: string, level: string): { bg: string; tone: NotifTone; 
 }
 
 /* ── Components ── */
-function StatChip({ icon, label, value, sub, tone = 'navy' }: {
-  icon: string; label: string; value: string; sub: string; tone?: string
-}) {
-  const colors: Record<string, string> = { navy: HNH.navy, red: HNH.red, success: HNH.success, gold: '#a87908' }
-  const bgs: Record<string, string> = { navy: HNH.navy50, red: HNH.red50, success: HNH.success50, gold: '#faf1d6' }
-  return (
-    <div
-      className="flex flex-col gap-1"
-      style={{
-        background: '#fff', border: `1px solid ${HNH.line}`, borderRadius: 16, padding: '12px 14px',
-      }}
-    >
-      <div className="flex items-center gap-2">
-        <div
-          className="flex items-center justify-center"
-          style={{ width: 26, height: 26, borderRadius: 8, background: bgs[tone] }}
-        >
-          <Icon name={icon} size={14} color={colors[tone]} stroke={2} />
-        </div>
-        <span style={{ fontSize: 11.5, color: HNH.ink3, fontWeight: 600 }}>{label}</span>
-      </div>
-      <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 22, fontWeight: 800, color: HNH.ink, letterSpacing: -0.5, marginTop: 2 }}>
-        {value}<span style={{ fontSize: 12, color: HNH.ink3, fontWeight: 600, marginLeft: 2 }}>{sub}</span>
-      </div>
-    </div>
-  )
-}
+
 
 function QuickAction({ icon, label, tone, onClick }: {
   icon: string; label: string; tone: string; onClick?: () => void
@@ -174,40 +148,38 @@ const PRIORITY_LABELS: Record<string, string> = {
   low: 'Thấp', normal: 'Bình thường', high: 'Cao', urgent: 'Khẩn cấp',
 }
 
-function EOfficeCard({ tasks, onClick }: { tasks: TaskSummary | null; onClick: () => void }) {
+function EOfficeCompactCard({ tasks, onClick }: { tasks: TaskSummary | null; onClick: () => void }) {
+  const rows = [
+    { label: 'Đang làm', val: tasks?.in_progress ?? 0, color: '#3b82f6' },
+    { label: 'Cần làm',  val: tasks?.to_do ?? 0,       color: '#06b6d4' },
+    { label: 'Bị chặn',  val: tasks?.blocked ?? 0,     color: '#f97316' },
+    { label: 'Trễ hạn',  val: tasks?.overdue ?? 0,     color: HNH.red  },
+  ]
   return (
     <button
       onClick={onClick}
-      className="relative overflow-hidden w-full border-none cursor-pointer text-left"
+      className="w-full border-none cursor-pointer text-left"
       style={{
-        background: `linear-gradient(135deg, ${HNH.navy} 0%, ${HNH.navy2} 100%)`,
-        borderRadius: 22, padding: 18, color: '#fff',
-        boxShadow: '0 10px 24px rgba(20,43,111,0.18)',
+        background: `linear-gradient(160deg, ${HNH.navy} 0%, ${HNH.navy2} 100%)`,
+        borderRadius: 18, padding: '14px 16px', height: '100%', boxSizing: 'border-box',
+        boxShadow: '0 4px 12px rgba(20,43,111,0.15)',
       }}
     >
-      <div className="absolute" style={{ right: -50, top: -60, width: 180, height: 180, borderRadius: '50%', background: HNH.red, opacity: 0.18 }} />
-      <div className="absolute" style={{ right: -10, top: 10, width: 80, height: 80, borderRadius: '50%', background: HNH.red, opacity: 0.5, filter: 'blur(20px)' }} />
-      <div className="relative flex items-start justify-between">
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
         <div>
-          <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.6, color: 'rgba(255,255,255,0.7)', textTransform: 'uppercase' }}>Công việc cá nhân</div>
-          <div style={{ fontSize: 19, fontWeight: 700, marginTop: 4, letterSpacing: -0.2 }}>eOffice HNH Travel</div>
-          <div style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.7)', marginTop: 2 }}>task.hnhtravel.work · Quản lý công việc</div>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.6, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase' }}>Công việc</div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#fff', marginTop: 1 }}>eOffice</div>
         </div>
-        <div className="relative flex items-center gap-1.5" style={{ background: 'rgba(255,255,255,0.15)', borderRadius: 10, padding: '5px 10px' }}>
-          <Icon name="arrow-r" size={12} color="#fff" stroke={2} />
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#fff' }}>Mở</span>
+        <div style={{ background: 'rgba(255,255,255,0.12)', borderRadius: 8, padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 3 }}>
+          <Icon name="arrow-r" size={11} color="rgba(255,255,255,0.8)" stroke={2} />
+          <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.8)' }}>Mở</span>
         </div>
       </div>
-      <div className="relative flex gap-3" style={{ marginTop: 16 }}>
-        {[
-          { label: 'Đang làm', val: tasks?.in_progress ?? 0, color: '#60a5fa' },
-          { label: 'Cần làm', val: tasks?.to_do ?? 0, color: '#22d3ee' },
-          { label: 'Bị chặn', val: tasks?.blocked ?? 0, color: '#fb923c' },
-          { label: 'Trễ hạn', val: tasks?.overdue ?? 0, color: '#f87171' },
-        ].map(s => (
-          <div key={s.label} className="flex-1" style={{ background: 'rgba(255,255,255,0.1)', borderRadius: 10, padding: '8px 10px', textAlign: 'center' }}>
-            <div style={{ fontSize: 20, fontWeight: 800, color: s.val > 0 ? s.color : 'rgba(255,255,255,0.4)', lineHeight: 1 }}>{s.val}</div>
-            <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.6)', fontWeight: 600, marginTop: 4 }}>{s.label}</div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {rows.map(r => (
+          <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}>{r.label}</span>
+            <span style={{ fontSize: 18, fontWeight: 800, color: r.val > 0 ? r.color : 'rgba(255,255,255,0.25)', lineHeight: 1 }}>{r.val}</span>
           </div>
         ))}
       </div>
@@ -339,6 +311,169 @@ function NotifRow({ n, onClick }: { n: Notification; onClick: () => void }) {
         )}
       </div>
     </button>
+  )
+}
+
+/* ── Monthly Overview Card ── */
+function MonthlyCard({ month, workingDays, totalWorkDays, leaveRemaining, netPay, payrollMonth, activeCount, totalTasks }: {
+  month: number; workingDays: number; totalWorkDays: number; leaveRemaining: number
+  netPay: number | null; payrollMonth: string; activeCount: number; totalTasks: number
+}) {
+  const rows = [
+    { icon: 'cal',   label: 'Ngày công',           value: `${workingDays}/${totalWorkDays}`,      color: HNH.navy },
+    { icon: 'leaf',  label: 'Phép còn',             value: `${leaveRemaining} ng`,                 color: HNH.success },
+    { icon: 'money', label: payrollMonth || 'Lương', value: fmtMoney(netPay),                       color: '#a87908' },
+    { icon: 'doc',   label: 'Việc làm',             value: `${activeCount}/${totalTasks || 0}`,    color: HNH.red },
+  ]
+  return (
+    <div style={{
+      background: '#fff', borderRadius: 18, padding: '14px 16px', height: '100%', boxSizing: 'border-box',
+      border: `1px solid ${HNH.line}`, boxShadow: '0 1px 3px rgba(15,20,40,0.05)',
+    }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 12 }}>
+        Tổng quan T{month}
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+        {rows.map(r => (
+          <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Icon name={r.icon} size={12} color={r.color} stroke={2} />
+              <span style={{ fontSize: 12, color: HNH.ink3, fontWeight: 500 }}>{r.label}</span>
+            </div>
+            <span style={{ fontSize: 14, fontWeight: 700, color: HNH.ink }}>{r.value}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+/* ── Weather Widget ── */
+const WMO: Record<number, { label: string; emoji: string }> = {
+  0:  { label: 'Trời quang',     emoji: '☀️' },
+  1:  { label: 'Ít mây',         emoji: '🌤️' },
+  2:  { label: 'Có mây',         emoji: '⛅' },
+  3:  { label: 'Nhiều mây',      emoji: '☁️' },
+  45: { label: 'Sương mù',       emoji: '🌫️' },
+  48: { label: 'Sương mù dày',   emoji: '🌫️' },
+  51: { label: 'Mưa phùn nhẹ',   emoji: '🌦️' },
+  53: { label: 'Mưa phùn',       emoji: '🌧️' },
+  55: { label: 'Mưa phùn dày',   emoji: '🌧️' },
+  61: { label: 'Mưa nhẹ',        emoji: '🌧️' },
+  63: { label: 'Mưa vừa',        emoji: '🌧️' },
+  65: { label: 'Mưa to',         emoji: '🌧️' },
+  80: { label: 'Mưa rào',        emoji: '🌦️' },
+  81: { label: 'Mưa rào vừa',    emoji: '🌧️' },
+  82: { label: 'Mưa rào mạnh',   emoji: '⛈️' },
+  95: { label: 'Dông bão',        emoji: '⛈️' },
+  96: { label: 'Dông + mưa đá',  emoji: '⛈️' },
+  99: { label: 'Bão mưa đá lớn', emoji: '⛈️' },
+}
+
+function getWmo(code: number) {
+  return WMO[code] ?? WMO[Math.floor(code / 10) * 10] ?? { label: 'Không xác định', emoji: '🌡️' }
+}
+
+function getGreeting(hour: number): string {
+  if (hour >= 5  && hour < 11) return 'Chào buổi sáng'
+  if (hour >= 11 && hour < 13) return 'Chào buổi trưa'
+  if (hour >= 13 && hour < 18) return 'Chào buổi chiều'
+  if (hour >= 18 && hour < 22) return 'Chào buổi tối'
+  return 'Xin chào'
+}
+
+function getSkyBg(hour: number, code: number): string {
+  if (code >= 95) return 'linear-gradient(135deg,#374151 0%,#1f2937 100%)'
+  if (code >= 61) return 'linear-gradient(135deg,#4b5563 0%,#6b7280 100%)'
+  if (hour >= 5  && hour < 7)  return 'linear-gradient(135deg,#f97316 0%,#fb923c 50%,#fbbf24 100%)'
+  if (hour >= 7  && hour < 11) return 'linear-gradient(135deg,#0284c7 0%,#38bdf8 100%)'
+  if (hour >= 11 && hour < 15) return 'linear-gradient(135deg,#0369a1 0%,#0ea5e9 100%)'
+  if (hour >= 15 && hour < 18) return 'linear-gradient(135deg,#0284c7 0%,#38bdf8 100%)'
+  if (hour >= 18 && hour < 20) return 'linear-gradient(135deg,#dc2626 0%,#f97316 50%,#9333ea 100%)'
+  if (hour >= 20 && hour < 22) return 'linear-gradient(135deg,#312e81 0%,#1e3a5f 100%)'
+  return `linear-gradient(135deg,${HNH.navy} 0%,#0f172a 100%)`
+}
+
+const WEATHER_KEY = 'hnh_wx'
+
+interface WeatherState { temp: number; code: number; suburb: string; city: string; ts: number }
+
+function WeatherWidget({ name, hour }: { name: string; hour: number }) {
+  const [wx, setWx] = useState<WeatherState | null>(() => {
+    try { return JSON.parse(localStorage.getItem(WEATHER_KEY) || 'null') } catch { return null }
+  })
+  const [denied, setDenied] = useState(false)
+
+  useEffect(() => {
+    if (!navigator.geolocation) { setDenied(true); return }
+    if (wx && Date.now() - wx.ts < 20 * 60 * 1000) return   // fresh enough
+
+    navigator.geolocation.getCurrentPosition(async pos => {
+      const { latitude: lat, longitude: lon } = pos.coords
+      try {
+        const [wRes, gRes] = await Promise.all([
+          fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&current=temperature_2m,weather_code&timezone=Asia%2FHo_Chi_Minh`),
+          fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat.toFixed(5)}&lon=${lon.toFixed(5)}&format=json&accept-language=vi`, {
+            headers: { 'User-Agent': 'HNH-HRM-PWA/1.0 naquan@hongngocha.com' },
+          }),
+        ])
+        const [wData, gData] = await Promise.all([wRes.json(), gRes.json()])
+        const temp = Math.round(wData.current?.temperature_2m ?? 0)
+        const code = wData.current?.weather_code ?? 0
+        const suburb = (gData.address?.suburb ?? gData.address?.quarter ?? gData.address?.neighbourhood ?? '')
+          .replace(/^(Phường|Xã|Thị trấn|Quận|Huyện)\s+/i, '')
+        const city = (gData.address?.city ?? gData.address?.town ?? gData.address?.state ?? '')
+          .replace(/^Thành phố\s+/i, 'TP.').replace(/^Tỉnh\s+/i, '')
+        const next: WeatherState = { temp, code, suburb, city, ts: Date.now() }
+        localStorage.setItem(WEATHER_KEY, JSON.stringify(next))
+        setWx(next)
+      } catch { /* keep stale cache */ }
+    }, () => setDenied(true), { timeout: 8000 })
+  }, [])   // eslint-disable-line react-hooks/exhaustive-deps
+
+  const greeting = getGreeting(hour)
+  const skyBg = getSkyBg(hour, wx?.code ?? 0)
+  const wmo = wx ? getWmo(wx.code) : null
+  const location = wx ? [wx.suburb, wx.city].filter(Boolean).join(' · ') : null
+
+  return (
+    <div style={{
+      background: skyBg, borderRadius: 22, padding: '18px 20px',
+      boxShadow: '0 6px 20px rgba(0,0,0,0.18)',
+      color: '#fff',
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        {/* Left: greeting + location */}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: 'rgba(255,255,255,0.7)', letterSpacing: 0.3 }}>{greeting}</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: '#fff', marginTop: 2, letterSpacing: -0.3 }}>{name}!</div>
+          {location && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 8 }}>
+              <Icon name="pin" size={11} color="rgba(255,255,255,0.7)" stroke={1.8} />
+              <span style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.8)', fontWeight: 500 }}>{location}</span>
+            </div>
+          )}
+          {denied && !wx && (
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 6 }}>Bật vị trí để xem thời tiết</div>
+          )}
+        </div>
+
+        {/* Right: weather */}
+        {wmo && wx && (
+          <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 16 }}>
+            <div style={{ fontSize: 36, lineHeight: 1 }}>{wmo.emoji}</div>
+            <div style={{ fontSize: 28, fontWeight: 800, color: '#fff', letterSpacing: -1, marginTop: 4 }}>{wx.temp}°</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)', fontWeight: 600, marginTop: 2 }}>{wmo.label}</div>
+          </div>
+        )}
+        {!wmo && !denied && (
+          <div style={{ textAlign: 'right', flexShrink: 0, marginLeft: 16 }}>
+            <div style={{ fontSize: 30, opacity: 0.4 }}>🌡️</div>
+            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', marginTop: 4 }}>Đang tải...</div>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 
@@ -528,7 +663,6 @@ export function HomePage() {
 
   const latestPayroll = payrollData?.[0] ?? null
   const netPay = latestPayroll?.col_AK ?? null
-  const netPayLabel = fmtMoney(netPay)
   const payrollMonth = latestPayroll ? `T${latestPayroll.month}/${String(latestPayroll.year).slice(2)}` : ''
 
   const notifications = recentNotifs?.results ?? []
@@ -539,7 +673,7 @@ export function HomePage() {
   const initials = employee
     ? `${(employee.employee_first_name?.[0] ?? '')}${(employee.employee_last_name?.[0] ?? '')}`.toUpperCase()
     : '??'
-  const greeting = employee ? `Xin chào, ${employee.employee_first_name}!` : 'Xin chào!'
+  const displayName = employee?.employee_first_name ?? ''
 
   return (
     <PullToRefresh onRefresh={refreshAll}>
@@ -549,9 +683,7 @@ export function HomePage() {
         <Avatar initials={initials} bg={HNH.red} size={42} />
         <div className="flex-1">
           <div style={{ fontSize: 11.5, color: HNH.ink3, fontWeight: 600, letterSpacing: 0.4 }}>{dateStr}</div>
-          <div className="flex items-baseline gap-2">
-            <div style={{ fontSize: 18, fontWeight: 700, color: HNH.ink, letterSpacing: -0.2 }}>{greeting}</div>
-          </div>
+          <div style={{ fontSize: 18, fontWeight: 700, color: HNH.ink, letterSpacing: -0.2 }}>{displayName}</div>
         </div>
         <div
           className="flex flex-col items-center justify-center shrink-0"
@@ -605,30 +737,34 @@ export function HomePage() {
         </button>
       </div>
 
-      {/* eOffice + Check-in: side by side on tablet, stacked on mobile */}
-      {isTablet ? (
-        <div className="flex gap-4" style={{ padding: `0 ${px}px` }}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <EOfficeCard tasks={tasks ?? null} onClick={() => navigate(TASK_WEBVIEW)} />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <CheckInCard employee={employee} isClockedIn={isClockedIn} clockInTime={clockInTime} duration={duration} onOpen={() => setClockModalOpen(true)} />
-          </div>
-        </div>
-      ) : (
-        <>
-          <div style={{ padding: `0 ${px}px` }}>
-            <EOfficeCard tasks={tasks ?? null} onClick={() => navigate(TASK_WEBVIEW)} />
-          </div>
-          <div style={{ padding: `14px ${px}px 0` }}>
-            <CheckInCard employee={employee} isClockedIn={isClockedIn} clockInTime={clockInTime} duration={duration} onOpen={() => setClockModalOpen(true)} />
-          </div>
-        </>
-      )}
+      {/* Weather widget */}
+      <div style={{ padding: `0 ${px}px` }}>
+        <WeatherWidget name={employee?.employee_first_name ?? 'bạn'} hour={now.getHours()} />
+      </div>
+
+      {/* Check-in */}
+      <div style={{ padding: `12px ${px}px 0` }}>
+        <CheckInCard employee={employee} isClockedIn={isClockedIn} clockInTime={clockInTime} duration={duration} onOpen={() => setClockModalOpen(true)} />
+      </div>
 
       {/* Work schedule widget */}
       <div style={{ padding: `12px ${px}px 0` }}>
         <WorkScheduleWidget onClick={() => navigate('/work-schedule')} />
+      </div>
+
+      {/* 2-column: Monthly overview + eOffice tasks */}
+      <div style={{ padding: `12px ${px}px 0`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <MonthlyCard
+          month={now.getMonth() + 1}
+          workingDays={workingDays}
+          totalWorkDays={totalWorkDaysInMonth}
+          leaveRemaining={leaveRemaining}
+          netPay={netPay}
+          payrollMonth={payrollMonth}
+          activeCount={activeCount}
+          totalTasks={tasks?.total ?? 0}
+        />
+        <EOfficeCompactCard tasks={tasks ?? null} onClick={() => navigate(TASK_WEBVIEW)} />
       </div>
 
       {/* Recent tasks */}
@@ -642,33 +778,13 @@ export function HomePage() {
               style={{ fontSize: 12, color: HNH.red, fontWeight: 600 }}
             >Xem tất cả →</button>
           </div>
-          <div className={isTablet ? 'grid gap-2' : 'flex flex-col gap-2'} style={isTablet ? { gridTemplateColumns: '1fr 1fr' } : undefined}>
+          <div className="flex flex-col gap-2">
             {tasks.recent_tasks.map(t => (
               <TaskRow key={t.id} t={t} onClick={() => navigate('/tasks', { state: { openTaskId: t.id } })} />
             ))}
           </div>
         </div>
       )}
-
-      {/* Quick stats */}
-      <div style={{ padding: `14px ${px}px 0` }}>
-        <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: HNH.ink, letterSpacing: -0.1 }}>
-            Tổng quan tháng {now.getMonth() + 1}
-          </div>
-          <button
-            onClick={() => navigate('/attendance')}
-            className="border-none bg-transparent cursor-pointer"
-            style={{ fontSize: 12, color: HNH.red, fontWeight: 600 }}
-          >Chi tiết →</button>
-        </div>
-        <div className={isTablet ? 'grid grid-cols-4 gap-2.5' : 'grid grid-cols-2 gap-2.5'}>
-          <StatChip icon="cal" label="Ngày công" value={String(workingDays)} sub={`/ ${totalWorkDaysInMonth}`} tone="navy" />
-          <StatChip icon="leaf" label="Nghỉ phép còn" value={String(leaveRemaining)} sub=" ngày" tone="success" />
-          <StatChip icon="money" label={payrollMonth ? `Lương ${payrollMonth}` : 'Lương tháng'} value={netPayLabel} sub={netPay != null ? ' đ' : ''} tone="gold" />
-          <StatChip icon="doc" label="Công việc" value={String(activeCount)} sub={tasks ? ` / ${tasks.total}` : ''} tone="red" />
-        </div>
-      </div>
 
       {/* Recent notifications */}
       {notifications.length > 0 && (
