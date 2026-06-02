@@ -163,12 +163,19 @@ class EmployeeBankView(APIView):
 
 
 class EmployeeScheduleView(APIView):
-    """Return the authenticated employee's shift schedule (all assigned days)."""
+    """
+    Return the employee's shift schedule for a specific week, with approved leave overlaid.
+    Query params:
+      week_offset=0  (0=current week, -1=last week, 1=next week, etc.)
+    Response days keyed by ISO date (YYYY-MM-DD).
+    """
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        from datetime import date, timedelta
         from base.models import EmployeeShiftSchedule
+        from leave.models import LeaveRequest
 
         emp = getattr(request.user, "employee_get", None)
         if not emp:
@@ -176,11 +183,14 @@ class EmployeeScheduleView(APIView):
         wi = getattr(emp, "employee_work_info", None)
         if not wi or not wi.shift_id:
             return Response({"shift_name": None, "weekly_full_time": None, "days": {}}, status=200)
+
         shift = wi.shift_id
+
+        # Build day-name → schedule map
         schedules = EmployeeShiftSchedule.objects.filter(shift_id=shift).select_related("day")
-        days = {}
+        sched_map = {}
         for s in schedules:
-            days[s.day.day] = {
+            sched_map[s.day.day] = {
                 "start_time": s.start_time.strftime("%H:%M") if s.start_time else None,
                 "end_time": s.end_time.strftime("%H:%M") if s.end_time else None,
                 "start_time_2": s.start_time_2.strftime("%H:%M") if s.start_time_2 else None,
@@ -188,6 +198,73 @@ class EmployeeScheduleView(APIView):
                 "minimum_working_hour": s.minimum_working_hour,
                 "is_night_shift": s.is_night_shift,
             }
+
+        # Compute week start (Monday) for the requested offset
+        week_offset = int(request.query_params.get("week_offset", 0))
+        today = date.today()
+        dow = today.weekday()  # 0=Mon, 6=Sun
+        monday = today - timedelta(days=dow) + timedelta(weeks=week_offset)
+        DAY_NAMES = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+
+        # Collect approved leaves that overlap with this week
+        week_end = monday + timedelta(days=6)
+        approved_leaves = LeaveRequest.objects.filter(
+            employee_id=emp,
+            status="approved",
+            start_date__lte=week_end,
+            end_date__gte=monday,
+        ).select_related("leave_type_id")
+
+        # Build a date → leave_type map
+        leave_dates: dict[date, str] = {}
+        for lr in approved_leaves:
+            d = lr.start_date
+            while d <= lr.end_date:
+                leave_dates[d] = lr.leave_type_id.name if lr.leave_type_id else "Nghỉ phép"
+                d += timedelta(days=1)
+
+        # Build final days dict keyed by ISO date
+        days = {}
+        for i, day_name in enumerate(DAY_NAMES):
+            current_date = monday + timedelta(days=i)
+            iso = current_date.isoformat()
+            leave_type = leave_dates.get(current_date)
+            if leave_type:
+                days[iso] = {
+                    "day_name": day_name,
+                    "start_time": None,
+                    "end_time": None,
+                    "start_time_2": None,
+                    "end_time_2": None,
+                    "minimum_working_hour": "00:00",
+                    "is_night_shift": False,
+                    "is_leave": True,
+                    "leave_type": leave_type,
+                    "is_off": False,
+                }
+            elif day_name in sched_map:
+                s = sched_map[day_name]
+                days[iso] = {
+                    "day_name": day_name,
+                    **s,
+                    "is_leave": False,
+                    "leave_type": None,
+                    "is_off": False,
+                }
+            else:
+                days[iso] = {
+                    "day_name": day_name,
+                    "start_time": None,
+                    "end_time": None,
+                    "start_time_2": None,
+                    "end_time_2": None,
+                    "minimum_working_hour": "00:00",
+                    "is_night_shift": False,
+                    "is_leave": False,
+                    "leave_type": None,
+                    "is_off": True,
+                }
+
         return Response({
             "shift_name": shift.employee_shift,
             "weekly_full_time": shift.weekly_full_time,
