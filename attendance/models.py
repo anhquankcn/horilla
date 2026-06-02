@@ -1582,3 +1582,27 @@ class GPSCheckInLog(models.Model):
 
     def __str__(self):
         return f"{self.employee} @ {self.timestamp:%Y-%m-%d %H:%M}"
+
+
+class AttendanceComment(models.Model):
+    """Employee comment / HR reply on an attendance record."""
+
+    attendance = models.ForeignKey(
+        Attendance,
+        on_delete=models.CASCADE,
+        related_name="comments",
+    )
+    author = models.ForeignKey(
+        "employee.Employee",
+        on_delete=models.CASCADE,
+        related_name="attendance_comments",
+    )
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "attendance_comment"
+        ordering = ["created_at"]
+
+    def __str__(self):
+        return f"Comment by {self.author} on {self.attendance.attendance_date}"

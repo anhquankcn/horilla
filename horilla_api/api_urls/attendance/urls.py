@@ -76,4 +76,5 @@ urlpatterns = [
         name="api-pwa-attendance-request",
     ),
     path("my-calendar/", MyCalendarView.as_view(), name="api-my-calendar"),
+    path("attendance/<int:pk>/comments/", AttendanceCommentView.as_view(), name="api-attendance-comments"),
 ]

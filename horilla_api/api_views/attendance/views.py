@@ -1505,14 +1505,23 @@ class MyCalendarView(APIView):
         for a in Attendance.objects.filter(
             employee_id=employee,
             attendance_date__range=[start, end],
-        ).order_by("attendance_date"):
+        ).prefetch_related("late_come_early_out", "comments").order_by("attendance_date"):
             d = a.attendance_date.isoformat()
+            lc = any(x.type == "late_come" for x in a.late_come_early_out.all())
+            eo = any(x.type == "early_out" for x in a.late_come_early_out.all())
             att_map[d] = {
+                "id": a.id,
                 "clock_in": a.attendance_clock_in.strftime("%H:%M") if a.attendance_clock_in else None,
                 "clock_out": a.attendance_clock_out.strftime("%H:%M") if a.attendance_clock_out else None,
                 "worked_hours": a.attendance_worked_hour or None,
+                "minimum_hour": a.minimum_hour or None,
                 "overtime": a.attendance_overtime or None,
+                "overtime_approved": a.attendance_overtime_approve,
                 "validated": a.attendance_validated,
+                "is_validate_request": a.is_validate_request,
+                "late_come": lc,
+                "early_out": eo,
+                "comment_count": a.comments.count(),
             }
 
         # Approved leaves in the month
@@ -1590,7 +1599,15 @@ class MyCalendarView(APIView):
                 "clock_in": att["clock_in"] if att else None,
                 "clock_out": att["clock_out"] if att else None,
                 "worked_hours": att["worked_hours"] if att else None,
+                "minimum_hour": att["minimum_hour"] if att else None,
                 "overtime": att["overtime"] if att else None,
+                "overtime_approved": att["overtime_approved"] if att else False,
+                "validated": att["validated"] if att else False,
+                "is_validate_request": att["is_validate_request"] if att else False,
+                "late_come": att["late_come"] if att else False,
+                "early_out": att["early_out"] if att else False,
+                "attendance_id": att["id"] if att else None,
+                "comment_count": att["comment_count"] if att else 0,
                 "leave_type": leave_name,
                 "holiday_name": holiday_name,
             }
@@ -1602,6 +1619,82 @@ class MyCalendarView(APIView):
             "schedule": schedule_map,
             "days": days,
         })
+
+
+class AttendanceCommentView(APIView):
+    """GET list / POST create comments on an attendance record."""
+
+    permission_classes = [IsAuthenticated]
+
+    def _get_attendance(self, request, pk):
+        attendance = get_object_or_404(Attendance, pk=pk)
+        employee = request.user.employee_get
+        is_owner = attendance.employee_id == employee
+        is_hr = request.user.has_perm("attendance.change_attendance")
+        return attendance, is_owner, is_hr
+
+    def get(self, request, pk):
+        from attendance.models import AttendanceComment
+        attendance, is_owner, is_hr = self._get_attendance(request, pk)
+        if not (is_owner or is_hr):
+            return Response({"error": "Permission denied"}, status=403)
+        comments = AttendanceComment.objects.filter(attendance=attendance).select_related("author")
+        data = [
+            {
+                "id": c.id,
+                "author_name": f"{c.author.employee_first_name} {c.author.employee_last_name or ''}".strip(),
+                "is_hr": c.author.employee_user_id.has_perm("attendance.change_attendance") if c.author.employee_user_id else False,
+                "content": c.content,
+                "created_at": c.created_at.strftime("%Y-%m-%dT%H:%M:%S"),
+            }
+            for c in comments
+        ]
+        return Response(data)
+
+    def post(self, request, pk):
+        from attendance.models import AttendanceComment
+        from notifications.signals import notify
+        attendance, is_owner, is_hr = self._get_attendance(request, pk)
+        if not (is_owner or is_hr):
+            return Response({"error": "Permission denied"}, status=403)
+        content = request.data.get("content", "").strip()
+        if not content:
+            return Response({"error": "Nội dung không được trống"}, status=400)
+        employee = request.user.employee_get
+        comment = AttendanceComment.objects.create(
+            attendance=attendance, author=employee, content=content,
+        )
+        # Notify the other party
+        if is_owner and not is_hr:
+            # Employee commented → notify reporting manager / HR
+            work_info = getattr(employee, "employee_work_info", None)
+            if work_info and work_info.reporting_manager_id:
+                manager_user = work_info.reporting_manager_id.employee_user_id
+                notify.send(
+                    request.user,
+                    recipient=manager_user,
+                    verb=f"{employee.employee_first_name} có ý kiến về ngày công {attendance.attendance_date}",
+                    redirect=f"/attendance/attendance-request-view/?id={attendance.id}",
+                    icon="chatbubble-outline",
+                )
+        else:
+            # HR commented → notify the employee
+            emp_user = attendance.employee_id.employee_user_id
+            if emp_user:
+                notify.send(
+                    request.user,
+                    recipient=emp_user,
+                    verb=f"HR phản hồi ý kiến về ngày công {attendance.attendance_date} của bạn",
+                    redirect="/attendance",
+                    icon="chatbubble-outline",
+                )
+        return Response({
+            "id": comment.id,
+            "author_name": f"{employee.employee_first_name} {employee.employee_last_name or ''}".strip(),
+            "is_hr": is_hr,
+            "content": comment.content,
+            "created_at": comment.created_at.strftime("%Y-%m-%dT%H:%M:%S"),
+        }, status=201)
 
 
 class PWAAttendanceRequestView(APIView):

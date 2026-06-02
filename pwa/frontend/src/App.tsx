@@ -44,6 +44,7 @@ import { TrainingPage } from './pages/Training'
 import { OrgChartPage } from './pages/OrgChart'
 import { PromotionHubPage } from './pages/PromotionHub'
 import { WorkSchedulePage } from './pages/WorkSchedule'
+import { MonthlyAttendancePage } from './pages/MonthlyAttendance'
 
 export function App() {
   return (
@@ -91,6 +92,7 @@ export function App() {
         <Route path="/org-chart" element={<OrgChartPage />} />
         <Route path="/promotion-hub" element={<PromotionHubPage />} />
         <Route path="/work-schedule" element={<WorkSchedulePage />} />
+        <Route path="/attendance/monthly" element={<MonthlyAttendancePage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
 

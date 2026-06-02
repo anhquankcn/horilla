@@ -18,6 +18,7 @@ export function Icon({ name, size = 18, color = HNH.ink, stroke: sw = 1.8 }: Ico
     case 'check': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="m4 12 5 5L20 6" {...p}/></svg>
     case 'x': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" {...p}/></svg>
     case 'chev-r': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="m9 6 6 6-6 6" {...p}/></svg>
+    case 'chev-l': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="m15 6-6 6 6 6" {...p}/></svg>
     case 'chev-d': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" {...p}/></svg>
     case 'cal': return <svg width={size} height={size} viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2" {...p}/><path d="M3.5 10h17M8 3v4M16 3v4" {...p}/></svg>
     case 'arrow-up': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6" {...p}/></svg>
@@ -53,7 +54,11 @@ export function Icon({ name, size = 18, color = HNH.ink, stroke: sw = 1.8 }: Ico
     case 'briefcase': return <svg width={size} height={size} viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2" {...p}/><path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2" {...p}/><path d="M12 12v.01" {...p}/></svg>
     case 'trending-up': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="m23 6-9.5 9.5-5-5L1 18" {...p}/><path d="M17 6h6v6" {...p}/></svg>
     case 'award': return <svg width={size} height={size} viewBox="0 0 24 24"><circle cx="12" cy="8" r="6" {...p}/><path d="M15.5 14.5 17 21l-5-3-5 3 1.5-6.5" {...p}/></svg>
+    case 'log-in': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3" {...p}/></svg>
     case 'log-out': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" {...p}/></svg>
+    case 'flash': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M13 2 4.5 13.5H12L11 22l8.5-11.5H12L13 2Z" {...p}/></svg>
+    case 'checkmark-circle': return <svg width={size} height={size} viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" {...p}/><path d="m8 12 3 3 5-5" {...p}/></svg>
+    case 'alert-circle': return <svg width={size} height={size} viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" {...p}/><path d="M12 8v4M12 16h.01" {...p}/></svg>
     case 'bot': return <svg width={size} height={size} viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="12" rx="3" {...p}/><path d="M12 8V5M8 14h.01M16 14h.01M9 17h6" {...p}/></svg>
     case 'layers': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="m12 2 10 6-10 6L2 8l10-6Z" {...p}/><path d="m2 14 10 6 10-6" {...p}/><path d="m2 8 10 6 10-6" {...p}/></svg>
     case 'target': return <svg width={size} height={size} viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" {...p}/><circle cx="12" cy="12" r="6" {...p}/><circle cx="12" cy="12" r="2" {...p}/></svg>
