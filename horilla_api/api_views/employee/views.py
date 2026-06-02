@@ -2101,10 +2101,20 @@ class MyAppsView(APIView):
     permission_classes = [IsAuthenticated]
 
     ALL_APP_SLUGS = [
-        "attendance", "proposals", "approvals", "payslip", "notifications",
+        "attendance", "work-schedule", "monthly-attendance", "proposals", "approvals",
+        "payslip", "notifications", "documents",
         "employees", "roles", "groups", "attendance-activity",
-        "tasks", "projects", "announcement-hub", "dashboard", "unified-calendar", "assets", "reports", "payroll-mgmt", "documents", "onboarding", "journey", "pms", "training", "org-chart", "promotion-hub",
+        "tasks", "projects", "announcement-hub", "dashboard", "unified-calendar",
+        "assets", "reports", "payroll-mgmt", "onboarding", "journey", "pms",
+        "training", "org-chart", "promotion-hub",
     ]
+
+    # Self-service slugs always visible to every authenticated employee regardless
+    # of group visibility config — these are personal data views, not management tools.
+    BASE_SLUGS = {
+        "attendance", "work-schedule", "monthly-attendance",
+        "proposals", "payslip", "notifications", "documents",
+    }
 
     def get(self, request):
         from base.models import GroupAppVisibility
@@ -2133,8 +2143,9 @@ class MyAppsView(APIView):
         if groups_without_config:
             return Response({"allowed": self.ALL_APP_SLUGS, "is_admin": False})
 
-        # All groups have explicit config → return union of their allowed apps
-        allowed = set()
+        # All groups have explicit config → return union of their allowed apps,
+        # always adding BASE_SLUGS so self-service features are never locked out.
+        allowed = set(self.BASE_SLUGS)
         for apps in vis_map.values():
             allowed.update(apps)
 
