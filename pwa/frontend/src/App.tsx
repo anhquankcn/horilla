@@ -32,6 +32,7 @@ import { AnnouncementHubPage } from './pages/AnnouncementHub'
 import { ProjectsPage } from './pages/Projects'
 import { DashboardPage } from './pages/Dashboard'
 import { EmployeeProfilePage } from './pages/EmployeeProfile'
+import { WorkInfoEditPage } from './pages/WorkInfoEdit'
 import { UnifiedCalendarPage } from './pages/UnifiedCalendar'
 import { AssetsPage } from './pages/Assets'
 import { ReportsPage } from './pages/Reports'
@@ -80,6 +81,7 @@ export function App() {
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/employees/:id" element={<EmployeeProfilePage />} />
+        <Route path="/employees/:id/work-info-edit" element={<WorkInfoEditPage />} />
         <Route path="/unified-calendar" element={<UnifiedCalendarPage />} />
         <Route path="/assets" element={<AssetsPage />} />
         <Route path="/reports" element={<ReportsPage />} />

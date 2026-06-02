@@ -45,6 +45,8 @@ interface ProfileData {
   }
   is_self: boolean
   is_manager_of: boolean
+  can_edit_work_info: boolean
+  work_info_id: number | null
 }
 
 type Tab = 'overview' | 'contract' | 'leave'
@@ -589,7 +591,7 @@ export function EmployeeProfilePage() {
           </div>
         </div>
 
-        {/* Quick contact */}
+        {/* Quick contact + edit */}
         <div className="flex gap-2" style={{ padding: `10px ${px}px` }}>
           {p.phone && (
             <a href={`tel:${p.phone}`} className="flex items-center gap-2 flex-1 no-underline" style={{
@@ -608,6 +610,20 @@ export function EmployeeProfilePage() {
               <Icon name="send" size={16} color={HNH.red} stroke={2} />
               <span className="truncate" style={{ fontSize: 12.5, fontWeight: 700, color: HNH.red }}>{p.email}</span>
             </a>
+          )}
+          {data.can_edit_work_info && (
+            <button
+              onClick={() => navigate(`/employees/${p.id}/work-info-edit`)}
+              style={{
+                background: HNH.navy50, border: `1px solid ${HNH.navy}`,
+                borderRadius: 12, padding: '10px 14px',
+                display: 'flex', alignItems: 'center', gap: 6,
+                cursor: 'pointer', flexShrink: 0,
+              }}
+            >
+              <Icon name="edit" size={15} color={HNH.navy} stroke={2} />
+              <span style={{ fontSize: 12.5, fontWeight: 700, color: HNH.navy }}>Sửa</span>
+            </button>
           )}
         </div>
 

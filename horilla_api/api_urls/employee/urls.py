@@ -213,6 +213,11 @@ urlpatterns = [
         name="api-employee-profile",
     ),
     path(
+        "<int:pk>/work-info-edit/",
+        views.WorkInfoEditView.as_view(),
+        name="api-employee-work-info-edit",
+    ),
+    path(
         "unified-calendar/",
         views.UnifiedCalendarView.as_view(),
         name="api-unified-calendar",

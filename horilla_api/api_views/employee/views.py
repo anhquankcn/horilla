@@ -1949,7 +1949,146 @@ class EmployeeProfileView(APIView):
             },
             "is_self": is_self,
             "is_manager_of": is_manager_of,
+            "can_edit_work_info": (
+                is_manager_of
+                or user.has_perm("employee.change_employeeworkinformation")
+            ),
+            "work_info_id": wi.id if wi else None,
         })
+
+
+class WorkInfoEditView(APIView):
+    """
+    GET  /api/employee/<pk>/work-info-edit/  — current work info (IDs) + dropdown options
+    PUT  /api/employee/<pk>/work-info-edit/  — partial update work info
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def _check_perm(self, request, emp):
+        user = request.user
+        is_manager = Employee.objects.filter(
+            pk=emp.pk,
+            employee_work_info__reporting_manager_id=user.employee_get
+            if hasattr(user, "employee_get") else None,
+        ).exists()
+        return is_manager or user.has_perm("employee.change_employeeworkinformation")
+
+    def get(self, request, pk):
+        from base.models import (
+            Department, EmployeeShift, EmployeeType, JobPosition,
+            JobRole, WorkType,
+        )
+
+        try:
+            emp = Employee.objects.select_related("employee_work_info").get(pk=pk, is_active=True)
+        except Employee.DoesNotExist:
+            return Response({"error": "Not found"}, status=404)
+
+        user = request.user
+        is_self = hasattr(user, "employee_get") and user.employee_get.id == emp.id
+        is_manager = Employee.objects.filter(
+            pk=emp.pk,
+            employee_work_info__reporting_manager_id=getattr(user, "employee_get", None),
+        ).exists()
+        has_perm = user.has_perm("employee.change_employeeworkinformation")
+        if not (is_self or is_manager or has_perm):
+            return Response({"error": "Forbidden"}, status=403)
+
+        wi = getattr(emp, "employee_work_info", None)
+
+        current = {
+            "department_id": wi.department_id_id if wi else None,
+            "job_position_id": wi.job_position_id_id if wi else None,
+            "job_role_id": wi.job_role_id_id if wi else None,
+            "shift_id": wi.shift_id_id if wi else None,
+            "work_type_id": wi.work_type_id_id if wi else None,
+            "employee_type_id": wi.employee_type_id_id if wi else None,
+            "company_id": wi.company_id_id if wi else None,
+            "reporting_manager_id": wi.reporting_manager_id_id if wi else None,
+            "date_joining": wi.date_joining.isoformat() if wi and wi.date_joining else None,
+            "contract_end_date": wi.contract_end_date.isoformat() if wi and wi.contract_end_date else None,
+            "location": wi.location if wi else "",
+            "email": wi.email if wi else "",
+            "mobile": wi.mobile if wi else "",
+            "basic_salary": wi.basic_salary if wi else 0,
+            "salary_hour": wi.salary_hour if wi else 0,
+        }
+
+        departments = [
+            {"id": d.pk, "name": d.department}
+            for d in Department.objects.filter(is_active=True).order_by("department")
+        ]
+        positions = [
+            {"id": p.pk, "name": p.job_position, "department_id": p.department_id_id}
+            for p in JobPosition.objects.filter(is_active=True).order_by("job_position")
+        ]
+        roles = [
+            {"id": r.pk, "name": r.job_role, "position_id": r.job_position_id}
+            for r in JobRole.objects.filter(is_active=True).order_by("job_role")
+        ]
+        shifts = [
+            {"id": s.pk, "name": s.employee_shift}
+            for s in EmployeeShift.objects.filter(is_active=True).order_by("employee_shift")
+        ]
+        work_types = [
+            {"id": t.pk, "name": t.work_type}
+            for t in WorkType.objects.filter(is_active=True).order_by("work_type")
+        ]
+        employee_types = [
+            {"id": t.pk, "name": t.employee_type}
+            for t in EmployeeType.objects.filter(is_active=True).order_by("employee_type")
+        ]
+        from base.models import Company
+        companies = [
+            {"id": c.pk, "name": c.company}
+            for c in Company.objects.filter(is_active=True).order_by("company")
+        ]
+        managers = [
+            {
+                "id": e.pk,
+                "name": f"{e.employee_first_name} {e.employee_last_name}".strip(),
+            }
+            for e in Employee.objects.filter(is_active=True).order_by(
+                "employee_first_name", "employee_last_name"
+            )
+        ]
+
+        return Response({
+            "work_info_id": wi.id if wi else None,
+            "employee_name": f"{emp.employee_first_name} {emp.employee_last_name}".strip(),
+            "badge_id": emp.badge_id,
+            "current": current,
+            "options": {
+                "departments": departments,
+                "positions": positions,
+                "roles": roles,
+                "shifts": shifts,
+                "work_types": work_types,
+                "employee_types": employee_types,
+                "companies": companies,
+                "managers": managers,
+            },
+        })
+
+    def put(self, request, pk):
+        try:
+            emp = Employee.objects.select_related("employee_work_info").get(pk=pk, is_active=True)
+        except Employee.DoesNotExist:
+            return Response({"error": "Not found"}, status=404)
+
+        if not self._check_perm(request, emp):
+            return Response({"error": "Forbidden"}, status=403)
+
+        wi = getattr(emp, "employee_work_info", None)
+        if not wi:
+            return Response({"error": "No work info record"}, status=404)
+
+        serializer = EmployeeWorkInformationSerializer(wi, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"ok": True})
+        return Response(serializer.errors, status=400)
 
 
 class DashboardView(APIView):
