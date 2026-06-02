@@ -235,4 +235,9 @@ urlpatterns = [
         views.EmployeeJourneyPWAView.as_view(),
         name="api-employee-journey",
     ),
+    path(
+        "pms/",
+        views.PMSPWAView.as_view(),
+        name="api-pms-pwa",
+    ),
 ]

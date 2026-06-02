@@ -56,6 +56,9 @@ export function Icon({ name, size = 18, color = HNH.ink, stroke: sw = 1.8 }: Ico
     case 'log-out': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" {...p}/></svg>
     case 'bot': return <svg width={size} height={size} viewBox="0 0 24 24"><rect x="3" y="8" width="18" height="12" rx="3" {...p}/><path d="M12 8V5M8 14h.01M16 14h.01M9 17h6" {...p}/></svg>
     case 'layers': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="m12 2 10 6-10 6L2 8l10-6Z" {...p}/><path d="m2 14 10 6 10-6" {...p}/><path d="m2 8 10 6 10-6" {...p}/></svg>
+    case 'target': return <svg width={size} height={size} viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" {...p}/><circle cx="12" cy="12" r="6" {...p}/><circle cx="12" cy="12" r="2" {...p}/></svg>
+    case 'bar-chart': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M12 20V10M18 20V4M6 20v-4" {...p}/></svg>
+    case 'message': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" {...p}/></svg>
     default: return null
   }
 }

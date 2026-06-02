@@ -39,6 +39,7 @@ import { PayrollMgmtPage } from './pages/PayrollMgmt'
 import { DocumentsPage } from './pages/Documents'
 import { OnboardingPage } from './pages/Onboarding'
 import { JourneyPage } from './pages/Journey'
+import { PMSPage } from './pages/PMS'
 
 export function App() {
   return (
@@ -81,6 +82,7 @@ export function App() {
         <Route path="/documents" element={<DocumentsPage />} />
         <Route path="/onboarding" element={<OnboardingPage />} />
         <Route path="/journey" element={<JourneyPage />} />
+        <Route path="/pms" element={<PMSPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
 

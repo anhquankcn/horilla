@@ -74,6 +74,7 @@ const APP_FEATURES = [
   { slug: 'documents', label: 'Tài liệu', icon: 'folder', section: 'hrm' },
   { slug: 'onboarding', label: 'On/Offboarding', icon: 'star', section: 'hrm' },
   { slug: 'journey', label: 'Hành trình NV', icon: 'layers', section: 'hrm' },
+  { slug: 'pms', label: 'Hiệu suất', icon: 'target', section: 'hrm' },
 ]
 
 /* ── Group Card ── */

@@ -2030,7 +2030,7 @@ class MyAppsView(APIView):
     ALL_APP_SLUGS = [
         "attendance", "proposals", "approvals", "payslip", "notifications",
         "employees", "roles", "groups", "attendance-activity",
-        "tasks", "projects", "announcement-hub", "dashboard", "unified-calendar", "assets", "reports", "payroll-mgmt", "documents", "onboarding", "journey",
+        "tasks", "projects", "announcement-hub", "dashboard", "unified-calendar", "assets", "reports", "payroll-mgmt", "documents", "onboarding", "journey", "pms",
     ]
 
     def get(self, request):
@@ -3193,3 +3193,346 @@ class EmployeeJourneyPWAView(APIView):
             row["contract_end"] = wi.contract_end_date.isoformat() if wi and wi.contract_end_date else None
             row["is_alumni"] = True
             phase_data["alumni"]["employees"].append(row)
+
+
+class PMSPWAView(APIView):
+    """Performance Management System — objectives, key results, feedback for PWA."""
+
+    permission_classes = [IsAuthenticated]
+
+    STATUS_COLORS = {
+        "Not Started": "#6b7280",
+        "On Track": "#059669",
+        "Behind": "#d97706",
+        "At Risk": "#dc2626",
+        "Closed": "#6366f1",
+    }
+
+    def get(self, request):
+        from datetime import date
+        from pms.models import (
+            EmployeeObjective, EmployeeKeyResult, Feedback, Comment, Period,
+        )
+
+        emp = getattr(request.user, "employee_get", None)
+        if not emp:
+            return Response({"error": "No employee linked"}, status=400)
+
+        tab = request.query_params.get("tab", "objectives")
+        is_manager = Employee.objects.filter(
+            employee_work_info__reporting_manager_id=emp
+        ).exists()
+        has_perm = request.user.has_perm
+
+        today = date.today()
+
+        if tab == "objectives":
+            return self._tab_objectives(emp, is_manager, has_perm, today)
+        elif tab == "key_results":
+            return self._tab_key_results(emp, today)
+        elif tab == "feedback":
+            return self._tab_feedback(emp, is_manager, has_perm, today)
+        elif tab == "overview":
+            return self._tab_overview(emp, is_manager, has_perm, today)
+        else:
+            return Response({"error": "Invalid tab"}, status=400)
+
+    def post(self, request):
+        from pms.models import EmployeeKeyResult, EmployeeObjective, Comment
+
+        emp = getattr(request.user, "employee_get", None)
+        if not emp:
+            return Response({"error": "No employee linked"}, status=400)
+
+        action = request.data.get("action")
+
+        if action == "update_kr_value":
+            kr_id = request.data.get("kr_id")
+            new_value = request.data.get("current_value")
+            try:
+                kr = EmployeeKeyResult.objects.get(id=kr_id)
+                obj = kr.employee_objective_id
+                can_edit = (
+                    request.user.has_perm("pms.change_employeekeyresult")
+                    or (obj and obj.employee_id == emp)
+                    or (obj and obj.objective_id and emp in obj.objective_id.managers.all())
+                )
+                if not can_edit:
+                    return Response({"error": "Permission denied"}, status=403)
+                kr.current_value = int(new_value)
+                kr.update_kr_progress()
+                kr.save()
+                if obj:
+                    obj.update_objective_progress()
+                return Response({
+                    "ok": True,
+                    "progress": kr.progress_percentage,
+                    "obj_progress": obj.progress_percentage if obj else 0,
+                })
+            except EmployeeKeyResult.DoesNotExist:
+                return Response({"error": "Key result not found"}, status=404)
+
+        elif action == "update_obj_status":
+            obj_id = request.data.get("obj_id")
+            new_status = request.data.get("status")
+            valid = ["Not Started", "On Track", "Behind", "At Risk", "Closed"]
+            if new_status not in valid:
+                return Response({"error": "Invalid status"}, status=400)
+            try:
+                obj = EmployeeObjective.objects.get(id=obj_id)
+                can_edit = (
+                    request.user.has_perm("pms.change_employeeobjective")
+                    or obj.employee_id == emp
+                    or (obj.objective_id and emp in obj.objective_id.managers.all())
+                )
+                if not can_edit:
+                    return Response({"error": "Permission denied"}, status=403)
+                obj.status = new_status
+                obj.save()
+                return Response({"ok": True})
+            except EmployeeObjective.DoesNotExist:
+                return Response({"error": "Objective not found"}, status=404)
+
+        elif action == "add_comment":
+            obj_id = request.data.get("obj_id")
+            text = request.data.get("comment", "").strip()
+            if not text:
+                return Response({"error": "Empty comment"}, status=400)
+            try:
+                obj = EmployeeObjective.objects.get(id=obj_id)
+                c = Comment.objects.create(
+                    comment=text,
+                    employee_id=emp,
+                    employee_objective_id=obj,
+                )
+                return Response({
+                    "ok": True,
+                    "comment": {
+                        "id": c.id,
+                        "text": c.comment,
+                        "author": f"{emp.employee_first_name} {emp.employee_last_name or ''}".strip(),
+                        "created_at": c.created_at.isoformat() if c.created_at else None,
+                    },
+                })
+            except EmployeeObjective.DoesNotExist:
+                return Response({"error": "Objective not found"}, status=404)
+
+        return Response({"error": "Invalid action"}, status=400)
+
+    def _tab_objectives(self, emp, is_manager, has_perm, today):
+        from pms.models import EmployeeObjective, EmployeeKeyResult, Comment
+        from django.db.models import Q
+
+        view_all = has_perm("pms.view_employeeobjective") or is_manager
+        if view_all:
+            qs = EmployeeObjective.objects.filter(archive=False)
+        else:
+            qs = EmployeeObjective.objects.filter(employee_id=emp, archive=False)
+
+        scope = self.request.query_params.get("scope", "my")
+        if scope == "my":
+            qs = qs.filter(employee_id=emp)
+        elif scope == "team" and is_manager:
+            team_ids = Employee.objects.filter(
+                employee_work_info__reporting_manager_id=emp
+            ).values_list("id", flat=True)
+            qs = qs.filter(employee_id__in=team_ids)
+
+        qs = qs.select_related(
+            "employee_id", "objective_id",
+            "employee_id__employee_work_info__department_id",
+        ).order_by("-start_date")
+
+        objectives = []
+        for obj in qs[:50]:
+            krs = EmployeeKeyResult.objects.filter(
+                employee_objective_id=obj
+            ).order_by("id")
+            kr_list = []
+            for kr in krs:
+                kr_list.append({
+                    "id": kr.id,
+                    "title": kr.key_result or "",
+                    "description": kr.key_result_description or "",
+                    "start_value": kr.start_value or 0,
+                    "current_value": kr.current_value or 0,
+                    "target_value": kr.target_value or 0,
+                    "progress": kr.progress_percentage,
+                    "status": kr.status or "Not Started",
+                    "progress_type": kr.progress_type or "%",
+                    "start_date": kr.start_date.isoformat() if kr.start_date else None,
+                    "end_date": kr.end_date.isoformat() if kr.end_date else None,
+                })
+
+            comments = Comment.objects.filter(
+                employee_objective_id=obj
+            ).select_related("employee_id").order_by("-created_at")[:5]
+            comment_list = [{
+                "id": c.id,
+                "text": c.comment,
+                "author": f"{c.employee_id.employee_first_name} {c.employee_id.employee_last_name or ''}".strip() if c.employee_id else "",
+                "created_at": c.created_at.isoformat() if c.created_at else None,
+            } for c in comments]
+
+            wi = getattr(obj.employee_id, "employee_work_info", None) if obj.employee_id else None
+            dept = getattr(getattr(wi, "department_id", None), "department", None) if wi else None
+            is_overdue = obj.end_date < today if obj.end_date else False
+            days_left = (obj.end_date - today).days if obj.end_date else None
+
+            objectives.append({
+                "id": obj.id,
+                "title": obj.objective or (str(obj.objective_id) if obj.objective_id else ""),
+                "description": obj.objective_description or "",
+                "employee": f"{obj.employee_id.employee_first_name} {obj.employee_id.employee_last_name or ''}".strip() if obj.employee_id else "",
+                "employee_id": obj.employee_id.id if obj.employee_id else None,
+                "department": dept,
+                "avatar": obj.employee_id.employee_profile.url if obj.employee_id and obj.employee_id.employee_profile else None,
+                "status": obj.status,
+                "status_color": self.STATUS_COLORS.get(obj.status, "#6b7280"),
+                "progress": obj.progress_percentage,
+                "start_date": obj.start_date.isoformat() if obj.start_date else None,
+                "end_date": obj.end_date.isoformat() if obj.end_date else None,
+                "is_overdue": is_overdue,
+                "days_left": days_left,
+                "key_results": kr_list,
+                "comments": comment_list,
+                "is_mine": obj.employee_id == emp if obj.employee_id else False,
+            })
+
+        return Response({
+            "tab": "objectives",
+            "objectives": objectives,
+            "scope": scope,
+            "can_view_team": is_manager or has_perm("pms.view_employeeobjective"),
+        })
+
+    def _tab_key_results(self, emp, today):
+        from pms.models import EmployeeKeyResult
+
+        qs = EmployeeKeyResult.objects.filter(
+            employee_objective_id__employee_id=emp,
+            employee_objective_id__archive=False,
+        ).select_related(
+            "employee_objective_id", "employee_objective_id__objective_id",
+        ).order_by("-start_date")
+
+        results = []
+        for kr in qs[:100]:
+            obj = kr.employee_objective_id
+            is_overdue = kr.end_date < today if kr.end_date else False
+            results.append({
+                "id": kr.id,
+                "title": kr.key_result or "",
+                "description": kr.key_result_description or "",
+                "objective_title": obj.objective or (str(obj.objective_id) if obj and obj.objective_id else ""),
+                "objective_id": obj.id if obj else None,
+                "start_value": kr.start_value or 0,
+                "current_value": kr.current_value or 0,
+                "target_value": kr.target_value or 0,
+                "progress": kr.progress_percentage,
+                "progress_type": kr.progress_type or "%",
+                "status": kr.status or "Not Started",
+                "status_color": self.STATUS_COLORS.get(kr.status, "#6b7280"),
+                "start_date": kr.start_date.isoformat() if kr.start_date else None,
+                "end_date": kr.end_date.isoformat() if kr.end_date else None,
+                "is_overdue": is_overdue,
+            })
+
+        return Response({"tab": "key_results", "key_results": results})
+
+    def _tab_feedback(self, emp, is_manager, has_perm, today):
+        from pms.models import Feedback
+        from django.db.models import Q
+
+        qs = Feedback.objects.filter(
+            Q(employee_id=emp) |
+            Q(manager_id=emp) |
+            Q(colleague_id=emp) |
+            Q(subordinate_id=emp)
+        ).distinct().select_related(
+            "employee_id", "manager_id", "question_template_id",
+        ).order_by("-start_date")
+
+        feedbacks = []
+        for fb in qs[:50]:
+            my_role = []
+            if fb.employee_id == emp:
+                my_role.append("employee")
+            if fb.manager_id == emp:
+                my_role.append("manager")
+            if emp in fb.colleague_id.all():
+                my_role.append("colleague")
+            if emp in fb.subordinate_id.all():
+                my_role.append("subordinate")
+
+            days_left = (fb.end_date - today).days if fb.end_date else None
+
+            feedbacks.append({
+                "id": fb.id,
+                "title": fb.review_cycle,
+                "employee": f"{fb.employee_id.employee_first_name} {fb.employee_id.employee_last_name or ''}".strip() if fb.employee_id else "",
+                "manager": f"{fb.manager_id.employee_first_name} {fb.manager_id.employee_last_name or ''}".strip() if fb.manager_id else "",
+                "status": fb.status,
+                "status_color": self.STATUS_COLORS.get(fb.status, "#6b7280"),
+                "start_date": fb.start_date.isoformat() if fb.start_date else None,
+                "end_date": fb.end_date.isoformat() if fb.end_date else None,
+                "days_left": days_left,
+                "is_cyclic": fb.cyclic_feedback,
+                "my_role": my_role,
+                "template": str(fb.question_template_id) if fb.question_template_id else None,
+            })
+
+        return Response({"tab": "feedback", "feedbacks": feedbacks})
+
+    def _tab_overview(self, emp, is_manager, has_perm, today):
+        from pms.models import EmployeeObjective, EmployeeKeyResult, Feedback
+        from django.db.models import Avg, Count, Q
+
+        my_objs = EmployeeObjective.objects.filter(employee_id=emp, archive=False)
+        total = my_objs.count()
+        by_status = {}
+        for s in ["Not Started", "On Track", "Behind", "At Risk", "Closed"]:
+            by_status[s] = my_objs.filter(status=s).count()
+
+        avg_progress = my_objs.aggregate(avg=Avg("progress_percentage"))["avg"] or 0
+
+        my_krs = EmployeeKeyResult.objects.filter(
+            employee_objective_id__employee_id=emp,
+            employee_objective_id__archive=False,
+        )
+        kr_total = my_krs.count()
+        kr_completed = my_krs.filter(progress_percentage__gte=100).count()
+
+        fb_count = Feedback.objects.filter(
+            Q(employee_id=emp) | Q(manager_id=emp)
+        ).distinct().count()
+        fb_pending = Feedback.objects.filter(
+            Q(employee_id=emp) | Q(manager_id=emp),
+            status__in=["Not Started", "On Track"],
+        ).distinct().count()
+
+        team_count = 0
+        team_avg = 0
+        if is_manager:
+            team_ids = Employee.objects.filter(
+                employee_work_info__reporting_manager_id=emp
+            ).values_list("id", flat=True)
+            team_objs = EmployeeObjective.objects.filter(
+                employee_id__in=team_ids, archive=False,
+            )
+            team_count = team_objs.count()
+            team_avg = team_objs.aggregate(avg=Avg("progress_percentage"))["avg"] or 0
+
+        return Response({
+            "tab": "overview",
+            "my_objectives": total,
+            "by_status": by_status,
+            "avg_progress": round(avg_progress),
+            "my_key_results": kr_total,
+            "kr_completed": kr_completed,
+            "feedback_total": fb_count,
+            "feedback_pending": fb_pending,
+            "team_objectives": team_count,
+            "team_avg_progress": round(team_avg),
+            "is_manager": is_manager,
+        })

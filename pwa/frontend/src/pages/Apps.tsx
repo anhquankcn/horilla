@@ -61,6 +61,7 @@ const apps: AppCard[] = [
       { slug: 'documents', icon: 'folder', label: 'Tài liệu', desc: 'Giấy tờ yêu cầu nộp, theo dõi trạng thái', path: '/documents', tone: 'navy', group: 'use' },
       { slug: 'onboarding', icon: 'star', label: 'On/Offboarding', desc: 'Onboarding, offboarding, đơn nghỉ việc', path: '/onboarding', tone: 'red', group: 'manage' },
       { slug: 'journey', icon: 'layers', label: 'Hành trình NV', desc: 'Vòng đời nhân viên, AI hỗ trợ', path: '/journey', tone: 'navy', group: 'manage' },
+      { slug: 'pms', icon: 'target', label: 'Hiệu suất', desc: 'KPI, mục tiêu, Feedback 360', path: '/pms', tone: 'red', group: 'manage' },
     ],
   },
   {
