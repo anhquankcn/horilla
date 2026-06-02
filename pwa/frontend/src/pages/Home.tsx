@@ -342,6 +342,115 @@ function NotifRow({ n, onClick }: { n: Notification; onClick: () => void }) {
   )
 }
 
+/* ── Work Schedule Widget ── */
+interface DaySchedule {
+  start_time: string | null
+  end_time: string | null
+  is_night_shift: boolean
+}
+interface ScheduleData {
+  shift_name: string | null
+  days: Record<string, DaySchedule>
+}
+
+const JS_DAY_TO_KEY = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday']
+const DAY_SHORT: Record<string, string> = {
+  monday:'T2', tuesday:'T3', wednesday:'T4', thursday:'T5',
+  friday:'T6', saturday:'T7', sunday:'CN',
+}
+
+function WorkScheduleWidget({ onClick }: { onClick: () => void }) {
+  const { data: schedule } = useApi<ScheduleData>('/api/employee/me/schedule/')
+  const now = new Date()
+
+  const days = [0, 1, 2].map(offset => {
+    const d = new Date(now)
+    d.setDate(now.getDate() + offset)
+    const key = JS_DAY_TO_KEY[d.getDay()]
+    const s = schedule?.days?.[key]
+    return { date: d, key, dayShort: DAY_SHORT[key], shift: s ?? null }
+  })
+
+  if (!schedule?.shift_name) return null
+
+  return (
+    <button
+      onClick={onClick}
+      className="w-full border-none cursor-pointer text-left"
+      style={{ background: 'none', padding: 0 }}
+    >
+      <div style={{
+        background: '#fff', borderRadius: 18,
+        border: `1px solid ${HNH.line}`,
+        overflow: 'hidden',
+        boxShadow: '0 1px 3px rgba(15,20,40,0.05)',
+      }}>
+        {/* Header */}
+        <div className="flex items-center justify-between" style={{ padding: '12px 14px 10px' }}>
+          <div className="flex items-center gap-2">
+            <div style={{ width: 26, height: 26, borderRadius: 8, background: HNH.navy50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Icon name="cal" size={14} color={HNH.navy} stroke={2} />
+            </div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: HNH.ink }}>Lịch làm việc</div>
+              <div style={{ fontSize: 11, color: HNH.ink3, fontWeight: 500 }}>{schedule.shift_name}</div>
+            </div>
+          </div>
+          <div className="flex items-center gap-1" style={{ fontSize: 11.5, color: HNH.red, fontWeight: 600 }}>
+            Chi tiết <Icon name="chev-r" size={13} color={HNH.red} stroke={2} />
+          </div>
+        </div>
+
+        {/* 3-day strip */}
+        <div className="flex" style={{ borderTop: `1px solid ${HNH.line}` }}>
+          {days.map(({ date, key, dayShort, shift }, i) => {
+            const isToday = i === 0
+            const hasShift = !!shift?.start_time
+            return (
+              <div
+                key={key}
+                className="flex flex-col items-center"
+                style={{
+                  flex: 1,
+                  padding: '10px 6px 12px',
+                  background: isToday ? HNH.navy : '#fff',
+                  borderRight: i < 2 ? `1px solid ${HNH.line}` : 'none',
+                }}
+              >
+                {/* Day + date */}
+                <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: 0.4, color: isToday ? 'rgba(255,255,255,0.7)' : HNH.ink3 }}>
+                  {dayShort}
+                </div>
+                <div style={{ fontSize: 20, fontWeight: 800, color: isToday ? '#fff' : HNH.ink, lineHeight: 1.15, marginTop: 2 }}>
+                  {date.getDate()}
+                </div>
+                {/* Shift or off */}
+                <div style={{ marginTop: 6, textAlign: 'center' }}>
+                  {hasShift ? (
+                    <>
+                      <div style={{ fontSize: 11.5, fontWeight: 700, color: isToday ? '#fff' : HNH.navy }}>
+                        {shift!.start_time}
+                      </div>
+                      <div style={{ fontSize: 10, color: isToday ? 'rgba(255,255,255,0.65)' : HNH.ink3, fontWeight: 500, marginTop: 1 }}>
+                        – {shift!.end_time}
+                      </div>
+                      {shift!.is_night_shift && (
+                        <div style={{ fontSize: 9, fontWeight: 700, color: isToday ? 'rgba(255,255,255,0.8)' : HNH.navy, marginTop: 2 }}>Ca đêm</div>
+                      )}
+                    </>
+                  ) : (
+                    <div style={{ fontSize: 11, fontWeight: 600, color: isToday ? 'rgba(255,255,255,0.5)' : HNH.ink4, marginTop: 2 }}>Nghỉ</div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </button>
+  )
+}
+
 /* ── Main ── */
 export function HomePage() {
   const navigate = useNavigate()
@@ -488,6 +597,11 @@ export function HomePage() {
           </div>
         </>
       )}
+
+      {/* Work schedule widget */}
+      <div style={{ padding: `12px ${px}px 0` }}>
+        <WorkScheduleWidget onClick={() => navigate('/work-schedule')} />
+      </div>
 
       {/* Recent tasks */}
       {tasks && tasks.recent_tasks.length > 0 && (
