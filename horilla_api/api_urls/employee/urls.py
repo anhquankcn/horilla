@@ -240,4 +240,9 @@ urlpatterns = [
         views.PMSPWAView.as_view(),
         name="api-pms-pwa",
     ),
+    path(
+        "training/",
+        views.TrainingPWAView.as_view(),
+        name="api-training-pwa",
+    ),
 ]

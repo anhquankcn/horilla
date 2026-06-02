@@ -59,6 +59,9 @@ export function Icon({ name, size = 18, color = HNH.ink, stroke: sw = 1.8 }: Ico
     case 'target': return <svg width={size} height={size} viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" {...p}/><circle cx="12" cy="12" r="6" {...p}/><circle cx="12" cy="12" r="2" {...p}/></svg>
     case 'bar-chart': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M12 20V10M18 20V4M6 20v-4" {...p}/></svg>
     case 'message': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" {...p}/></svg>
+    case 'book': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" {...p}/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" {...p}/></svg>
+    case 'graduation': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="m2 10 10-5 10 5-10 5-10-5Z" {...p}/><path d="M22 10v6" {...p}/><path d="M6 12v5c0 2 3 3 6 3s6-1 6-3v-5" {...p}/></svg>
+    case 'play': return <svg width={size} height={size} viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21" {...p}/></svg>
     default: return null
   }
 }

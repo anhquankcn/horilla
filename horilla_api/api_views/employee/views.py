@@ -2030,7 +2030,7 @@ class MyAppsView(APIView):
     ALL_APP_SLUGS = [
         "attendance", "proposals", "approvals", "payslip", "notifications",
         "employees", "roles", "groups", "attendance-activity",
-        "tasks", "projects", "announcement-hub", "dashboard", "unified-calendar", "assets", "reports", "payroll-mgmt", "documents", "onboarding", "journey", "pms",
+        "tasks", "projects", "announcement-hub", "dashboard", "unified-calendar", "assets", "reports", "payroll-mgmt", "documents", "onboarding", "journey", "pms", "training",
     ]
 
     def get(self, request):
@@ -3535,4 +3535,303 @@ class PMSPWAView(APIView):
             "team_objectives": team_count,
             "team_avg_progress": round(team_avg),
             "is_manager": is_manager,
+        })
+
+
+class TrainingPWAView(APIView):
+    """Training — courses, enrollments, overview for PWA."""
+
+    permission_classes = [IsAuthenticated]
+
+    STATUS_VI = {
+        "enrolled": "Đã đăng ký",
+        "in_progress": "Đang học",
+        "completed": "Hoàn thành",
+        "cancelled": "Đã hủy",
+        "failed": "Không đạt",
+    }
+
+    def get(self, request):
+        from datetime import date
+        from training.models import TrainingCategory, TrainingCourse, TrainingEnrollment
+
+        emp = getattr(request.user, "employee_get", None)
+        if not emp:
+            return Response({"error": "No employee linked"}, status=400)
+
+        tab = request.query_params.get("tab", "overview")
+        is_manager = Employee.objects.filter(
+            employee_work_info__reporting_manager_id=emp
+        ).exists()
+        has_perm = request.user.has_perm
+        today = date.today()
+
+        if tab == "overview":
+            return self._tab_overview(emp, is_manager, today)
+        elif tab == "my_courses":
+            return self._tab_my_courses(emp, today)
+        elif tab == "catalog":
+            return self._tab_catalog(emp, today)
+        elif tab == "team":
+            return self._tab_team(emp, is_manager, today)
+        else:
+            return Response({"error": "Invalid tab"}, status=400)
+
+    def post(self, request):
+        from datetime import date
+        from training.models import TrainingCourse, TrainingEnrollment
+
+        emp = getattr(request.user, "employee_get", None)
+        if not emp:
+            return Response({"error": "No employee linked"}, status=400)
+
+        action = request.data.get("action")
+
+        if action == "enroll":
+            course_id = request.data.get("course_id")
+            try:
+                course = TrainingCourse.objects.get(id=course_id, is_active=True)
+                if TrainingEnrollment.objects.filter(employee=emp, course=course).exists():
+                    return Response({"error": "Đã đăng ký khóa này rồi"}, status=400)
+                if course.max_participants > 0 and course.enrolled_count >= course.max_participants:
+                    return Response({"error": "Khóa học đã đầy"}, status=400)
+                TrainingEnrollment.objects.create(employee=emp, course=course)
+                return Response({"ok": True})
+            except TrainingCourse.DoesNotExist:
+                return Response({"error": "Course not found"}, status=404)
+
+        elif action == "update_status":
+            enrollment_id = request.data.get("enrollment_id")
+            new_status = request.data.get("status")
+            valid = ["enrolled", "in_progress", "completed", "cancelled"]
+            if new_status not in valid:
+                return Response({"error": "Invalid status"}, status=400)
+            try:
+                enroll = TrainingEnrollment.objects.get(id=enrollment_id)
+                can_edit = (
+                    request.user.has_perm("training.change_trainingenrollment")
+                    or enroll.employee == emp
+                    or Employee.objects.filter(
+                        id=enroll.employee.id,
+                        employee_work_info__reporting_manager_id=emp,
+                    ).exists()
+                )
+                if not can_edit:
+                    return Response({"error": "Permission denied"}, status=403)
+                enroll.status = new_status
+                if new_status == "in_progress" and not enroll.started_date:
+                    enroll.started_date = date.today()
+                elif new_status == "completed" and not enroll.completed_date:
+                    enroll.completed_date = date.today()
+                enroll.save()
+                return Response({"ok": True})
+            except TrainingEnrollment.DoesNotExist:
+                return Response({"error": "Enrollment not found"}, status=404)
+
+        elif action == "cancel":
+            enrollment_id = request.data.get("enrollment_id")
+            try:
+                enroll = TrainingEnrollment.objects.get(id=enrollment_id, employee=emp)
+                if enroll.status == "completed":
+                    return Response({"error": "Không thể hủy khóa đã hoàn thành"}, status=400)
+                enroll.status = "cancelled"
+                enroll.save()
+                return Response({"ok": True})
+            except TrainingEnrollment.DoesNotExist:
+                return Response({"error": "Enrollment not found"}, status=404)
+
+        return Response({"error": "Invalid action"}, status=400)
+
+    def _course_row(self, course, enrollment=None):
+        from training.models import TrainingCourse as TC
+        TYPE_MAP = dict(TC.COURSE_TYPE_CHOICES)
+        row = {
+            "id": course.id,
+            "title": course.title,
+            "description": course.description or "",
+            "category": course.category.name if course.category else None,
+            "course_type": course.course_type,
+            "course_type_display": TYPE_MAP.get(course.course_type, course.course_type),
+            "instructor": course.instructor or "",
+            "instructor_employee": (
+                f"{course.instructor_employee.employee_first_name} {course.instructor_employee.employee_last_name or ''}".strip()
+                if course.instructor_employee else None
+            ),
+            "duration_hours": float(course.duration_hours),
+            "max_participants": course.max_participants,
+            "enrolled_count": course.enrolled_count,
+            "completed_count": course.completed_count,
+            "start_date": course.start_date.isoformat() if course.start_date else None,
+            "end_date": course.end_date.isoformat() if course.end_date else None,
+            "location": course.location or "",
+            "is_mandatory": course.is_mandatory,
+        }
+        if enrollment:
+            row["enrollment"] = {
+                "id": enrollment.id,
+                "status": enrollment.status,
+                "enrolled_date": enrollment.enrolled_date.isoformat() if enrollment.enrolled_date else None,
+                "started_date": enrollment.started_date.isoformat() if enrollment.started_date else None,
+                "completed_date": enrollment.completed_date.isoformat() if enrollment.completed_date else None,
+                "score": float(enrollment.score) if enrollment.score else None,
+                "certificate": enrollment.certificate_number or None,
+                "notes": enrollment.notes or "",
+            }
+        return row
+
+    def _tab_overview(self, emp, is_manager, today):
+        from training.models import TrainingCourse, TrainingEnrollment
+        from django.db.models import Count, Q
+
+        my_enrollments = TrainingEnrollment.objects.filter(employee=emp)
+        total = my_enrollments.count()
+        completed = my_enrollments.filter(status="completed").count()
+        in_progress = my_enrollments.filter(status="in_progress").count()
+        enrolled = my_enrollments.filter(status="enrolled").count()
+
+        upcoming = TrainingCourse.objects.filter(
+            is_active=True, start_date__gte=today,
+        ).order_by("start_date")[:5]
+        upcoming_list = [self._course_row(c) for c in upcoming]
+
+        mandatory_pending = TrainingCourse.objects.filter(
+            is_active=True, is_mandatory=True,
+        ).exclude(
+            enrollments__employee=emp, enrollments__status="completed",
+        ).count()
+
+        recent = my_enrollments.filter(
+            status="completed"
+        ).select_related("course", "course__category").order_by("-completed_date")[:5]
+        recent_list = [self._course_row(e.course, e) for e in recent]
+
+        team_count = 0
+        team_completed = 0
+        if is_manager:
+            team_ids = Employee.objects.filter(
+                employee_work_info__reporting_manager_id=emp
+            ).values_list("id", flat=True)
+            team_enrollments = TrainingEnrollment.objects.filter(employee__in=team_ids)
+            team_count = team_enrollments.count()
+            team_completed = team_enrollments.filter(status="completed").count()
+
+        return Response({
+            "tab": "overview",
+            "total_enrollments": total,
+            "completed": completed,
+            "in_progress": in_progress,
+            "enrolled": enrolled,
+            "mandatory_pending": mandatory_pending,
+            "upcoming_courses": upcoming_list,
+            "recent_completed": recent_list,
+            "team_enrollments": team_count,
+            "team_completed": team_completed,
+            "is_manager": is_manager,
+        })
+
+    def _tab_my_courses(self, emp, today):
+        from training.models import TrainingEnrollment
+
+        status_filter = self.request.query_params.get("status", "")
+
+        qs = TrainingEnrollment.objects.filter(
+            employee=emp
+        ).select_related(
+            "course", "course__category", "course__instructor_employee",
+        ).order_by("-enrolled_date")
+
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+
+        courses = [self._course_row(e.course, e) for e in qs[:50]]
+
+        return Response({"tab": "my_courses", "courses": courses})
+
+    def _tab_catalog(self, emp, today):
+        from training.models import TrainingCourse, TrainingEnrollment, TrainingCategory
+
+        category_filter = self.request.query_params.get("category", "")
+
+        qs = TrainingCourse.objects.filter(
+            is_active=True,
+        ).select_related("category", "instructor_employee").order_by("-start_date")
+
+        if category_filter:
+            qs = qs.filter(category_id=category_filter)
+
+        enrolled_course_ids = set(
+            TrainingEnrollment.objects.filter(employee=emp).values_list("course_id", flat=True)
+        )
+        enrollment_map = {}
+        for e in TrainingEnrollment.objects.filter(employee=emp).select_related("course"):
+            enrollment_map[e.course_id] = e
+
+        courses = []
+        for c in qs[:100]:
+            row = self._course_row(c, enrollment_map.get(c.id))
+            row["is_enrolled"] = c.id in enrolled_course_ids
+            row["can_enroll"] = (
+                c.id not in enrolled_course_ids
+                and (c.max_participants == 0 or c.enrolled_count < c.max_participants)
+            )
+            courses.append(row)
+
+        categories = list(
+            TrainingCategory.objects.values_list("id", "name").order_by("name")
+        )
+
+        return Response({
+            "tab": "catalog",
+            "courses": courses,
+            "categories": [{"id": cid, "name": cname} for cid, cname in categories],
+        })
+
+    def _tab_team(self, emp, is_manager, today):
+        from training.models import TrainingEnrollment
+
+        if not is_manager:
+            return Response({"tab": "team", "members": [], "is_manager": False})
+
+        team_ids = Employee.objects.filter(
+            employee_work_info__reporting_manager_id=emp
+        ).values_list("id", flat=True)
+
+        enrollments = TrainingEnrollment.objects.filter(
+            employee__in=team_ids
+        ).select_related(
+            "employee", "employee__employee_work_info__department_id",
+            "course", "course__category",
+        ).order_by("employee__employee_first_name", "-enrolled_date")
+
+        members = {}
+        for e in enrollments[:200]:
+            eid = e.employee.id
+            if eid not in members:
+                wi = getattr(e.employee, "employee_work_info", None)
+                dept = getattr(getattr(wi, "department_id", None), "department", None) if wi else None
+                members[eid] = {
+                    "id": eid,
+                    "name": f"{e.employee.employee_first_name} {e.employee.employee_last_name or ''}".strip(),
+                    "department": dept,
+                    "avatar": e.employee.employee_profile.url if e.employee.employee_profile else None,
+                    "courses": [],
+                    "total": 0,
+                    "completed": 0,
+                }
+            members[eid]["courses"].append({
+                "course_title": e.course.title,
+                "category": e.course.category.name if e.course.category else None,
+                "status": e.status,
+                "enrolled_date": e.enrolled_date.isoformat() if e.enrolled_date else None,
+                "completed_date": e.completed_date.isoformat() if e.completed_date else None,
+                "score": float(e.score) if e.score else None,
+            })
+            members[eid]["total"] += 1
+            if e.status == "completed":
+                members[eid]["completed"] += 1
+
+        return Response({
+            "tab": "team",
+            "members": list(members.values()),
+            "is_manager": True,
         })
