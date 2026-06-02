@@ -1019,12 +1019,158 @@ function AnnouncementsTab() {
   )
 }
 
+// ── Guide Modal ───────────────────────────────────────────────────────────────
+
+const GUIDE_STEPS = [
+  {
+    icon: '🎯',
+    title: 'Đánh giá 9-Box',
+    tab: 'ninebox' as Tab,
+    color: HNH.red,
+    desc: 'Quản lý chấm điểm Hiệu suất (1–3) × Tiềm năng (1–3) cho từng nhân viên. Ma trận 9 ô giúp xác định ai sẵn sàng được bổ nhiệm.',
+  },
+  {
+    icon: '📋',
+    title: 'Tạo hồ sơ đề xuất',
+    tab: 'nominations' as Tab,
+    color: '#7c3aed',
+    desc: 'HR hoặc Quản lý lập hồ sơ đề xuất thăng tiến / bổ nhiệm: chọn nhân viên, vị trí mới, lý do và ngày dự kiến hiệu lực.',
+  },
+  {
+    icon: '✅',
+    title: 'Phê duyệt đa cấp',
+    tab: 'approvals' as Tab,
+    color: '#e07b10',
+    desc: 'Hồ sơ lần lượt qua các cấp duyệt đã cấu hình (Trưởng phòng → HR → Ban Giám đốc). Mỗi cấp Duyệt hoặc Từ chối và ghi chú.',
+  },
+  {
+    icon: '🏆',
+    title: 'Ra quyết định',
+    tab: 'nominations' as Tab,
+    color: '#a87908',
+    desc: 'Sau khi tất cả bước phê duyệt hoàn tất, người có thẩm quyền ban hành quyết định chính thức: Đồng ý, Từ chối hoặc Điều chỉnh.',
+  },
+  {
+    icon: '📢',
+    title: 'Công bố nội bộ',
+    tab: 'announcements' as Tab,
+    color: HNH.success,
+    desc: 'Soạn thông báo nội bộ chúc mừng nhân viên được bổ nhiệm và công bố chính thức tới toàn thể nhân viên công ty.',
+  },
+]
+
+const GUIDE_KEY = 'hnh_promo_guide_seen_v1'
+
+function GuideModal({ onClose, onGo }: { onClose: () => void; onGo: (tab: Tab) => void }) {
+  const [step, setStep] = useState(0)
+  const [dontShow, setDontShow] = useState(false)
+  const current = GUIDE_STEPS[step]
+  const isLast = step === GUIDE_STEPS.length - 1
+
+  const handleClose = () => {
+    if (dontShow) localStorage.setItem(GUIDE_KEY, '1')
+    onClose()
+  }
+
+  const handleGo = () => {
+    if (dontShow) localStorage.setItem(GUIDE_KEY, '1')
+    onClose()
+    onGo(current.tab)
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 300, display: 'flex', alignItems: 'flex-end' }}>
+      <div style={{ background: HNH.white, borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '92vh', overflowY: 'auto', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+        {/* Drag handle */}
+        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 10, paddingBottom: 4 }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: '#ddd' }} />
+        </div>
+
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 20px 0' }}>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 17, color: HNH.ink }}>Quy trình Bổ nhiệm &amp; Thăng tiến</div>
+            <div style={{ fontSize: 12, color: HNH.ink3, marginTop: 2 }}>5 bước từ đánh giá đến công bố</div>
+          </div>
+          <button onClick={handleClose} style={{ background: '#f0f0f0', border: 'none', borderRadius: 20, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+            <Icon name="x" size={14} color={HNH.ink2} stroke={2} />
+          </button>
+        </div>
+
+        {/* Step dots */}
+        <div style={{ display: 'flex', justifyContent: 'center', gap: 6, padding: '14px 0 2px' }}>
+          {GUIDE_STEPS.map((_, i) => (
+            <button key={i} onClick={() => setStep(i)} style={{ width: i === step ? 20 : 8, height: 8, borderRadius: 4, background: i === step ? current.color : '#e0e0e0', border: 'none', cursor: 'pointer', padding: 0, transition: 'all 0.2s' }} />
+          ))}
+        </div>
+
+        {/* Step card */}
+        <div style={{ margin: '16px 20px', background: `${current.color}0d`, borderRadius: 16, padding: '22px 20px', borderLeft: `4px solid ${current.color}` }}>
+          <div style={{ fontSize: 40, marginBottom: 12, lineHeight: 1 }}>{current.icon}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+            <span style={{ background: current.color, color: '#fff', borderRadius: 20, width: 22, height: 22, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+              {step + 1}
+            </span>
+            <span style={{ fontWeight: 800, fontSize: 16, color: HNH.ink }}>{current.title}</span>
+          </div>
+          <div style={{ fontSize: 14, color: HNH.ink2, lineHeight: 1.6 }}>{current.desc}</div>
+        </div>
+
+        {/* Step list overview */}
+        <div style={{ margin: '0 20px 16px' }}>
+          {GUIDE_STEPS.map((s, i) => (
+            <button key={i} onClick={() => setStep(i)}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', background: 'transparent', border: 'none', cursor: 'pointer', padding: '6px 0', textAlign: 'left' }}>
+              <span style={{ width: 28, height: 28, borderRadius: '50%', background: i === step ? s.color : i < step ? `${s.color}30` : '#f0f0f0', color: i === step ? '#fff' : i < step ? s.color : HNH.ink3, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, flexShrink: 0 }}>
+                {i < step ? '✓' : i + 1}
+              </span>
+              <span style={{ fontSize: 13, fontWeight: i === step ? 700 : 500, color: i === step ? HNH.ink : HNH.ink3 }}>{s.title}</span>
+              {i < GUIDE_STEPS.length - 1 && (
+                <div style={{ width: 1, height: 12, background: '#e0e0e0', position: 'absolute', left: 33, marginTop: 34 }} />
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Don't show again */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 20px 16px' }}>
+          <input type="checkbox" id="guide-dontshow" checked={dontShow} onChange={e => setDontShow(e.target.checked)}
+            style={{ width: 16, height: 16, cursor: 'pointer', accentColor: HNH.red }} />
+          <label htmlFor="guide-dontshow" style={{ fontSize: 12, color: HNH.ink3, cursor: 'pointer' }}>Không hiện hướng dẫn này khi mở Hub lần sau</label>
+        </div>
+
+        {/* Actions */}
+        <div style={{ display: 'flex', gap: 10, padding: '0 20px 24px' }}>
+          {step > 0 && (
+            <button onClick={() => setStep(s => s - 1)}
+              style={{ flex: 1, padding: '12px', borderRadius: 10, border: `1px solid ${HNH.line}`, background: HNH.white, fontSize: 14, fontWeight: 600, color: HNH.ink2, cursor: 'pointer' }}>
+              ← Trước
+            </button>
+          )}
+          {!isLast ? (
+            <button onClick={() => setStep(s => s + 1)}
+              style={{ flex: 2, padding: '12px', borderRadius: 10, background: current.color, color: '#fff', border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+              Tiếp theo →
+            </button>
+          ) : (
+            <button onClick={handleGo}
+              style={{ flex: 2, padding: '12px', borderRadius: 10, background: HNH.red, color: '#fff', border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}>
+              Bắt đầu sử dụng 🚀
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export function PromotionHubPage() {
   const [tab, setTab] = useState<Tab>('overview')
   const [overviewData, setOverviewData] = useState<{ pendingMine: PendingStep[]; stats: OverviewStats; canManage: boolean } | null>(null)
   const [overviewLoading, setOverviewLoading] = useState(true)
+  const [showGuide, setShowGuide] = useState(false)
 
   const loadOverview = useCallback(async () => {
     setOverviewLoading(true)
@@ -1038,6 +1184,11 @@ export function PromotionHubPage() {
     } finally {
       setOverviewLoading(false)
     }
+  }, [])
+
+  // Show guide on first visit unless dismissed
+  useEffect(() => {
+    if (!localStorage.getItem(GUIDE_KEY)) setShowGuide(true)
   }, [])
 
   // Load overview on mount to get canManage for all tabs
@@ -1054,16 +1205,28 @@ export function PromotionHubPage() {
 
   return (
     <div style={{ minHeight: '100vh', background: HNH.cream, paddingBottom: 0 }}>
+      {showGuide && (
+        <GuideModal
+          onClose={() => setShowGuide(false)}
+          onGo={t => { setShowGuide(false); setTab(t) }}
+        />
+      )}
+
       {/* Header */}
       <div style={{ background: HNH.red, padding: '16px 16px 0', position: 'sticky', top: 0, zIndex: 100 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
           <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: 10, padding: '6px 8px', display: 'flex' }}>
             <Icon name="trophy" size={20} color="#fff" />
           </div>
-          <div>
+          <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 800, fontSize: 18, color: '#fff' }}>Hub Thăng Tiến</div>
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)' }}>9-Box · Đề xuất · Phê duyệt · Quyết định · Công bố</div>
           </div>
+          <button onClick={() => setShowGuide(true)}
+            style={{ background: 'rgba(255,255,255,0.2)', border: 'none', borderRadius: 20, width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}
+            title="Hướng dẫn quy trình">
+            <span style={{ color: '#fff', fontSize: 15, fontWeight: 700, lineHeight: 1 }}>?</span>
+          </button>
         </div>
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 0, overflowX: 'auto' }}>
