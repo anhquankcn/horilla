@@ -319,16 +319,16 @@ class EmployeeListAPIView(APIView):
         user = request.user
         search = request.query_params.get("search")
 
-        # Start with a base queryset with only required fields
-        employees_queryset = Employee.objects.only(
+        # Start with a base queryset with only required fields (active employees only)
+        employees_queryset = Employee.objects.filter(is_active=True).only(
             "id", "employee_first_name", "employee_last_name"
         )
 
         # Permission-based filtering
         if user.has_perm("employee.view_employee"):
-            pass  # employees_queryset is already all employees
+            pass  # employees_queryset is already all active employees
         else:
-            subordinate_qs = user.employee_get.get_subordinate_employees()
+            subordinate_qs = user.employee_get.get_subordinate_employees().filter(is_active=True)
             if subordinate_qs.exists():
                 employees_queryset = subordinate_qs.only(
                     "id", "employee_first_name", "employee_last_name"
@@ -1037,7 +1037,7 @@ class EmployeeSelectorView(APIView):
 
     def get(self, request):
         employee = request.user.employee_get
-        employees = Employee.objects.filter(employee_user_id=request.user)
+        employees = Employee.objects.filter(employee_user_id=request.user, is_active=True)
 
         is_manager = EmployeeWorkInformation.objects.filter(
             reporting_manager_id=employee
@@ -1045,10 +1045,11 @@ class EmployeeSelectorView(APIView):
 
         if is_manager:
             employees = Employee.objects.filter(
-                Q(pk=employee.pk) | Q(employee_work_info__reporting_manager_id=employee)
+                Q(pk=employee.pk) | Q(employee_work_info__reporting_manager_id=employee),
+                is_active=True,
             )
         if request.user.has_perm("employee.view_employee"):
-            employees = Employee.objects.all()
+            employees = Employee.objects.filter(is_active=True)
 
         paginator = PageNumberPagination()
         page = paginator.paginate_queryset(employees, request)
