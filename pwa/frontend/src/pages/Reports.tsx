@@ -555,7 +555,7 @@ export function ReportsPage() {
       <PullToRefresh onRefresh={fetchReport}>
         <div style={{ padding: '0 16px 32px', maxWidth: 720, margin: '0 auto' }}>
 
-          <ReportTabs active={report} onChange={r => { setReport(r); setDept('') }} />
+          <ReportTabs active={report} onChange={r => { setReport(r); setDept(''); setData(null); setLoading(true) }} />
 
           <MonthNav year={year} month={month} onPrev={() => goMonth(-1)} onNext={() => goMonth(1)} />
 
