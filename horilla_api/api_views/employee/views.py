@@ -3566,6 +3566,13 @@ class TrainingPWAView(APIView):
         has_perm = request.user.has_perm
         today = date.today()
 
+        can_manage = (
+            request.user.is_superuser
+            or has_perm("training.add_trainingcourse")
+            or has_perm("training.change_trainingcourse")
+            or is_manager
+        )
+
         if tab == "overview":
             return self._tab_overview(emp, is_manager, today)
         elif tab == "my_courses":
@@ -3574,6 +3581,8 @@ class TrainingPWAView(APIView):
             return self._tab_catalog(emp, today)
         elif tab == "team":
             return self._tab_team(emp, is_manager, today)
+        elif tab == "manage":
+            return self._tab_manage(emp, can_manage)
         else:
             return Response({"error": "Invalid tab"}, status=400)
 
@@ -3639,6 +3648,107 @@ class TrainingPWAView(APIView):
                 return Response({"ok": True})
             except TrainingEnrollment.DoesNotExist:
                 return Response({"error": "Enrollment not found"}, status=404)
+
+        # ── Management actions ──
+        is_manager = Employee.objects.filter(
+            employee_work_info__reporting_manager_id=emp
+        ).exists()
+        can_manage = (
+            request.user.is_superuser
+            or request.user.has_perm("training.add_trainingcourse")
+            or request.user.has_perm("training.change_trainingcourse")
+            or is_manager
+        )
+
+        if action == "create_course":
+            if not can_manage:
+                return Response({"error": "Permission denied"}, status=403)
+            from training.models import TrainingCategory, TrainingCourse
+            from base.models import Company
+
+            title = request.data.get("title", "").strip()
+            if not title:
+                return Response({"error": "Tên khóa học không được để trống"}, status=400)
+
+            category_id = request.data.get("category_id") or None
+            company = getattr(getattr(emp, "employee_work_info", None), "company_id", None)
+
+            course = TrainingCourse.objects.create(
+                title=title,
+                description=request.data.get("description", ""),
+                course_type=request.data.get("course_type", "internal"),
+                instructor=request.data.get("instructor", ""),
+                duration_hours=float(request.data.get("duration_hours") or 0),
+                max_participants=int(request.data.get("max_participants") or 0),
+                start_date=request.data.get("start_date") or None,
+                end_date=request.data.get("end_date") or None,
+                location=request.data.get("location", ""),
+                is_mandatory=bool(request.data.get("is_mandatory", False)),
+                is_active=True,
+                category_id=category_id,
+                company_id=company,
+            )
+            return Response({"ok": True, "id": course.id, "title": course.title}, status=201)
+
+        elif action == "update_course":
+            if not can_manage:
+                return Response({"error": "Permission denied"}, status=403)
+            from training.models import TrainingCourse
+            course_id = request.data.get("course_id")
+            try:
+                course = TrainingCourse.objects.get(id=course_id)
+                if request.data.get("title") is not None:
+                    course.title = request.data["title"].strip()
+                if request.data.get("description") is not None:
+                    course.description = request.data["description"]
+                if request.data.get("course_type"):
+                    course.course_type = request.data["course_type"]
+                if request.data.get("instructor") is not None:
+                    course.instructor = request.data["instructor"]
+                if request.data.get("duration_hours") is not None:
+                    course.duration_hours = float(request.data["duration_hours"])
+                if request.data.get("max_participants") is not None:
+                    course.max_participants = int(request.data["max_participants"])
+                if request.data.get("start_date") is not None:
+                    course.start_date = request.data["start_date"] or None
+                if request.data.get("end_date") is not None:
+                    course.end_date = request.data["end_date"] or None
+                if request.data.get("location") is not None:
+                    course.location = request.data["location"]
+                if request.data.get("is_mandatory") is not None:
+                    course.is_mandatory = bool(request.data["is_mandatory"])
+                if request.data.get("is_active") is not None:
+                    course.is_active = bool(request.data["is_active"])
+                if "category_id" in request.data:
+                    course.category_id = request.data["category_id"] or None
+                course.save()
+                return Response({"ok": True})
+            except TrainingCourse.DoesNotExist:
+                return Response({"error": "Course not found"}, status=404)
+
+        elif action == "delete_course":
+            if not can_manage:
+                return Response({"error": "Permission denied"}, status=403)
+            from training.models import TrainingCourse
+            course_id = request.data.get("course_id")
+            try:
+                course = TrainingCourse.objects.get(id=course_id)
+                course.is_active = False
+                course.save()
+                return Response({"ok": True})
+            except TrainingCourse.DoesNotExist:
+                return Response({"error": "Course not found"}, status=404)
+
+        elif action == "create_category":
+            if not can_manage:
+                return Response({"error": "Permission denied"}, status=403)
+            from training.models import TrainingCategory
+            name = request.data.get("name", "").strip()
+            if not name:
+                return Response({"error": "Tên danh mục không được để trống"}, status=400)
+            company = getattr(getattr(emp, "employee_work_info", None), "company_id", None)
+            cat = TrainingCategory.objects.create(name=name, company_id=company)
+            return Response({"ok": True, "id": cat.id, "name": cat.name}, status=201)
 
         return Response({"error": "Invalid action"}, status=400)
 
@@ -3834,4 +3944,45 @@ class TrainingPWAView(APIView):
             "tab": "team",
             "members": list(members.values()),
             "is_manager": True,
+        })
+
+    def _tab_manage(self, emp, can_manage):
+        from training.models import TrainingCategory, TrainingCourse
+
+        if not can_manage:
+            return Response({"tab": "manage", "can_manage": False, "courses": [], "categories": []})
+
+        courses_qs = TrainingCourse.objects.select_related(
+            "category", "instructor_employee",
+        ).order_by("-created_at")[:200]
+
+        courses = []
+        for c in courses_qs:
+            courses.append({
+                "id": c.id,
+                "title": c.title,
+                "description": c.description or "",
+                "category_id": c.category_id,
+                "category": c.category.name if c.category else None,
+                "course_type": c.course_type,
+                "instructor": c.instructor or "",
+                "duration_hours": float(c.duration_hours),
+                "max_participants": c.max_participants,
+                "enrolled_count": c.enrolled_count,
+                "start_date": c.start_date.isoformat() if c.start_date else None,
+                "end_date": c.end_date.isoformat() if c.end_date else None,
+                "location": c.location or "",
+                "is_mandatory": c.is_mandatory,
+                "is_active": c.is_active,
+            })
+
+        categories = list(
+            TrainingCategory.objects.values("id", "name").order_by("name")
+        )
+
+        return Response({
+            "tab": "manage",
+            "can_manage": True,
+            "courses": courses,
+            "categories": categories,
         })
