@@ -6,7 +6,10 @@ Use --force to re-apply existing records.
 
 from django.core.management.base import BaseCommand
 
-from base.models import Company, Department, EmployeeShift, JobPosition, WorkType
+from base.models import (
+    Company, Department, EmployeeShift, EmployeeShiftDay,
+    EmployeeShiftSchedule, JobPosition, WorkType,
+)
 
 
 DEPARTMENTS = [
@@ -73,6 +76,63 @@ EMPLOYEE_SHIFTS = [
     # Tour dài ngày — nhân viên có thể làm việc linh hoạt ngoài văn phòng
     ("Ca Tour dài ngày (linh hoạt)", "40:00", "200:00"),
 ]
+
+# Per-day schedules for each shift: {shift_name: [(day, start, end, min_hours)]}
+# Days NOT listed = off (no EmployeeShiftSchedule record → shows Nghỉ)
+SHIFT_SCHEDULES = {
+    "Ca hành chính (8h–17h)": [
+        ("monday",    "08:00", "17:00", "08:15"),
+        ("tuesday",   "08:00", "17:00", "08:15"),
+        ("wednesday", "08:00", "17:00", "08:15"),
+        ("thursday",  "08:00", "17:00", "08:15"),
+        ("friday",    "08:00", "17:00", "08:15"),
+    ],
+    "Ca hướng dẫn viên sáng (6h–15h)": [
+        ("monday",    "06:00", "15:00", "08:15"),
+        ("tuesday",   "06:00", "15:00", "08:15"),
+        ("wednesday", "06:00", "15:00", "08:15"),
+        ("thursday",  "06:00", "15:00", "08:15"),
+        ("friday",    "06:00", "15:00", "08:15"),
+        ("saturday",  "06:00", "15:00", "08:15"),
+    ],
+    "Ca hướng dẫn viên chiều (13h–22h)": [
+        ("monday",    "13:00", "22:00", "08:15"),
+        ("tuesday",   "13:00", "22:00", "08:15"),
+        ("wednesday", "13:00", "22:00", "08:15"),
+        ("thursday",  "13:00", "22:00", "08:15"),
+        ("friday",    "13:00", "22:00", "08:15"),
+        ("saturday",  "13:00", "22:00", "08:15"),
+    ],
+    "Ca lái xe sáng (5h–14h)": [
+        ("monday",    "05:00", "14:00", "08:15"),
+        ("tuesday",   "05:00", "14:00", "08:15"),
+        ("wednesday", "05:00", "14:00", "08:15"),
+        ("thursday",  "05:00", "14:00", "08:15"),
+        ("friday",    "05:00", "14:00", "08:15"),
+        ("saturday",  "05:00", "14:00", "08:15"),
+    ],
+    "Ca lái xe chiều (13h–22h)": [
+        ("monday",    "13:00", "22:00", "08:15"),
+        ("tuesday",   "13:00", "22:00", "08:15"),
+        ("wednesday", "13:00", "22:00", "08:15"),
+        ("thursday",  "13:00", "22:00", "08:15"),
+        ("friday",    "13:00", "22:00", "08:15"),
+        ("saturday",  "13:00", "22:00", "08:15"),
+    ],
+    "Ca cuối tuần (8h–17h, T7–CN)": [
+        ("saturday", "08:00", "17:00", "08:15"),
+        ("sunday",   "08:00", "17:00", "08:15"),
+    ],
+    "Ca Tour dài ngày (linh hoạt)": [
+        ("monday",    "06:00", "22:00", "08:15"),
+        ("tuesday",   "06:00", "22:00", "08:15"),
+        ("wednesday", "06:00", "22:00", "08:15"),
+        ("thursday",  "06:00", "22:00", "08:15"),
+        ("friday",    "06:00", "22:00", "08:15"),
+        ("saturday",  "06:00", "22:00", "08:15"),
+        ("sunday",    "06:00", "22:00", "08:15"),
+    ],
+}
 
 # Loại nghỉ phép theo đúng Luật Lao động VN + đặc thù du lịch
 # (name, payment, total_days, color, is_paid_note)
@@ -279,6 +339,38 @@ class Command(BaseCommand):
                     if company not in shift.company_id.all():
                         shift.company_id.add(company)
                 mark = "✔" if created else " "
+                self.stdout.write(f"  {mark} {shift_name}")
+
+            # Create per-day schedules for each shift
+            self.stdout.write(self.style.MIGRATE_HEADING("\n[5b] Lịch ngày trong ca"))
+            day_objs = {d.day: d for d in EmployeeShiftDay.objects.all()}
+            for shift_name, day_entries in SHIFT_SCHEDULES.items():
+                try:
+                    shift = EmployeeShift.objects.get(employee_shift=shift_name)
+                except EmployeeShift.DoesNotExist:
+                    continue
+                for day_name, start, end, min_h in day_entries:
+                    day_obj = day_objs.get(day_name)
+                    if not day_obj:
+                        continue
+                    from datetime import time as dtime
+                    sh, sm = map(int, start.split(":"))
+                    eh, em = map(int, end.split(":"))
+                    sched, created = EmployeeShiftSchedule.objects.get_or_create(
+                        shift_id=shift,
+                        day=day_obj,
+                        defaults={
+                            "start_time": dtime(sh, sm),
+                            "end_time": dtime(eh, em),
+                            "minimum_working_hour": min_h,
+                        },
+                    )
+                    if force and not created:
+                        sched.start_time = dtime(sh, sm)
+                        sched.end_time = dtime(eh, em)
+                        sched.minimum_working_hour = min_h
+                        sched.save()
+                mark = "✔"
                 self.stdout.write(f"  {mark} {shift_name}")
         else:
             self.stdout.write("  [bỏ qua ca làm việc]")
