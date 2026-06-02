@@ -145,10 +145,13 @@ class Command(BaseCommand):
             self.stdout.write(f"  [dry-run] GroupAppVisibility sẽ có {len(EMPLOYEE_APPS)} apps: {EMPLOYEE_APPS}")
 
         # ── 4. Gán Group cho tất cả nhân viên đang hoạt động ─────────────────
+        # Không gán cho user đã có group KHÁC ngoài "Nhân Viên HNH" trừ khi --reassign
+        # (tránh override quyền của manager/admin đang dùng group không có visibility config)
         employees = Employee.objects.filter(is_active=True).select_related("employee_user_id")
         total = employees.count()
         added = 0
         skipped = 0
+        skipped_has_other = 0
         no_user = 0
 
         for emp in employees:
@@ -159,6 +162,10 @@ class Command(BaseCommand):
             if not reassign and group in user.groups.all():
                 skipped += 1
                 continue
+            # Skip superusers and users already in other groups (they have broader access)
+            if not reassign and (user.is_superuser or user.groups.exclude(pk=group.pk).exists()):
+                skipped_has_other += 1
+                continue
             if not dry:
                 user.groups.add(group)
             added += 1
@@ -168,6 +175,7 @@ class Command(BaseCommand):
             f"  Tổng nhân viên active : {total}\n"
             f"  Đã gán group          : {added}\n"
             f"  Đã có group (bỏ qua)  : {skipped}\n"
+            f"  Có group khác (bỏ qua): {skipped_has_other}\n"
             f"  Không có user account : {no_user}"
         ))
 

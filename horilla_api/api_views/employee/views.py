@@ -2044,18 +2044,28 @@ class MyAppsView(APIView):
         if not groups.exists():
             return Response({"allowed": self.ALL_APP_SLUGS, "is_admin": False})
 
-        visibilities = GroupAppVisibility.objects.filter(group__in=groups)
-        if not visibilities.exists():
+        # Build map: group_id → allowed_apps (only groups that have a non-empty config)
+        vis_map = {
+            vis.group_id: vis.allowed_apps
+            for vis in GroupAppVisibility.objects.filter(group__in=groups)
+            if vis.allowed_apps  # empty list treated as "no config"
+        }
+
+        group_ids = set(groups.values_list("id", flat=True))
+
+        # If ANY group has no visibility config → that group is unrestricted → all apps
+        # (e.g. user is in "Admin Hệ thống" which has no restriction AND "Nhân Viên HNH"
+        #  which has 12 apps → the unrestricted group wins → return all apps)
+        groups_without_config = group_ids - set(vis_map.keys())
+        if groups_without_config:
             return Response({"allowed": self.ALL_APP_SLUGS, "is_admin": False})
 
+        # All groups have explicit config → return union of their allowed apps
         allowed = set()
-        has_any_config = False
-        for vis in visibilities:
-            if vis.allowed_apps:
-                has_any_config = True
-                allowed.update(vis.allowed_apps)
+        for apps in vis_map.values():
+            allowed.update(apps)
 
-        if not has_any_config:
+        if not allowed:
             return Response({"allowed": self.ALL_APP_SLUGS, "is_admin": False})
 
         return Response({"allowed": sorted(allowed), "is_admin": False})
