@@ -346,6 +346,8 @@ function NotifRow({ n, onClick }: { n: Notification; onClick: () => void }) {
 interface DaySchedule {
   start_time: string | null
   end_time: string | null
+  start_time_2: string | null
+  end_time_2: string | null
   is_night_shift: boolean
 }
 interface ScheduleData {
@@ -429,11 +431,13 @@ function WorkScheduleWidget({ onClick }: { onClick: () => void }) {
                   {hasShift ? (
                     <>
                       <div style={{ fontSize: 11.5, fontWeight: 700, color: isToday ? '#fff' : HNH.navy }}>
-                        {shift!.start_time}
+                        {shift!.start_time}–{shift!.end_time}
                       </div>
-                      <div style={{ fontSize: 10, color: isToday ? 'rgba(255,255,255,0.65)' : HNH.ink3, fontWeight: 500, marginTop: 1 }}>
-                        – {shift!.end_time}
-                      </div>
+                      {shift!.start_time_2 && (
+                        <div style={{ fontSize: 10.5, fontWeight: 700, color: isToday ? 'rgba(255,255,255,0.85)' : HNH.navy, marginTop: 1 }}>
+                          {shift!.start_time_2}–{shift!.end_time_2}
+                        </div>
+                      )}
                       {shift!.is_night_shift && (
                         <div style={{ fontSize: 9, fontWeight: 700, color: isToday ? 'rgba(255,255,255,0.8)' : HNH.navy, marginTop: 2 }}>Ca đêm</div>
                       )}

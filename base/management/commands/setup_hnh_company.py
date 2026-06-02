@@ -75,6 +75,8 @@ EMPLOYEE_SHIFTS = [
     ("Ca cuối tuần (8h–17h, T7–CN)", "16:00", "80:00"),
     # Tour dài ngày — nhân viên có thể làm việc linh hoạt ngoài văn phòng
     ("Ca Tour dài ngày (linh hoạt)", "40:00", "200:00"),
+    # Ca dịch vụ: sáng + chiều T2-T6, sáng T7
+    ("Ca Dịch Vụ (T2-T6 sáng+chiều, T7 sáng)", "44:00", "220:00"),
 ]
 
 # Per-day schedules for each shift: {shift_name: [(day, start, end, min_hours)]}
@@ -131,6 +133,16 @@ SHIFT_SCHEDULES = {
         ("friday",    "06:00", "22:00", "08:15"),
         ("saturday",  "06:00", "22:00", "08:15"),
         ("sunday",    "06:00", "22:00", "08:15"),
+    ],
+    # Ca Dịch Vụ: split schedule (sáng + chiều), T7 chỉ sáng
+    # Tuple format: (day, start1, end1, min_hours, start2_or_None, end2_or_None)
+    "Ca Dịch Vụ (T2-T6 sáng+chiều, T7 sáng)": [
+        ("monday",    "08:00", "12:00", "07:30", "13:30", "17:30"),
+        ("tuesday",   "08:00", "12:00", "07:30", "13:30", "17:30"),
+        ("wednesday", "08:00", "12:00", "07:30", "13:30", "17:30"),
+        ("thursday",  "08:00", "12:00", "07:30", "13:30", "17:30"),
+        ("friday",    "08:00", "12:00", "07:30", "13:30", "17:30"),
+        ("saturday",  "08:00", "12:00", "03:30", None,    None),
     ],
 }
 
@@ -344,31 +356,37 @@ class Command(BaseCommand):
             # Create per-day schedules for each shift
             self.stdout.write(self.style.MIGRATE_HEADING("\n[5b] Lịch ngày trong ca"))
             day_objs = {d.day: d for d in EmployeeShiftDay.objects.all()}
+            from datetime import time as dtime
+
+            def _t(s):
+                h, m = map(int, s.split(":"))
+                return dtime(h, m)
+
             for shift_name, day_entries in SHIFT_SCHEDULES.items():
                 try:
                     shift = EmployeeShift.objects.get(employee_shift=shift_name)
                 except EmployeeShift.DoesNotExist:
                     continue
-                for day_name, start, end, min_h in day_entries:
+                for entry in day_entries:
+                    day_name, start, end, min_h = entry[0], entry[1], entry[2], entry[3]
+                    start2 = entry[4] if len(entry) > 4 else None
+                    end2   = entry[5] if len(entry) > 5 else None
                     day_obj = day_objs.get(day_name)
                     if not day_obj:
                         continue
-                    from datetime import time as dtime
-                    sh, sm = map(int, start.split(":"))
-                    eh, em = map(int, end.split(":"))
+                    defaults = {
+                        "start_time": _t(start),
+                        "end_time": _t(end),
+                        "minimum_working_hour": min_h,
+                        "start_time_2": _t(start2) if start2 else None,
+                        "end_time_2": _t(end2) if end2 else None,
+                    }
                     sched, created = EmployeeShiftSchedule.objects.get_or_create(
-                        shift_id=shift,
-                        day=day_obj,
-                        defaults={
-                            "start_time": dtime(sh, sm),
-                            "end_time": dtime(eh, em),
-                            "minimum_working_hour": min_h,
-                        },
+                        shift_id=shift, day=day_obj, defaults=defaults,
                     )
                     if force and not created:
-                        sched.start_time = dtime(sh, sm)
-                        sched.end_time = dtime(eh, em)
-                        sched.minimum_working_hour = min_h
+                        for k, v in defaults.items():
+                            setattr(sched, k, v)
                         sched.save()
                 mark = "✔"
                 self.stdout.write(f"  {mark} {shift_name}")

@@ -10,6 +10,8 @@ import { api } from '../lib/api'
 interface DaySchedule {
   start_time: string | null
   end_time: string | null
+  start_time_2: string | null
+  end_time_2: string | null
   minimum_working_hour: string
   is_night_shift: boolean
 }
@@ -99,11 +101,19 @@ function DayCard({ day, date, schedule, isToday }: {
       <div style={{ flex: 1, minWidth: 0 }}>
         {hasShift ? (
           <>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2, flexWrap: 'wrap' }}>
               <Icon name="clock" size={13} color={isToday ? 'rgba(255,255,255,0.8)' : HNH.navy} stroke={2} />
               <span style={{ fontSize: 14, fontWeight: 700, color: textMain }}>
                 {schedule!.start_time} – {schedule!.end_time}
               </span>
+              {schedule!.start_time_2 && (
+                <>
+                  <span style={{ fontSize: 12, color: textSub }}>·</span>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: textMain }}>
+                    {schedule!.start_time_2} – {schedule!.end_time_2}
+                  </span>
+                </>
+              )}
               {schedule!.is_night_shift && (
                 <span style={{ fontSize: 10, fontWeight: 700, background: isToday ? 'rgba(255,255,255,0.2)' : HNH.navy50, color: isToday ? '#fff' : HNH.navy, borderRadius: 6, padding: '1px 7px' }}>
                   Ca đêm

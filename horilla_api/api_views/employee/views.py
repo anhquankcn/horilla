@@ -183,6 +183,8 @@ class EmployeeScheduleView(APIView):
             days[s.day.day] = {
                 "start_time": s.start_time.strftime("%H:%M") if s.start_time else None,
                 "end_time": s.end_time.strftime("%H:%M") if s.end_time else None,
+                "start_time_2": s.start_time_2.strftime("%H:%M") if s.start_time_2 else None,
+                "end_time_2": s.end_time_2.strftime("%H:%M") if s.end_time_2 else None,
                 "minimum_working_hour": s.minimum_working_hour,
                 "is_night_shift": s.is_night_shift,
             }

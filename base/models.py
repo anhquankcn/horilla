@@ -919,6 +919,8 @@ class EmployeeShiftSchedule(HorillaModel):
     )
     start_time = models.TimeField(null=True, verbose_name=_("Start Time"))
     end_time = models.TimeField(null=True, verbose_name=_("End Time"))
+    start_time_2 = models.TimeField(null=True, blank=True, verbose_name=_("Start Time 2 (afternoon)"))
+    end_time_2 = models.TimeField(null=True, blank=True, verbose_name=_("End Time 2 (afternoon)"))
     is_night_shift = models.BooleanField(default=False, verbose_name=_("Night Shift"))
     is_auto_punch_out_enabled = models.BooleanField(
         default=False,
