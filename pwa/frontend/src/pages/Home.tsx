@@ -344,21 +344,28 @@ function NotifRow({ n, onClick }: { n: Notification; onClick: () => void }) {
 
 /* ── Work Schedule Widget ── */
 interface DaySchedule {
+  day_name: string
   start_time: string | null
   end_time: string | null
   start_time_2: string | null
   end_time_2: string | null
   is_night_shift: boolean
+  is_leave: boolean
+  leave_type: string | null
+  is_off: boolean
 }
 interface ScheduleData {
   shift_name: string | null
-  days: Record<string, DaySchedule>
+  days: Record<string, DaySchedule>   // keyed by ISO date YYYY-MM-DD
 }
 
-const JS_DAY_TO_KEY = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday']
 const DAY_SHORT: Record<string, string> = {
   monday:'T2', tuesday:'T3', wednesday:'T4', thursday:'T5',
   friday:'T6', saturday:'T7', sunday:'CN',
+}
+
+function toISO(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
 }
 
 function WorkScheduleWidget({ onClick }: { onClick: () => void }) {
@@ -368,9 +375,10 @@ function WorkScheduleWidget({ onClick }: { onClick: () => void }) {
   const days = [0, 1, 2].map(offset => {
     const d = new Date(now)
     d.setDate(now.getDate() + offset)
-    const key = JS_DAY_TO_KEY[d.getDay()]
-    const s = schedule?.days?.[key]
-    return { date: d, key, dayShort: DAY_SHORT[key], shift: s ?? null }
+    const iso = toISO(d)
+    const s = schedule?.days?.[iso] ?? null
+    const dayShort = s ? (DAY_SHORT[s.day_name] ?? '?') : DAY_SHORT[['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][d.getDay()]]
+    return { date: d, iso, dayShort, sched: s }
   })
 
   if (!schedule?.shift_name) return null
@@ -405,45 +413,62 @@ function WorkScheduleWidget({ onClick }: { onClick: () => void }) {
 
         {/* 3-day strip */}
         <div className="flex" style={{ borderTop: `1px solid ${HNH.line}` }}>
-          {days.map(({ date, key, dayShort, shift }, i) => {
+          {days.map(({ date, iso, dayShort, sched }, i) => {
             const isToday = i === 0
-            const hasShift = !!shift?.start_time
+            const isLeave = sched?.is_leave ?? false
+            const isOff = sched?.is_off ?? (!sched)
+            const hasShift = !!sched?.start_time && !isLeave
+
+            let bg = isToday ? HNH.navy : '#fff'
+            if (isToday && isLeave) bg = '#fff3e6'
+
+            const textMain = isToday && !isLeave ? '#fff' : isLeave ? HNH.warn : HNH.ink
+            const textSub = isToday && !isLeave ? 'rgba(255,255,255,0.7)' : isLeave ? HNH.warn : HNH.navy
+            const offColor = isToday && !isLeave ? 'rgba(255,255,255,0.45)' : HNH.ink4
+
             return (
               <div
-                key={key}
+                key={iso}
                 className="flex flex-col items-center"
                 style={{
                   flex: 1,
                   padding: '10px 6px 12px',
-                  background: isToday ? HNH.navy : '#fff',
+                  background: bg,
                   borderRight: i < 2 ? `1px solid ${HNH.line}` : 'none',
                 }}
               >
-                {/* Day + date */}
-                <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: 0.4, color: isToday ? 'rgba(255,255,255,0.7)' : HNH.ink3 }}>
+                <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: 0.4, color: isToday && !isLeave ? 'rgba(255,255,255,0.7)' : HNH.ink3 }}>
                   {dayShort}
                 </div>
-                <div style={{ fontSize: 20, fontWeight: 800, color: isToday ? '#fff' : HNH.ink, lineHeight: 1.15, marginTop: 2 }}>
+                <div style={{ fontSize: 20, fontWeight: 800, color: textMain, lineHeight: 1.15, marginTop: 2 }}>
                   {date.getDate()}
                 </div>
-                {/* Shift or off */}
                 <div style={{ marginTop: 6, textAlign: 'center' }}>
-                  {hasShift ? (
+                  {isLeave ? (
                     <>
-                      <div style={{ fontSize: 11.5, fontWeight: 700, color: isToday ? '#fff' : HNH.navy }}>
-                        {shift!.start_time}–{shift!.end_time}
+                      <div style={{ fontSize: 10, fontWeight: 700, color: HNH.warn }}>
+                        <Icon name="leaf" size={10} color={HNH.warn} stroke={2} />
                       </div>
-                      {shift!.start_time_2 && (
-                        <div style={{ fontSize: 10.5, fontWeight: 700, color: isToday ? 'rgba(255,255,255,0.85)' : HNH.navy, marginTop: 1 }}>
-                          {shift!.start_time_2}–{shift!.end_time_2}
+                      <div style={{ fontSize: 10, fontWeight: 700, color: HNH.warn, marginTop: 1, maxWidth: 52, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {sched!.leave_type ?? 'Nghỉ phép'}
+                      </div>
+                    </>
+                  ) : hasShift ? (
+                    <>
+                      <div style={{ fontSize: 11.5, fontWeight: 700, color: textSub }}>
+                        {sched!.start_time}–{sched!.end_time}
+                      </div>
+                      {sched!.start_time_2 && (
+                        <div style={{ fontSize: 10.5, fontWeight: 700, color: textSub, opacity: 0.85, marginTop: 1 }}>
+                          {sched!.start_time_2}–{sched!.end_time_2}
                         </div>
                       )}
-                      {shift!.is_night_shift && (
-                        <div style={{ fontSize: 9, fontWeight: 700, color: isToday ? 'rgba(255,255,255,0.8)' : HNH.navy, marginTop: 2 }}>Ca đêm</div>
+                      {sched!.is_night_shift && (
+                        <div style={{ fontSize: 9, fontWeight: 700, color: textSub, opacity: 0.8, marginTop: 2 }}>Ca đêm</div>
                       )}
                     </>
                   ) : (
-                    <div style={{ fontSize: 11, fontWeight: 600, color: isToday ? 'rgba(255,255,255,0.5)' : HNH.ink4, marginTop: 2 }}>Nghỉ</div>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: offColor, marginTop: 2 }}>Nghỉ</div>
                   )}
                 </div>
               </div>
