@@ -8,7 +8,8 @@ import { api } from '../lib/api'
 // ── Types ─────────────────────────────────────────────────────────────────────
 
 interface Option { id: number; name: string }
-interface OptionWithParent extends Option { parent_id: number | null }
+interface PositionOption extends Option { department_id: number | null }
+interface RoleOption extends Option { position_id: number | null }
 
 interface WorkInfoEditData {
   work_info_id: number | null
@@ -33,8 +34,8 @@ interface WorkInfoEditData {
   }
   options: {
     departments: Option[]
-    positions: OptionWithParent[]
-    roles: OptionWithParent[]
+    positions: PositionOption[]
+    roles: RoleOption[]
     shifts: Option[]
     work_types: Option[]
     employee_types: Option[]
@@ -206,14 +207,14 @@ export function WorkInfoEditPage() {
   // Filter positions by selected department
   const filteredPositions = data
     ? (departmentId
-        ? data.options.positions.filter(p => String(p.parent_id) === departmentId)
+        ? data.options.positions.filter(p => String(p.department_id) === departmentId)
         : data.options.positions)
     : []
 
   // Filter roles by selected position
   const filteredRoles = data
     ? (jobPositionId
-        ? data.options.roles.filter(r => String(r.parent_id) === jobPositionId)
+        ? data.options.roles.filter(r => String(r.position_id) === jobPositionId)
         : data.options.roles)
     : []
 
