@@ -36,6 +36,12 @@ export function useNotificationPolling() {
           playNotificationSound()
         }
         prevUnread.current = cur
+        // Sync OS app badge
+        if (cur === 0) {
+          navigator.clearAppBadge?.()
+        } else {
+          navigator.setAppBadge?.(cur)
+        }
       } catch {
         // ignore
       }

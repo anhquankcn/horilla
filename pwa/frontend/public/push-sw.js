@@ -13,7 +13,7 @@ self.addEventListener("push", (event) => {
     body: payload.body || "",
     icon: "/pwa/icons/icon-192.png",
     badge: "/pwa/icons/icon-192.png",
-    tag: "hnh-push-" + Date.now(),
+    tag: "hnh-push",
     data: { url: payload.url || "/notifications" },
     vibrate: [200, 100, 200],
     silent: false,
@@ -33,6 +33,11 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+  // Clear badge — user acknowledged the notification
+  if (self.navigator?.clearAppBadge) {
+    self.navigator.clearAppBadge().catch(() => {});
+  }
+
   const url = event.notification.data?.url || "/";
   const fullUrl = new URL(url, self.location.origin).href;
 

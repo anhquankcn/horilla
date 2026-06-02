@@ -195,7 +195,13 @@ export function NotificationsPage() {
 
   const markRead = async (id: number) => {
     await api.post(`/api/notifications/${id}/`, {})
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, unread: false } : n))
+    setNotifications(prev => {
+      const updated = prev.map(n => n.id === id ? { ...n, unread: false } : n)
+      const remaining = updated.filter(n => n.unread).length
+      if (remaining === 0) navigator.clearAppBadge?.()
+      else navigator.setAppBadge?.(remaining)
+      return updated
+    })
   }
 
   const deleteNotif = async (id: number) => {
@@ -209,6 +215,7 @@ export function NotificationsPage() {
     try {
       await api.post('/api/notifications/bulk-read/', {})
       setNotifications(prev => prev.map(n => ({ ...n, unread: false })))
+      navigator.clearAppBadge?.()
       toast('Đã đọc tất cả thông báo')
     } finally { setMarkingAll(false) }
   }
