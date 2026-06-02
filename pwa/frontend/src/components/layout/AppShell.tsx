@@ -5,6 +5,7 @@ import { HNH } from '../../lib/theme'
 import { Icon } from '../ui/Icon'
 import { useTablet } from '../../lib/useTablet'
 import { useNotificationPolling } from '../../lib/useNotificationPolling'
+import { WelcomeWizard } from '../WelcomeWizard'
 
 function switchToDesktop() {
   document.cookie = 'prefer_desktop=1;path=/;max-age=' + 60 * 60 * 24 * 365
@@ -17,6 +18,7 @@ export function AppShell() {
 
   return (
     <div className="flex flex-col min-h-[100dvh]" style={{ background: HNH.cream }}>
+      <WelcomeWizard />
       <div className="flex items-center justify-between shrink-0" style={{
         padding: '6px 16px',
         background: HNH.navy,

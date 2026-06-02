@@ -121,6 +121,78 @@ class EmployeeMeAPIView(APIView):
         return Response(serializer.errors, status=400)
 
 
+class EmployeeBankView(APIView):
+    """GET / POST (upsert) bank details for the authenticated user's own record."""
+
+    permission_classes = [IsAuthenticated]
+
+    def _emp(self, request):
+        return getattr(request.user, "employee_get", None)
+
+    def get(self, request):
+        emp = self._emp(request)
+        if not emp:
+            return Response({"error": "No employee record"}, status=404)
+        bank = getattr(emp, "employee_bank_details", None)
+        if not bank:
+            return Response(None, status=200)
+        return Response({
+            "id": bank.id,
+            "bank_name": bank.bank_name or "",
+            "account_number": bank.account_number or "",
+            "branch": bank.branch or "",
+            "any_other_code1": bank.any_other_code1 or "",
+        })
+
+    def post(self, request):
+        emp = self._emp(request)
+        if not emp:
+            return Response({"error": "No employee record"}, status=404)
+        bank, _ = EmployeeBankDetails.objects.get_or_create(employee_id=emp)
+        for field in ("bank_name", "account_number", "branch", "any_other_code1"):
+            if field in request.data:
+                setattr(bank, field, request.data[field] or None)
+        bank.save()
+        return Response({
+            "id": bank.id,
+            "bank_name": bank.bank_name or "",
+            "account_number": bank.account_number or "",
+            "branch": bank.branch or "",
+            "any_other_code1": bank.any_other_code1 or "",
+        })
+
+
+class EmployeeScheduleView(APIView):
+    """Return the authenticated employee's shift schedule (all assigned days)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from base.models import EmployeeShiftSchedule
+
+        emp = getattr(request.user, "employee_get", None)
+        if not emp:
+            return Response({"error": "No employee record"}, status=404)
+        wi = getattr(emp, "employee_work_info", None)
+        if not wi or not wi.shift_id:
+            return Response({"shift_name": None, "weekly_full_time": None, "days": {}}, status=200)
+        shift = wi.shift_id
+        schedules = EmployeeShiftSchedule.objects.filter(shift_id=shift).select_related("day")
+        days = {}
+        for s in schedules:
+            days[s.day.day] = {
+                "start_time": s.start_time.strftime("%H:%M") if s.start_time else None,
+                "end_time": s.end_time.strftime("%H:%M") if s.end_time else None,
+                "minimum_working_hour": s.minimum_working_hour,
+                "is_night_shift": s.is_night_shift,
+            }
+        return Response({
+            "shift_name": shift.employee_shift,
+            "weekly_full_time": shift.weekly_full_time,
+            "days": days,
+        })
+
+
 class EmployeeTypeAPIView(APIView):
     """
     Retrieves employee types.

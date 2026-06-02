@@ -204,6 +204,49 @@ function SelectField({ label, value, onChange, options }: {
 
 type EditTab = 'personal' | 'emergency'
 
+/* ── Bank Edit Sheet ── */
+interface BankForm { bank_name: string; account_number: string; branch: string; any_other_code1: string }
+
+function BankEditSheet({ form, setForm, saving, onSave, onClose }: {
+  form: BankForm
+  setForm: React.Dispatch<React.SetStateAction<BankForm>>
+  saving: boolean
+  onSave: () => void
+  onClose: () => void
+}) {
+  const upd = (f: keyof BankForm) => (v: string) => setForm(p => ({ ...p, [f]: v }))
+  return (
+    <div className="fixed inset-0 flex items-end justify-center" style={{ background: 'rgba(0,0,0,0.4)', zIndex: 1000 }}
+      onClick={e => { if (e.target === e.currentTarget) onClose() }}>
+      <div style={{ background: HNH.cream, borderRadius: '24px 24px 0 0', width: '100%', maxWidth: 500, maxHeight: '88vh', display: 'flex', flexDirection: 'column' }}>
+        <div className="flex items-center justify-between" style={{ padding: '18px 20px 12px' }}>
+          <div style={{ fontSize: 17, fontWeight: 700, color: HNH.ink }}>Tài khoản ngân hàng</div>
+          <button onClick={onClose} className="flex items-center justify-center border-none cursor-pointer"
+            style={{ width: 32, height: 32, borderRadius: 10, background: HNH.cream2 }}>
+            <Icon name="x" size={16} color={HNH.ink2} stroke={2} />
+          </button>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 20px' }}>
+          <FormField label="Tên ngân hàng *" value={form.bank_name} onChange={upd('bank_name')} placeholder="VD: Vietcombank, MB Bank..." />
+          <FormField label="Số tài khoản *" value={form.account_number} onChange={upd('account_number')} placeholder="VD: 0123456789" />
+          <FormField label="Chi nhánh" value={form.branch} onChange={upd('branch')} placeholder="VD: Chi nhánh TP.HCM" />
+          <FormField label="Mã ngân hàng (SWIFT / routing)" value={form.any_other_code1} onChange={upd('any_other_code1')} placeholder="Tùy chọn" />
+        </div>
+        <div className="flex gap-3" style={{ padding: '12px 20px 20px' }}>
+          <button onClick={onClose} className="flex-1 border-none cursor-pointer"
+            style={{ padding: '13px', borderRadius: 14, fontSize: 14, fontWeight: 700, background: '#fff', color: HNH.ink2, border: `1.5px solid ${HNH.line}` }}>
+            Hủy
+          </button>
+          <button onClick={onSave} disabled={saving} className="flex-1 border-none cursor-pointer"
+            style={{ padding: '13px', borderRadius: 14, fontSize: 14, fontWeight: 700, background: HNH.navy, color: '#fff', opacity: saving ? 0.6 : 1, boxShadow: '0 4px 12px rgba(20,43,111,0.2)' }}>
+            {saving ? 'Đang lưu...' : 'Lưu'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function EditModal({ form, setForm, tab, setTab, saving, onSave, onClose }: {
   form: EditForm
   setForm: React.Dispatch<React.SetStateAction<EditForm>>
@@ -350,6 +393,38 @@ export function ProfilePage() {
   const [editTab, setEditTab] = useState<EditTab>('personal')
   const [saving, setSaving] = useState(false)
 
+  // Bank details
+  const emptyBank: BankForm = { bank_name: '', account_number: '', branch: '', any_other_code1: '' }
+  const [bankData, setBankData] = useState<BankForm | null>(null)
+  const [bankEditOpen, setBankEditOpen] = useState(false)
+  const [bankForm, setBankForm] = useState<BankForm>(emptyBank)
+  const [bankSaving, setBankSaving] = useState(false)
+
+  useEffect(() => {
+    api.get<BankForm | null>('/api/employee/me/bank/').then(d => {
+      setBankData(d ?? null)
+    }).catch(() => {})
+  }, [])
+
+  const handleBankSave = async () => {
+    setBankSaving(true)
+    try {
+      const saved = await api.post<BankForm>('/api/employee/me/bank/', bankForm)
+      setBankData(saved)
+      setBankEditOpen(false)
+      toast('Đã lưu tài khoản ngân hàng')
+    } catch {
+      toast('Lỗi khi lưu', 'error')
+    } finally {
+      setBankSaving(false)
+    }
+  }
+
+  const openBankEdit = () => {
+    setBankForm(bankData ?? emptyBank)
+    setBankEditOpen(true)
+  }
+
   const emptyForm: EditForm = {
     phone: '', address: '', city: '', state: '', country: '', zip: '',
     marital_status: '', children: '0',
@@ -460,6 +535,30 @@ export function ProfilePage() {
     </>
   )
 
+  const bankSection = (
+    <>
+      <SectionTitle title="Tài khoản ngân hàng" action={<EditButton onClick={openBankEdit} />} />
+      <InfoCard>
+        {bankData?.bank_name ? (
+          <>
+            <InfoRow icon="doc" label="Ngân hàng" value={bankData.bank_name} tone="navy" />
+            <InfoRow icon="shield" label="Số tài khoản" value={bankData.account_number} />
+            {bankData.branch ? <InfoRow icon="globe" label="Chi nhánh" value={bankData.branch} /> : null}
+            {bankData.any_other_code1 ? <InfoRow icon="gear" label="Mã ngân hàng" value={bankData.any_other_code1} last /> : <InfoRow icon="gear" label="Mã ngân hàng" value="—" last />}
+          </>
+        ) : (
+          <div
+            onClick={openBankEdit}
+            style={{ padding: '20px 14px', textAlign: 'center', cursor: 'pointer' }}
+          >
+            <div style={{ fontSize: 13, color: HNH.ink3, fontWeight: 500 }}>Chưa có thông tin ngân hàng</div>
+            <div style={{ fontSize: 12, color: HNH.navy, fontWeight: 700, marginTop: 4 }}>+ Thêm ngay</div>
+          </div>
+        )}
+      </InfoCard>
+    </>
+  )
+
   const otherSection = (
     <>
       <SectionTitle title="Khác" />
@@ -530,6 +629,7 @@ export function ProfilePage() {
             {personalSection}
             {workSection}
             {emergencySection}
+            {bankSection}
             {otherSection}
           </>
         )}
@@ -545,6 +645,17 @@ export function ProfilePage() {
           saving={saving}
           onSave={handleSave}
           onClose={() => setEditOpen(false)}
+        />
+      )}
+
+      {/* Bank edit sheet */}
+      {bankEditOpen && (
+        <BankEditSheet
+          form={bankForm}
+          setForm={setBankForm}
+          saving={bankSaving}
+          onSave={handleBankSave}
+          onClose={() => setBankEditOpen(false)}
         />
       )}
 
