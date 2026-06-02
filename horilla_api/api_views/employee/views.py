@@ -4241,8 +4241,14 @@ class PromotionHubView(APIView):
         u = request.user
         if u.is_superuser:
             return True
-        return u.has_perm("promotion.add_promotionnomination") or u.has_perm(
+        # Explicit promotion perms (assigned to HR/management groups)
+        if u.has_perm("promotion.add_promotionnomination") or u.has_perm(
             "promotion.change_promotionnomination"
+        ):
+            return True
+        # HR/managers already have employee change permission — treat as promotion managers
+        return u.has_perm("employee.change_employee") or u.has_perm(
+            "employee.change_employeeworkinformation"
         )
 
     def _avatar(self, emp):
@@ -4525,7 +4531,12 @@ class PromotionHubView(APIView):
             return Response({"error": "Nhân viên không tồn tại"}, status=404)
         obj, created = EmployeeNineBox.objects.update_or_create(
             employee=target, period=period, assessed_by=emp,
-            defaults={"performance": int(performance), "potential": int(potential), "notes": notes},
+            defaults={
+                "performance": int(performance),
+                "potential": int(potential),
+                "notes": notes,
+                "company_id": target.get_company(),
+            },
         )
         return Response({"ok": True, "id": obj.id, "created": created, "quadrant_label": obj.quadrant_label})
 
@@ -4562,17 +4573,27 @@ class PromotionHubView(APIView):
             except Department.DoesNotExist:
                 return None
 
+        # Derive current position/dept from employee work info if not provided
+        wi = getattr(target, "employee_work_info", None)
+        cur_pos = _get_pos(request.data.get("current_job_position_id")) or (
+            wi.job_position_id if wi else None
+        )
+        cur_dept = _get_dept(request.data.get("current_department_id")) or (
+            wi.department_id if wi else None
+        )
+
         nom = PromotionNomination.objects.create(
             employee=target,
             nominated_by=emp,
             ninebox=ninebox,
-            current_job_position=_get_pos(request.data.get("current_job_position_id")),
+            current_job_position=cur_pos,
             proposed_job_position=_get_pos(request.data.get("proposed_job_position_id")),
-            current_department=_get_dept(request.data.get("current_department_id")),
+            current_department=cur_dept,
             proposed_department=_get_dept(request.data.get("proposed_department_id")),
             nomination_reason=request.data.get("nomination_reason", ""),
             expected_date=request.data.get("expected_date") or None,
             status="draft",
+            company_id=target.get_company(),
         )
         return Response({"ok": True, "id": nom.id})
 

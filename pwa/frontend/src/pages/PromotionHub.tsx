@@ -273,6 +273,7 @@ function NineBoxTab({ canManage }: { canManage: boolean }) {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ employee_id: '', period: '', performance: '2', potential: '2', notes: '' })
   const [saving, setSaving] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
 
   const load = useCallback(async (p: string) => {
@@ -292,11 +293,14 @@ function NineBoxTab({ canManage }: { canManage: boolean }) {
   const handleSave = async () => {
     if (!form.employee_id || !form.period) return
     setSaving(true)
+    setFormError(null)
     try {
       await api.post('/api/employee/promotion-hub/', { action: 'assess_ninebox', ...form })
       setShowForm(false)
       setForm({ employee_id: '', period: '', performance: '2', potential: '2', notes: '' })
       load(period)
+    } catch (e: any) {
+      setFormError(e?.message || 'Có lỗi xảy ra, vui lòng thử lại')
     } finally {
       setSaving(false)
     }
@@ -389,8 +393,11 @@ function NineBoxTab({ canManage }: { canManage: boolean }) {
             <textarea value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
               rows={3} placeholder="Nhận xét, quan sát..."
               style={{ width: '100%', padding: '9px 10px', borderRadius: 8, border: `1px solid ${HNH.line}`, fontSize: 13, marginBottom: 16, marginTop: 4, resize: 'vertical', boxSizing: 'border-box' }} />
+            {formError && (
+              <div style={{ background: HNH.red50, color: HNH.red, borderRadius: 8, padding: '8px 12px', fontSize: 13, marginBottom: 12 }}>{formError}</div>
+            )}
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setShowForm(false)} style={{ flex: 1, padding: '11px', borderRadius: 8, border: `1px solid ${HNH.line}`, background: HNH.white, fontSize: 14, cursor: 'pointer' }}>Huỷ</button>
+              <button onClick={() => { setShowForm(false); setFormError(null) }} style={{ flex: 1, padding: '11px', borderRadius: 8, border: `1px solid ${HNH.line}`, background: HNH.white, fontSize: 14, cursor: 'pointer' }}>Huỷ</button>
               <button onClick={handleSave} disabled={saving}
                 style={{ flex: 2, padding: '11px', borderRadius: 8, background: HNH.red, color: '#fff', border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
                 {saving ? 'Đang lưu...' : 'Lưu đánh giá'}
@@ -422,6 +429,8 @@ function NominationsTab({ canManage }: { canManage: boolean }) {
     current_job_position_id: '', current_department_id: '',
   })
   const [steps, setSteps] = useState<{ approver_id: string; role: string }[]>([{ approver_id: '', role: 'hr' }])
+  const [createError, setCreateError] = useState<string | null>(null)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -441,11 +450,14 @@ function NominationsTab({ canManage }: { canManage: boolean }) {
   const handleCreate = async () => {
     if (!form.employee_id) return
     setSaving(true)
+    setCreateError(null)
     try {
       await api.post('/api/employee/promotion-hub/', { action: 'create_nomination', ...form })
       setShowCreate(false)
       setForm({ employee_id: '', nomination_reason: '', expected_date: '', proposed_job_position_id: '', proposed_department_id: '', current_job_position_id: '', current_department_id: '' })
       load()
+    } catch (e: any) {
+      setCreateError(e?.message || 'Có lỗi xảy ra, vui lòng thử lại')
     } finally {
       setSaving(false)
     }
@@ -456,6 +468,7 @@ function NominationsTab({ canManage }: { canManage: boolean }) {
     const valid = steps.filter(s => s.approver_id)
     if (!valid.length) return
     setSaving(true)
+    setSubmitError(null)
     try {
       await api.post('/api/employee/promotion-hub/', {
         action: 'submit_nomination',
@@ -464,6 +477,8 @@ function NominationsTab({ canManage }: { canManage: boolean }) {
       })
       setShowSubmit(null)
       load()
+    } catch (e: any) {
+      setSubmitError(e?.message || 'Có lỗi xảy ra, vui lòng thử lại')
     } finally {
       setSaving(false)
     }
@@ -562,8 +577,11 @@ function NominationsTab({ canManage }: { canManage: boolean }) {
             <textarea value={form.nomination_reason} onChange={e => setForm(f => ({ ...f, nomination_reason: e.target.value }))}
               rows={3} placeholder="Lý do đề xuất thăng tiến..."
               style={{ width: '100%', padding: '9px 10px', borderRadius: 8, border: `1px solid ${HNH.line}`, fontSize: 13, marginBottom: 16, marginTop: 4, resize: 'vertical', boxSizing: 'border-box' }} />
+            {createError && (
+              <div style={{ background: HNH.red50, color: HNH.red, borderRadius: 8, padding: '8px 12px', fontSize: 13, marginBottom: 12 }}>{createError}</div>
+            )}
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setShowCreate(false)} style={{ flex: 1, padding: '11px', borderRadius: 8, border: `1px solid ${HNH.line}`, background: HNH.white, fontSize: 14, cursor: 'pointer' }}>Huỷ</button>
+              <button onClick={() => { setShowCreate(false); setCreateError(null) }} style={{ flex: 1, padding: '11px', borderRadius: 8, border: `1px solid ${HNH.line}`, background: HNH.white, fontSize: 14, cursor: 'pointer' }}>Huỷ</button>
               <button onClick={handleCreate} disabled={saving}
                 style={{ flex: 2, padding: '11px', borderRadius: 8, background: HNH.red, color: '#fff', border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
                 {saving ? 'Đang tạo...' : 'Tạo hồ sơ'}
@@ -665,8 +683,11 @@ function NominationsTab({ canManage }: { canManage: boolean }) {
               style={{ background: 'none', border: `1px dashed ${HNH.line}`, borderRadius: 8, padding: '7px 14px', fontSize: 13, color: HNH.ink2, cursor: 'pointer', width: '100%', marginBottom: 16 }}>
               + Thêm bước
             </button>
+            {submitError && (
+              <div style={{ background: HNH.red50, color: HNH.red, borderRadius: 8, padding: '8px 12px', fontSize: 13, marginBottom: 12 }}>{submitError}</div>
+            )}
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setShowSubmit(null)} style={{ flex: 1, padding: '11px', borderRadius: 8, border: `1px solid ${HNH.line}`, background: HNH.white, fontSize: 14, cursor: 'pointer' }}>Huỷ</button>
+              <button onClick={() => { setShowSubmit(null); setSubmitError(null) }} style={{ flex: 1, padding: '11px', borderRadius: 8, border: `1px solid ${HNH.line}`, background: HNH.white, fontSize: 14, cursor: 'pointer' }}>Huỷ</button>
               <button onClick={handleSubmit} disabled={saving}
                 style={{ flex: 2, padding: '11px', borderRadius: 8, background: HNH.red, color: '#fff', border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
                 {saving ? 'Đang gửi...' : 'Gửi phê duyệt'}
@@ -691,6 +712,8 @@ function ApprovalsTab() {
   const [approveForm, setApproveForm] = useState({ decision: 'approved', comment: '' })
   const [decideForm, setDecideForm] = useState({ effective_date: '', decision_notes: '' })
   const [saving, setSaving] = useState(false)
+  const [approveError, setApproveError] = useState<string | null>(null)
+  const [decideError, setDecideError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -709,10 +732,13 @@ function ApprovalsTab() {
   const handleApprove = async () => {
     if (!showApprove) return
     setSaving(true)
+    setApproveError(null)
     try {
       await api.post('/api/employee/promotion-hub/', { action: 'approve_step', step_id: showApprove.stepId, ...approveForm })
       setShowApprove(null)
       load()
+    } catch (e: any) {
+      setApproveError(e?.message || 'Có lỗi xảy ra, vui lòng thử lại')
     } finally {
       setSaving(false)
     }
@@ -721,10 +747,13 @@ function ApprovalsTab() {
   const handleDecide = async () => {
     if (!decide) return
     setSaving(true)
+    setDecideError(null)
     try {
       await api.post('/api/employee/promotion-hub/', { action: 'decide', nomination_id: decide.id, ...decideForm })
       setDecide(null)
       load()
+    } catch (e: any) {
+      setDecideError(e?.message || 'Có lỗi xảy ra, vui lòng thử lại')
     } finally {
       setSaving(false)
     }
@@ -804,8 +833,11 @@ function ApprovalsTab() {
             <textarea value={approveForm.comment} onChange={e => setApproveForm(f => ({ ...f, comment: e.target.value }))}
               rows={3} placeholder="Nhận xét (tuỳ chọn)..."
               style={{ width: '100%', padding: '9px 10px', borderRadius: 8, border: `1px solid ${HNH.line}`, fontSize: 13, marginBottom: 16, marginTop: 4, resize: 'vertical', boxSizing: 'border-box' }} />
+            {approveError && (
+              <div style={{ background: HNH.red50, color: HNH.red, borderRadius: 8, padding: '8px 12px', fontSize: 13, marginBottom: 12 }}>{approveError}</div>
+            )}
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setShowApprove(null)} style={{ flex: 1, padding: '11px', borderRadius: 8, border: `1px solid ${HNH.line}`, background: HNH.white, fontSize: 14, cursor: 'pointer' }}>Huỷ</button>
+              <button onClick={() => { setShowApprove(null); setApproveError(null) }} style={{ flex: 1, padding: '11px', borderRadius: 8, border: `1px solid ${HNH.line}`, background: HNH.white, fontSize: 14, cursor: 'pointer' }}>Huỷ</button>
               <button onClick={handleApprove} disabled={saving}
                 style={{ flex: 2, padding: '11px', borderRadius: 8, background: approveForm.decision === 'approved' ? HNH.success : HNH.red, color: '#fff', border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
                 {saving ? 'Đang xử lý...' : approveForm.decision === 'approved' ? 'Xác nhận duyệt' : 'Xác nhận từ chối'}
@@ -828,8 +860,11 @@ function ApprovalsTab() {
             <textarea value={decideForm.decision_notes} onChange={e => setDecideForm(f => ({ ...f, decision_notes: e.target.value }))}
               rows={3} placeholder="Nội dung quyết định chính thức..."
               style={{ width: '100%', padding: '9px 10px', borderRadius: 8, border: `1px solid ${HNH.line}`, fontSize: 13, marginBottom: 16, marginTop: 4, resize: 'vertical', boxSizing: 'border-box' }} />
+            {decideError && (
+              <div style={{ background: HNH.red50, color: HNH.red, borderRadius: 8, padding: '8px 12px', fontSize: 13, marginBottom: 12 }}>{decideError}</div>
+            )}
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setDecide(null)} style={{ flex: 1, padding: '11px', borderRadius: 8, border: `1px solid ${HNH.line}`, background: HNH.white, fontSize: 14, cursor: 'pointer' }}>Huỷ</button>
+              <button onClick={() => { setDecide(null); setDecideError(null) }} style={{ flex: 1, padding: '11px', borderRadius: 8, border: `1px solid ${HNH.line}`, background: HNH.white, fontSize: 14, cursor: 'pointer' }}>Huỷ</button>
               <button onClick={handleDecide} disabled={saving}
                 style={{ flex: 2, padding: '11px', borderRadius: 8, background: HNH.gold, color: '#fff', border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
                 {saving ? 'Đang lưu...' : 'Xác nhận quyết định'}
@@ -853,6 +888,8 @@ function AnnouncementsTab() {
   const [createForm, setCreateForm] = useState({ title: '', content: '' })
   const [saving, setSaving] = useState(false)
   const [publishing, setPublishing] = useState<number | null>(null)
+  const [annError, setAnnError] = useState<string | null>(null)
+  const [publishError, setPublishError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -871,10 +908,13 @@ function AnnouncementsTab() {
   const handleCreate = async () => {
     if (!showCreate || !createForm.title || !createForm.content) return
     setSaving(true)
+    setAnnError(null)
     try {
       await api.post('/api/employee/promotion-hub/', { action: 'create_announcement', nomination_id: showCreate.id, ...createForm })
       setShowCreate(null)
       load()
+    } catch (e: any) {
+      setAnnError(e?.message || 'Có lỗi xảy ra, vui lòng thử lại')
     } finally {
       setSaving(false)
     }
@@ -882,9 +922,12 @@ function AnnouncementsTab() {
 
   const handlePublish = async (annId: number) => {
     setPublishing(annId)
+    setPublishError(null)
     try {
       await api.post('/api/employee/promotion-hub/', { action: 'publish_announcement', announcement_id: annId })
       load()
+    } catch (e: any) {
+      setPublishError(e?.message || 'Có lỗi khi công bố')
     } finally {
       setPublishing(null)
     }
@@ -909,6 +952,9 @@ function AnnouncementsTab() {
         </>
       )}
 
+      {publishError && (
+        <div style={{ background: HNH.red50, color: HNH.red, borderRadius: 8, padding: '8px 12px', fontSize: 13, marginBottom: 10 }}>{publishError}</div>
+      )}
       <div style={{ fontWeight: 700, fontSize: 14, color: HNH.ink, marginBottom: 10 }}>Tất cả thông báo</div>
       {loading ? (
         <div style={{ textAlign: 'center', padding: '40px 0', color: HNH.ink3 }}>Đang tải...</div>
@@ -956,8 +1002,11 @@ function AnnouncementsTab() {
             <textarea value={createForm.content} onChange={e => setCreateForm(f => ({ ...f, content: e.target.value }))}
               rows={8}
               style={{ width: '100%', padding: '9px 10px', borderRadius: 8, border: `1px solid ${HNH.line}`, fontSize: 13, marginBottom: 16, marginTop: 4, resize: 'vertical', boxSizing: 'border-box' }} />
+            {annError && (
+              <div style={{ background: HNH.red50, color: HNH.red, borderRadius: 8, padding: '8px 12px', fontSize: 13, marginBottom: 12 }}>{annError}</div>
+            )}
             <div style={{ display: 'flex', gap: 10 }}>
-              <button onClick={() => setShowCreate(null)} style={{ flex: 1, padding: '11px', borderRadius: 8, border: `1px solid ${HNH.line}`, background: HNH.white, fontSize: 14, cursor: 'pointer' }}>Huỷ</button>
+              <button onClick={() => { setShowCreate(null); setAnnError(null) }} style={{ flex: 1, padding: '11px', borderRadius: 8, border: `1px solid ${HNH.line}`, background: HNH.white, fontSize: 14, cursor: 'pointer' }}>Huỷ</button>
               <button onClick={handleCreate} disabled={saving}
                 style={{ flex: 2, padding: '11px', borderRadius: 8, background: HNH.red, color: '#fff', border: 'none', fontSize: 14, fontWeight: 700, cursor: 'pointer', opacity: saving ? 0.6 : 1 }}>
                 {saving ? 'Đang lưu...' : 'Lưu thông báo'}
@@ -991,6 +1040,8 @@ export function PromotionHubPage() {
     }
   }, [])
 
+  // Load overview on mount to get canManage for all tabs
+  useEffect(() => { loadOverview() }, [loadOverview])
   useEffect(() => { if (tab === 'overview') loadOverview() }, [tab, loadOverview])
 
   const TABS: { id: Tab; label: string }[] = [
@@ -1045,8 +1096,8 @@ export function PromotionHubPage() {
             />
           ) : null
         )}
-        {tab === 'ninebox' && <NineBoxTab canManage={true} />}
-        {tab === 'nominations' && <NominationsTab canManage={true} />}
+        {tab === 'ninebox' && <NineBoxTab canManage={overviewData?.canManage ?? false} />}
+        {tab === 'nominations' && <NominationsTab canManage={overviewData?.canManage ?? false} />}
         {tab === 'approvals' && <ApprovalsTab />}
         {tab === 'announcements' && <AnnouncementsTab />}
       </div>
