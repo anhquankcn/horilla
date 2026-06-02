@@ -416,7 +416,6 @@ function WorkScheduleWidget({ onClick }: { onClick: () => void }) {
           {days.map(({ date, iso, dayShort, sched }, i) => {
             const isToday = i === 0
             const isLeave = sched?.is_leave ?? false
-            const isOff = sched?.is_off ?? (!sched)
             const hasShift = !!sched?.start_time && !isLeave
 
             let bg = isToday ? HNH.navy : '#fff'
