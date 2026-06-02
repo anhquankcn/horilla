@@ -15,7 +15,7 @@ from mozilla_django_oidc import auth as oidc_auth
 from mozilla_django_oidc import utils as oidc_utils
 from mozilla_django_oidc import views as oidc_views
 from mozilla_django_oidc.auth import OIDCAuthenticationBackend
-from mozilla_django_oidc.views import OIDCAuthenticationCallbackView
+from mozilla_django_oidc.views import OIDCAuthenticationCallbackView, OIDCAuthenticationRequestView
 
 from horilla.horilla_middlewares import _thread_locals
 
@@ -122,6 +122,22 @@ class HorillaOIDCBackend(OIDCAuthenticationBackend):
             user.last_name = kc_last
         user.save()
         return user
+
+
+class HorillaOIDCRequestView(OIDCAuthenticationRequestView):
+    """Inject kc_idp_hint so Keycloak skips its own login page and goes
+    directly to the requested Identity Provider (e.g. Microsoft).
+
+    Usage: /oidc/authenticate/?idp=microsoft
+    Keycloak IdP alias must match what is configured in KC admin → Identity Providers.
+    """
+
+    def get_extra_params(self, request):
+        params = super().get_extra_params(request)
+        idp = request.GET.get("idp", "").strip()
+        if idp:
+            params["kc_idp_hint"] = idp
+        return params
 
 
 class HorillaOIDCCallbackView(OIDCAuthenticationCallbackView):

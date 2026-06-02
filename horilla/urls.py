@@ -19,12 +19,12 @@ from django.contrib import admin
 from django.http import JsonResponse
 from django.urls import include, path, re_path
 from django.views.i18n import JavaScriptCatalog
-from mozilla_django_oidc.views import OIDCAuthenticationRequestView, OIDCLogoutView
+from mozilla_django_oidc.views import OIDCLogoutView
 
 import notifications.urls
 
 from . import settings
-from .oidc_backend import HorillaOIDCCallbackView
+from .oidc_backend import HorillaOIDCCallbackView, HorillaOIDCRequestView
 from .deeplink_views import task_deeplink
 from .oidc_signup_views import oidc_signup_view
 
@@ -37,7 +37,7 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     # OIDC — callback uses custom view that redirects to login on state mismatch
     path("oidc/callback/", HorillaOIDCCallbackView.as_view(), name="oidc_authentication_callback"),
-    path("oidc/authenticate/", OIDCAuthenticationRequestView.as_view(), name="oidc_authentication_init"),
+    path("oidc/authenticate/", HorillaOIDCRequestView.as_view(), name="oidc_authentication_init"),
     path("oidc/logout/", OIDCLogoutView.as_view(), name="oidc_logout"),
     path("oidc/signup/", oidc_signup_view, name="oidc_signup"),
     path("accounts/", include("django.contrib.auth.urls")),

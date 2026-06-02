@@ -6,103 +6,409 @@
   <meta charset="UTF-8" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Đăng ký tài khoản — HNH Travel HRM</title>
+  <title>Tạo tài khoản — HNH Travel HRM</title>
   <link rel="icon" type="image/png" sizes="32x32" href="{% static 'favicons/favicon-32x32.png' %}">
-  <link rel="stylesheet" href="{% static '/build/css/style.min.css' %}" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+    :root {
+      --hnh-red: #c0222b;
+      --hnh-red-dark: #9a1a21;
+      --hnh-navy: #142B6F;
+      --hnh-cream: #faf7f2;
+      --hnh-cream-2: #f4efe7;
+      --hnh-ink: #0f1428;
+      --hnh-ink-2: #4a5170;
+      --hnh-ink-3: #8a8fa6;
+      --hnh-line: #ece8e0;
+      --hnh-gold: #d4a017;
+      --hnh-success: #1f8a5b;
+      --hnh-ms-blue: #0078d4;
+      --hnh-font: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      --hnh-display: 'Plus Jakarta Sans', 'Be Vietnam Pro', system-ui, sans-serif;
+    }
+
+    html, body {
+      min-height: 100%;
+      font-family: var(--hnh-font);
+      -webkit-font-smoothing: antialiased;
+      background: var(--hnh-cream);
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+    }
+
+    .signup-container {
+      width: 100%;
+      max-width: 480px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background: #fff;
+    }
+
+    @media (min-width: 600px) {
+      html, body { align-items: center; padding: 24px 16px; }
+      .signup-container {
+        min-height: auto;
+        border-radius: 28px;
+        box-shadow: 0 30px 80px rgba(15,20,40,0.12), 0 12px 30px rgba(15,20,40,0.08);
+      }
+    }
+
+    /* ── Hero ── */
+    .signup-hero {
+      background: linear-gradient(160deg, var(--hnh-navy) 0%, #0d1f4f 100%);
+      padding: 40px 32px 32px;
+      position: relative;
+      overflow: hidden;
+    }
+    .signup-hero__arc {
+      position: absolute; right: -60px; top: -50px;
+      width: 220px; height: 220px; border-radius: 50%;
+      background: var(--hnh-red); opacity: 0.18;
+    }
+    .signup-hero__gold {
+      position: absolute; left: -30px; bottom: -20px;
+      width: 160px; height: 50px; border-radius: 50%;
+      background: var(--hnh-gold); opacity: 0.15; filter: blur(8px);
+    }
+    .signup-hero__content { position: relative; z-index: 1; }
+
+    /* ── Steps ── */
+    .signup-steps {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      margin-bottom: 22px;
+    }
+    .signup-step {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .signup-step__dot {
+      width: 24px; height: 24px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 800; flex-shrink: 0;
+    }
+    .signup-step__dot--done {
+      background: rgba(31,138,91,0.25); color: #7ee8b5;
+    }
+    .signup-step__dot--active {
+      background: #fff; color: var(--hnh-navy);
+    }
+    .signup-step__dot--pending {
+      background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.4);
+    }
+    .signup-step__label {
+      font-size: 11px; font-weight: 600; white-space: nowrap;
+    }
+    .signup-step__label--done   { color: rgba(255,255,255,0.55); }
+    .signup-step__label--active { color: #fff; }
+    .signup-step__label--pending { color: rgba(255,255,255,0.35); }
+    .signup-step__line {
+      flex: 1; height: 1px; background: rgba(255,255,255,0.15);
+      min-width: 16px; margin: 0 6px;
+    }
+
+    .signup-hero__title {
+      color: #fff;
+      font-family: var(--hnh-display);
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+      line-height: 1.2;
+    }
+    .signup-hero__sub {
+      margin-top: 8px;
+      color: rgba(255,255,255,0.68);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    /* ── Verified badge ── */
+    .signup-verified {
+      margin-top: 14px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(31,138,91,0.18);
+      border: 1px solid rgba(31,138,91,0.3);
+      border-radius: 10px;
+      padding: 7px 12px;
+    }
+    .signup-verified__icon {
+      width: 20px; height: 20px; border-radius: 50%;
+      background: rgba(31,138,91,0.35);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .signup-verified__text {
+      font-size: 12px; font-weight: 600; color: #7ee8b5;
+    }
+    .signup-verified__email {
+      font-size: 11px; color: rgba(255,255,255,0.5); margin-top: 1px;
+      word-break: break-all;
+    }
+
+    /* ── Form ── */
+    .signup-form {
+      flex: 1; padding: 28px 28px 24px;
+    }
+
+    .signup-section-label {
+      font-size: 11px; font-weight: 700; color: var(--hnh-ink-3);
+      letter-spacing: 0.7px; text-transform: uppercase; margin-bottom: 16px;
+    }
+
+    .signup-field { margin-bottom: 16px; }
+
+    .signup-label {
+      display: block;
+      font-size: 12px; font-weight: 700; color: var(--hnh-ink-2);
+      margin-bottom: 6px;
+    }
+
+    .signup-input {
+      width: 100%;
+      height: 48px;
+      padding: 0 14px;
+      border: 1.5px solid var(--hnh-line);
+      border-radius: 12px;
+      font-family: var(--hnh-font);
+      font-size: 14px;
+      color: var(--hnh-ink);
+      background: #fff;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      outline: none;
+    }
+    .signup-input:focus {
+      border-color: var(--hnh-navy);
+      box-shadow: 0 0 0 3px rgba(20,43,111,0.08);
+    }
+    .signup-input[readonly] {
+      background: var(--hnh-cream-2);
+      color: var(--hnh-ink-2);
+      cursor: default;
+    }
+    .signup-input--error { border-color: var(--hnh-red); }
+    .signup-input--error:focus { box-shadow: 0 0 0 3px rgba(192,34,43,0.1); }
+
+    .signup-error-msg {
+      font-size: 12px; font-weight: 600; color: var(--hnh-red);
+      margin-top: 5px;
+    }
+
+    .signup-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+
+    /* ── Submit ── */
+    .signup-submit {
+      display: flex; align-items: center; justify-content: center;
+      gap: 8px;
+      width: 100%; height: 52px;
+      border-radius: 14px; border: none;
+      background: var(--hnh-red); color: #fff;
+      font-family: var(--hnh-font);
+      font-size: 15px; font-weight: 700;
+      cursor: pointer;
+      box-shadow: 0 8px 18px rgba(192,34,43,0.25);
+      transition: background 0.18s, transform 0.1s, box-shadow 0.18s;
+      margin-top: 8px;
+    }
+    .signup-submit:hover {
+      background: var(--hnh-red-dark);
+      box-shadow: 0 6px 14px rgba(192,34,43,0.32);
+      transform: translateY(-1px);
+    }
+    .signup-submit:active { transform: translateY(0); }
+
+    .signup-back {
+      display: block; text-align: center;
+      font-size: 13px; font-weight: 600; color: var(--hnh-ink-3);
+      text-decoration: none; margin-top: 14px;
+      transition: color 0.15s;
+    }
+    .signup-back:hover { color: var(--hnh-navy); }
+
+    .signup-note {
+      margin-top: 20px;
+      padding: 12px 14px;
+      background: var(--hnh-cream-2);
+      border-radius: 10px;
+      font-size: 12px; color: var(--hnh-ink-3); line-height: 1.5;
+    }
+    .signup-note strong { color: var(--hnh-ink-2); }
+
+    /* ── Alert ── */
+    .signup-alert-wrap {
+      position: fixed; top: 16px; left: 50%; transform: translateX(-50%);
+      z-index: 100; max-width: 420px; width: 90%;
+    }
+    .signup-alert {
+      padding: 12px 16px; border-radius: 12px;
+      font-size: 13.5px; font-weight: 600; text-align: center;
+      margin-bottom: 8px;
+    }
+    .signup-alert--error {
+      background: #fdecee; color: var(--hnh-red); border: 1px solid #fad6da;
+    }
+    .signup-alert--success {
+      background: #e6f6ef; color: var(--hnh-success); border: 1px solid #b3dfc8;
+    }
+  </style>
 </head>
 
 <body>
-  <div id="main">
-    <div class="oh-alert-container">
-      {% for message in messages %}
-      <div class="oh-alert oh-alert--animated {{ message.tags }}">{{ message }}</div>
-      {% endfor %}
+  <div class="signup-alert-wrap">
+    {% for message in messages %}
+    <div class="signup-alert signup-alert--{% if message.tags == 'success' %}success{% else %}error{% endif %}">
+      {{ message }}
     </div>
+    {% endfor %}
+  </div>
 
-    <main class="oh-auth">
-      <div class="oh-auth-card mb-4">
+  <div class="signup-container">
 
-        <div class="text-center mb-3">
-          <img src="{% static 'images/ui/hnh-logo.png' %}"
-               alt="Hồng Ngọc Hà Travel"
-               style="max-width:160px; height:80px; object-fit:contain;" />
+    <!-- Hero -->
+    <div class="signup-hero">
+      <div class="signup-hero__arc"></div>
+      <div class="signup-hero__gold"></div>
+      <div class="signup-hero__content">
+
+        <!-- 3-step progress -->
+        <div class="signup-steps">
+          <div class="signup-step">
+            <div class="signup-step__dot signup-step__dot--done">✓</div>
+            <span class="signup-step__label signup-step__label--done">Xác thực</span>
+          </div>
+          <div class="signup-step__line"></div>
+          <div class="signup-step">
+            <div class="signup-step__dot signup-step__dot--active">2</div>
+            <span class="signup-step__label signup-step__label--active">Thông tin</span>
+          </div>
+          <div class="signup-step__line"></div>
+          <div class="signup-step">
+            <div class="signup-step__dot signup-step__dot--pending">3</div>
+            <span class="signup-step__label signup-step__label--pending">Bắt đầu</span>
+          </div>
         </div>
 
-        <h1 class="oh-onboarding-card__title oh-onboarding-card__title--h2 text-center my-3">
-          Tạo tài khoản HRM
-        </h1>
-        <p class="text-muted text-center mb-4" style="font-size:14px;">
-          Tài khoản Keycloak của bạn đã xác thực thành công.<br>
-          Vui lòng điền thêm thông tin để hoàn tất đăng ký.
-        </p>
-
-        <form method="post" action="/oidc/signup/" class="oh-form-group">
-          {% csrf_token %}
-
-          <div class="oh-input-group mb-3">
-            <label class="oh-label" for="first_name">Họ và tên <span style="color:#c0222b">*</span></label>
-            <input type="text" id="first_name" name="first_name"
-                   class="oh-input w-100 {% if errors.first_name %}is-invalid{% endif %}"
-                   value="{{ form.first_name|default:claims.first_name }}"
-                   placeholder="Nhập họ và tên" required />
-            {% if errors.first_name %}
-            <div class="invalid-feedback" style="color:#c0222b;font-size:13px;">{{ errors.first_name }}</div>
-            {% endif %}
-          </div>
-
-          <div class="oh-input-group mb-3">
-            <label class="oh-label" for="last_name">Tên đệm / tên riêng</label>
-            <input type="text" id="last_name" name="last_name"
-                   class="oh-input w-100"
-                   value="{{ form.last_name|default:claims.last_name }}"
-                   placeholder="Nhập tên riêng (nếu có)" />
-          </div>
-
-          <div class="oh-input-group mb-3">
-            <label class="oh-label" for="email">Email <span style="color:#c0222b">*</span></label>
-            <input type="email" id="email" name="email"
-                   class="oh-input w-100 {% if errors.email %}is-invalid{% endif %}"
-                   value="{{ form.email|default:claims.email }}"
-                   placeholder="Email công ty"
-                   {% if claims.email %}readonly style="background:#f5f5f5;"{% endif %}
-                   required />
-            {% if errors.email %}
-            <div class="invalid-feedback" style="color:#c0222b;font-size:13px;">{{ errors.email }}</div>
-            {% endif %}
-          </div>
-
-          <div class="oh-input-group mb-4">
-            <label class="oh-label" for="phone">Số điện thoại <span style="color:#c0222b">*</span></label>
-            <input type="tel" id="phone" name="phone"
-                   class="oh-input w-100 {% if errors.phone %}is-invalid{% endif %}"
-                   value="{{ form.phone|default:'' }}"
-                   placeholder="VD: 0901234567" required />
-            {% if errors.phone %}
-            <div class="invalid-feedback" style="color:#c0222b;font-size:13px;">{{ errors.phone }}</div>
-            {% endif %}
-          </div>
-
-          <button type="submit"
-                  class="oh-btn oh-onboarding-card__button oh-btn--secondary oh-btn--shadow w-100 mb-3"
-                  style="background:#c0222b;border-color:#c0222b;color:#fff;"
-                  role="button">
-            Đăng ký và vào hệ thống
-          </button>
-        </form>
-
-        <div class="text-center mt-2">
-          <a href="/login/" class="oh-link" style="font-size:13px;color:#666;">
-            ← Quay lại đăng nhập
-          </a>
+        <div class="signup-hero__title">Tạo tài khoản HRM</div>
+        <div class="signup-hero__sub">
+          Điền thêm thông tin cơ bản để hoàn tất đăng ký.
         </div>
 
-        <p class="text-muted text-center mt-4" style="font-size:12px;">
-          Vai trò mặc định: <strong>Nhân Viên</strong>. Quản trị viên có thể thay đổi sau khi tạo xong.
-        </p>
+        <!-- Verified badge -->
+        {% if claims.email %}
+        <div class="signup-verified">
+          <div class="signup-verified__icon">
+            <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+              <path d="M2 6l3 3 5-5" stroke="#7ee8b5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div>
+            <div class="signup-verified__text">Tài khoản đã xác thực</div>
+            <div class="signup-verified__email">{{ claims.email }}</div>
+          </div>
+        </div>
+        {% endif %}
 
       </div>
-    </main>
+    </div>
+
+    <!-- Form -->
+    <div class="signup-form">
+      <div class="signup-section-label">Thông tin cá nhân</div>
+
+      <form method="post" action="/oidc/signup/">
+        {% csrf_token %}
+
+        <!-- Tên -->
+        <div class="signup-row">
+          <div class="signup-field">
+            <label class="signup-label" for="last_name">
+              Họ <span style="color:var(--hnh-red)">*</span>
+            </label>
+            <input type="text" id="last_name" name="last_name"
+              class="signup-input{% if errors.last_name %} signup-input--error{% endif %}"
+              value="{{ form.last_name|default:claims.last_name }}"
+              placeholder="VD: Nguyễn" required />
+            {% if errors.last_name %}
+            <div class="signup-error-msg">{{ errors.last_name }}</div>
+            {% endif %}
+          </div>
+
+          <div class="signup-field">
+            <label class="signup-label" for="first_name">
+              Tên <span style="color:var(--hnh-red)">*</span>
+            </label>
+            <input type="text" id="first_name" name="first_name"
+              class="signup-input{% if errors.first_name %} signup-input--error{% endif %}"
+              value="{{ form.first_name|default:claims.first_name }}"
+              placeholder="VD: An" required />
+            {% if errors.first_name %}
+            <div class="signup-error-msg">{{ errors.first_name }}</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Email -->
+        <div class="signup-field">
+          <label class="signup-label" for="email">
+            Email <span style="color:var(--hnh-red)">*</span>
+          </label>
+          <input type="email" id="email" name="email"
+            class="signup-input{% if errors.email %} signup-input--error{% endif %}"
+            value="{{ form.email|default:claims.email }}"
+            placeholder="email@hnhtravel.work"
+            {% if claims.email %}readonly{% endif %}
+            required />
+          {% if errors.email %}
+          <div class="signup-error-msg">{{ errors.email }}</div>
+          {% endif %}
+        </div>
+
+        <!-- SĐT -->
+        <div class="signup-field">
+          <label class="signup-label" for="phone">
+            Số điện thoại <span style="color:var(--hnh-red)">*</span>
+          </label>
+          <input type="tel" id="phone" name="phone"
+            class="signup-input{% if errors.phone %} signup-input--error{% endif %}"
+            value="{{ form.phone|default:'' }}"
+            placeholder="VD: 0901 234 567"
+            required />
+          {% if errors.phone %}
+          <div class="signup-error-msg">{{ errors.phone }}</div>
+          {% endif %}
+        </div>
+
+        <!-- Submit -->
+        <button type="submit" class="signup-submit">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+            <circle cx="12" cy="7" r="4"/>
+          </svg>
+          Đăng ký và vào hệ thống
+        </button>
+
+      </form>
+
+      <a href="/login/" class="signup-back">← Quay lại đăng nhập</a>
+
+      <div class="signup-note">
+        <strong>Vai trò mặc định:</strong> Nhân Viên. Quản trị viên có thể điều chỉnh quyền hạn sau khi tài khoản được tạo.
+      </div>
+
+    </div>
   </div>
 </body>
-
 </html>
