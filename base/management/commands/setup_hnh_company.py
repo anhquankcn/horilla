@@ -391,6 +391,35 @@ class Command(BaseCommand):
                         sched.save()
                 mark = "✔"
                 self.stdout.write(f"  {mark} {shift_name}")
+
+            # [5c] Any shift with employees but no schedules → default T2-T6 08:00-17:00
+            self.stdout.write(self.style.MIGRATE_HEADING("\n[5c] Ca thiếu lịch — bổ sung mặc định T2-T6"))
+            from employee.models import EmployeeWorkInformation
+            shifts_with_staff = set(
+                EmployeeWorkInformation.objects.filter(shift_id__isnull=False)
+                .values_list("shift_id_id", flat=True)
+                .distinct()
+            )
+            shifts_no_sched = EmployeeShift.objects.filter(
+                employeeshiftschedule__isnull=True, id__in=shifts_with_staff
+            ).distinct()
+            default_days = ["monday", "tuesday", "wednesday", "thursday", "friday"]
+            for shift in shifts_no_sched:
+                for day_name in default_days:
+                    day_obj = day_objs.get(day_name)
+                    if not day_obj:
+                        continue
+                    EmployeeShiftSchedule.objects.get_or_create(
+                        shift_id=shift, day=day_obj,
+                        defaults={
+                            "start_time": dtime(8, 0),
+                            "end_time": dtime(17, 0),
+                            "minimum_working_hour": "08:00",
+                        },
+                    )
+                self.stdout.write(f"  ✔ {shift.employee_shift}")
+            if not shifts_no_sched:
+                self.stdout.write("  (không có ca nào thiếu lịch)")
         else:
             self.stdout.write("  [bỏ qua ca làm việc]")
 
