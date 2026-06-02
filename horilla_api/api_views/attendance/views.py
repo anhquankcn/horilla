@@ -508,6 +508,26 @@ class OvertimeApproveView(APIView):
         return Response(status=200)
 
 
+def _notify_attendance_request(request, attendance):
+    """Send push notification to reporting manager when an attendance request is submitted via API."""
+    try:
+        work_info = attendance.employee_id.employee_work_info
+        if not work_info.reporting_manager_id:
+            return
+        manager_user = work_info.reporting_manager_id.employee_user_id
+        employee = attendance.employee_id
+        notify.send(
+            request.user,
+            recipient=manager_user,
+            verb=f"{employee.employee_first_name} {employee.employee_last_name or ''} "
+                 f"đã gửi yêu cầu xác nhận ngày công ngày {attendance.attendance_date}",
+            redirect=f"/attendance/attendance-request-view/?id={attendance.id}",
+            icon="checkmark-circle-outline",
+        )
+    except Exception:
+        pass
+
+
 class AttendanceRequestView(APIView):
     """
     Handles requests for creating, updating, and viewing attendance records.
@@ -563,6 +583,7 @@ class AttendanceRequestView(APIView):
 
             if form.new_instance is not None:
                 form.new_instance.save()
+                _notify_attendance_request(request, form.new_instance)
 
             return Response(form.data, status=200)
         employee_id = request.data.get("employee_id")
@@ -593,13 +614,13 @@ class AttendanceRequestView(APIView):
             if attendance.request_type != "create_request":
                 attendance.requested_data = json.dumps(instance.serialize())
                 attendance.request_description = instance.request_description
-                # set the user level validation here
                 attendance.is_validate_request = True
                 attendance.save()
             else:
                 instance.is_validate_request_approved = False
                 instance.is_validate_request = True
                 instance.save()
+            _notify_attendance_request(request, attendance)
             return Response(form.data, status=200)
         return Response(form.errors, status=404)
 
