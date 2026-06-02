@@ -72,6 +72,7 @@ INSTALLED_APPS = [
     "attendance",
     "payroll",
     "training",
+    "promotion",
     "widget_tweaks",
     "django_apscheduler",
 ]

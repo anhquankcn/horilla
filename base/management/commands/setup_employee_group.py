@@ -20,6 +20,7 @@ EMPLOYEE_APPS = [
     "pms",              # KPI, mục tiêu, Feedback 360
     "training",         # khóa học, chứng chỉ
     "org-chart",        # cây tổ chức (xem)
+    "promotion-hub",    # hub thăng tiến (xem, submit phê duyệt)
 ]
 
 # Django permissions cho nhân viên thông thường

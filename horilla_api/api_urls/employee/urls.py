@@ -250,4 +250,9 @@ urlpatterns = [
         views.OrgChartView.as_view(),
         name="api-org-chart",
     ),
+    path(
+        "promotion-hub/",
+        views.PromotionHubView.as_view(),
+        name="api-promotion-hub",
+    ),
 ]

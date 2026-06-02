@@ -2030,7 +2030,7 @@ class MyAppsView(APIView):
     ALL_APP_SLUGS = [
         "attendance", "proposals", "approvals", "payslip", "notifications",
         "employees", "roles", "groups", "attendance-activity",
-        "tasks", "projects", "announcement-hub", "dashboard", "unified-calendar", "assets", "reports", "payroll-mgmt", "documents", "onboarding", "journey", "pms", "training", "org-chart",
+        "tasks", "projects", "announcement-hub", "dashboard", "unified-calendar", "assets", "reports", "payroll-mgmt", "documents", "onboarding", "journey", "pms", "training", "org-chart", "promotion-hub",
     ]
 
     def get(self, request):
@@ -4229,3 +4229,513 @@ class OrgChartView(APIView):
             "manager_id": mgr.id if manager_id else None,
             "manager_name": mgr.get_full_name() if manager_id else "",
         })
+
+
+class PromotionHubView(APIView):
+    """Hub Thăng Tiến: 9-Box → Đề xuất → Phê duyệt → Quyết định → Công bố."""
+
+    def _emp(self, request):
+        return getattr(request.user, "employee_get", None)
+
+    def _can_manage(self, request):
+        u = request.user
+        if u.is_superuser:
+            return True
+        return u.has_perm("promotion.add_promotionnomination") or u.has_perm(
+            "promotion.change_promotionnomination"
+        )
+
+    def _avatar(self, emp):
+        try:
+            if emp.employee_profile and emp.employee_profile.name:
+                return emp.employee_profile.url
+        except Exception:
+            pass
+        return None
+
+    def _nom_dict(self, nom, include_steps=False):
+        d = {
+            "id": nom.id,
+            "employee_id": nom.employee_id,
+            "employee_name": nom.employee.get_full_name(),
+            "employee_avatar": self._avatar(nom.employee),
+            "nominated_by_id": nom.nominated_by_id,
+            "nominated_by_name": nom.nominated_by.get_full_name() if nom.nominated_by else "",
+            "status": nom.status,
+            "status_label": nom.get_status_display(),
+            "current_job_position": str(nom.current_job_position) if nom.current_job_position else "",
+            "proposed_job_position": str(nom.proposed_job_position) if nom.proposed_job_position else "",
+            "current_department": str(nom.current_department) if nom.current_department else "",
+            "proposed_department": str(nom.proposed_department) if nom.proposed_department else "",
+            "nomination_reason": nom.nomination_reason,
+            "expected_date": str(nom.expected_date) if nom.expected_date else None,
+            "effective_date": str(nom.effective_date) if nom.effective_date else None,
+            "decision_notes": nom.decision_notes,
+            "created_at": nom.created_at.strftime("%d/%m/%Y"),
+            "ninebox_id": nom.ninebox_id,
+            "ninebox_label": nom.ninebox.quadrant_label if nom.ninebox else "",
+        }
+        if include_steps:
+            d["steps"] = [
+                {
+                    "id": s.id,
+                    "order": s.order,
+                    "role": s.role,
+                    "role_label": s.get_role_display(),
+                    "approver_id": s.approver_id,
+                    "approver_name": s.approver.get_full_name(),
+                    "status": s.status,
+                    "status_label": s.get_status_display(),
+                    "comment": s.comment,
+                    "decided_at": s.decided_at.strftime("%d/%m/%Y %H:%M") if s.decided_at else None,
+                }
+                for s in nom.approval_steps.order_by("order")
+            ]
+            try:
+                ann = nom.announcement
+                d["announcement"] = {
+                    "id": ann.id,
+                    "title": ann.title,
+                    "content": ann.content,
+                    "is_published": ann.is_published,
+                    "published_at": ann.published_at.strftime("%d/%m/%Y %H:%M") if ann.published_at else None,
+                }
+            except Exception:
+                d["announcement"] = None
+        return d
+
+    # ── GET dispatcher ─────────────────────────────────────────────────
+    def get(self, request):
+        from promotion.models import (
+            EmployeeNineBox,
+            PromotionNomination,
+            PromotionApprovalStep,
+            PromotionAnnouncement,
+        )
+        tab = request.GET.get("tab", "overview")
+        if tab == "overview":
+            return self._tab_overview(request)
+        if tab == "ninebox":
+            return self._tab_ninebox(request)
+        if tab == "nominations":
+            return self._tab_nominations(request)
+        if tab == "approvals":
+            return self._tab_approvals(request)
+        if tab == "announcements":
+            return self._tab_announcements(request)
+        return Response({"error": "Tab không hợp lệ"}, status=400)
+
+    def _tab_overview(self, request):
+        from promotion.models import PromotionNomination
+        emp = self._emp(request)
+        can_manage = self._can_manage(request)
+        pending_mine = []
+        if emp:
+            from promotion.models import PromotionApprovalStep
+            steps = PromotionApprovalStep.objects.filter(
+                approver=emp, status="pending"
+            ).select_related("nomination__employee", "nomination__proposed_job_position")
+            pending_mine = [
+                {
+                    "step_id": s.id,
+                    "nomination_id": s.nomination_id,
+                    "employee_name": s.nomination.employee.get_full_name(),
+                    "proposed_position": str(s.nomination.proposed_job_position or ""),
+                    "role_label": s.get_role_display(),
+                    "order": s.order,
+                }
+                for s in steps
+            ]
+        stats = {}
+        if can_manage:
+            stats = {
+                "draft": PromotionNomination.objects.filter(status="draft").count(),
+                "reviewing": PromotionNomination.objects.filter(status__in=["submitted", "reviewing"]).count(),
+                "approved": PromotionNomination.objects.filter(status="approved").count(),
+                "decided": PromotionNomination.objects.filter(status="decided").count(),
+                "announced": PromotionNomination.objects.filter(status="announced").count(),
+            }
+        return Response({"pending_mine": pending_mine, "stats": stats, "can_manage": can_manage})
+
+    def _tab_ninebox(self, request):
+        from promotion.models import EmployeeNineBox
+        can_manage = self._can_manage(request)
+        period = request.GET.get("period", "")
+        qs = EmployeeNineBox.objects.select_related("employee", "assessed_by")
+        if period:
+            qs = qs.filter(period=period)
+        periods = list(
+            EmployeeNineBox.objects.values_list("period", flat=True).distinct().order_by("-period")
+        )
+        employees_list = list(
+            Employee.objects.filter(is_active=True).values("id", "employee_first_name", "employee_last_name", "badge_id")
+        )
+        data = [
+            {
+                "id": a.id,
+                "employee_id": a.employee_id,
+                "employee_name": a.employee.get_full_name(),
+                "employee_avatar": self._avatar(a.employee),
+                "assessed_by_name": a.assessed_by.get_full_name() if a.assessed_by else "",
+                "period": a.period,
+                "performance": a.performance,
+                "potential": a.potential,
+                "quadrant_label": a.quadrant_label,
+                "notes": a.notes,
+                "assessed_date": str(a.assessed_date),
+            }
+            for a in qs
+        ]
+        return Response({
+            "assessments": data,
+            "periods": periods,
+            "employees": employees_list,
+            "can_manage": can_manage,
+        })
+
+    def _tab_nominations(self, request):
+        from promotion.models import PromotionNomination
+        from base.models import JobPosition, Department
+        can_manage = self._can_manage(request)
+        status_filter = request.GET.get("status", "")
+        qs = PromotionNomination.objects.select_related(
+            "employee", "nominated_by", "ninebox",
+            "current_job_position", "proposed_job_position",
+            "current_department", "proposed_department",
+        )
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        noms = [self._nom_dict(n, include_steps=True) for n in qs]
+        employees_list = list(
+            Employee.objects.filter(is_active=True).values("id", "employee_first_name", "employee_last_name")
+        )
+        positions = list(JobPosition.objects.values("id", "job_position"))
+        departments = list(Department.objects.values("id", "department"))
+        return Response({
+            "nominations": noms,
+            "employees": employees_list,
+            "positions": positions,
+            "departments": departments,
+            "can_manage": can_manage,
+        })
+
+    def _tab_approvals(self, request):
+        from promotion.models import PromotionApprovalStep, PromotionNomination
+        emp = self._emp(request)
+        can_manage = self._can_manage(request)
+        if can_manage:
+            qs = PromotionNomination.objects.filter(
+                status__in=["submitted", "reviewing"]
+            ).select_related("employee", "nominated_by", "proposed_job_position")
+            reviewing = [self._nom_dict(n, include_steps=True) for n in qs]
+        else:
+            reviewing = []
+        my_steps = []
+        if emp:
+            steps = PromotionApprovalStep.objects.filter(
+                approver=emp
+            ).select_related("nomination__employee", "nomination__proposed_job_position").order_by("-id")
+            my_steps = [
+                {
+                    "step_id": s.id,
+                    "nomination_id": s.nomination_id,
+                    "employee_name": s.nomination.employee.get_full_name(),
+                    "proposed_position": str(s.nomination.proposed_job_position or ""),
+                    "role_label": s.get_role_display(),
+                    "status": s.status,
+                    "status_label": s.get_status_display(),
+                    "order": s.order,
+                    "comment": s.comment,
+                    "decided_at": s.decided_at.strftime("%d/%m/%Y %H:%M") if s.decided_at else None,
+                }
+                for s in steps
+            ]
+        employees_list = list(
+            Employee.objects.filter(is_active=True).values("id", "employee_first_name", "employee_last_name")
+        )
+        return Response({
+            "reviewing": reviewing,
+            "my_steps": my_steps,
+            "employees": employees_list,
+            "can_manage": can_manage,
+        })
+
+    def _tab_announcements(self, request):
+        from promotion.models import PromotionAnnouncement, PromotionNomination
+        can_manage = self._can_manage(request)
+        anns = PromotionAnnouncement.objects.select_related(
+            "nomination__employee", "nomination__proposed_job_position", "created_by"
+        ).order_by("-created_at")
+        data = [
+            {
+                "id": a.id,
+                "title": a.title,
+                "content": a.content,
+                "is_published": a.is_published,
+                "published_at": a.published_at.strftime("%d/%m/%Y %H:%M") if a.published_at else None,
+                "created_at": a.created_at.strftime("%d/%m/%Y"),
+                "nomination_id": a.nomination_id,
+                "employee_name": a.nomination.employee.get_full_name(),
+                "proposed_position": str(a.nomination.proposed_job_position or ""),
+                "created_by_name": a.created_by.get_full_name() if a.created_by else "",
+            }
+            for a in anns
+        ]
+        decided = []
+        if can_manage:
+            noms = PromotionNomination.objects.filter(status="decided").exclude(
+                id__in=PromotionAnnouncement.objects.values_list("nomination_id", flat=True)
+            ).select_related("employee", "proposed_job_position")
+            decided = [self._nom_dict(n) for n in noms]
+        return Response({"announcements": data, "decided": decided, "can_manage": can_manage})
+
+    # ── POST dispatcher ─────────────────────────────────────────────────
+    def post(self, request):
+        action = request.data.get("action", "")
+        dispatch = {
+            "assess_ninebox": self._act_assess_ninebox,
+            "create_nomination": self._act_create_nomination,
+            "update_nomination": self._act_update_nomination,
+            "submit_nomination": self._act_submit_nomination,
+            "approve_step": self._act_approve_step,
+            "decide": self._act_decide,
+            "create_announcement": self._act_create_announcement,
+            "publish_announcement": self._act_publish_announcement,
+        }
+        fn = dispatch.get(action)
+        if not fn:
+            return Response({"error": "Action không hợp lệ"}, status=400)
+        return fn(request)
+
+    def _act_assess_ninebox(self, request):
+        from promotion.models import EmployeeNineBox
+        emp = self._emp(request)
+        if not emp:
+            return Response({"error": "Không xác định được nhân viên"}, status=400)
+        employee_id = request.data.get("employee_id")
+        period = (request.data.get("period") or "").strip()
+        performance = request.data.get("performance")
+        potential = request.data.get("potential")
+        notes = request.data.get("notes", "")
+        if not all([employee_id, period, performance, potential]):
+            return Response({"error": "Thiếu thông tin bắt buộc"}, status=400)
+        try:
+            target = Employee.objects.get(pk=employee_id, is_active=True)
+        except Employee.DoesNotExist:
+            return Response({"error": "Nhân viên không tồn tại"}, status=404)
+        obj, created = EmployeeNineBox.objects.update_or_create(
+            employee=target, period=period, assessed_by=emp,
+            defaults={"performance": int(performance), "potential": int(potential), "notes": notes},
+        )
+        return Response({"ok": True, "id": obj.id, "created": created, "quadrant_label": obj.quadrant_label})
+
+    def _act_create_nomination(self, request):
+        from promotion.models import PromotionNomination, EmployeeNineBox
+        from base.models import JobPosition, Department
+        if not self._can_manage(request):
+            return Response({"error": "Không có quyền"}, status=403)
+        emp = self._emp(request)
+        employee_id = request.data.get("employee_id")
+        if not employee_id:
+            return Response({"error": "Thiếu employee_id"}, status=400)
+        try:
+            target = Employee.objects.get(pk=employee_id, is_active=True)
+        except Employee.DoesNotExist:
+            return Response({"error": "Nhân viên không tồn tại"}, status=404)
+        ninebox_id = request.data.get("ninebox_id")
+        ninebox = None
+        if ninebox_id:
+            try:
+                ninebox = EmployeeNineBox.objects.get(pk=ninebox_id)
+            except EmployeeNineBox.DoesNotExist:
+                pass
+
+        def _get_pos(fid):
+            try:
+                return JobPosition.objects.get(pk=fid) if fid else None
+            except JobPosition.DoesNotExist:
+                return None
+
+        def _get_dept(fid):
+            try:
+                return Department.objects.get(pk=fid) if fid else None
+            except Department.DoesNotExist:
+                return None
+
+        nom = PromotionNomination.objects.create(
+            employee=target,
+            nominated_by=emp,
+            ninebox=ninebox,
+            current_job_position=_get_pos(request.data.get("current_job_position_id")),
+            proposed_job_position=_get_pos(request.data.get("proposed_job_position_id")),
+            current_department=_get_dept(request.data.get("current_department_id")),
+            proposed_department=_get_dept(request.data.get("proposed_department_id")),
+            nomination_reason=request.data.get("nomination_reason", ""),
+            expected_date=request.data.get("expected_date") or None,
+            status="draft",
+        )
+        return Response({"ok": True, "id": nom.id})
+
+    def _act_update_nomination(self, request):
+        from promotion.models import PromotionNomination
+        from base.models import JobPosition, Department
+        if not self._can_manage(request):
+            return Response({"error": "Không có quyền"}, status=403)
+        nom_id = request.data.get("nomination_id")
+        try:
+            nom = PromotionNomination.objects.get(pk=nom_id)
+        except PromotionNomination.DoesNotExist:
+            return Response({"error": "Không tìm thấy hồ sơ"}, status=404)
+        if nom.status not in ("draft", "submitted"):
+            return Response({"error": "Không thể sửa hồ sơ ở trạng thái này"}, status=400)
+
+        def _get_pos(fid):
+            try:
+                return JobPosition.objects.get(pk=fid) if fid else None
+            except JobPosition.DoesNotExist:
+                return None
+
+        def _get_dept(fid):
+            try:
+                return Department.objects.get(pk=fid) if fid else None
+            except Department.DoesNotExist:
+                return None
+
+        for field, val in [
+            ("nomination_reason", request.data.get("nomination_reason")),
+            ("expected_date", request.data.get("expected_date") or None),
+            ("proposed_job_position", _get_pos(request.data.get("proposed_job_position_id"))),
+            ("proposed_department", _get_dept(request.data.get("proposed_department_id"))),
+        ]:
+            if val is not None or field in ("expected_date",):
+                setattr(nom, field, val)
+        nom.save()
+        return Response({"ok": True})
+
+    def _act_submit_nomination(self, request):
+        from promotion.models import PromotionNomination, PromotionApprovalStep
+        if not self._can_manage(request):
+            return Response({"error": "Không có quyền"}, status=403)
+        nom_id = request.data.get("nomination_id")
+        try:
+            nom = PromotionNomination.objects.get(pk=nom_id)
+        except PromotionNomination.DoesNotExist:
+            return Response({"error": "Không tìm thấy hồ sơ"}, status=404)
+        if nom.status != "draft":
+            return Response({"error": "Chỉ có thể submit hồ sơ ở trạng thái Nháp"}, status=400)
+        steps_data = request.data.get("steps", [])
+        if not steps_data:
+            return Response({"error": "Cần ít nhất 1 bước phê duyệt"}, status=400)
+        nom.approval_steps.all().delete()
+        for i, s in enumerate(steps_data, start=1):
+            approver_id = s.get("approver_id")
+            try:
+                approver = Employee.objects.get(pk=approver_id, is_active=True)
+            except Employee.DoesNotExist:
+                return Response({"error": f"Người phê duyệt {approver_id} không tồn tại"}, status=404)
+            PromotionApprovalStep.objects.create(
+                nomination=nom,
+                approver=approver,
+                role=s.get("role", "other"),
+                order=i,
+                status="pending",
+            )
+        nom.status = "submitted"
+        nom.save()
+        return Response({"ok": True, "status": nom.status})
+
+    def _act_approve_step(self, request):
+        from promotion.models import PromotionApprovalStep
+        import django.utils.timezone as tz
+        emp = self._emp(request)
+        if not emp:
+            return Response({"error": "Không xác định được nhân viên"}, status=400)
+        step_id = request.data.get("step_id")
+        decision = request.data.get("decision", "approved")
+        comment = request.data.get("comment", "")
+        try:
+            step = PromotionApprovalStep.objects.select_related("nomination").get(pk=step_id, approver=emp)
+        except PromotionApprovalStep.DoesNotExist:
+            return Response({"error": "Không tìm thấy bước phê duyệt"}, status=404)
+        if step.status != "pending":
+            return Response({"error": "Bước này đã được xử lý"}, status=400)
+        step.status = decision
+        step.comment = comment
+        step.decided_at = tz.now()
+        step.save()
+        nom = step.nomination
+        if decision == "rejected":
+            nom.status = "rejected"
+            nom.save()
+        else:
+            all_steps = nom.approval_steps.all()
+            if all(s.status == "approved" for s in all_steps):
+                nom.status = "approved"
+                nom.save()
+            else:
+                nom.status = "reviewing"
+                nom.save()
+        return Response({"ok": True, "nomination_status": nom.status})
+
+    def _act_decide(self, request):
+        from promotion.models import PromotionNomination
+        import django.utils.timezone as tz
+        if not self._can_manage(request):
+            return Response({"error": "Không có quyền"}, status=403)
+        nom_id = request.data.get("nomination_id")
+        try:
+            nom = PromotionNomination.objects.get(pk=nom_id)
+        except PromotionNomination.DoesNotExist:
+            return Response({"error": "Không tìm thấy hồ sơ"}, status=404)
+        if nom.status != "approved":
+            return Response({"error": "Hồ sơ chưa được phê duyệt đầy đủ"}, status=400)
+        effective_date = request.data.get("effective_date")
+        decision_notes = request.data.get("decision_notes", "")
+        nom.effective_date = effective_date or None
+        nom.decision_notes = decision_notes
+        nom.status = "decided"
+        nom.save()
+        return Response({"ok": True})
+
+    def _act_create_announcement(self, request):
+        from promotion.models import PromotionNomination, PromotionAnnouncement
+        if not self._can_manage(request):
+            return Response({"error": "Không có quyền"}, status=403)
+        emp = self._emp(request)
+        nom_id = request.data.get("nomination_id")
+        title = (request.data.get("title") or "").strip()
+        content = (request.data.get("content") or "").strip()
+        if not all([nom_id, title, content]):
+            return Response({"error": "Thiếu thông tin"}, status=400)
+        try:
+            nom = PromotionNomination.objects.get(pk=nom_id)
+        except PromotionNomination.DoesNotExist:
+            return Response({"error": "Không tìm thấy hồ sơ"}, status=404)
+        if nom.status != "decided":
+            return Response({"error": "Hồ sơ chưa được quyết định"}, status=400)
+        ann, created = PromotionAnnouncement.objects.get_or_create(
+            nomination=nom,
+            defaults={"title": title, "content": content, "created_by": emp},
+        )
+        if not created:
+            ann.title = title
+            ann.content = content
+            ann.save()
+        return Response({"ok": True, "id": ann.id, "created": created})
+
+    def _act_publish_announcement(self, request):
+        from promotion.models import PromotionAnnouncement, PromotionNomination
+        import django.utils.timezone as tz
+        if not self._can_manage(request):
+            return Response({"error": "Không có quyền"}, status=403)
+        ann_id = request.data.get("announcement_id")
+        try:
+            ann = PromotionAnnouncement.objects.select_related("nomination").get(pk=ann_id)
+        except PromotionAnnouncement.DoesNotExist:
+            return Response({"error": "Không tìm thấy thông báo"}, status=404)
+        ann.is_published = True
+        ann.published_at = tz.now()
+        ann.save()
+        ann.nomination.status = "announced"
+        ann.nomination.save()
+        return Response({"ok": True, "published_at": ann.published_at.strftime("%d/%m/%Y %H:%M")})

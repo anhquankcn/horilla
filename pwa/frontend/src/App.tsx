@@ -42,6 +42,7 @@ import { JourneyPage } from './pages/Journey'
 import { PMSPage } from './pages/PMS'
 import { TrainingPage } from './pages/Training'
 import { OrgChartPage } from './pages/OrgChart'
+import { PromotionHubPage } from './pages/PromotionHub'
 
 export function App() {
   return (
@@ -87,6 +88,7 @@ export function App() {
         <Route path="/pms" element={<PMSPage />} />
         <Route path="/training" element={<TrainingPage />} />
         <Route path="/org-chart" element={<OrgChartPage />} />
+        <Route path="/promotion-hub" element={<PromotionHubPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
 

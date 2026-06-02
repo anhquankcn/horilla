@@ -77,6 +77,7 @@ const APP_FEATURES = [
   { slug: 'pms', label: 'Hiệu suất', icon: 'target', section: 'hrm' },
   { slug: 'training', label: 'Đào tạo', icon: 'book', section: 'hrm' },
   { slug: 'org-chart', label: 'Cây tổ chức', icon: 'sitemap', section: 'hrm' },
+  { slug: 'promotion-hub', label: 'Hub Thăng Tiến', icon: 'trophy', section: 'hrm' },
 ]
 
 /* ── Group Card ── */
