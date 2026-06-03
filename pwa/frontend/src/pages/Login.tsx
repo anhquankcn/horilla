@@ -67,7 +67,7 @@ export function LoginPage() {
               fontSize: 28, fontWeight: 800, letterSpacing: -0.5, lineHeight: 1.1,
             }}
           >
-            Chào buổi sáng,<br />HNH Travel.
+            Chào mừng,<br />HNH Travel.
           </div>
           <div
             style={{
@@ -82,8 +82,8 @@ export function LoginPage() {
 
       {/* Form */}
       <div className="flex flex-col flex-1" style={{ padding: '28px 24px 24px' }}>
-        <div style={{ fontSize: 11.5, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 8 }}>
-          Tài khoản
+        <div style={{ fontSize: 11.5, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.6, textTransform: 'uppercase', marginBottom: 16 }}>
+          Đăng nhập
         </div>
 
         {errorMsg && (
@@ -91,7 +91,7 @@ export function LoginPage() {
             className="flex items-center gap-2.5"
             style={{
               background: 'rgba(192,34,43,0.08)', border: `1px solid rgba(192,34,43,0.25)`,
-              borderRadius: 12, padding: '12px 14px', marginBottom: 12,
+              borderRadius: 12, padding: '12px 14px', marginBottom: 14,
             }}
           >
             <Icon name="alert" size={16} color={HNH.red} />
@@ -99,63 +99,22 @@ export function LoginPage() {
           </div>
         )}
 
-        <div
-          className="flex items-center gap-3"
-          style={{ background: HNH.cream2, borderRadius: 14, padding: '14px 16px', marginBottom: 10 }}
-        >
-          <Icon name="globe" size={18} color={HNH.ink3} />
-          <div className="flex-1">
-            <div style={{ fontSize: 10.5, color: HNH.ink3, fontWeight: 600 }}>Email công ty</div>
-            <div style={{ fontSize: 15, color: HNH.ink, fontWeight: 500 }}>ten.ban@hongngocha.com</div>
-          </div>
-        </div>
-
-        <div
-          className="flex items-center gap-3"
-          style={{ background: HNH.cream2, borderRadius: 14, padding: '14px 16px' }}
-        >
-          <Icon name="shield" size={18} color={HNH.ink3} />
-          <div className="flex-1">
-            <div style={{ fontSize: 10.5, color: HNH.ink3, fontWeight: 600 }}>Mật khẩu</div>
-            <div style={{ fontSize: 15, color: HNH.ink, letterSpacing: 4 }}>••••••••</div>
-          </div>
-          <span style={{ fontSize: 12.5, color: HNH.red, fontWeight: 600 }}>Quên?</span>
-        </div>
-
+        {/* SSO — primary action */}
         <button
-          className="border-none cursor-pointer"
+          onClick={handleSSO}
+          className="flex items-center justify-center gap-3 cursor-pointer border-none"
           style={{
-            marginTop: 22, height: 52, borderRadius: 14,
+            height: 54, borderRadius: 14,
             background: HNH.red, color: '#fff', fontWeight: 700, fontSize: 15.5,
             letterSpacing: 0.2,
             boxShadow: '0 8px 18px rgba(192,34,43,0.28)',
           }}
         >
-          Đăng nhập
-        </button>
-
-        <div
-          className="flex items-center gap-2.5"
-          style={{ margin: '18px 0', color: HNH.ink3, fontSize: 11.5, fontWeight: 600, letterSpacing: 0.4 }}
-        >
-          <div className="flex-1" style={{ height: 1, background: HNH.line }} />
-          HOẶC
-          <div className="flex-1" style={{ height: 1, background: HNH.line }} />
-        </div>
-
-        <button
-          onClick={handleSSO}
-          className="flex items-center justify-center gap-2.5 cursor-pointer"
-          style={{
-            height: 50, borderRadius: 14, border: `1.5px solid ${HNH.navy}`,
-            background: '#fff', color: HNH.navy, fontWeight: 700, fontSize: 14.5,
-          }}
-        >
           <span
             className="inline-flex items-center justify-center"
             style={{
-              width: 18, height: 18, borderRadius: 4,
-              background: HNH.navy, color: '#fff', fontSize: 10, fontWeight: 800,
+              width: 22, height: 22, borderRadius: 6,
+              background: 'rgba(255,255,255,0.2)', color: '#fff', fontSize: 9, fontWeight: 800,
             }}
           >
             SSO
@@ -163,11 +122,36 @@ export function LoginPage() {
           Đăng nhập qua HNHSSO
         </button>
 
+        {/* Info card */}
+        <div
+          className="flex items-start gap-3"
+          style={{ marginTop: 20, background: HNH.cream2, borderRadius: 14, padding: '14px 16px' }}
+        >
+          <div
+            className="flex items-center justify-center flex-shrink-0"
+            style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(20,43,111,0.08)' }}
+          >
+            <Icon name="shield" size={18} color={HNH.navy} />
+          </div>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: HNH.ink, marginBottom: 3 }}>Single Sign-On</div>
+            <div style={{ fontSize: 12.5, color: HNH.ink2, lineHeight: 1.5 }}>
+              Bảo vệ bởi xác thực OTP qua tài khoản công ty.<br />
+              Dùng email <strong style={{ color: HNH.ink }}>@hongngocha.com</strong> để đăng nhập.
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
         <div
           className="mt-auto text-center"
-          style={{ fontSize: 11.5, color: HNH.ink3, paddingTop: 24 }}
+          style={{ fontSize: 11.5, color: HNH.ink3, paddingTop: 28, lineHeight: 1.6 }}
         >
-          v2.4.1 · 185-187 Lê Thánh Tôn, P. Bến Thành, TP.HCM
+          185-187 Lê Thánh Tôn, Phường Bến Thành, TP. HCM<br />
+          <a href="https://hongngocha.com" target="_blank" rel="noopener noreferrer"
+            style={{ color: HNH.navy, textDecoration: 'none', fontWeight: 600 }}>
+            hongngocha.com
+          </a>
         </div>
       </div>
     </div>
