@@ -786,6 +786,21 @@ class JobRoleForm(ModelForm):
         model = JobRole
         fields = ["job_role", "job_position_id"]
 
+    def _post_clean(self):
+        if not self.instance.pk:
+            # For create, job_position_id is a ModelMultipleChoiceField that returns
+            # a QuerySet. Django's construct_instance would try to assign that QuerySet
+            # to the FK field, raising ValueError. Pop it temporarily so _post_clean
+            # skips the FK assignment; save() handles multi-position creation manually.
+            saved_jp = self.cleaned_data.pop("job_position_id", None)
+            try:
+                super()._post_clean()
+            finally:
+                if saved_jp is not None:
+                    self.cleaned_data["job_position_id"] = saved_jp
+        else:
+            super()._post_clean()
+
     def clean(self):
         cleaned_data = super().clean()
         job_position_id = cleaned_data.get("job_position_id")
