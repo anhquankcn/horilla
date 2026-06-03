@@ -1219,8 +1219,26 @@ class UserAttendanceDetailedView(APIView):
 class MyAttendanceActivitiesView(APIView):
     permission_classes = [IsAuthenticated]
 
+    @staticmethod
+    def _nearest_company(lat, lng, companies):
+        """Return (name, address, distance_m) for the company closest to lat/lng."""
+        if lat is None or lng is None or not companies:
+            return None, None, None
+        from geopy.distance import geodesic
+
+        best_name = best_addr = None
+        best_dist = float("inf")
+        point = (float(lat), float(lng))
+        for c in companies:
+            dist = geodesic(point, (c["latitude"], c["longitude"])).meters
+            if dist < best_dist:
+                best_dist = dist
+                best_name = c["company"]
+                best_addr = c["address"]
+        return best_name, best_addr, round(best_dist)
+
     def get(self, request, id):
-        from attendance.models import GPSCheckInLog
+        from base.models import Company
 
         attendance = get_object_or_404(Attendance, pk=id)
         employee = request.user.employee_get
@@ -1237,36 +1255,27 @@ class MyAttendanceActivitiesView(APIView):
         serializer = AttendanceActivitySerializer(activities, many=True)
         result = list(serializer.data)
 
-        # Enrich each activity with the GPS log taken at clock-in / clock-out
-        gps_logs = (
-            GPSCheckInLog.objects.filter(attendance_activity__in=activities)
-            .select_related("company")
-            .order_by("timestamp")
+        # Load companies that have coordinates configured
+        companies = list(
+            Company.objects.filter(
+                latitude__isnull=False, longitude__isnull=False
+            ).values("company", "address", "latitude", "longitude")
         )
-        # Keep the earliest log per (activity_id, action)
-        gps_map: dict = {}
-        for log in gps_logs:
-            key = (log.attendance_activity_id, log.action)
-            if key not in gps_map:
-                gps_map[key] = log
 
+        # Enrich each activity: compute nearest company + distance from activity GPS coords
         for i, act in enumerate(activities):
-            in_log = gps_map.get((act.id, "in"))
-            out_log = gps_map.get((act.id, "out"))
-            result[i]["gps_in_distance_m"] = round(in_log.distance_m) if in_log else None
-            result[i]["gps_in_company_name"] = (
-                in_log.company.company if in_log and in_log.company else None
+            name_in, addr_in, dist_in = self._nearest_company(
+                act.clock_in_latitude, act.clock_in_longitude, companies
             )
-            result[i]["gps_in_company_address"] = (
-                in_log.company.address if in_log and in_log.company else None
+            name_out, addr_out, dist_out = self._nearest_company(
+                act.clock_out_latitude, act.clock_out_longitude, companies
             )
-            result[i]["gps_out_distance_m"] = round(out_log.distance_m) if out_log else None
-            result[i]["gps_out_company_name"] = (
-                out_log.company.company if out_log and out_log.company else None
-            )
-            result[i]["gps_out_company_address"] = (
-                out_log.company.address if out_log and out_log.company else None
-            )
+            result[i]["gps_in_distance_m"] = dist_in
+            result[i]["gps_in_company_name"] = name_in
+            result[i]["gps_in_company_address"] = addr_in
+            result[i]["gps_out_distance_m"] = dist_out
+            result[i]["gps_out_company_name"] = name_out
+            result[i]["gps_out_company_address"] = addr_out
 
         return Response(result, status=200)
 
