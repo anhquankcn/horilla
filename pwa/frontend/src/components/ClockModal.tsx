@@ -114,16 +114,19 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
       gpsBody.photo = dataUrl
     }
 
-    let res: { geo_valid: boolean | null } | null = null
-    if (isClockedIn) {
-      res = await onClockOut(gpsBody)
-    } else {
-      res = await onClockIn(gpsBody)
+    try {
+      let res: { geo_valid: boolean | null } | null = null
+      if (isClockedIn) {
+        res = await onClockOut(gpsBody)
+      } else {
+        res = await onClockIn(gpsBody)
+      }
+      const geoValid = res?.geo_valid
+      setDone(geoValid === false ? 'pending' : 'valid')
+      setTimeout(() => onClose(), geoValid === false ? 2500 : 1200)
+    } catch {
+      setTimeout(() => onClose(), 1000)
     }
-
-    const geoValid = res?.geo_valid
-    setDone(geoValid === false ? 'pending' : 'valid')
-    setTimeout(() => onClose(), geoValid === false ? 2500 : 1200)
   }, [isClockedIn, onClockIn, onClockOut, capture, geo.position, onClose])
 
   if (!open) return null
