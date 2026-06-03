@@ -1262,6 +1262,11 @@ class EmployeeDirectoryView(APIView):
                         if wi and wi.reporting_manager_id
                         else None
                     ),
+                    "reporting_manager_id": (
+                        wi.reporting_manager_id_id
+                        if wi and wi.reporting_manager_id_id
+                        else None
+                    ),
                 }
             )
 
@@ -1936,6 +1941,7 @@ class EmployeeProfileView(APIView):
             "employee_type": wi.employee_type_id.employee_type if wi and wi.employee_type_id else None,
             "date_joining": wi.date_joining.isoformat() if wi and wi.date_joining else None,
             "reporting_manager": wi.reporting_manager_id.get_full_name() if wi and wi.reporting_manager_id else None,
+            "reporting_manager_id": wi.reporting_manager_id_id if wi and wi.reporting_manager_id_id else None,
         }
 
         work_level_data = None
