@@ -49,16 +49,19 @@ def _build_employee_response(user):
 
 class LoginAPIView(APIView):
     def post(self, request):
-        if "username" and "password" in request.data.keys():
-            username = request.data.get("username")
-            password = request.data.get("password")
-            user = authenticate(username=username, password=password)
-            if user:
-                return Response(_build_employee_response(user), status=200)
-            else:
-                return Response({"error": "Invalid credentials"}, status=401)
-        else:
-            return Response({"error": "Please provide Username and Password"})
+        username = request.data.get("username", "").strip()
+        password = request.data.get("password", "").strip()
+        if not username or not password:
+            return Response({"error": "Please provide Username and Password"}, status=400)
+        user = authenticate(username=username, password=password)
+        if not user:
+            return Response({"error": "Invalid credentials"}, status=401)
+        try:
+            data = _build_employee_response(user)
+        except Exception as exc:
+            logger.error("Login response build failed for user %s: %s", username, exc)
+            return Response({"error": "Account setup incomplete — no employee profile linked"}, status=500)
+        return Response(data, status=200)
 
 
 class OIDCLoginAPIView(APIView):
