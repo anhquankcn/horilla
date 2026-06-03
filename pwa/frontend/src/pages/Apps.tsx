@@ -294,6 +294,11 @@ export function AppsPage() {
 
   const iconBox = isTablet ? 56 : 48
 
+  const getGroups = (app: AppCard) => {
+    const all = groupFeatures(app.features, allowedApps)
+    return isTablet ? all : all.filter(g => g.group === 'use')
+  }
+
   return (
     <div style={{ background: HNH.cream, minHeight: '100%' }}>
       <TopBar
@@ -310,16 +315,20 @@ export function AppsPage() {
                     <AppHeader app={app} />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    {groupFeatures(app.features, allowedApps).map(({ group, items }) => (
-                      <div key={group}>
-                        <GroupLabel group={group} variant="light" />
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          {items.map(f => (
-                            <FeatureRow key={f.label} f={f} onTap={() => f.path && navigate(f.path)} />
-                          ))}
+                    {(() => {
+                      const groups = getGroups(app)
+                      const multi = groups.length > 1
+                      return groups.map(({ group, items }) => (
+                        <div key={group}>
+                          {multi && <GroupLabel group={group} variant="light" />}
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {items.map(f => (
+                              <FeatureRow key={f.label} f={f} onTap={() => f.path && navigate(f.path)} />
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))
+                    })()}
                   </div>
                 </>
               ) : (
@@ -367,21 +376,25 @@ export function AppsPage() {
                       borderRadius: 16, padding: '14px 16px',
                     }}
                   >
-                    {groupFeatures(app.features, allowedApps).map(({ group, items }, gi) => (
-                      <div key={group} style={{ marginTop: gi > 0 ? 10 : 0 }}>
-                        <GroupLabel group={group} variant="light" />
-                        <div className="flex flex-wrap gap-4" style={{ paddingTop: 2 }}>
-                          {items.map(f => (
-                            <FeatureIcon
-                              key={f.label}
-                              f={f}
-                              iconBox={iconBox}
-                              onTap={() => f.path && navigate(f.path)}
-                            />
-                          ))}
+                    {(() => {
+                      const groups = getGroups(app)
+                      const multi = groups.length > 1
+                      return groups.map(({ group, items }, gi) => (
+                        <div key={group} style={{ marginTop: gi > 0 ? 10 : 0 }}>
+                          {multi && <GroupLabel group={group} variant="light" />}
+                          <div className="flex flex-wrap gap-4" style={{ paddingTop: 2 }}>
+                            {items.map(f => (
+                              <FeatureIcon
+                                key={f.label}
+                                f={f}
+                                iconBox={iconBox}
+                                onTap={() => f.path && navigate(f.path)}
+                              />
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ))
+                    })()}
                   </div>
                 </div>
               )}

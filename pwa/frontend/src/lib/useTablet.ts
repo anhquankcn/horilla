@@ -1,16 +1,31 @@
 import { useState, useEffect } from 'react'
 
-const TABLET_MIN = 640
+// Real tablet / desktop: wide in any orientation
+const WIDE_MIN = 768
+// Phone landscape: enough pixels to use side-nav layout
+const LANDSCAPE_MIN = 600
+
+function check(): boolean {
+  return (
+    window.matchMedia(`(min-width: ${WIDE_MIN}px)`).matches ||
+    window.matchMedia(`(min-width: ${LANDSCAPE_MIN}px) and (orientation: landscape)`).matches
+  )
+}
 
 export function useTablet() {
-  const [isTablet, setIsTablet] = useState(() => window.innerWidth >= TABLET_MIN)
+  const [isTablet, setIsTablet] = useState(check)
 
   useEffect(() => {
-    const mq = window.matchMedia(`(min-width: ${TABLET_MIN}px)`)
-    const handler = (e: MediaQueryListEvent) => setIsTablet(e.matches)
-    mq.addEventListener('change', handler)
-    setIsTablet(mq.matches)
-    return () => mq.removeEventListener('change', handler)
+    const mqWide      = window.matchMedia(`(min-width: ${WIDE_MIN}px)`)
+    const mqLandscape = window.matchMedia(`(min-width: ${LANDSCAPE_MIN}px) and (orientation: landscape)`)
+    const handler = () => setIsTablet(check())
+    mqWide.addEventListener('change', handler)
+    mqLandscape.addEventListener('change', handler)
+    setIsTablet(check())
+    return () => {
+      mqWide.removeEventListener('change', handler)
+      mqLandscape.removeEventListener('change', handler)
+    }
   }, [])
 
   return isTablet
