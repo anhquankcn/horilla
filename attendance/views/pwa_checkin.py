@@ -136,6 +136,8 @@ def pwa_checkin_api(request):
         distance_m=distance_m,
         source="pwa",
         is_offline_sync=is_offline,
+        company=company,
+        action=action,
     )
 
     if selfie_b64:

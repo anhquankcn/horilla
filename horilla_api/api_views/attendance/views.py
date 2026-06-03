@@ -1220,18 +1220,55 @@ class MyAttendanceActivitiesView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, id):
+        from attendance.models import GPSCheckInLog
+
         attendance = get_object_or_404(Attendance, pk=id)
         employee = request.user.employee_get
         if attendance.employee_id != employee:
             return Response(
                 {"error": "Permission denied"}, status=status.HTTP_403_FORBIDDEN
             )
-        activities = AttendanceActivity.objects.filter(
-            employee_id=employee,
-            attendance_date=attendance.attendance_date,
-        ).order_by("id")
+        activities = list(
+            AttendanceActivity.objects.filter(
+                employee_id=employee,
+                attendance_date=attendance.attendance_date,
+            ).order_by("id")
+        )
         serializer = AttendanceActivitySerializer(activities, many=True)
-        return Response(serializer.data, status=200)
+        result = list(serializer.data)
+
+        # Enrich each activity with the GPS log taken at clock-in / clock-out
+        gps_logs = (
+            GPSCheckInLog.objects.filter(attendance_activity__in=activities)
+            .select_related("company")
+            .order_by("timestamp")
+        )
+        # Keep the earliest log per (activity_id, action)
+        gps_map: dict = {}
+        for log in gps_logs:
+            key = (log.attendance_activity_id, log.action)
+            if key not in gps_map:
+                gps_map[key] = log
+
+        for i, act in enumerate(activities):
+            in_log = gps_map.get((act.id, "in"))
+            out_log = gps_map.get((act.id, "out"))
+            result[i]["gps_in_distance_m"] = round(in_log.distance_m) if in_log else None
+            result[i]["gps_in_company_name"] = (
+                in_log.company.company if in_log and in_log.company else None
+            )
+            result[i]["gps_in_company_address"] = (
+                in_log.company.address if in_log and in_log.company else None
+            )
+            result[i]["gps_out_distance_m"] = round(out_log.distance_m) if out_log else None
+            result[i]["gps_out_company_name"] = (
+                out_log.company.company if out_log and out_log.company else None
+            )
+            result[i]["gps_out_company_address"] = (
+                out_log.company.address if out_log and out_log.company else None
+            )
+
+        return Response(result, status=200)
 
 
 class MyScheduleAPIView(APIView):

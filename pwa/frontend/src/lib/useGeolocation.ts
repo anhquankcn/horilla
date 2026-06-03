@@ -15,7 +15,7 @@ export interface GeolocationState {
   refresh: () => void
 }
 
-const HNH_OFFICE = { lat: 10.7726, lng: 106.6990, radius: 200 }
+const HNH_OFFICE = { lat: 10.77262, lng: 106.69681, radius: 200 }
 
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371000

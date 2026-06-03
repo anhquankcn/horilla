@@ -1577,6 +1577,18 @@ class GPSCheckInLog(models.Model):
     source = models.CharField(max_length=20, default="pwa")
     timestamp = models.DateTimeField(auto_now_add=True)
     is_offline_sync = models.BooleanField(default=False)
+    company = models.ForeignKey(
+        "base.Company",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="gps_checkin_logs",
+    )
+    action = models.CharField(
+        max_length=3,
+        choices=[("in", "Clock in"), ("out", "Clock out")],
+        default="in",
+    )
 
     class Meta:
         ordering = ["-timestamp"]

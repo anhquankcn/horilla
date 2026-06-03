@@ -19,6 +19,12 @@ interface Activity {
   clock_out_longitude: string | null
   clock_out_address: string | null
   clock_out_photo: string | null
+  gps_in_distance_m: number | null
+  gps_in_company_name: string | null
+  gps_in_company_address: string | null
+  gps_out_distance_m: number | null
+  gps_out_company_name: string | null
+  gps_out_company_address: string | null
 }
 
 interface Props {
@@ -121,7 +127,23 @@ function ActivityCard({ activity, index, total }: { activity: Activity; index: n
             <span style={{ fontSize: 11, color: HNH.ink3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>Vào ca</span>
             <span style={{ fontSize: 15, fontWeight: 800, color: HNH.ink, fontFamily: "'Plus Jakarta Sans', monospace" }}>{inTime}</span>
           </div>
-          {(hasInGps || activity.clock_in_address) && (
+          {activity.gps_in_company_name && (
+            <div className="flex items-center gap-1" style={{ marginTop: 4 }}>
+              <Icon name="pin" size={11} color={HNH.success} stroke={1.5} />
+              <span style={{ fontSize: 10.5, color: HNH.ink2, fontWeight: 600 }}>
+                {activity.gps_in_company_name}
+                {activity.gps_in_distance_m != null && (
+                  <span style={{ color: HNH.ink3, fontWeight: 400 }}> · {activity.gps_in_distance_m}m</span>
+                )}
+              </span>
+            </div>
+          )}
+          {activity.gps_in_company_address && (
+            <div style={{ marginTop: 1, paddingLeft: 15 }}>
+              <span style={{ fontSize: 10, color: HNH.ink3 }}>{activity.gps_in_company_address}</span>
+            </div>
+          )}
+          {!activity.gps_in_company_name && (hasInGps || activity.clock_in_address) && (
             <div className="flex items-center gap-1" style={{ marginTop: 4 }}>
               <Icon name="pin" size={11} color={HNH.ink3} stroke={1.5} />
               <span style={{ fontSize: 10.5, color: HNH.ink3 }}>
@@ -151,7 +173,23 @@ function ActivityCard({ activity, index, total }: { activity: Activity; index: n
               {isOpen ? 'Chưa ra' : outTime}
             </span>
           </div>
-          {(hasOutGps || activity.clock_out_address) && (
+          {activity.gps_out_company_name && (
+            <div className="flex items-center gap-1" style={{ marginTop: 4 }}>
+              <Icon name="pin" size={11} color={HNH.navy} stroke={1.5} />
+              <span style={{ fontSize: 10.5, color: HNH.ink2, fontWeight: 600 }}>
+                {activity.gps_out_company_name}
+                {activity.gps_out_distance_m != null && (
+                  <span style={{ color: HNH.ink3, fontWeight: 400 }}> · {activity.gps_out_distance_m}m</span>
+                )}
+              </span>
+            </div>
+          )}
+          {activity.gps_out_company_address && (
+            <div style={{ marginTop: 1, paddingLeft: 15 }}>
+              <span style={{ fontSize: 10, color: HNH.ink3 }}>{activity.gps_out_company_address}</span>
+            </div>
+          )}
+          {!activity.gps_out_company_name && (hasOutGps || activity.clock_out_address) && (
             <div className="flex items-center gap-1" style={{ marginTop: 4 }}>
               <Icon name="pin" size={11} color={HNH.ink3} stroke={1.5} />
               <span style={{ fontSize: 10.5, color: HNH.ink3 }}>
