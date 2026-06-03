@@ -8,9 +8,15 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name="worklevel",
-            name="is_manager",
-            field=models.BooleanField(default=False, verbose_name="Cấp quản lý"),
+        migrations.SeparateDatabaseAndState(
+            # Column already exists in DB — only update Django's schema state
+            database_operations=[],
+            state_operations=[
+                migrations.AddField(
+                    model_name="worklevel",
+                    name="is_manager",
+                    field=models.BooleanField(default=False, verbose_name="Cấp quản lý"),
+                ),
+            ],
         ),
     ]

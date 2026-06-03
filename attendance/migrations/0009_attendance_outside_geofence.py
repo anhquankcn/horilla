@@ -8,9 +8,15 @@ class Migration(migrations.Migration):
     ]
 
     operations = [
-        migrations.AddField(
-            model_name="attendance",
-            name="attendance_outside_geofence",
-            field=models.BooleanField(default=False, verbose_name="Chấm công ngoài geofence"),
+        migrations.SeparateDatabaseAndState(
+            # Column already exists in DB — only update Django's schema state
+            database_operations=[],
+            state_operations=[
+                migrations.AddField(
+                    model_name="attendance",
+                    name="attendance_outside_geofence",
+                    field=models.BooleanField(default=False, verbose_name="Chấm công ngoài geofence"),
+                ),
+            ],
         ),
     ]
