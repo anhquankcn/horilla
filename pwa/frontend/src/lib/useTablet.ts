@@ -30,3 +30,20 @@ export function useTablet() {
 
   return isTablet
 }
+
+// iPhone 15 and smaller (logical width ≤ 393px)
+const SMALL_PHONE_MAX = 393
+
+export function useSmallPhone() {
+  const [isSmall, setIsSmall] = useState(() =>
+    window.matchMedia(`(max-width: ${SMALL_PHONE_MAX}px)`).matches
+  )
+  useEffect(() => {
+    const mq = window.matchMedia(`(max-width: ${SMALL_PHONE_MAX}px)`)
+    const handler = () => setIsSmall(mq.matches)
+    mq.addEventListener('change', handler)
+    setIsSmall(mq.matches)
+    return () => mq.removeEventListener('change', handler)
+  }, [])
+  return isSmall
+}
