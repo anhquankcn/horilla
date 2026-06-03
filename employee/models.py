@@ -1307,6 +1307,7 @@ class WorkLevel(HorillaModel):
     name = models.CharField(max_length=100, verbose_name="Tên cấp bậc")
     description = models.TextField(blank=True, null=True, verbose_name="Mô tả")
     color = models.CharField(max_length=20, default="#6c757d", verbose_name="Màu")
+    is_manager = models.BooleanField(default=False, verbose_name="Cấp quản lý")
 
     # 1. Mức lương BHXH
     bhxh_salary = models.DecimalField(

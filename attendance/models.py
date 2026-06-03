@@ -296,6 +296,9 @@ class Attendance(HorillaModel):
     attendance_validated = models.BooleanField(
         default=False, verbose_name=_("Attendance Validate")
     )
+    attendance_outside_geofence = models.BooleanField(
+        default=False, verbose_name="Chấm công ngoài geofence"
+    )
     at_work_second = models.IntegerField(null=True, blank=True)
     overtime_second = models.IntegerField(
         null=True, blank=True, verbose_name=_("Overtime In Second")

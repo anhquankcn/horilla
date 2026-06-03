@@ -82,15 +82,23 @@ def pwa_checkin_api(request):
     if action not in ("in", "out"):
         return JsonResponse({"success": False, "message": "action phải là 'in' hoặc 'out'"}, status=400)
 
+    # Determine work type — "Văn phòng" employees are subject to geofence confirmation
+    work_type_name = ""
+    try:
+        wi = employee.employee_work_info
+        if wi and wi.work_type_id:
+            work_type_name = wi.work_type_id.work_type
+    except Exception:
+        pass
+    is_van_phong = work_type_name == "Văn phòng"
+
     inside, distance_m, geo_err = check_geofence(lat, lng, company)
     if geo_err:
         return JsonResponse({"success": False, "message": geo_err}, status=500)
-    if not inside:
-        return JsonResponse({
-            "success": False,
-            "message": f"Ngoài phạm vi cho phép ({distance_m:.0f}m)",
-            "distance_m": distance_m,
-        }, status=400)
+
+    # Outside geofence: "Văn phòng" employees get soft flag (pending manager review),
+    # all other work types pass through unrestricted.
+    outside_geofence = not inside and distance_m > 0
 
     datetime_override = None
     is_offline = False
@@ -108,6 +116,12 @@ def pwa_checkin_api(request):
 
     if err:
         return JsonResponse({"success": False, "message": err}, status=400)
+
+    # Flag outside-geofence attendances for manager review
+    if outside_geofence and is_van_phong and attendance is not None:
+        attendance.attendance_outside_geofence = True
+        attendance.attendance_validated = False
+        attendance.save(update_fields=["attendance_outside_geofence", "attendance_validated"])
 
     last_activity = AttendanceActivity.objects.filter(
         employee_id=employee,
@@ -136,9 +150,14 @@ def pwa_checkin_api(request):
     log.save()
 
     action_label = "Check-in" if action == "in" else "Check-out"
+    if outside_geofence and is_van_phong:
+        msg = f"{action_label} thành công — ngoài phạm vi ({distance_m:.0f}m), chờ quản lý xác nhận"
+    else:
+        msg = f"{action_label} thành công ({distance_m:.0f}m)"
     return JsonResponse({
         "success": True,
-        "message": f"{action_label} thành công ({distance_m:.0f}m)",
+        "message": msg,
+        "outside_geofence": outside_geofence and is_van_phong,
         "distance_m": distance_m,
         "timestamp": datetime.now().isoformat(),
     })

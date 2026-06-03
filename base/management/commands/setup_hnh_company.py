@@ -5,6 +5,7 @@ Use --force to re-apply existing records.
 """
 
 from django.core.management.base import BaseCommand
+from django.db import transaction
 
 from base.models import (
     Company, Department, EmployeeShift, EmployeeShiftDay,
@@ -269,7 +270,7 @@ class Command(BaseCommand):
         force = options.get("force", False)
 
         # ── 1. Company ──────────────────────────────────────────────────
-        self.stdout.write(self.style.MIGRATE_HEADING("\n[1/6] Công ty"))
+        self.stdout.write(self.style.MIGRATE_HEADING("\n[1/8] Công ty"))
         company, created = Company.objects.get_or_create(
             company="Công ty Du lịch Hồng Ngọc Hà",
             defaults={
@@ -300,7 +301,7 @@ class Command(BaseCommand):
             self.stdout.write(f"    Công ty đã tồn tại: {company}")
 
         # ── 2. Departments ──────────────────────────────────────────────
-        self.stdout.write(self.style.MIGRATE_HEADING("\n[2/6] Phòng ban"))
+        self.stdout.write(self.style.MIGRATE_HEADING("\n[2/8] Phòng ban"))
         dept_map = {}
         for dept_name in DEPARTMENTS:
             dept, created = Department.objects.get_or_create(department=dept_name)
@@ -311,7 +312,7 @@ class Command(BaseCommand):
             self.stdout.write(f"  {mark} {dept_name}")
 
         # ── 3. Job Positions ────────────────────────────────────────────
-        self.stdout.write(self.style.MIGRATE_HEADING("\n[3/6] Vị trí công việc"))
+        self.stdout.write(self.style.MIGRATE_HEADING("\n[3/8] Vị trí công việc"))
         for dept_name, positions in JOB_POSITIONS:
             dept = dept_map.get(dept_name)
             if not dept:
@@ -325,7 +326,7 @@ class Command(BaseCommand):
                 self.stdout.write(f"    {mark} {pos_name}")
 
         # ── 4. Work Types ───────────────────────────────────────────────
-        self.stdout.write(self.style.MIGRATE_HEADING("\n[4/6] Loại hình công việc"))
+        self.stdout.write(self.style.MIGRATE_HEADING("\n[4/8] Loại hình công việc"))
         for wt_name in WORK_TYPES:
             wt, created = WorkType.objects.get_or_create(work_type=wt_name)
             mark = "✔" if created else " "
@@ -333,7 +334,7 @@ class Command(BaseCommand):
 
         # ── 5. Employee Shifts ──────────────────────────────────────────
         if not options.get("skip_shift"):
-            self.stdout.write(self.style.MIGRATE_HEADING("\n[5/6] Ca làm việc"))
+            self.stdout.write(self.style.MIGRATE_HEADING("\n[5/8] Ca làm việc"))
             all_companies = list(Company.objects.all())
             for shift_name, weekly_ft, full_ft in EMPLOYEE_SHIFTS:
                 shift, created = EmployeeShift.objects.get_or_create(
@@ -425,7 +426,7 @@ class Command(BaseCommand):
 
         # ── 6. Leave Types ──────────────────────────────────────────────
         if not options.get("skip_leave"):
-            self.stdout.write(self.style.MIGRATE_HEADING("\n[6/6] Loại nghỉ phép"))
+            self.stdout.write(self.style.MIGRATE_HEADING("\n[6/8] Loại nghỉ phép"))
             try:
                 from leave.models import LeaveType
                 for lt_cfg in LEAVE_TYPES:
@@ -457,10 +458,106 @@ class Command(BaseCommand):
         else:
             self.stdout.write("  [bỏ qua loại nghỉ phép]")
 
+        # ── 7. Geocode + GeoFencing ─────────────────────────────────────────
+        self.stdout.write(self.style.MIGRATE_HEADING("\n[7/8] Geocoding & GeoFencing"))
+        self._setup_geofencing(company, force)
+
+        # ── 8. Auto-assign Văn phòng work type to non-manager employees ──
+        self.stdout.write(self.style.MIGRATE_HEADING("\n[8/8] Gán hình thức Văn phòng cho nhân viên"))
+        self._assign_van_phong_work_type(force)
+
         self.stdout.write(self.style.SUCCESS("\n✅ Hoàn tất khởi tạo dữ liệu Công ty Hồng Ngọc Hà!"))
         self.stdout.write(
             "   Bước tiếp theo:\n"
             "   • Vào Admin > Companies để upload logo công ty\n"
             "   • Vào Leave > Leave Types để điều chỉnh ngày phép chi tiết\n"
             "   • Vào Attendance > Shifts để cấu hình lịch từng ca\n"
+            "   • Vào Employee > Work Levels để đánh dấu cấp quản lý (is_manager)\n"
         )
+
+    # ── Helpers ─────────────────────────────────────────────────────────────
+
+    def _setup_geofencing(self, company, force):
+        from geopy.geocoders import Nominatim
+        from geofencing.models import GeoFencing
+
+        address = f"{company.address}, {company.city}, Việt Nam"
+        lat, lng = None, None
+
+        # Forward geocode via Nominatim
+        try:
+            geolocator = Nominatim(user_agent="hnh-hrm-setup/1.0")
+            location = geolocator.geocode(address, timeout=10)
+            if location:
+                lat, lng = location.latitude, location.longitude
+                self.stdout.write(self.style.SUCCESS(
+                    f"  ✔ Geocoded: {lat:.6f}, {lng:.6f} ({location.address[:60]})"
+                ))
+            else:
+                raise ValueError("Nominatim không tìm thấy địa chỉ")
+        except Exception as exc:
+            # Fallback to known HCM coordinates near Quận 10
+            lat, lng = 10.7745, 106.6683
+            self.stdout.write(self.style.WARNING(
+                f"  ⚠ Geocoding thất bại ({exc}), dùng tọa độ mặc định: {lat}, {lng}"
+            ))
+
+        # Save lat/lng onto Company (no full_clean needed — plain FloatFields)
+        if company.latitude != lat or company.longitude != lng or force:
+            company.latitude = lat
+            company.longitude = lng
+            Company.objects.filter(pk=company.pk).update(latitude=lat, longitude=lng)
+            self.stdout.write(f"  ✔ Lưu tọa độ vào Company: {lat}, {lng}")
+
+        # Create/update GeoFencing — bypass full_clean() to avoid Nominatim round-trip
+        try:
+            gf = GeoFencing.objects.get(company_id=company)
+            if force:
+                gf.latitude = lat
+                gf.longitude = lng
+                gf.radius_in_meters = 200
+                gf.start = True
+                GeoFencing.objects.filter(pk=gf.pk).update(
+                    latitude=lat, longitude=lng, radius_in_meters=200, start=True
+                )
+                self.stdout.write(self.style.WARNING("  ↺ Cập nhật GeoFencing (radius=200m, start=True)"))
+            else:
+                self.stdout.write(f"  GeoFencing đã tồn tại: {gf.latitude}, {gf.longitude}, r={gf.radius_in_meters}m")
+        except GeoFencing.DoesNotExist:
+            GeoFencing.objects.bulk_create([
+                GeoFencing(
+                    company_id=company,
+                    latitude=lat,
+                    longitude=lng,
+                    radius_in_meters=200,
+                    start=True,
+                )
+            ])
+            self.stdout.write(self.style.SUCCESS("  ✔ Tạo GeoFencing mới (radius=200m, start=True)"))
+
+    def _assign_van_phong_work_type(self, force):
+        from employee.models import EmployeeWorkInformation, WorkLevel
+
+        try:
+            van_phong = WorkType.objects.get(work_type="Văn phòng")
+        except WorkType.DoesNotExist:
+            self.stdout.write(self.style.ERROR("  ✘ Chưa có WorkType 'Văn phòng'"))
+            return
+
+        manager_level_ids = list(
+            WorkLevel.objects.filter(is_manager=True).values_list("id", flat=True)
+        )
+
+        # Non-manager employees: exclude those whose Employee.work_level is flagged manager
+        qs = EmployeeWorkInformation.objects.all()
+        if manager_level_ids:
+            qs = qs.exclude(employee_id__work_level__id__in=manager_level_ids)
+
+        if not force:
+            # Only fill employees that have no work type set yet
+            qs = qs.filter(work_type_id__isnull=True)
+
+        count = qs.update(work_type_id=van_phong)
+        self.stdout.write(self.style.SUCCESS(
+            f"  ✔ Gán 'Văn phòng' cho {count} nhân viên (cấp quản lý được bỏ qua)"
+        ))

@@ -91,6 +91,8 @@ class Company(HorillaModel):
     objects = models.Manager()
     date_format = models.CharField(max_length=30, blank=True, null=True)
     time_format = models.CharField(max_length=20, blank=True, null=True)
+    latitude = models.FloatField(null=True, blank=True, verbose_name="Vĩ độ (Latitude)")
+    longitude = models.FloatField(null=True, blank=True, verbose_name="Kinh độ (Longitude)")
 
     class Meta:
         """
