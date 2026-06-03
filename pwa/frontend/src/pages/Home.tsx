@@ -436,6 +436,11 @@ function WeatherWidget({ name, hour }: { name: string; hour: number }) {
   const wmo = wx ? getWmo(wx.code) : null
   const location = wx ? [wx.suburb, wx.city].filter(Boolean).join(' · ') : null
 
+  useEffect(() => {
+    localStorage.setItem('hnh_sky_bg', skyBg)
+    window.dispatchEvent(new CustomEvent('hnh-sky-bg', { detail: skyBg }))
+  }, [skyBg])
+
   return (
     <div style={{
       background: skyBg, borderRadius: 22, padding: '18px 20px',

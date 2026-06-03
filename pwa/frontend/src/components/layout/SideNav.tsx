@@ -39,7 +39,7 @@ function NavIcon({ icon, active }: { icon: string; active: boolean }) {
   }
 }
 
-export function SideNav() {
+export function SideNav({ skyBg }: { skyBg?: string }) {
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -56,7 +56,7 @@ export function SideNav() {
       className="flex flex-col items-center shrink-0"
       style={{
         width: 76,
-        background: HNH.navy,
+        background: skyBg ?? HNH.navy,
         paddingTop: 12,
         gap: 2,
       }}

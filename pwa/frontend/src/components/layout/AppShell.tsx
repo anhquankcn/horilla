@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { Outlet } from 'react-router-dom'
 import { BottomNav } from './BottomNav'
 import { SideNav } from './SideNav'
@@ -6,6 +7,9 @@ import { Icon } from '../ui/Icon'
 import { useTablet } from '../../lib/useTablet'
 import { useNotificationPolling } from '../../lib/useNotificationPolling'
 import { WelcomeWizard } from '../WelcomeWizard'
+
+export const SKY_BG_EVENT = 'hnh-sky-bg'
+export const SKY_BG_KEY   = 'hnh_sky_bg'
 
 function switchToDesktop() {
   document.cookie = 'prefer_desktop=1;path=/;max-age=' + 60 * 60 * 24 * 365
@@ -16,13 +20,31 @@ export function AppShell() {
   const isTablet = useTablet()
   useNotificationPolling()
 
+  const [skyBg, setSkyBg] = useState<string>(
+    () => localStorage.getItem(SKY_BG_KEY) ?? HNH.navy
+  )
+
+  useEffect(() => {
+    const handler = (e: Event) => setSkyBg((e as CustomEvent<string>).detail)
+    window.addEventListener(SKY_BG_EVENT, handler)
+    return () => window.removeEventListener(SKY_BG_EVENT, handler)
+  }, [])
+
   return (
-    <div className="flex flex-col min-h-[100dvh]" style={{ background: HNH.cream }}>
+    <div
+      className="flex flex-col"
+      style={{
+        background: HNH.cream,
+        ...(isTablet ? { height: '100dvh', overflow: 'hidden' } : { minHeight: '100dvh' }),
+      }}
+    >
       <WelcomeWizard />
-      <div className="flex items-center justify-between shrink-0" style={{
-        padding: '6px 16px',
-        background: HNH.navy,
-      }}>
+
+      {/* Topbar */}
+      <div
+        className="flex items-center justify-between shrink-0"
+        style={{ padding: '6px 16px', background: skyBg }}
+      >
         <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>
           HNH Travel · {isTablet ? 'Tablet' : 'Mobile'}
         </span>
@@ -44,9 +66,9 @@ export function AppShell() {
       </div>
 
       {isTablet ? (
-        <div className="flex flex-1" style={{ minHeight: 0 }}>
-          <SideNav />
-          <div className="flex-1 overflow-auto flex flex-col" style={{ minHeight: 0 }}>
+        <div className="flex flex-1" style={{ minHeight: 0, overflow: 'hidden' }}>
+          <SideNav skyBg={skyBg} />
+          <div className="flex-1 overflow-auto" style={{ minHeight: 0 }}>
             <Outlet />
           </div>
         </div>
