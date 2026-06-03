@@ -69,12 +69,6 @@ class Command(BaseCommand):
             if emp.email:
                 emp_by_email[emp.email.strip().lower()] = emp
 
-        # Work info keyed by employee pk
-        work_infos: dict[int, EmployeeWorkInformation] = {
-            wi.employee_id_id: wi
-            for wi in EmployeeWorkInformation.objects.all()
-        }
-
         self.stdout.write(
             f"DB: {len(emp_by_badge)} có badge_id | {len(emp_by_email)} có email"
         )
@@ -121,8 +115,9 @@ class Command(BaseCommand):
                         self.stdout.write(f"  emp {r['badge_id']}: {emp_fields}")
 
                 # --- EmployeeWorkInformation ---
-                wi = work_infos.get(emp.pk)
-                if wi is None:
+                try:
+                    wi = EmployeeWorkInformation.objects.get(employee_id=emp)
+                except EmployeeWorkInformation.DoesNotExist:
                     wi = EmployeeWorkInformation(employee_id=emp)
 
                 wi_fields = []
@@ -147,10 +142,11 @@ class Command(BaseCommand):
                 if wi_fields:
                     if not dry:
                         if wi.pk:
-                            wi.save(update_fields=wi_fields)
+                            EmployeeWorkInformation.objects.filter(pk=wi.pk).update(
+                                **{f: getattr(wi, f) for f in wi_fields}
+                            )
                         else:
                             wi.save()
-                            work_infos[emp.pk] = wi
                     work_updated += 1
                     if options["verbosity"] >= 2:
                         self.stdout.write(f"  work {r['badge_id']}: {wi_fields}")
