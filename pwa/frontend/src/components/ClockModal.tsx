@@ -4,6 +4,17 @@ import { Icon } from './ui/Icon'
 import { Badge } from './ui/Badge'
 import { useGeolocation } from '../lib/useGeolocation'
 import { useTablet } from '../lib/useTablet'
+import { api } from '../lib/api'
+
+interface Office {
+  id: number
+  name: string
+  address: string
+  latitude: number
+  longitude: number
+  radius: number | null
+  active: boolean
+}
 
 interface ClockModalProps {
   open: boolean
@@ -15,6 +26,19 @@ interface ClockModalProps {
   acting: boolean
   onClockIn: (body?: Record<string, unknown>) => Promise<{ geo_valid: boolean | null } | null>
   onClockOut: (body?: Record<string, unknown>) => Promise<{ geo_valid: boolean | null } | null>
+}
+
+function haversineM(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000
+  const toRad = (d: number) => d * Math.PI / 180
+  const dLat = toRad(lat2 - lat1)
+  const dLng = toRad(lng2 - lng1)
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+}
+
+function fmtDist(m: number): string {
+  return m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`
 }
 
 function VerifyChip({ icon, label, value, ok, warn, bad }: {
@@ -49,6 +73,8 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
   const [selfie, setSelfie] = useState<string | null>(null)
   const [done, setDone] = useState<DoneState>(null)
   const wasClockedIn = useRef(false)
+  const [offices, setOffices] = useState<Office[]>([])
+  const [selectedOfficeId, setSelectedOfficeId] = useState<number | null>(null)
 
   useEffect(() => {
     if (!open) {
@@ -80,12 +106,41 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
     }
     start()
     geo.refresh()
+    api.get<Office[]>('/api/attendance/offices/').then(data => {
+      if (!mounted) return
+      setOffices(data)
+      if (data.length > 0) setSelectedOfficeId(data[0].id)
+    }).catch(() => {})
     return () => {
       mounted = false
       streamRef.current?.getTracks().forEach(t => t.stop())
       streamRef.current = null
     }
   }, [open])
+
+  // Sort offices by distance when GPS is ready; auto-select nearest
+  const officesWithDist = offices.map(o => ({
+    ...o,
+    dist: geo.position ? haversineM(geo.position.lat, geo.position.lng, o.latitude, o.longitude) : null,
+  })).sort((a, b) => {
+    if (a.dist === null && b.dist === null) return 0
+    if (a.dist === null) return 1
+    if (b.dist === null) return -1
+    return a.dist - b.dist
+  })
+
+  useEffect(() => {
+    if (geo.position && officesWithDist.length > 0 && officesWithDist[0].dist !== null) {
+      setSelectedOfficeId(officesWithDist[0].id)
+    }
+  }, [geo.position?.lat, geo.position?.lng])   // eslint-disable-line react-hooks/exhaustive-deps
+
+  const selectedOffice = officesWithDist.find(o => o.id === selectedOfficeId) ?? officesWithDist[0] ?? null
+
+  // Compute geo status against selected office
+  const selectedDist = selectedOffice?.dist ?? null
+  const selectedRadius = selectedOffice?.radius ?? 200
+  const isInsideSelected = selectedDist !== null ? selectedDist <= selectedRadius : null
 
   const capture = useCallback((): string | null => {
     const video = videoRef.current
@@ -113,6 +168,9 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
     if (dataUrl) {
       gpsBody.photo = dataUrl
     }
+    if (selectedOfficeId !== null) {
+      gpsBody.office_id = selectedOfficeId
+    }
 
     try {
       let res: { geo_valid: boolean | null } | null = null
@@ -127,20 +185,20 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
     } catch {
       setTimeout(() => onClose(), 1000)
     }
-  }, [isClockedIn, onClockIn, onClockOut, capture, geo.position, onClose])
+  }, [isClockedIn, onClockIn, onClockOut, capture, geo.position, selectedOfficeId, onClose])
 
   if (!open) return null
 
-  const isOutside = geo.inside === false
+  const isOutside = isInsideSelected === false
 
   const gpsLabel = geo.loading
     ? 'Đang định vị...'
     : geo.error
       ? geo.error
-      : geo.inside
-        ? `185-187 Lê Thánh Tôn · ±${Math.round(geo.position!.accuracy)}m`
-        : geo.distance != null
-          ? `Cách VP ${geo.distance < 1000 ? `${Math.round(geo.distance)}m` : `${(geo.distance / 1000).toFixed(1)}km`}`
+      : isInsideSelected
+        ? `${selectedOffice?.name ?? 'VP'} · ±${Math.round(geo.position!.accuracy)}m`
+        : selectedDist !== null
+          ? `Cách ${selectedOffice?.name ?? 'VP'} ${fmtDist(selectedDist)}`
           : 'Không xác định'
 
   const statusColor =
@@ -256,6 +314,49 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
             </div>
 
             <canvas ref={canvasRef} style={{ display: 'none' }} />
+
+            {/* Office picker */}
+            {officesWithDist.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 10.5, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 6 }}>
+                  Địa điểm chấm công
+                </div>
+                <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+                  {officesWithDist.map(o => {
+                    const isSelected = o.id === selectedOfficeId
+                    const inside = o.dist !== null ? o.dist <= (o.radius ?? 200) : null
+                    return (
+                      <button
+                        key={o.id}
+                        onClick={() => setSelectedOfficeId(o.id)}
+                        className="flex-shrink-0 border-none cursor-pointer text-left"
+                        style={{
+                          borderRadius: 12,
+                          padding: '8px 12px',
+                          background: isSelected ? HNH.navy : '#fff',
+                          border: `1.5px solid ${isSelected ? HNH.navy : HNH.line}`,
+                          minWidth: 120,
+                          maxWidth: 180,
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <div style={{ fontSize: 11.5, fontWeight: 700, color: isSelected ? '#fff' : HNH.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {o.name.replace(/^(Công ty|Cty)\s+/i, '')}
+                        </div>
+                        <div style={{ fontSize: 10, marginTop: 2, color: isSelected ? 'rgba(255,255,255,0.7)' : HNH.ink3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {o.dist !== null
+                            ? <span style={{ color: inside ? (isSelected ? '#86efac' : HNH.success) : (isSelected ? '#fca5a5' : HNH.red), fontWeight: 700 }}>
+                                {fmtDist(o.dist)} {inside ? '· Trong VP' : '· Ngoài VP'}
+                              </span>
+                            : o.address.slice(0, 28)
+                          }
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* GPS warning (before action) */}
             {!done && isOutside && (
@@ -404,12 +505,12 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
                 value={
                   geo.loading ? 'Đang định vị...'
                     : geo.error ? geo.error
-                    : geo.inside ? `±${Math.round(geo.position!.accuracy)}m`
-                    : geo.distance != null ? `Cách ${Math.round(geo.distance)}m`
+                    : isInsideSelected ? `±${Math.round(geo.position!.accuracy)}m`
+                    : selectedDist !== null ? `Cách ${fmtDist(selectedDist)}`
                     : '—'
                 }
-                ok={geo.inside === true}
-                bad={geo.inside === false}
+                ok={isInsideSelected === true}
+                bad={isInsideSelected === false}
                 warn={!!geo.error}
               />
               <VerifyChip

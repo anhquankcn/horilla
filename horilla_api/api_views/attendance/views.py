@@ -180,15 +180,24 @@ class ClockInAPIView(APIView):
 
     @staticmethod
     def _check_geofence(request, employee, attendance):
-        """Check GPS against company geofence. Returns True/False/None."""
+        """Check GPS against geofence of selected office (or employee's company). Returns True/False/None."""
         lat = request.data.get("latitude")
         lng = request.data.get("longitude")
         if lat is None or lng is None:
             return None
         try:
             from geofencing.utils import check_geofence
+            from base.models import Company
 
-            company = employee.get_company()
+            office_id = request.data.get("office_id")
+            if office_id:
+                try:
+                    company = Company.objects.get(id=office_id)
+                except Company.DoesNotExist:
+                    company = employee.get_company()
+            else:
+                company = employee.get_company()
+
             inside, distance_m, _ = check_geofence(lat, lng, company)
             if inside:
                 attendance.attendance_validated = True
@@ -295,6 +304,50 @@ class ClockOutAPIView(APIView):
             return inside
         except Exception:
             return None
+
+
+class OfficesAPIView(APIView):
+    """Return all company offices that have GPS coordinates configured via GeoFencing."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from base.models import Company
+        from geofencing.models import GeoFencing
+
+        fences = GeoFencing.objects.select_related("company_id").all()
+        result = []
+        for fence in fences:
+            company = fence.company_id
+            if company is None:
+                continue
+            result.append({
+                "id": company.id,
+                "name": company.company,
+                "address": company.address or "",
+                "latitude": fence.latitude,
+                "longitude": fence.longitude,
+                "radius": fence.radius_in_meters,
+                "active": fence.start,
+            })
+
+        # Also include companies with lat/lng set but no GeoFencing record
+        fenced_ids = {f.company_id_id for f in fences if f.company_id_id}
+        extra = Company.objects.exclude(id__in=fenced_ids).filter(
+            latitude__isnull=False, longitude__isnull=False
+        )
+        for company in extra:
+            result.append({
+                "id": company.id,
+                "name": company.company,
+                "address": company.address or "",
+                "latitude": company.latitude,
+                "longitude": company.longitude,
+                "radius": None,
+                "active": False,
+            })
+
+        return Response(result, status=200)
 
 
 class AttendanceView(APIView):

@@ -93,7 +93,8 @@ export function useClock(): UseClockResult {
 
   return {
     isClockedIn: !!status?.status,
-    duration: status?.status ? liveDuration : (status?.duration ?? '00:00:00'),
+    // When not clocked in and no clock_in today → show 00:00:00 (new day reset)
+    duration: status?.status ? liveDuration : (status?.clock_in ? (status?.duration ?? '00:00:00') : '00:00:00'),
     clockInTime: status?.clock_in ?? null,
     loading,
     acting,
