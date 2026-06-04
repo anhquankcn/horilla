@@ -468,6 +468,17 @@ class EmployeeWorkInformationUpdateForm(ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        # Quản lý chỉ được chọn từ nhân viên WorkLevel 1–5 (cùng công ty/chi nhánh)
+        manager_qs = Employee.objects.filter(
+            is_active=True,
+            work_level__isnull=False,
+            work_level__level_number__lte=5,
+        )
+        if self.instance and self.instance.pk and self.instance.company_id_id:
+            manager_qs = manager_qs.filter(
+                employee_work_info__company_id=self.instance.company_id
+            )
+        self.fields["reporting_manager_id"].queryset = manager_qs
         self.fields["department_id"].widget.attrs.update(
             {
                 "hx-target": "#id_job_position_id_parent_div",

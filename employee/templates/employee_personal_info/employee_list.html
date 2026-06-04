@@ -140,7 +140,19 @@
                   alt="Username"
                 />
               </div>
-              <span class="oh-profile__name oh-text--dark">{{emp}}</span>
+              <div>
+                <span class="oh-profile__name oh-text--dark">{{emp}}</span>
+                <div class="d-flex flex-wrap gap-1 mt-1">
+                  {% if emp.is_active %}
+                    <span style="display:inline-block;font-size:10px;font-weight:600;padding:1px 7px;border-radius:10px;background:#d1fae5;color:#065f46;white-space:nowrap">Đang làm</span>
+                  {% else %}
+                    <span style="display:inline-block;font-size:10px;font-weight:600;padding:1px 7px;border-radius:10px;background:#f3f4f6;color:#6b7280;white-space:nowrap">Đã nghỉ</span>
+                  {% endif %}
+                  {% if not emp.employee_work_info.reporting_manager_id %}
+                    <span style="display:inline-block;font-size:10px;font-weight:600;padding:1px 7px;border-radius:10px;background:#fef3c7;color:#92400e;white-space:nowrap" title="Chưa thiết lập Quản lý">⚠ Chưa có QL</span>
+                  {% endif %}
+                </div>
+              </div>
             </div>
           </div>
         </a>
