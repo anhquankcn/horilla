@@ -1931,8 +1931,23 @@ class WeatherProxyView(APIView):
     """Proxy thời tiết qua server — tránh iOS PWA chặn fetch đến external APIs."""
     permission_classes = [IsAuthenticated]
 
+    # wttr.in code → nearest WMO code used by frontend
+    _WTTR_WMO = {
+        113: 0, 116: 2, 119: 3, 122: 3,
+        143: 45, 248: 45, 260: 48,
+        176: 61, 293: 61, 353: 80,
+        263: 51, 266: 53, 281: 55,
+        296: 63, 299: 63, 302: 65, 305: 65, 308: 65, 356: 81, 359: 82,
+        311: 66, 314: 67,
+        323: 71, 326: 71, 368: 85,
+        329: 73, 332: 73, 365: 86,
+        335: 75, 338: 75,
+        386: 95, 389: 95, 392: 95, 395: 95, 200: 95,
+    }
+
     def get(self, request):
         import re
+        import json as _json
         import urllib.request
 
         lat = request.query_params.get("lat", "")
@@ -1945,19 +1960,16 @@ class WeatherProxyView(APIView):
 
         temp, code, suburb, city = 0, 0, "", ""
 
-        # Open-Meteo weather
+        # wttr.in — works reliably from server
         try:
-            wx_url = (
-                f"https://api.open-meteo.com/v1/forecast"
-                f"?latitude={lat_f:.4f}&longitude={lng_f:.4f}"
-                f"&current=temperature_2m,weather_code&timezone=Asia%2FHo_Chi_Minh"
-            )
-            import json as _json
-            req = urllib.request.Request(wx_url, headers={"User-Agent": "HNH-HRM/1.0"})
+            wx_url = f"https://wttr.in/{lat_f:.4f},{lng_f:.4f}?format=j1"
+            req = urllib.request.Request(wx_url, headers={"User-Agent": "HNH-HRM-Server/1.0"})
             with urllib.request.urlopen(req, timeout=8) as resp:
                 w = _json.loads(resp.read())
-            temp = round(w.get("current", {}).get("temperature_2m", 0))
-            code = w.get("current", {}).get("weather_code", 0)
+            cur = w["current_condition"][0]
+            temp = int(cur.get("temp_C", 0))
+            wttr_code = int(cur.get("weatherCode", 113))
+            code = self._WTTR_WMO.get(wttr_code, 0)
         except Exception:
             pass
 
