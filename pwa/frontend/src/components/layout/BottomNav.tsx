@@ -1,13 +1,14 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { HNH } from '../../lib/theme'
 
+// home | attend | [apps] | [ruby] | tasks | me  — apps+ruby are twin elevated centre buttons
 const tabs = [
-  { id: 'home', label: 'Trang chủ', path: '/' },
-  { id: 'apps', label: 'Ứng dụng', path: '/apps' },
+  { id: 'home',   label: 'Trang chủ', path: '/' },
   { id: 'attend', label: 'Chấm công', path: '/attendance' },
-  { id: 'ruby', label: 'Ruby AI', path: '/ruby' },
-  { id: 'tasks', label: 'Công việc', path: '/tasks' },
-  { id: 'me', label: 'Cá nhân', path: '/profile' },
+  { id: 'apps',   label: 'Ứng dụng',  path: '/apps' },
+  { id: 'ruby',   label: 'Ruby AI',   path: '/ruby' },
+  { id: 'tasks',  label: 'Công việc', path: '/tasks' },
+  { id: 'me',     label: 'Cá nhân',   path: '/profile' },
 ] as const
 
 function TabIcon({ name, active }: { name: string; active: boolean }) {
@@ -17,8 +18,6 @@ function TabIcon({ name, active }: { name: string; active: boolean }) {
   switch (name) {
     case 'home':
       return <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1v-8Z" stroke={c} strokeWidth={sw} strokeLinejoin="round" fill={fill}/></svg>
-    case 'apps':
-      return <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke={c} strokeWidth={sw} fill={fill}/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke={c} strokeWidth={sw} fill={fill}/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke={c} strokeWidth={sw} fill={fill}/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke={c} strokeWidth={sw} fill={fill}/></svg>
     case 'attend':
       return <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke={c} strokeWidth={sw} fill={fill}/><path d="M12 8v4l2.5 2.5" stroke={c} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round"/></svg>
     case 'tasks':
@@ -29,6 +28,34 @@ function TabIcon({ name, active }: { name: string; active: boolean }) {
   }
 }
 
+/** Elevated "Ứng dụng" button — navy/blue, mirrors RubyIcon layout */
+function AppsIcon({ active }: { active: boolean }) {
+  return (
+    <div
+      className="flex items-center justify-center"
+      style={{
+        width: 42, height: 42, borderRadius: 14,
+        background: active
+          ? `linear-gradient(135deg, ${HNH.navy2} 0%, #1d4ed8 100%)`
+          : `linear-gradient(135deg, #0d2259 0%, ${HNH.navy} 100%)`,
+        marginTop: -10,
+        boxShadow: active
+          ? '0 6px 16px rgba(20,43,111,0.50)'
+          : '0 4px 12px rgba(20,43,111,0.30)',
+      }}
+    >
+      {/* 2×2 rounded grid — universally recognised as "apps" */}
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+        <rect x="3"  y="3"  width="7.5" height="7.5" rx="2" fill="white"/>
+        <rect x="13.5" y="3"  width="7.5" height="7.5" rx="2" fill="white"/>
+        <rect x="3"  y="13.5" width="7.5" height="7.5" rx="2" fill="white"/>
+        <rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2" fill={active ? '#d4a017' : 'rgba(255,255,255,0.65)'}/>
+      </svg>
+    </div>
+  )
+}
+
+/** Elevated "Ruby AI" button */
 function RubyIcon({ active }: { active: boolean }) {
   return (
     <div
@@ -76,6 +103,22 @@ export function BottomNav() {
     >
       {tabs.map(t => {
         const isActive = activeTab === t.id
+
+        if (t.id === 'apps') {
+          return (
+            <button
+              key={t.id}
+              className="flex-1 flex flex-col items-center gap-1 p-1 bg-transparent border-none cursor-pointer"
+              onClick={() => navigate(t.path)}
+            >
+              <AppsIcon active={isActive} />
+              <span style={{ fontSize: 9.5, fontWeight: isActive ? 700 : 600, color: isActive ? HNH.navy : HNH.ink2, letterSpacing: -0.1 }}>
+                {t.label}
+              </span>
+            </button>
+          )
+        }
+
         if (t.id === 'ruby') {
           return (
             <button
@@ -90,6 +133,7 @@ export function BottomNav() {
             </button>
           )
         }
+
         return (
           <button
             key={t.id}
