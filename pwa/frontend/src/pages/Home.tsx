@@ -491,77 +491,64 @@ interface NotifItem {
   actor_name: string | null
 }
 
-function NotifTicker({ items }: { items: NotifItem[] }) {
-  if (items.length === 0) return null
-  const doubled = [...items, ...items]
-  const dur = Math.max(18, items.length * 5)
-  return (
-    <div style={{ overflow: 'hidden', position: 'relative' }}>
-      <style>{`@keyframes hnh-ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}`}</style>
-      <div style={{
-        display: 'flex', alignItems: 'center',
-        animation: `hnh-ticker ${dur}s linear infinite`,
-        width: 'max-content', padding: '6px 8px',
-      }}>
-        {doubled.map((n, i) => {
-          const isImportant = n.level === 'warning' || n.level === 'error'
-          const text = n.verb.replace(/^\[.*?\]\s*/, '')
-          return (
-            <div key={`${n.id}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 5, paddingRight: 20, whiteSpace: 'nowrap' }}>
-              {n.unread && (
-                <span style={{ fontSize: 8, fontWeight: 800, background: HNH.red, color: '#fff', padding: '1px 5px', borderRadius: 4, letterSpacing: 0.3 }}>MỚI</span>
-              )}
-              {isImportant && (
-                <span style={{ fontSize: 8, fontWeight: 800, background: '#f59e0b', color: '#fff', padding: '1px 5px', borderRadius: 4, letterSpacing: 0.3 }}>QUAN TRỌNG</span>
-              )}
-              <span style={{ fontSize: 12.5, color: n.unread ? HNH.ink : HNH.ink3, fontWeight: n.unread ? 600 : 400 }}>
-                {text.length > 70 ? text.slice(0, 70) + '…' : text}
-              </span>
-              <span style={{ color: HNH.ink4, marginLeft: 8, opacity: 0.4 }}>◆</span>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-function NotifTickerCard({ unreadCount, onClick }: { unreadCount: number; onClick: () => void }) {
+function NotifStrip({ onClick }: { onClick: () => void }) {
   const { data } = useApi<{ count: number; results: NotifItem[] }>('/api/notifications/list/all?page_size=20')
   const items = (data?.results ?? []).filter(n => !n.deleted)
   if (items.length === 0) return null
 
+  const doubled = [...items, ...items]
+  const dur = Math.max(18, items.length * 5)
+
   return (
-    <div style={{
-      background: '#fff', borderRadius: 16,
-      border: `1px solid ${HNH.line}`,
-      overflow: 'hidden',
-      boxShadow: '0 1px 3px rgba(15,20,40,0.05)',
-    }}>
-      <div className="flex items-center justify-between" style={{ padding: '8px 12px 6px' }}>
-        <div className="flex items-center gap-2">
-          <div style={{ width: 24, height: 24, borderRadius: 7, background: HNH.navy50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Icon name="bell" size={12} color={HNH.navy} stroke={2} />
-          </div>
-          <span style={{ fontSize: 13, fontWeight: 700, color: HNH.ink }}>Thông báo</span>
-          {unreadCount > 0 && (
-            <span style={{ fontSize: 9.5, fontWeight: 800, background: HNH.red, color: '#fff', padding: '1px 6px', borderRadius: 8, lineHeight: 1.6 }}>
-              {unreadCount}
-            </span>
-          )}
+    <button
+      onClick={onClick}
+      className="w-full border-none cursor-pointer text-left"
+      style={{ background: 'none', padding: 0 }}
+    >
+      <div style={{
+        display: 'flex', alignItems: 'center',
+        background: '#fff', border: `1px solid ${HNH.line}`,
+        borderRadius: 12, overflow: 'hidden', height: 30,
+        boxShadow: '0 1px 2px rgba(15,20,40,0.04)',
+      }}>
+        {/* Fixed left icon */}
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          width: 30, height: '100%', flexShrink: 0,
+          background: HNH.navy50, borderRight: `1px solid ${HNH.line}`,
+        }}>
+          <Icon name="bell" size={12} color={HNH.navy} stroke={2} />
         </div>
-        <button
-          onClick={onClick}
-          className="border-none bg-transparent cursor-pointer"
-          style={{ fontSize: 11, color: HNH.red, fontWeight: 600 }}
-        >
-          Xem tất cả →
-        </button>
+        {/* Scrolling ticker */}
+        <div style={{ flex: 1, overflow: 'hidden', height: '100%', position: 'relative' }}>
+          <style>{`@keyframes hnh-ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}`}</style>
+          <div style={{
+            display: 'flex', alignItems: 'center', height: '100%',
+            animation: `hnh-ticker ${dur}s linear infinite`,
+            width: 'max-content', padding: '0 6px',
+          }}>
+            {doubled.map((n, i) => {
+              const isImportant = n.level === 'warning' || n.level === 'error'
+              const text = n.verb.replace(/^\[.*?\]\s*/, '')
+              return (
+                <div key={`${n.id}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 5, paddingRight: 18, whiteSpace: 'nowrap' }}>
+                  {n.unread && (
+                    <span style={{ fontSize: 7.5, fontWeight: 800, background: HNH.red, color: '#fff', padding: '1px 4px', borderRadius: 3, letterSpacing: 0.3 }}>MỚI</span>
+                  )}
+                  {isImportant && (
+                    <span style={{ fontSize: 7.5, fontWeight: 800, background: '#f59e0b', color: '#fff', padding: '1px 4px', borderRadius: 3, letterSpacing: 0.3 }}>QUAN TRỌNG</span>
+                  )}
+                  <span style={{ fontSize: 11.5, color: n.unread ? HNH.ink : HNH.ink3, fontWeight: n.unread ? 600 : 400 }}>
+                    {text.length > 60 ? text.slice(0, 60) + '…' : text}
+                  </span>
+                  <span style={{ color: HNH.ink4, marginLeft: 8, fontSize: 8, opacity: 0.35 }}>◆</span>
+                </div>
+              )
+            })}
+          </div>
+        </div>
       </div>
-      <div style={{ borderTop: `1px solid ${HNH.line}` }}>
-        <NotifTicker items={items} />
-      </div>
-    </div>
+    </button>
   )
 }
 
@@ -704,6 +691,11 @@ export function HomePage() {
         </div>
       </div>
 
+      {/* Notification strip */}
+      <div style={{ padding: `0 ${px}px ${isSmall ? 8 : 10}px` }}>
+        <NotifStrip onClick={() => navigate('/notifications')} />
+      </div>
+
       {/* Weather widget */}
       <div style={{ padding: `0 ${px}px` }}>
         <WeatherWidget name={employee?.employee_first_name ?? 'bạn'} hour={now.getHours()} liveTime={time} compact={isSmall} />
@@ -728,11 +720,6 @@ export function HomePage() {
           compact={isSmall}
         />
         <EOfficeCompactCard tasks={tasks ?? null} compact={isSmall} onClick={() => navigate(TASK_WEBVIEW)} />
-      </div>
-
-      {/* Notification ticker */}
-      <div style={{ padding: `${isSmall ? 10 : 12}px ${px}px 0` }}>
-        <NotifTickerCard unreadCount={unreadCount} onClick={() => navigate('/notifications')} />
       </div>
 
       {/* Recent tasks */}
