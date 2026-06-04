@@ -441,41 +441,127 @@ function WorkScheduleWidget({ onClick }: { onClick: () => void }) {
         overflow: 'hidden',
         boxShadow: '0 1px 3px rgba(15,20,40,0.05)',
       }}>
-        {/* Header */}
-        <div className="flex items-center justify-between" style={{ padding: '10px 12px 8px' }}>
-          <div className="flex items-center gap-2">
-            <div style={{ width: 26, height: 26, borderRadius: 8, background: HNH.navy50, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Icon name="cal" size={14} color={HNH.navy} stroke={2} />
-            </div>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: HNH.ink }}>Lịch làm việc</div>
-              <div style={{ fontSize: 11, color: HNH.ink3, fontWeight: 500 }}>{schedCurrent.shift_name}</div>
-            </div>
-          </div>
-          <div className="flex items-center gap-1" style={{ fontSize: 11, color: HNH.red, fontWeight: 600 }}>
-            Chi tiết <Icon name="chev-r" size={12} color={HNH.red} stroke={2} />
-          </div>
-        </div>
-
         {/* Tuần này */}
-        <div style={{ borderTop: `1px solid ${HNH.line}` }}>
-          <div className="flex items-center justify-between" style={{ padding: '4px 10px 3px', background: HNH.navy50 }}>
-            <span style={{ fontSize: 9.5, fontWeight: 700, color: HNH.navy, letterSpacing: 0.3 }}>TUẦN NÀY</span>
-            <span style={{ fontSize: 9, color: HNH.ink3, fontWeight: 500 }}>{weekDateRange(schedCurrent)}</span>
+        <div>
+          <div className="flex items-center justify-between" style={{ padding: '5px 10px 4px', background: HNH.navy50 }}>
+            <div className="flex items-center gap-1" style={{ minWidth: 0, overflow: 'hidden' }}>
+              <Icon name="cal" size={11} color={HNH.navy} stroke={2} />
+              <span style={{ fontSize: 9.5, fontWeight: 700, color: HNH.navy, letterSpacing: 0.3, whiteSpace: 'nowrap' }}>TUẦN NÀY</span>
+              {schedCurrent.shift_name && (
+                <span style={{ fontSize: 9, color: HNH.navy, opacity: 0.65, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  · {schedCurrent.shift_name}
+                </span>
+              )}
+            </div>
+            <span style={{ fontSize: 9, color: HNH.ink3, fontWeight: 500, flexShrink: 0, marginLeft: 6 }}>{weekDateRange(schedCurrent)}</span>
           </div>
           <WeekStrip schedule={schedCurrent} todayIso={todayIso} />
         </div>
 
         {/* Tuần tới */}
         <div style={{ borderTop: `1px solid ${HNH.line}` }}>
-          <div className="flex items-center justify-between" style={{ padding: '4px 10px 3px', background: '#f8f9fc' }}>
-            <span style={{ fontSize: 9.5, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.3 }}>TUẦN TỚI</span>
-            <span style={{ fontSize: 9, color: HNH.ink3, fontWeight: 500 }}>{weekDateRange(schedNext)}</span>
+          <div className="flex items-center justify-between" style={{ padding: '5px 10px 4px', background: '#f0f3fa' }}>
+            <div className="flex items-center gap-1" style={{ minWidth: 0, overflow: 'hidden' }}>
+              <Icon name="cal" size={11} color={HNH.ink3} stroke={2} />
+              <span style={{ fontSize: 9.5, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.3, whiteSpace: 'nowrap' }}>TUẦN TỚI</span>
+              {(schedNext?.shift_name ?? schedCurrent.shift_name) && (
+                <span style={{ fontSize: 9, color: HNH.ink3, opacity: 0.7, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  · {schedNext?.shift_name ?? schedCurrent.shift_name}
+                </span>
+              )}
+            </div>
+            <span style={{ fontSize: 9, color: HNH.ink3, fontWeight: 500, flexShrink: 0, marginLeft: 6 }}>{weekDateRange(schedNext)}</span>
           </div>
           <WeekStrip schedule={schedNext} todayIso={todayIso} />
         </div>
       </div>
     </button>
+  )
+}
+
+/* ── Notification ticker ── */
+interface NotifItem {
+  id: number
+  level: string        // 'info' | 'warning' | 'error' | 'success'
+  unread: boolean
+  verb: string
+  description: string | null
+  timestamp: string
+  deleted?: boolean
+  actor_name: string | null
+}
+
+function NotifTicker({ items }: { items: NotifItem[] }) {
+  if (items.length === 0) return null
+  const doubled = [...items, ...items]
+  const dur = Math.max(18, items.length * 5)
+  return (
+    <div style={{ overflow: 'hidden', position: 'relative' }}>
+      <style>{`@keyframes hnh-ticker{0%{transform:translateX(0)}100%{transform:translateX(-50%)}}`}</style>
+      <div style={{
+        display: 'flex', alignItems: 'center',
+        animation: `hnh-ticker ${dur}s linear infinite`,
+        width: 'max-content', padding: '6px 8px',
+      }}>
+        {doubled.map((n, i) => {
+          const isImportant = n.level === 'warning' || n.level === 'error'
+          const text = n.verb.replace(/^\[.*?\]\s*/, '')
+          return (
+            <div key={`${n.id}-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 5, paddingRight: 20, whiteSpace: 'nowrap' }}>
+              {n.unread && (
+                <span style={{ fontSize: 8, fontWeight: 800, background: HNH.red, color: '#fff', padding: '1px 5px', borderRadius: 4, letterSpacing: 0.3 }}>MỚI</span>
+              )}
+              {isImportant && (
+                <span style={{ fontSize: 8, fontWeight: 800, background: '#f59e0b', color: '#fff', padding: '1px 5px', borderRadius: 4, letterSpacing: 0.3 }}>QUAN TRỌNG</span>
+              )}
+              <span style={{ fontSize: 12.5, color: n.unread ? HNH.ink : HNH.ink3, fontWeight: n.unread ? 600 : 400 }}>
+                {text.length > 70 ? text.slice(0, 70) + '…' : text}
+              </span>
+              <span style={{ color: HNH.ink4, marginLeft: 8, opacity: 0.4 }}>◆</span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+function NotifTickerCard({ unreadCount, onClick }: { unreadCount: number; onClick: () => void }) {
+  const { data } = useApi<{ count: number; results: NotifItem[] }>('/api/notifications/list/all?page_size=20')
+  const items = (data?.results ?? []).filter(n => !n.deleted)
+  if (items.length === 0) return null
+
+  return (
+    <div style={{
+      background: '#fff', borderRadius: 16,
+      border: `1px solid ${HNH.line}`,
+      overflow: 'hidden',
+      boxShadow: '0 1px 3px rgba(15,20,40,0.05)',
+    }}>
+      <div className="flex items-center justify-between" style={{ padding: '8px 12px 6px' }}>
+        <div className="flex items-center gap-2">
+          <div style={{ width: 24, height: 24, borderRadius: 7, background: HNH.navy50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="bell" size={12} color={HNH.navy} stroke={2} />
+          </div>
+          <span style={{ fontSize: 13, fontWeight: 700, color: HNH.ink }}>Thông báo</span>
+          {unreadCount > 0 && (
+            <span style={{ fontSize: 9.5, fontWeight: 800, background: HNH.red, color: '#fff', padding: '1px 6px', borderRadius: 8, lineHeight: 1.6 }}>
+              {unreadCount}
+            </span>
+          )}
+        </div>
+        <button
+          onClick={onClick}
+          className="border-none bg-transparent cursor-pointer"
+          style={{ fontSize: 11, color: HNH.red, fontWeight: 600 }}
+        >
+          Xem tất cả →
+        </button>
+      </div>
+      <div style={{ borderTop: `1px solid ${HNH.line}` }}>
+        <NotifTicker items={items} />
+      </div>
+    </div>
   )
 }
 
@@ -642,6 +728,11 @@ export function HomePage() {
           compact={isSmall}
         />
         <EOfficeCompactCard tasks={tasks ?? null} compact={isSmall} onClick={() => navigate(TASK_WEBVIEW)} />
+      </div>
+
+      {/* Notification ticker */}
+      <div style={{ padding: `${isSmall ? 10 : 12}px ${px}px 0` }}>
+        <NotifTickerCard unreadCount={unreadCount} onClick={() => navigate('/notifications')} />
       </div>
 
       {/* Recent tasks */}
