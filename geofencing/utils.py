@@ -18,7 +18,13 @@ def check_geofence(lat, lng, company):
     if not geofence.start:
         return True, 0.0, None
 
-    center = (geofence.latitude, geofence.longitude)
+    # Prefer company address coordinates; fall back to GeoFencing record
+    company_lat = getattr(geofence.company_id, "latitude", None)
+    company_lng = getattr(geofence.company_id, "longitude", None)
+    if company_lat and company_lng:
+        center = (float(company_lat), float(company_lng))
+    else:
+        center = (geofence.latitude, geofence.longitude)
     point = (float(lat), float(lng))
     distance_m = geodesic(center, point).meters
 

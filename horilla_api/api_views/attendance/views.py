@@ -321,12 +321,15 @@ class OfficesAPIView(APIView):
             company = fence.company_id
             if company is None:
                 continue
+            # Prefer coordinates from company info; fall back to GeoFencing record
+            lat = float(company.latitude) if company.latitude else fence.latitude
+            lng = float(company.longitude) if company.longitude else fence.longitude
             result.append({
                 "id": company.id,
                 "name": company.company,
                 "address": company.address or "",
-                "latitude": fence.latitude,
-                "longitude": fence.longitude,
+                "latitude": lat,
+                "longitude": lng,
                 "radius": fence.radius_in_meters,
                 "active": fence.start,
             })
