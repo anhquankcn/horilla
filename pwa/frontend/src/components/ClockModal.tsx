@@ -41,6 +41,84 @@ function fmtDist(m: number): string {
   return m < 1000 ? `${Math.round(m)}m` : `${(m / 1000).toFixed(1)}km`
 }
 
+const MINIMAP_ZOOM = 15
+const TILE_SZ = 256
+
+function tileFrac(lat: number, lng: number) {
+  const n = Math.pow(2, MINIMAP_ZOOM)
+  const xf = (lng + 180) / 360 * n
+  const sinLat = Math.sin(lat * Math.PI / 180)
+  const yf = (1 - Math.log((1 + sinLat) / (1 - sinLat)) / (2 * Math.PI)) / 2 * n
+  return { xf, yf }
+}
+
+function MiniMap({ officeLat, officeLng, officeRadius, userLat, userLng }: {
+  officeLat: number; officeLng: number; officeRadius: number;
+  userLat: number; userLng: number;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [mapW, setMapW] = useState(0)
+  const mapH = 190
+
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    setMapW(el.offsetWidth)
+    const ro = new ResizeObserver(() => setMapW(el.offsetWidth))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  const center = tileFrac(officeLat, officeLng)
+  const cTileX = Math.floor(center.xf)
+  const cTileY = Math.floor(center.yf)
+  const offPxX = (center.xf - cTileX) * TILE_SZ
+  const offPxY = (center.yf - cTileY) * TILE_SZ
+  const halfW = mapW / 2
+  const halfH = mapH / 2
+
+  const rangeX = Math.ceil(halfW / TILE_SZ) + 1
+  const rangeY = Math.ceil(halfH / TILE_SZ) + 1
+  const maxTile = Math.pow(2, MINIMAP_ZOOM) - 1
+  const tiles: { key: string; sx: number; sy: number; tx: number; ty: number }[] = []
+  for (let dy = -rangeY; dy <= rangeY; dy++) {
+    for (let dx = -rangeX; dx <= rangeX; dx++) {
+      const tx = cTileX + dx
+      const ty = cTileY + dy
+      if (tx < 0 || ty < 0 || tx > maxTile || ty > maxTile) continue
+      tiles.push({ key: `${tx}-${ty}`, tx, ty, sx: halfW - offPxX + dx * TILE_SZ, sy: halfH - offPxY + dy * TILE_SZ })
+    }
+  }
+
+  const uFrac = tileFrac(userLat, userLng)
+  const uSX = halfW + (uFrac.xf - center.xf) * TILE_SZ
+  const uSY = halfH + (uFrac.yf - center.yf) * TILE_SZ
+
+  const metersPerPx = (2 * Math.PI * 6371000 * Math.cos(officeLat * Math.PI / 180)) / (Math.pow(2, MINIMAP_ZOOM) * TILE_SZ)
+  const radiusPx = officeRadius / metersPerPx
+
+  return (
+    <div ref={containerRef} style={{ width: '100%', height: mapH, borderRadius: 14, overflow: 'hidden', border: `1px solid ${HNH.line}`, position: 'relative', background: '#e8e0d8' }}>
+      {mapW > 0 && tiles.map(t => (
+        <img key={t.key} src={`https://tile.openstreetmap.org/${MINIMAP_ZOOM}/${t.tx}/${t.ty}.png`} alt=""
+          style={{ position: 'absolute', left: t.sx, top: t.sy, width: TILE_SZ, height: TILE_SZ, display: 'block' }} />
+      ))}
+      {mapW > 0 && (
+        <svg style={{ position: 'absolute', inset: 0, width: mapW, height: mapH, pointerEvents: 'none' }} viewBox={`0 0 ${mapW} ${mapH}`}>
+          <circle cx={halfW} cy={halfH} r={radiusPx} fill="rgba(192,34,43,0.13)" />
+          <circle cx={halfW} cy={halfH} r={radiusPx} fill="none" stroke="#c0222b" strokeWidth={1.5} strokeDasharray="6,4" />
+          <circle cx={halfW} cy={halfH} r={8} fill="#c0222b" stroke="white" strokeWidth={2.5} />
+          <circle cx={uSX} cy={uSY} r={14} fill="none" stroke="#142b6f" strokeWidth={1} opacity={0.35} />
+          <circle cx={uSX} cy={uSY} r={7} fill="#142b6f" stroke="white" strokeWidth={2.5} />
+        </svg>
+      )}
+      <div style={{ position: 'absolute', bottom: 4, right: 6, fontSize: 8, color: '#555', background: 'rgba(255,255,255,0.78)', borderRadius: 3, padding: '1px 4px', lineHeight: 1.5 }}>
+        © OpenStreetMap
+      </div>
+    </div>
+  )
+}
+
 function VerifyChip({ icon, label, value, ok, warn, bad }: {
   icon: string; label: string; value: string; ok?: boolean; warn?: boolean; bad?: boolean
 }) {
@@ -355,6 +433,19 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
                     )
                   })}
                 </div>
+              </div>
+            )}
+
+            {/* Mini map — shown when user < 1km from selected office */}
+            {!done && selectedOffice && geo.position && selectedDist !== null && selectedDist < 1000 && (
+              <div style={{ marginBottom: 12 }}>
+                <MiniMap
+                  officeLat={selectedOffice.latitude}
+                  officeLng={selectedOffice.longitude}
+                  officeRadius={selectedOffice.radius ?? 200}
+                  userLat={geo.position.lat}
+                  userLng={geo.position.lng}
+                />
               </div>
             )}
 
