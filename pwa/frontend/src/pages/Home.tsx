@@ -394,7 +394,7 @@ function getSkyBg(hour: number, code: number): string {
   return `linear-gradient(135deg,${HNH.navy} 0%,#0f172a 100%)`
 }
 
-const WEATHER_KEY = 'hnh_wx'
+const WEATHER_KEY = 'hnh_wx_v2'
 
 interface WeatherState { temp: number; code: number; suburb: string; city: string; ts: number }
 
@@ -424,6 +424,7 @@ function WeatherWidget({ name, hour, compact }: { name: string; hour: number; co
           .replace(/^(Phường|Xã|Thị trấn|Quận|Huyện)\s+/i, '')
         const city = (gData.address?.city ?? gData.address?.town ?? gData.address?.state ?? '')
           .replace(/^Thành phố\s+/i, 'TP.').replace(/^Tỉnh\s+/i, '')
+          .replace(/^TP\.Thủ Đức$/i, 'TP.Hồ Chí Minh')
         const next: WeatherState = { temp, code, suburb, city, ts: Date.now() }
         localStorage.setItem(WEATHER_KEY, JSON.stringify(next))
         setWx(next)

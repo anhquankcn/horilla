@@ -31,6 +31,9 @@ def reverse_geocode(lat, lng) -> str:
         for key in ("city", "town", "county", "state"):
             val = addr.get(key)
             if val:
+                # Thủ Đức là đơn vị hành chính của TP.HCM — hiển thị TP.HCM
+                if val in ("Thành phố Thủ Đức", "Thủ Đức"):
+                    val = "TP. Hồ Chí Minh"
                 parts.append(val)
                 break
         return ", ".join(parts) if parts else data.get("display_name", "")[:255]
