@@ -613,27 +613,38 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
               />
             </div>
 
-            {/* Raw GPS coordinates (8 decimal places) */}
+            {/* GPS coordinates: device + selected office side by side */}
             {geo.position && (
-              <div
-                style={{
-                  marginTop: 8, background: '#fff', borderRadius: 10,
-                  border: `1px solid ${HNH.line}`, padding: '7px 12px',
-                }}
-              >
-                <div style={{ fontSize: 9.5, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 3 }}>
-                  Tọa độ thiết bị
+              <div style={{ marginTop: 8, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                <div style={{ background: '#fff', borderRadius: 10, border: `1px solid ${HNH.line}`, padding: '7px 10px' }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 3 }}>
+                    Thiết bị
+                  </div>
+                  <div style={{ fontFamily: 'monospace', fontSize: 10.5, color: HNH.ink, letterSpacing: 0.1, lineHeight: 1.7 }}>
+                    <span style={{ color: HNH.ink3, marginRight: 3 }}>Lat</span>{geo.position.lat.toFixed(8)}
+                  </div>
+                  <div style={{ fontFamily: 'monospace', fontSize: 10.5, color: HNH.ink, letterSpacing: 0.1, lineHeight: 1.7 }}>
+                    <span style={{ color: HNH.ink3, marginRight: 3 }}>Lng</span>{geo.position.lng.toFixed(8)}
+                  </div>
+                  <div style={{ fontSize: 9.5, color: HNH.ink3, marginTop: 2 }}>±{Math.round(geo.position.accuracy)}m</div>
                 </div>
-                <div style={{ fontFamily: 'monospace', fontSize: 11.5, color: HNH.ink, letterSpacing: 0.2, lineHeight: 1.6 }}>
-                  <span style={{ color: HNH.ink3, marginRight: 4 }}>Lat</span>
-                  {geo.position.lat.toFixed(8)}
-                </div>
-                <div style={{ fontFamily: 'monospace', fontSize: 11.5, color: HNH.ink, letterSpacing: 0.2 }}>
-                  <span style={{ color: HNH.ink3, marginRight: 4 }}>Lng</span>
-                  {geo.position.lng.toFixed(8)}
-                </div>
-                <div style={{ fontSize: 10, color: HNH.ink3, marginTop: 3 }}>
-                  Độ chính xác ±{Math.round(geo.position.accuracy)}m
+                <div style={{ background: '#fff', borderRadius: 10, border: `1px solid ${HNH.line}`, padding: '7px 10px' }}>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 3 }}>
+                    Văn phòng
+                  </div>
+                  {selectedOffice ? (
+                    <>
+                      <div style={{ fontFamily: 'monospace', fontSize: 10.5, color: HNH.ink, letterSpacing: 0.1, lineHeight: 1.7 }}>
+                        <span style={{ color: HNH.ink3, marginRight: 3 }}>Lat</span>{selectedOffice.latitude.toFixed(8)}
+                      </div>
+                      <div style={{ fontFamily: 'monospace', fontSize: 10.5, color: HNH.ink, letterSpacing: 0.1, lineHeight: 1.7 }}>
+                        <span style={{ color: HNH.ink3, marginRight: 3 }}>Lng</span>{selectedOffice.longitude.toFixed(8)}
+                      </div>
+                      <div style={{ fontSize: 9.5, color: HNH.ink3, marginTop: 2 }}>r={selectedOffice.radius ?? 200}m</div>
+                    </>
+                  ) : (
+                    <div style={{ fontSize: 10.5, color: HNH.ink3, marginTop: 4 }}>Chưa chọn VP</div>
+                  )}
                 </div>
               </div>
             )}
