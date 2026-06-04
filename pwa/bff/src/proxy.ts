@@ -6,6 +6,11 @@ import { getSession, destroySession } from "./session.js";
 const COOKIE_NAME = "hnh_sid";
 
 export async function proxyRoutes(app: FastifyInstance) {
+  // Receive multipart as raw buffer — Fastify won't parse it automatically
+  app.addContentTypeParser("multipart/form-data", { parseAs: "buffer" }, (_req, body, done) => {
+    done(null, body);
+  });
+
   // Proxy /bff/api/* → Horilla /api/* with server-side JWT
   app.all("/bff/api/*", async (req, reply) => {
     const sessionId = req.cookies[COOKIE_NAME];
@@ -29,10 +34,20 @@ export async function proxyRoutes(app: FastifyInstance) {
 
     const hasBody = req.method !== "GET" && req.method !== "HEAD";
 
+    // For multipart, forward the raw buffer directly; otherwise re-serialize JSON
+    let bodyToSend: Buffer | string | undefined;
+    if (hasBody) {
+      if (contentType?.startsWith("multipart/form-data")) {
+        bodyToSend = req.body as Buffer;
+      } else if (req.body !== undefined && req.body !== null) {
+        bodyToSend = JSON.stringify(req.body);
+      }
+    }
+
     const res = await fetch(targetUrl, {
       method: req.method as any,
       headers,
-      body: hasBody ? JSON.stringify(req.body) : undefined,
+      body: bodyToSend,
     });
 
     if (res.statusCode === 401) {
