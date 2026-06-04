@@ -242,26 +242,35 @@ function WeatherWidget({ name, hour, liveTime, compact }: { name: string; hour: 
 
     navigator.geolocation.getCurrentPosition(async pos => {
       const { latitude: lat, longitude: lon } = pos.coords
+
+      // Fetch weather and geocoding independently — if geocoding fails, still show temperature
+      let temp = 0, code = 0, suburb = '', city = ''
       try {
-        const [wRes, gRes] = await Promise.all([
-          fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&current=temperature_2m,weather_code&timezone=Asia%2FHo_Chi_Minh`),
-          fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat.toFixed(5)}&lon=${lon.toFixed(5)}&format=json&accept-language=vi`, {
-            headers: { 'User-Agent': 'HNH-HRM-PWA/1.0 naquan@hongngocha.com' },
-          }),
-        ])
-        const [wData, gData] = await Promise.all([wRes.json(), gRes.json()])
-        const temp = Math.round(wData.current?.temperature_2m ?? 0)
-        const code = wData.current?.weather_code ?? 0
-        const suburb = (gData.address?.suburb ?? gData.address?.quarter ?? gData.address?.neighbourhood ?? '')
+        const wRes = await fetch(
+          `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&current=temperature_2m,weather_code&timezone=Asia%2FHo_Chi_Minh`
+        )
+        const wData = await wRes.json()
+        temp = Math.round(wData.current?.temperature_2m ?? 0)
+        code = wData.current?.weather_code ?? 0
+      } catch { /* weather API failed — use 0°C as fallback */ }
+
+      try {
+        // No custom User-Agent — forbidden header causes TypeError on iOS Safari
+        const gRes = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?lat=${lat.toFixed(5)}&lon=${lon.toFixed(5)}&format=json&accept-language=vi`
+        )
+        const gData = await gRes.json()
+        suburb = (gData.address?.suburb ?? gData.address?.quarter ?? gData.address?.neighbourhood ?? '')
           .replace(/^(Phường|Xã|Thị trấn|Quận|Huyện)\s+/i, '')
-        const city = (gData.address?.city ?? gData.address?.town ?? gData.address?.state ?? '')
+        city = (gData.address?.city ?? gData.address?.town ?? gData.address?.state ?? '')
           .replace(/^Thành phố\s+/i, 'TP.').replace(/^Tỉnh\s+/i, '')
           .replace(/^TP\.Thủ Đức$/i, 'TP.Hồ Chí Minh')
-        const next: WeatherState = { temp, code, suburb, city, ts: Date.now() }
-        localStorage.setItem(WEATHER_KEY, JSON.stringify(next))
-        setWx(next)
-      } catch { /* keep stale cache */ }
-    }, () => setDenied(true), { timeout: 8000 })
+      } catch { /* geocoding failed — show weather without location name */ }
+
+      const next: WeatherState = { temp, code, suburb, city, ts: Date.now() }
+      localStorage.setItem(WEATHER_KEY, JSON.stringify(next))
+      setWx(next)
+    }, () => setDenied(true), { timeout: 15000, maximumAge: 60000 })
   }, [])   // eslint-disable-line react-hooks/exhaustive-deps
 
   const greeting = getGreeting(hour)
