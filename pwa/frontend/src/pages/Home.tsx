@@ -152,11 +152,12 @@ function MonthlyCard({ month, workingDays, totalWorkDays, leaveRemaining, netPay
   month: number; workingDays: number; totalWorkDays: number; leaveRemaining: number
   netPay: number | null; payrollMonth: string; activeCount: number; totalTasks: number; compact?: boolean
 }) {
+  const navigate = useNavigate()
   const rows = [
-    { icon: 'cal',   label: 'Ngày công',           value: `${workingDays}/${totalWorkDays}`,      color: HNH.navy },
-    { icon: 'leaf',  label: 'Phép còn',             value: `${leaveRemaining} ng`,                 color: HNH.success },
-    { icon: 'money', label: payrollMonth || 'Lương', value: fmtMoney(netPay),                       color: '#a87908' },
-    { icon: 'doc',   label: 'Việc làm',             value: `${activeCount}/${totalTasks || 0}`,    color: HNH.red },
+    { icon: 'cal',   label: 'Ngày công',           value: `${workingDays}/${totalWorkDays}`,      color: HNH.navy,    path: null },
+    { icon: 'leaf',  label: 'Phép còn',             value: `${leaveRemaining} ng`,                 color: HNH.success, path: '/leave' },
+    { icon: 'money', label: payrollMonth || 'Lương', value: fmtMoney(netPay),                       color: '#a87908',   path: '/payslip' },
+    { icon: 'doc',   label: 'Việc làm',             value: `${activeCount}/${totalTasks || 0}`,    color: HNH.red,     path: '/tasks' },
   ]
   return (
     <div style={{
@@ -168,7 +169,11 @@ function MonthlyCard({ month, workingDays, totalWorkDays, leaveRemaining, netPay
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: compact ? 6 : 7 }}>
         {rows.map(r => (
-          <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div
+            key={r.label}
+            onClick={r.path ? () => navigate(r.path!) : undefined}
+            style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: r.path ? 'pointer' : 'default' }}
+          >
             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
               <Icon name={r.icon} size={11} color={r.color} stroke={2} />
               <span style={{ fontSize: compact ? 11 : 12, color: HNH.ink3, fontWeight: 500 }}>{r.label}</span>

@@ -47,6 +47,7 @@ const apps: AppCard[] = [
       { slug: 'attendance', icon: 'clock', label: 'Chấm công', desc: 'Check-in, lịch sử, GPS', path: '/attendance', tone: 'navy', group: 'use' },
       { slug: 'work-schedule', icon: 'cal', label: 'Lịch làm việc', desc: 'Ca làm, giờ vào ra theo tuần', path: '/work-schedule', tone: 'navy', group: 'use' },
       { slug: 'monthly-attendance', icon: 'cal', label: 'Lịch công tháng', desc: 'Chấm công HR xác nhận, gửi khiếu nại', path: '/attendance/monthly', tone: 'navy', group: 'use' },
+      { slug: 'leave', icon: 'leaf', label: 'Nghỉ phép', desc: 'Số dư, lịch sử nghỉ phép, gửi đơn', path: '/leave', tone: 'success', group: 'use' },
       { slug: 'proposals', icon: 'send', label: 'Đề xuất', desc: 'Nghỉ phép, đổi ca, ngày công', path: '/proposals', tone: 'success', group: 'use' },
       { slug: 'approvals', icon: 'check', label: 'Phê duyệt', desc: 'Duyệt đề xuất nhân viên', path: '/approvals', tone: 'gold', group: 'use' },
       { slug: 'payslip', icon: 'doc', label: 'Phiếu lương', desc: 'Xem chi tiết lương hàng tháng', path: '/payslip', tone: 'navy', group: 'use' },
