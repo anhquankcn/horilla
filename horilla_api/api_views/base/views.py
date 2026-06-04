@@ -1925,3 +1925,60 @@ class ApprovalHistoryView(APIView):
 
         results.sort(key=lambda x: x.get("date", ""), reverse=True)
         return Response(results[:100])
+
+
+class WeatherProxyView(APIView):
+    """Proxy thời tiết qua server — tránh iOS PWA chặn fetch đến external APIs."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        import re
+        import urllib.request
+
+        lat = request.query_params.get("lat", "")
+        lng = request.query_params.get("lng", "")
+        try:
+            lat_f = float(lat)
+            lng_f = float(lng)
+        except (ValueError, TypeError):
+            return Response({"error": "invalid coordinates"}, status=400)
+
+        temp, code, suburb, city = 0, 0, "", ""
+
+        # Open-Meteo weather
+        try:
+            wx_url = (
+                f"https://api.open-meteo.com/v1/forecast"
+                f"?latitude={lat_f:.4f}&longitude={lng_f:.4f}"
+                f"&current=temperature_2m,weather_code&timezone=Asia%2FHo_Chi_Minh"
+            )
+            import json as _json
+            req = urllib.request.Request(wx_url, headers={"User-Agent": "HNH-HRM/1.0"})
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                w = _json.loads(resp.read())
+            temp = round(w.get("current", {}).get("temperature_2m", 0))
+            code = w.get("current", {}).get("weather_code", 0)
+        except Exception:
+            pass
+
+        # Nominatim reverse geocoding
+        try:
+            geo_url = (
+                f"https://nominatim.openstreetmap.org/reverse"
+                f"?lat={lat_f:.5f}&lon={lng_f:.5f}&format=json&accept-language=vi"
+            )
+            req2 = urllib.request.Request(geo_url, headers={"User-Agent": "HNH-HRM-Server/1.0"})
+            with urllib.request.urlopen(req2, timeout=6) as resp2:
+                g = _json.loads(resp2.read())
+            addr = g.get("address", {})
+            suburb = addr.get("suburb") or addr.get("quarter") or addr.get("neighbourhood") or ""
+            city = addr.get("city") or addr.get("town") or addr.get("state") or ""
+            suburb = re.sub(r"^(Phường|Xã|Thị trấn|Quận|Huyện)\s+", "", suburb, flags=re.IGNORECASE)
+            city = re.sub(r"^Thành phố\s+", "TP.", city, flags=re.IGNORECASE)
+            city = re.sub(r"^Tỉnh\s+", "", city, flags=re.IGNORECASE)
+            if city.lower() in ("tp.thủ đức", "tp. thủ đức"):
+                city = "TP.Hồ Chí Minh"
+        except Exception:
+            pass
+
+        return Response({"temp": temp, "code": code, "suburb": suburb, "city": city})

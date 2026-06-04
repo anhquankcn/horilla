@@ -8,6 +8,7 @@ import { useAuth } from '../lib/auth'
 import { useClock } from '../lib/useClock'
 import { useLiveClock } from '../lib/useLiveClock'
 import { useApi } from '../lib/useApi'
+import { api } from '../lib/api'
 import { ClockModal } from '../components/ClockModal'
 import { useTablet, useSmallPhone } from '../lib/useTablet'
 
@@ -234,26 +235,14 @@ interface WeatherState { temp: number; code: number; suburb: string; city: strin
 const HCM_LAT = 10.7769
 const HCM_LNG = 106.7009
 
+interface WeatherProxyResponse { temp: number; code: number; suburb: string; city: string }
+
 async function fetchWeatherData(lat: number, lng: number): Promise<WeatherState> {
-  const wRes = await fetch(
-    `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lng.toFixed(4)}&current=temperature_2m,weather_code&timezone=Asia%2FHo_Chi_Minh`
+  // Use server-side proxy to avoid iOS PWA blocking direct fetch to external APIs
+  const d = await api.get<WeatherProxyResponse>(
+    `/api/base/weather/?lat=${lat.toFixed(4)}&lng=${lng.toFixed(4)}`
   )
-  const wData = await wRes.json()
-  const temp = Math.round(wData.current?.temperature_2m ?? 0)
-  const code = wData.current?.weather_code ?? 0
-  let suburb = '', city = ''
-  try {
-    const gRes = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?lat=${lat.toFixed(5)}&lon=${lng.toFixed(5)}&format=json&accept-language=vi`
-    )
-    const gData = await gRes.json()
-    suburb = (gData.address?.suburb ?? gData.address?.quarter ?? gData.address?.neighbourhood ?? '')
-      .replace(/^(Phường|Xã|Thị trấn|Quận|Huyện)\s+/i, '')
-    city = (gData.address?.city ?? gData.address?.town ?? gData.address?.state ?? '')
-      .replace(/^Thành phố\s+/i, 'TP.').replace(/^Tỉnh\s+/i, '')
-      .replace(/^TP\.Thủ Đức$/i, 'TP.Hồ Chí Minh')
-  } catch { /* geocoding optional */ }
-  return { temp, code, suburb, city, ts: Date.now() }
+  return { temp: d.temp, code: d.code, suburb: d.suburb, city: d.city, ts: Date.now() }
 }
 
 function WeatherWidget({ name, hour, liveTime, compact }: { name: string; hour: number; liveTime: string; compact?: boolean }) {
