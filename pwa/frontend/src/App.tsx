@@ -46,6 +46,7 @@ import { OrgChartPage } from './pages/OrgChart'
 import { PromotionHubPage } from './pages/PromotionHub'
 import { WorkSchedulePage } from './pages/WorkSchedule'
 import { MonthlyAttendancePage } from './pages/MonthlyAttendance'
+import { HelpDeskPage } from './pages/HelpDesk'
 
 export function App() {
   return (
@@ -95,6 +96,7 @@ export function App() {
         <Route path="/promotion-hub" element={<PromotionHubPage />} />
         <Route path="/work-schedule" element={<WorkSchedulePage />} />
         <Route path="/attendance/monthly" element={<MonthlyAttendancePage />} />
+        <Route path="/helpdesk" element={<HelpDeskPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
 
