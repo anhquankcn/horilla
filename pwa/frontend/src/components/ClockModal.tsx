@@ -521,6 +521,31 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
                 warn={!!cameraError}
               />
             </div>
+
+            {/* Raw GPS coordinates (8 decimal places) */}
+            {geo.position && (
+              <div
+                style={{
+                  marginTop: 8, background: '#fff', borderRadius: 10,
+                  border: `1px solid ${HNH.line}`, padding: '7px 12px',
+                }}
+              >
+                <div style={{ fontSize: 9.5, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 3 }}>
+                  Tọa độ thiết bị
+                </div>
+                <div style={{ fontFamily: 'monospace', fontSize: 11.5, color: HNH.ink, letterSpacing: 0.2, lineHeight: 1.6 }}>
+                  <span style={{ color: HNH.ink3, marginRight: 4 }}>Lat</span>
+                  {geo.position.lat.toFixed(8)}
+                </div>
+                <div style={{ fontFamily: 'monospace', fontSize: 11.5, color: HNH.ink, letterSpacing: 0.2 }}>
+                  <span style={{ color: HNH.ink3, marginRight: 4 }}>Lng</span>
+                  {geo.position.lng.toFixed(8)}
+                </div>
+                <div style={{ fontSize: 10, color: HNH.ink3, marginTop: 3 }}>
+                  Độ chính xác ±{Math.round(geo.position.accuracy)}m
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
