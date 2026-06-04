@@ -345,20 +345,89 @@ function toISO(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
 }
 
+function WeekStrip({ schedule, todayIso }: { schedule: ScheduleData | null; todayIso: string }) {
+  const sortedDays = schedule?.days ? Object.keys(schedule.days).sort().slice(0, 6) : []
+  if (sortedDays.length === 0) return (
+    <div style={{ padding: '14px', textAlign: 'center', color: HNH.ink4, fontSize: 11 }}>Đang tải...</div>
+  )
+  return (
+    <div className="flex">
+      {sortedDays.map((iso, i) => {
+        const sched = schedule?.days?.[iso] ?? null
+        const [y, mo, d] = iso.split('-').map(Number)
+        const date = new Date(y, mo - 1, d)
+        const isToday = iso === todayIso
+        const dayShort = sched
+          ? (DAY_SHORT[sched.day_name] ?? '?')
+          : DAY_SHORT[['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][date.getDay()]]
+        const isLeave = sched?.is_leave ?? false
+        const hasShift = !!sched?.start_time && !isLeave
+
+        let bg = isToday ? HNH.navy : '#fff'
+        if (isToday && isLeave) bg = '#fff3e6'
+
+        const textMain = isToday && !isLeave ? '#fff' : isLeave ? HNH.warn : HNH.ink
+        const textSub = isToday && !isLeave ? 'rgba(255,255,255,0.75)' : isLeave ? HNH.warn : HNH.navy
+        const offColor = isToday && !isLeave ? 'rgba(255,255,255,0.4)' : HNH.ink4
+
+        return (
+          <div
+            key={iso}
+            className="flex flex-col items-center"
+            style={{
+              flex: 1,
+              padding: '7px 2px 9px',
+              background: bg,
+              borderRight: i < 5 ? `1px solid ${HNH.line}` : 'none',
+            }}
+          >
+            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.3, color: isToday && !isLeave ? 'rgba(255,255,255,0.7)' : HNH.ink3 }}>
+              {dayShort}
+            </div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: textMain, lineHeight: 1.2, marginTop: 2 }}>
+              {date.getDate()}
+            </div>
+            <div style={{ marginTop: 3, textAlign: 'center' }}>
+              {isLeave ? (
+                <div style={{ fontSize: 9, fontWeight: 700, color: HNH.warn }}>
+                  <Icon name="leaf" size={9} color={HNH.warn} stroke={2} />
+                </div>
+              ) : hasShift ? (
+                <>
+                  <div style={{ fontSize: 9, fontWeight: 700, color: textSub, whiteSpace: 'nowrap' }}>
+                    {sched!.start_time?.slice(0, 5)}
+                  </div>
+                  <div style={{ fontSize: 9, fontWeight: 600, color: textSub, opacity: 0.85 }}>
+                    {sched!.end_time?.slice(0, 5)}
+                  </div>
+                  {sched!.is_night_shift && (
+                    <div style={{ fontSize: 8, color: textSub, opacity: 0.75, marginTop: 1 }}>🌙</div>
+                  )}
+                </>
+              ) : (
+                <div style={{ fontSize: 9, fontWeight: 600, color: offColor }}>Nghỉ</div>
+              )}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function weekDateRange(schedule: ScheduleData | null): string {
+  if (!schedule?.days) return ''
+  const keys = Object.keys(schedule.days).sort()
+  if (keys.length < 6) return ''
+  return `${keys[0].slice(8)}/${keys[0].slice(5, 7)} – ${keys[5].slice(8)}/${keys[5].slice(5, 7)}`
+}
+
 function WorkScheduleWidget({ onClick }: { onClick: () => void }) {
-  const [weekOffset, setWeekOffset] = useState(0)
-  const { data: schedule } = useApi<ScheduleData>(`/api/employee/me/schedule/?week_offset=${weekOffset}`)
+  const { data: schedCurrent } = useApi<ScheduleData>('/api/employee/me/schedule/?week_offset=0')
+  const { data: schedNext }    = useApi<ScheduleData>('/api/employee/me/schedule/?week_offset=1')
   const todayIso = toISO(new Date())
 
-  // Sort ISO keys ascending → Mon first, take Mon–Sat (first 6 of 7)
-  const sortedDays = schedule?.days ? Object.keys(schedule.days).sort().slice(0, 6) : []
-
-  const weekLabel = sortedDays.length >= 6
-    ? `${sortedDays[0].slice(8)}/${sortedDays[0].slice(5, 7)} – ${sortedDays[5].slice(8)}/${sortedDays[5].slice(5, 7)}`
-    : ''
-  const weekText = weekOffset === 0 ? 'Tuần này' : weekOffset === -1 ? 'Tuần trước' : weekOffset === 1 ? 'Tuần sau' : weekLabel
-
-  if (!schedule?.shift_name) return null
+  if (!schedCurrent?.shift_name) return null
 
   return (
     <button
@@ -380,95 +449,30 @@ function WorkScheduleWidget({ onClick }: { onClick: () => void }) {
             </div>
             <div>
               <div style={{ fontSize: 13, fontWeight: 700, color: HNH.ink }}>Lịch làm việc</div>
-              <div style={{ fontSize: 11, color: HNH.ink3, fontWeight: 500 }}>{schedule.shift_name}</div>
+              <div style={{ fontSize: 11, color: HNH.ink3, fontWeight: 500 }}>{schedCurrent.shift_name}</div>
             </div>
           </div>
-          {/* Week navigation */}
-          <div
-            className="flex items-center gap-1"
-            onClick={e => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setWeekOffset(w => w - 1)}
-              className="flex items-center justify-center border-none cursor-pointer"
-              style={{ width: 26, height: 26, borderRadius: 7, background: HNH.cream, flexShrink: 0 }}
-            >
-              <Icon name="chev-l" size={13} color={HNH.navy} stroke={2.5} />
-            </button>
-            <span style={{ fontSize: 10, fontWeight: 600, color: weekOffset === 0 ? HNH.navy : HNH.ink3, minWidth: 64, textAlign: 'center', whiteSpace: 'nowrap' }}>
-              {weekText}
-            </span>
-            <button
-              onClick={() => setWeekOffset(w => w + 1)}
-              className="flex items-center justify-center border-none cursor-pointer"
-              style={{ width: 26, height: 26, borderRadius: 7, background: HNH.cream, flexShrink: 0 }}
-            >
-              <Icon name="chev-r" size={13} color={HNH.navy} stroke={2.5} />
-            </button>
+          <div className="flex items-center gap-1" style={{ fontSize: 11, color: HNH.red, fontWeight: 600 }}>
+            Chi tiết <Icon name="chev-r" size={12} color={HNH.red} stroke={2} />
           </div>
         </div>
 
-        {/* 6-day strip Mon–Sat */}
-        <div className="flex" style={{ borderTop: `1px solid ${HNH.line}` }}>
-          {sortedDays.map((iso, i) => {
-            const sched = schedule?.days?.[iso] ?? null
-            const [y, mo, d] = iso.split('-').map(Number)
-            const date = new Date(y, mo - 1, d)
-            const isToday = iso === todayIso
-            const dayShort = sched
-              ? (DAY_SHORT[sched.day_name] ?? '?')
-              : DAY_SHORT[['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][date.getDay()]]
-            const isLeave = sched?.is_leave ?? false
-            const hasShift = !!sched?.start_time && !isLeave
+        {/* Tuần này */}
+        <div style={{ borderTop: `1px solid ${HNH.line}` }}>
+          <div className="flex items-center justify-between" style={{ padding: '4px 10px 3px', background: HNH.navy50 }}>
+            <span style={{ fontSize: 9.5, fontWeight: 700, color: HNH.navy, letterSpacing: 0.3 }}>TUẦN NÀY</span>
+            <span style={{ fontSize: 9, color: HNH.ink3, fontWeight: 500 }}>{weekDateRange(schedCurrent)}</span>
+          </div>
+          <WeekStrip schedule={schedCurrent} todayIso={todayIso} />
+        </div>
 
-            let bg = isToday ? HNH.navy : '#fff'
-            if (isToday && isLeave) bg = '#fff3e6'
-
-            const textMain = isToday && !isLeave ? '#fff' : isLeave ? HNH.warn : HNH.ink
-            const textSub = isToday && !isLeave ? 'rgba(255,255,255,0.75)' : isLeave ? HNH.warn : HNH.navy
-            const offColor = isToday && !isLeave ? 'rgba(255,255,255,0.4)' : HNH.ink4
-
-            return (
-              <div
-                key={iso}
-                className="flex flex-col items-center"
-                style={{
-                  flex: 1,
-                  padding: '8px 2px 10px',
-                  background: bg,
-                  borderRight: i < 5 ? `1px solid ${HNH.line}` : 'none',
-                }}
-              >
-                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.3, color: isToday && !isLeave ? 'rgba(255,255,255,0.7)' : HNH.ink3 }}>
-                  {dayShort}
-                </div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: textMain, lineHeight: 1.2, marginTop: 2 }}>
-                  {date.getDate()}
-                </div>
-                <div style={{ marginTop: 4, textAlign: 'center' }}>
-                  {isLeave ? (
-                    <div style={{ fontSize: 9, fontWeight: 700, color: HNH.warn }}>
-                      <Icon name="leaf" size={9} color={HNH.warn} stroke={2} />
-                    </div>
-                  ) : hasShift ? (
-                    <>
-                      <div style={{ fontSize: 9, fontWeight: 700, color: textSub, whiteSpace: 'nowrap' }}>
-                        {sched!.start_time?.slice(0, 5)}
-                      </div>
-                      <div style={{ fontSize: 9, fontWeight: 600, color: textSub, opacity: 0.85 }}>
-                        {sched!.end_time?.slice(0, 5)}
-                      </div>
-                      {sched!.is_night_shift && (
-                        <div style={{ fontSize: 8, color: textSub, opacity: 0.75, marginTop: 1 }}>🌙</div>
-                      )}
-                    </>
-                  ) : (
-                    <div style={{ fontSize: 9, fontWeight: 600, color: offColor }}>Nghỉ</div>
-                  )}
-                </div>
-              </div>
-            )
-          })}
+        {/* Tuần tới */}
+        <div style={{ borderTop: `1px solid ${HNH.line}` }}>
+          <div className="flex items-center justify-between" style={{ padding: '4px 10px 3px', background: '#f8f9fc' }}>
+            <span style={{ fontSize: 9.5, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.3 }}>TUẦN TỚI</span>
+            <span style={{ fontSize: 9, color: HNH.ink3, fontWeight: 500 }}>{weekDateRange(schedNext)}</span>
+          </div>
+          <WeekStrip schedule={schedNext} todayIso={todayIso} />
         </div>
       </div>
     </button>
