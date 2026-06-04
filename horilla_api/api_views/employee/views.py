@@ -2326,7 +2326,7 @@ class MyAppsView(APIView):
 
     ALL_APP_SLUGS = [
         "attendance", "work-schedule", "monthly-attendance", "proposals", "approvals",
-        "payslip", "notifications", "documents",
+        "payslip", "notifications", "documents", "helpdesk",
         "employees", "roles", "groups", "attendance-activity",
         "tasks", "projects", "announcement-hub", "dashboard", "unified-calendar",
         "assets", "reports", "payroll-mgmt", "onboarding", "journey", "pms",
@@ -2337,7 +2337,7 @@ class MyAppsView(APIView):
     # of group visibility config — these are personal data views, not management tools.
     BASE_SLUGS = {
         "attendance", "work-schedule", "monthly-attendance",
-        "proposals", "payslip", "notifications", "documents",
+        "proposals", "payslip", "notifications", "documents", "helpdesk",
     }
 
     def get(self, request):
