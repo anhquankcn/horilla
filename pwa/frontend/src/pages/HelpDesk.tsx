@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { TopBar } from '../components/layout/TopBar'
 import { api } from '../lib/api'
@@ -425,7 +426,9 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 /* ── Main Page ── */
 export function HelpDeskPage() {
   const { employee } = useAuth()
-  const [tab, setTab] = useState<'mine' | 'all'>('mine')
+  const [searchParams] = useSearchParams()
+  const initTab = searchParams.get('tab') === 'all' ? 'all' : 'mine'
+  const [tab, setTab] = useState<'mine' | 'all'>(initTab)
   const [tickets, setTickets] = useState<TicketBrief[]>([])
   const [ticketTypes, setTicketTypes] = useState<TicketType[]>([])
   const [loading, setLoading] = useState(true)

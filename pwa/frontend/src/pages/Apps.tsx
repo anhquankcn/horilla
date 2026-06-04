@@ -53,6 +53,7 @@ const apps: AppCard[] = [
       { slug: 'notifications', icon: 'bell', label: 'Thông báo', desc: 'Xem thông báo hệ thống', path: '/notifications', tone: 'navy', group: 'use' },
       { slug: 'helpdesk', icon: 'help', label: 'Hỗ trợ IT', desc: 'Gửi yêu cầu hỗ trợ, theo dõi tiến độ', path: '/helpdesk', tone: 'navy', group: 'use' },
       { slug: 'employees', icon: 'users', label: 'Nhân sự', desc: 'Danh sách, hồ sơ nhân viên', path: '/employees', tone: 'navy', group: 'manage' },
+      { slug: 'helpdesk', icon: 'help', label: 'YC Hỗ trợ', desc: 'Xem và xử lý tất cả yêu cầu hỗ trợ', path: '/helpdesk?tab=all', tone: 'red', group: 'manage' },
       { slug: 'roles', icon: 'shield', label: 'Vai trò & Quyền', desc: 'Phân quyền, nhóm vai trò', path: '/roles', tone: 'navy', group: 'manage' },
       { slug: 'groups', icon: 'folder', label: 'Nhóm Quyền', desc: 'Quản lý nhóm, phân nhân sự', path: '/groups', tone: 'navy', group: 'manage' },
       { slug: 'attendance-activity', icon: 'clock', label: 'HĐ Chấm công', desc: 'Tổng hợp hoạt động chấm công', path: '/attendance-activity', tone: 'navy', group: 'manage' },
@@ -295,10 +296,7 @@ export function AppsPage() {
 
   const iconBox = isTablet ? 56 : 48
 
-  const getGroups = (app: AppCard) => {
-    const all = groupFeatures(app.features, allowedApps)
-    return isTablet ? all : all.filter(g => g.group === 'use')
-  }
+  const getGroups = (app: AppCard) => groupFeatures(app.features, allowedApps)
 
   return (
     <div style={{ background: HNH.cream, minHeight: '100%' }}>
