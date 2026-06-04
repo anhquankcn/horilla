@@ -9,7 +9,12 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from django.contrib.auth import get_user_model
+
 from helpdesk.models import TICKET_STATUS, Attachment, Comment, Ticket, TicketType
+
+# Tất cả ticket từ PWA route về tài khoản xử lý chính
+HELPDESK_HANDLER_EMAIL = "coo@hongngocha.com"
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
@@ -138,11 +143,19 @@ class TicketListCreateView(APIView):
         except TicketType.DoesNotExist:
             return Response({"error": "Loại yêu cầu không tồn tại"}, status=400)
 
-        dept = emp.get_department()
-        if dept:
-            assigning_type, raised_on = "department", str(dept.id)
-        else:
-            assigning_type, raised_on = "individual", str(emp.id)
+        # Route ticket về tài khoản xử lý cố định
+        try:
+            User = get_user_model()
+            handler_user = User.objects.get(email=HELPDESK_HANDLER_EMAIL)
+            handler_emp = handler_user.employee_get
+            assigning_type, raised_on = "individual", str(handler_emp.id)
+        except Exception:
+            # Fallback: route về phòng ban người gửi nếu không tìm thấy handler
+            dept = emp.get_department()
+            if dept:
+                assigning_type, raised_on = "department", str(dept.id)
+            else:
+                assigning_type, raised_on = "individual", str(emp.id)
 
         ticket = Ticket.objects.create(
             title=title,
