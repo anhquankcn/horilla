@@ -6,6 +6,7 @@ interface ClockStatus {
   duration: string | null;
   clock_in: string | null;
   clock_in_iso: string | null;
+  clock_out: string | null;
 }
 
 interface ClockResponse {
@@ -29,6 +30,7 @@ export interface UseClockResult {
   isClockedIn: boolean;
   duration: string;
   clockInTime: string | null;
+  clockOutTime: string | null;
   loading: boolean;
   acting: boolean;
   clockIn: (body?: Record<string, unknown>) => Promise<ClockResponse | null>;
@@ -96,6 +98,7 @@ export function useClock(): UseClockResult {
     // When not clocked in and no clock_in today → show 00:00:00 (new day reset)
     duration: status?.status ? liveDuration : (status?.clock_in ? (status?.duration ?? '00:00:00') : '00:00:00'),
     clockInTime: status?.clock_in ?? null,
+    clockOutTime: status?.clock_out ?? null,
     loading,
     acting,
     clockIn,

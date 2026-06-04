@@ -1088,6 +1088,21 @@ class CheckingStatus(APIView):
                     clock_in_iso = attendance_activity_first.in_datetime.isoformat()
                 if attendance_activity.clock_out_date:
                     status = False
+                    clock_out_time = None
+                    try:
+                        clock_out_time = attendance_activity.clock_out.strftime("%H:%M")
+                    except Exception:
+                        pass
+                    return Response(
+                        {
+                            "status": status,
+                            "duration": duration,
+                            "clock_in": clock_in_time,
+                            "clock_in_iso": clock_in_iso,
+                            "clock_out": clock_out_time,
+                        },
+                        status=200,
+                    )
                 else:
                     status = True
                     return Response(
@@ -1096,16 +1111,17 @@ class CheckingStatus(APIView):
                             "duration": duration,
                             "clock_in": clock_in_time,
                             "clock_in_iso": clock_in_iso,
+                            "clock_out": None,
                         },
                         status=200,
                     )
-            except:
+            except Exception:
                 return Response(
-                    {"status": status, "duration": duration, "clock_in": clock_in_time},
+                    {"status": status, "duration": duration, "clock_in": clock_in_time, "clock_out": None},
                     status=200,
                 )
         return Response(
-            {"status": status, "duration": duration, "clock_in_time": clock_in_time},
+            {"status": status, "duration": duration, "clock_in": None, "clock_out": None},
             status=200,
         )
 

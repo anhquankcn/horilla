@@ -58,16 +58,6 @@ interface NotifSummary {
   total: number
 }
 
-interface Notification {
-  id: number
-  level: string
-  unread: boolean
-  verb: string
-  description: string | null
-  timestamp: string
-  actor_name: string | null
-}
-
 /* ── Helpers ── */
 function fmtMoney(n: number | null | undefined): string {
   if (n == null || n === 0) return '—'
@@ -76,65 +66,8 @@ function fmtMoney(n: number | null | undefined): string {
   return String(Math.round(n))
 }
 
-function relativeTime(ts: string): string {
-  const diff = Date.now() - new Date(ts).getTime()
-  const mins = Math.floor(diff / 60000)
-  if (mins < 1) return 'Vừa xong'
-  if (mins < 60) return `${mins}p`
-  const hours = Math.floor(mins / 60)
-  if (hours < 24) return `${hours}h`
-  const days = Math.floor(hours / 24)
-  return `${days}d`
-}
-
-type NotifTone = 'success' | 'red' | 'warn' | 'navy' | 'gold' | 'ink'
-
-function notifMeta(verb: string, level: string): { bg: string; tone: NotifTone; icon: string } {
-  const v = verb.toLowerCase()
-  if (v.includes('duyệt') || v.includes('approved'))
-    return { bg: HNH.success, tone: 'success', icon: 'check' }
-  if (v.includes('từ chối') || v.includes('rejected'))
-    return { bg: HNH.red, tone: 'red', icon: 'x' }
-  if (v.includes('nghỉ phép') || v.includes('leave') || v.includes('đề xuất'))
-    return { bg: HNH.navy, tone: 'navy', icon: 'send' }
-  if (v.includes('chấm công') || v.includes('attendance'))
-    return { bg: HNH.warn, tone: 'warn', icon: 'clock' }
-  if (v.includes('lương') || v.includes('payroll'))
-    return { bg: '#a87908', tone: 'gold', icon: 'doc' }
-  if (level === 'warning')
-    return { bg: HNH.warn, tone: 'warn', icon: 'bell' }
-  if (level === 'error')
-    return { bg: HNH.red, tone: 'red', icon: 'x' }
-  return { bg: HNH.ink2, tone: 'ink', icon: 'bell' }
-}
-
 /* ── Components ── */
 
-
-function QuickAction({ icon, label, tone, compact, onClick }: {
-  icon: string; label: string; tone: string; compact?: boolean; onClick?: () => void
-}) {
-  const colors: Record<string, string> = { red: HNH.red, navy: HNH.navy, gold: '#a87908', success: HNH.success }
-  const bgs: Record<string, string> = { red: HNH.red50, navy: HNH.navy50, gold: '#faf1d6', success: HNH.success50 }
-  return (
-    <button
-      onClick={onClick}
-      className="flex flex-col items-center gap-1 bg-transparent border-none cursor-pointer"
-      style={{
-        background: '#fff', border: `1px solid ${HNH.line}`, borderRadius: compact ? 12 : 14,
-        padding: compact ? '9px 6px' : '12px 8px',
-      }}
-    >
-      <div
-        className="flex items-center justify-center"
-        style={{ width: compact ? 28 : 34, height: compact ? 28 : 34, borderRadius: compact ? 8 : 10, background: bgs[tone] }}
-      >
-        <Icon name={icon} size={compact ? 15 : 18} color={colors[tone]} stroke={1.9} />
-      </div>
-      <span style={{ fontSize: compact ? 10.5 : 11.5, color: HNH.ink, fontWeight: 600 }}>{label}</span>
-    </button>
-  )
-}
 
 const TASK_WEBVIEW = '/tasks/1stopshop'
 
@@ -187,63 +120,6 @@ function EOfficeCompactCard({ tasks, compact, onClick }: { tasks: TaskSummary | 
   )
 }
 
-function CheckInCard({ employee, isClockedIn, clockInTime, duration, compact, onOpen }: {
-  employee: { shift_name?: string | null } | null
-  isClockedIn: boolean; clockInTime: string | null; duration: string; compact?: boolean; onOpen: () => void
-}) {
-  return (
-    <div style={{
-      background: '#fff', borderRadius: compact ? 18 : 22, padding: compact ? 14 : 18,
-      border: `1px solid ${HNH.line}`, boxShadow: '0 1px 2px rgba(15,20,40,0.04)',
-      height: '100%', boxSizing: 'border-box',
-    }}>
-      <div className="flex justify-between items-center">
-        <div>
-          <div style={{ fontSize: compact ? 10.5 : 11.5, color: HNH.ink3, fontWeight: 600, letterSpacing: 0.4, textTransform: 'uppercase' }}>
-            Chấm công · {employee?.shift_name ?? 'Ca hành chính'}
-          </div>
-          <div style={{ fontSize: compact ? 21 : 26, fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 800, color: HNH.ink, marginTop: 2, letterSpacing: -0.5 }}>
-            {clockInTime || '--:--'}
-            {isClockedIn && <span style={{ fontSize: compact ? 11 : 13, color: HNH.success, fontWeight: 700, marginLeft: 4 }}>· đang làm</span>}
-            {!clockInTime && <span style={{ fontSize: compact ? 11 : 13, color: HNH.ink3, fontWeight: 700, marginLeft: 4 }}>· chưa vào</span>}
-          </div>
-        </div>
-        <div className="flex items-center justify-center" style={{ width: compact ? 44 : 56, height: compact ? 44 : 56, borderRadius: '50%', background: isClockedIn ? HNH.success50 : HNH.cream2 }}>
-          <Icon name={isClockedIn ? 'check' : 'clock'} size={compact ? 20 : 26} color={isClockedIn ? HNH.success : HNH.ink3} stroke={2.4} />
-        </div>
-      </div>
-      <div className="flex gap-2" style={{ marginTop: compact ? 10 : 14 }}>
-        {[
-          { label: 'VÀO', value: clockInTime || '--:--' },
-          { label: 'THỜI GIAN', value: duration },
-        ].map(item => (
-          <div key={item.label} className="flex-1" style={{ background: HNH.cream, borderRadius: 10, padding: compact ? '8px 10px' : '10px 12px' }}>
-            <div style={{ fontSize: 10, color: HNH.ink3, fontWeight: 600 }}>{item.label}</div>
-            <div style={{ fontSize: compact ? 14 : 16, fontWeight: 700, color: HNH.ink }}>{item.value}</div>
-          </div>
-        ))}
-      </div>
-      <button
-        onClick={onOpen}
-        className="flex items-center justify-center gap-2 w-full border-none cursor-pointer"
-        style={{
-          marginTop: compact ? 10 : 14, height: compact ? 42 : 48, borderRadius: compact ? 12 : 14,
-          background: isClockedIn ? HNH.red : HNH.navy,
-          color: '#fff', fontWeight: 700, fontSize: compact ? 13 : 14,
-          boxShadow: isClockedIn ? '0 6px 14px rgba(192,34,43,0.25)' : '0 6px 14px rgba(20,43,111,0.2)',
-        }}
-      >
-        <Icon name={isClockedIn ? 'clock' : 'check'} size={compact ? 16 : 18} color="#fff" stroke={2.2} />
-        {isClockedIn ? 'Kết thúc ca' : 'Chấm công vào ca'}
-      </button>
-      <div className="flex items-center gap-1.5" style={{ marginTop: compact ? 8 : 10, fontSize: 11, color: HNH.ink3, fontWeight: 500 }}>
-        <Icon name="pin" size={12} color={HNH.ink3} stroke={1.6} />
-        185-187 Lê Thánh Tôn · Văn phòng HNH
-      </div>
-    </div>
-  )
-}
-
 function TaskRow({ t, onClick }: { t: TaskSummary['recent_tasks'][number]; onClick: () => void }) {
   return (
     <button
@@ -266,50 +142,6 @@ function TaskRow({ t, onClick }: { t: TaskSummary['recent_tasks'][number]; onCli
         color: t.priority === 'urgent' ? HNH.red : t.priority === 'high' ? '#ea580c' : HNH.ink3,
       }}>{PRIORITY_LABELS[t.priority] ?? t.priority}</div>
       <Icon name="chev-r" size={14} color={HNH.ink4} stroke={1.5} />
-    </button>
-  )
-}
-
-function NotifRow({ n, onClick }: { n: Notification; onClick: () => void }) {
-  const meta = notifMeta(n.verb, n.level)
-  return (
-    <button
-      onClick={onClick}
-      className="flex items-center gap-3 w-full text-left border-none cursor-pointer"
-      style={{
-        padding: '10px 14px',
-        background: n.unread ? `${HNH.navy}06` : 'transparent',
-        borderBottom: `1px solid ${HNH.line}`,
-      }}
-    >
-      <div
-        className="flex items-center justify-center shrink-0"
-        style={{ width: 32, height: 32, borderRadius: 10, background: `${meta.bg}18` }}
-      >
-        <Icon name={meta.icon} size={14} color={meta.bg} stroke={2} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div style={{
-          fontSize: 12.5, fontWeight: n.unread ? 700 : 600, color: HNH.ink,
-          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-        }}>
-          {n.verb}
-        </div>
-        {n.description && (
-          <div style={{
-            fontSize: 11, color: HNH.ink3, fontWeight: 500, marginTop: 1,
-            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-          }}>
-            {n.description}
-          </div>
-        )}
-      </div>
-      <div className="flex items-center gap-1.5 shrink-0">
-        <span style={{ fontSize: 10.5, color: HNH.ink3, fontWeight: 500 }}>{relativeTime(n.timestamp)}</span>
-        {n.unread && (
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: HNH.red }} />
-        )}
-      </div>
     </button>
   )
 }
@@ -398,7 +230,7 @@ const WEATHER_KEY = 'hnh_wx_v2'
 
 interface WeatherState { temp: number; code: number; suburb: string; city: string; ts: number }
 
-function WeatherWidget({ name, hour, compact }: { name: string; hour: number; compact?: boolean }) {
+function WeatherWidget({ name, hour, liveTime, compact }: { name: string; hour: number; liveTime: string; compact?: boolean }) {
   const [wx, setWx] = useState<WeatherState | null>(() => {
     try { return JSON.parse(localStorage.getItem(WEATHER_KEY) || 'null') } catch { return null }
   })
@@ -454,11 +286,15 @@ function WeatherWidget({ name, hour, compact }: { name: string; hour: number; co
           <div style={{ fontSize: compact ? 11 : 12, fontWeight: 600, color: 'rgba(255,255,255,0.7)', letterSpacing: 0.3 }}>{greeting}</div>
           <div style={{ fontSize: compact ? 17 : 20, fontWeight: 800, color: '#fff', marginTop: 2, letterSpacing: -0.3 }}>{name}!</div>
           {location && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: compact ? 5 : 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: compact ? 5 : 7 }}>
               <Icon name="pin" size={11} color="rgba(255,255,255,0.7)" stroke={1.8} />
               <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.8)', fontWeight: 500 }}>{location}</span>
             </div>
           )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
+            <Icon name="clock" size={11} color="rgba(255,255,255,0.6)" stroke={1.8} />
+            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)', fontWeight: 600, letterSpacing: 0.3 }}>{liveTime}</span>
+          </div>
           {denied && !wx && (
             <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.55)', marginTop: 6 }}>Bật vị trí để xem thời tiết</div>
           )}
@@ -624,7 +460,7 @@ function WorkScheduleWidget({ onClick }: { onClick: () => void }) {
 export function HomePage() {
   const navigate = useNavigate()
   const { employee } = useAuth()
-  const { isClockedIn, duration, clockInTime, clockIn, clockOut, acting } = useClock()
+  const { isClockedIn, duration, clockInTime, clockOutTime, clockIn, clockOut, acting } = useClock()
   const { now, time } = useLiveClock()
   const [clockModalOpen, setClockModalOpen] = useState(false)
   const { data: tasks, refresh: rTasks } = useApi<TaskSummary>('/api/eoffice/my-summary/')
@@ -633,11 +469,10 @@ export function HomePage() {
   )
   const { data: leaveData, refresh: rLeave } = useApi<PaginatedResponse<LeaveAvailable>>('/api/leave/available-leave/?page_size=20')
   const { data: notifSummary, refresh: rNotif } = useApi<NotifSummary>('/api/notifications/summary/')
-  const { data: recentNotifs, refresh: rRecent } = useApi<PaginatedResponse<Notification>>('/api/notifications/list/all?page_size=5')
   const { data: payrollData, refresh: rPay } = useApi<PayrollEntry[]>('/api/payroll/my-monthly-payroll/')
   const refreshAll = useCallback(async () => {
-    rTasks(); rAtt(); rLeave(); rNotif(); rRecent(); rPay()
-  }, [rTasks, rAtt, rLeave, rNotif, rRecent, rPay])
+    rTasks(); rAtt(); rLeave(); rNotif(); rPay()
+  }, [rTasks, rAtt, rLeave, rNotif, rPay])
   const isTablet = useTablet()
   const isSmall = useSmallPhone()
   const px = isTablet ? 28 : isSmall ? 14 : 20
@@ -672,8 +507,6 @@ export function HomePage() {
   const netPay = latestPayroll?.col_AK ?? null
   const payrollMonth = latestPayroll ? `T${latestPayroll.month}/${String(latestPayroll.year).slice(2)}` : ''
 
-  const notifications = recentNotifs?.results ?? []
-
   const dayName = ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'][now.getDay()]
   const dateStr = `${dayName.toUpperCase()}, ${String(now.getDate()).padStart(2, '0')} / ${String(now.getMonth() + 1).padStart(2, '0')}`
 
@@ -692,23 +525,29 @@ export function HomePage() {
           <div style={{ fontSize: isSmall ? 10.5 : 11.5, color: HNH.ink3, fontWeight: 600, letterSpacing: 0.4 }}>{dateStr}</div>
           <div style={{ fontSize: isSmall ? 15 : 18, fontWeight: 700, color: HNH.ink, letterSpacing: -0.2 }}>{displayName}</div>
         </div>
+        {/* Work duration clock */}
         <div
           className="flex flex-col items-center justify-center shrink-0"
           style={{
-            background: HNH.navy, borderRadius: isSmall ? 11 : 14, padding: isSmall ? '5px 10px' : '6px 12px',
+            background: HNH.navy, borderRadius: isSmall ? 11 : 14, padding: isSmall ? '5px 9px' : '6px 11px',
             boxShadow: '0 2px 8px rgba(20,43,111,0.15)',
           }}
         >
-          <div style={{
-            fontFamily: "'Plus Jakarta Sans', monospace", fontSize: isSmall ? 14 : 17, fontWeight: 800,
-            color: '#fff', letterSpacing: 0.5, lineHeight: 1,
-          }}>
-            {time}
+          <div style={{ fontSize: 8, fontWeight: 600, color: 'rgba(255,255,255,0.55)', letterSpacing: 0.5, textTransform: 'uppercase', lineHeight: 1 }}>
+            Giờ công
           </div>
-          <div style={{ fontSize: 8.5, fontWeight: 600, color: 'rgba(255,255,255,0.6)', marginTop: 2, letterSpacing: 0.3 }}>
-            UTC+7
+          <div style={{
+            fontFamily: 'monospace', fontSize: isSmall ? 13 : 15, fontWeight: 800,
+            color: '#fff', letterSpacing: 0.5, lineHeight: 1, marginTop: 3,
+          }}>
+            {duration.slice(0, 5)}
+          </div>
+          <div style={{ fontSize: 7.5, fontWeight: 600, color: isClockedIn ? '#4ade80' : 'rgba(255,255,255,0.4)', marginTop: 2, letterSpacing: 0.3 }}>
+            {isClockedIn ? '● live' : duration === '00:00:00' ? '—' : 'hôm nay'}
           </div>
         </div>
+
+        {/* Bell */}
         <button
           onClick={() => navigate('/notifications')}
           className="relative flex items-center justify-center border-none cursor-pointer"
@@ -731,27 +570,34 @@ export function HomePage() {
             </span>
           )}
         </button>
-        <button
-          onClick={() => { window.location.href = '/' }}
-          className="flex items-center justify-center border-none cursor-pointer shrink-0"
-          style={{
-            width: isSmall ? 34 : 40, height: isSmall ? 34 : 40, borderRadius: isSmall ? 10 : 12, background: HNH.white,
-            boxShadow: '0 1px 2px rgba(15,20,40,0.06)',
-          }}
-          title="Giao diện Desktop"
-        >
-          <Icon name="monitor" size={isSmall ? 16 : 18} color={HNH.ink} />
-        </button>
+
+        {/* Clock In/Out button + IN/OUT times */}
+        <div className="flex items-center gap-1 shrink-0">
+          <div style={{ fontSize: 9, fontWeight: 700, lineHeight: 1.7, textAlign: 'right' }}>
+            <div style={{ color: clockInTime ? HNH.success : HNH.ink4 }}>
+              IN&nbsp;{clockInTime ?? '--:--'}
+            </div>
+            <div style={{ color: clockOutTime ? HNH.red : HNH.ink4 }}>
+              OUT {clockOutTime ?? '--:--'}
+            </div>
+          </div>
+          <button
+            onClick={() => setClockModalOpen(true)}
+            className="flex items-center justify-center border-none cursor-pointer shrink-0"
+            style={{
+              width: isSmall ? 34 : 40, height: isSmall ? 34 : 40, borderRadius: isSmall ? 10 : 12,
+              background: isClockedIn ? HNH.success : HNH.red,
+              boxShadow: isClockedIn ? '0 2px 8px rgba(34,197,94,0.3)' : '0 2px 8px rgba(192,34,43,0.3)',
+            }}
+          >
+            <Icon name={isClockedIn ? 'check' : 'clock'} size={isSmall ? 16 : 18} color="#fff" stroke={2.2} />
+          </button>
+        </div>
       </div>
 
       {/* Weather widget */}
       <div style={{ padding: `0 ${px}px` }}>
-        <WeatherWidget name={employee?.employee_first_name ?? 'bạn'} hour={now.getHours()} compact={isSmall} />
-      </div>
-
-      {/* Check-in */}
-      <div style={{ padding: `${isSmall ? 10 : 12}px ${px}px 0` }}>
-        <CheckInCard employee={employee} isClockedIn={isClockedIn} clockInTime={clockInTime} duration={duration} compact={isSmall} onOpen={() => setClockModalOpen(true)} />
+        <WeatherWidget name={employee?.employee_first_name ?? 'bạn'} hour={now.getHours()} liveTime={time} compact={isSmall} />
       </div>
 
       {/* Work schedule widget */}
@@ -793,51 +639,6 @@ export function HomePage() {
           </div>
         </div>
       )}
-
-      {/* Recent notifications */}
-      {notifications.length > 0 && (
-        <div style={{ padding: `${isSmall ? 12 : 16}px ${px}px 0` }}>
-          <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
-            <div className="flex items-center gap-2">
-              <div style={{ fontSize: isSmall ? 13.5 : 15, fontWeight: 700, color: HNH.ink }}>Thông báo</div>
-              {unreadCount > 0 && (
-                <span style={{
-                  fontSize: 10, fontWeight: 800, color: '#fff', background: HNH.red,
-                  borderRadius: 8, padding: '2px 7px', lineHeight: 1.4,
-                }}>
-                  {unreadCount}
-                </span>
-              )}
-            </div>
-            <button
-              onClick={() => navigate('/notifications')}
-              className="border-none bg-transparent cursor-pointer"
-              style={{ fontSize: isSmall ? 11 : 12, color: HNH.red, fontWeight: 600 }}
-            >Xem tất cả →</button>
-          </div>
-          <div style={{
-            background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`, overflow: 'hidden',
-          }}>
-            {notifications.slice(0, 3).map((n, i) => (
-              <div key={n.id} style={{ borderBottom: i < Math.min(notifications.length, 3) - 1 ? undefined : 'none' }}>
-                <NotifRow n={n} onClick={() => navigate('/notifications')} />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Quick actions */}
-      <div style={{ padding: `${isSmall ? 12 : 16}px ${px}px 0` }}>
-        <div style={{ fontSize: isSmall ? 13.5 : 15, fontWeight: 700, color: HNH.ink, marginBottom: isSmall ? 8 : 10 }}>Truy cập nhanh</div>
-        <div className="grid grid-cols-4 gap-2">
-          <QuickAction icon="leaf" label="Xin nghỉ" tone="red" compact={isSmall} onClick={() => navigate('/leave')} />
-          <QuickAction icon="money" label="Lương" tone="navy" compact={isSmall} onClick={() => navigate('/payslip')} />
-          <QuickAction icon="send" label="Đề xuất" tone="gold" compact={isSmall} onClick={() => navigate('/proposals')} />
-          <QuickAction icon="check" label="Phê duyệt" tone="success" compact={isSmall} onClick={() => navigate('/approvals')} />
-          <QuickAction icon="cal" label="Lịch ca" tone="navy" compact={isSmall} onClick={() => navigate('/calendar')} />
-        </div>
-      </div>
 
       <ClockModal
         open={clockModalOpen}
