@@ -230,6 +230,32 @@ const WEATHER_KEY = 'hnh_wx_v2'
 
 interface WeatherState { temp: number; code: number; suburb: string; city: string; ts: number }
 
+// HCM City fallback coords — always available when GPS fails/slow
+const HCM_LAT = 10.7769
+const HCM_LNG = 106.7009
+
+async function fetchWeatherData(lat: number, lng: number): Promise<WeatherState> {
+  const wRes = await fetch(
+    `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lng.toFixed(4)}&current=temperature_2m,weather_code&timezone=Asia%2FHo_Chi_Minh`
+  )
+  const wData = await wRes.json()
+  const temp = Math.round(wData.current?.temperature_2m ?? 0)
+  const code = wData.current?.weather_code ?? 0
+  let suburb = '', city = ''
+  try {
+    const gRes = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat.toFixed(5)}&lon=${lng.toFixed(5)}&format=json&accept-language=vi`
+    )
+    const gData = await gRes.json()
+    suburb = (gData.address?.suburb ?? gData.address?.quarter ?? gData.address?.neighbourhood ?? '')
+      .replace(/^(Phường|Xã|Thị trấn|Quận|Huyện)\s+/i, '')
+    city = (gData.address?.city ?? gData.address?.town ?? gData.address?.state ?? '')
+      .replace(/^Thành phố\s+/i, 'TP.').replace(/^Tỉnh\s+/i, '')
+      .replace(/^TP\.Thủ Đức$/i, 'TP.Hồ Chí Minh')
+  } catch { /* geocoding optional */ }
+  return { temp, code, suburb, city, ts: Date.now() }
+}
+
 function WeatherWidget({ name, hour, liveTime, compact }: { name: string; hour: number; liveTime: string; compact?: boolean }) {
   const [wx, setWx] = useState<WeatherState | null>(() => {
     try { return JSON.parse(localStorage.getItem(WEATHER_KEY) || 'null') } catch { return null }
@@ -237,40 +263,51 @@ function WeatherWidget({ name, hour, liveTime, compact }: { name: string; hour: 
   const [denied, setDenied] = useState(false)
 
   useEffect(() => {
-    if (!navigator.geolocation) { setDenied(true); return }
-    if (wx && Date.now() - wx.ts < 20 * 60 * 1000) return   // fresh enough
+    if (wx && Date.now() - wx.ts < 20 * 60 * 1000) return  // fresh enough
 
-    navigator.geolocation.getCurrentPosition(async pos => {
-      const { latitude: lat, longitude: lon } = pos.coords
+    const save = (data: WeatherState) => {
+      localStorage.setItem(WEATHER_KEY, JSON.stringify(data))
+      setWx(data)
+    }
 
-      // Fetch weather and geocoding independently — if geocoding fails, still show temperature
-      let temp = 0, code = 0, suburb = '', city = ''
+    // HCM City fallback — fires after 8s if GPS hasn't responded yet
+    let settled = false
+    const fallbackTimer = setTimeout(async () => {
+      if (settled) return
+      settled = true
       try {
-        const wRes = await fetch(
-          `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&current=temperature_2m,weather_code&timezone=Asia%2FHo_Chi_Minh`
-        )
-        const wData = await wRes.json()
-        temp = Math.round(wData.current?.temperature_2m ?? 0)
-        code = wData.current?.weather_code ?? 0
-      } catch { /* weather API failed — use 0°C as fallback */ }
+        const data = await fetchWeatherData(HCM_LAT, HCM_LNG)
+        if (!data.city) data.city = 'TP.HCM'
+        save(data)
+      } catch { /* total network failure */ }
+    }, 8000)
 
-      try {
-        // No custom User-Agent — forbidden header causes TypeError on iOS Safari
-        const gRes = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?lat=${lat.toFixed(5)}&lon=${lon.toFixed(5)}&format=json&accept-language=vi`
-        )
-        const gData = await gRes.json()
-        suburb = (gData.address?.suburb ?? gData.address?.quarter ?? gData.address?.neighbourhood ?? '')
-          .replace(/^(Phường|Xã|Thị trấn|Quận|Huyện)\s+/i, '')
-        city = (gData.address?.city ?? gData.address?.town ?? gData.address?.state ?? '')
-          .replace(/^Thành phố\s+/i, 'TP.').replace(/^Tỉnh\s+/i, '')
-          .replace(/^TP\.Thủ Đức$/i, 'TP.Hồ Chí Minh')
-      } catch { /* geocoding failed — show weather without location name */ }
+    if (!navigator.geolocation) {
+      setDenied(true)
+      return  // fallback timer still runs
+    }
 
-      const next: WeatherState = { temp, code, suburb, city, ts: Date.now() }
-      localStorage.setItem(WEATHER_KEY, JSON.stringify(next))
-      setWx(next)
-    }, () => setDenied(true), { timeout: 15000, maximumAge: 60000 })
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        // Use plain (non-async) callback to avoid iOS PWA async-in-geolocation bug
+        // Kick off fetch in a detached promise, fallback timer guards against hangs
+        fetchWeatherData(pos.coords.latitude, pos.coords.longitude)
+          .then(data => {
+            if (!settled) { settled = true; clearTimeout(fallbackTimer); save(data) }
+          })
+          .catch(() => {
+            if (!settled) { settled = true; clearTimeout(fallbackTimer) }
+            // fallback timer already handles HCM weather
+          })
+      },
+      () => {
+        setDenied(true)
+        // fallback timer will load HCM weather
+      },
+      { timeout: 10000, maximumAge: 60000 }
+    )
+
+    return () => { settled = true; clearTimeout(fallbackTimer) }
   }, [])   // eslint-disable-line react-hooks/exhaustive-deps
 
   const greeting = getGreeting(hour)
