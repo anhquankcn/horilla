@@ -1895,3 +1895,178 @@ class PWAAttendanceRequestView(APIView):
             )
             att.save()
             return Response({"status": "created", "id": att.id}, status=201)
+
+
+class CompanyAttendanceDashboardView(APIView):
+    """Company-wide attendance dashboard for managers."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from datetime import date, timedelta
+        from collections import defaultdict
+        from attendance.models import AttendanceLateComeEarlyOut
+        from leave.models import LeaveRequest
+        from employee.models import Employee
+
+        if not request.user.has_perm("attendance.view_attendance"):
+            return Response({"error": "Không có quyền"}, status=403)
+
+        today = date.today()
+        period = request.GET.get("period", "month")
+
+        if period == "week":
+            start = today - timedelta(days=today.weekday())
+            end = today
+            label = f"Tuần này ({start.day}/{start.month} – {end.day}/{end.month})"
+        elif period == "year":
+            start = date(today.year, 1, 1)
+            end = today
+            label = f"Năm {today.year}"
+        else:
+            start = date(today.year, today.month, 1)
+            end = today
+            label = f"Tháng {today.month}/{today.year}"
+
+        # prev period for trend
+        delta = (end - start).days + 1
+        prev_end = start - timedelta(days=1)
+        prev_start = prev_end - timedelta(days=delta - 1)
+
+        # ── Late / early out ──────────────────────────────────────
+        lc_qs = AttendanceLateComeEarlyOut.objects.filter(
+            attendance_id__attendance_date__range=[start, end],
+            is_active=True,
+        )
+        late_count = lc_qs.count()
+        late_prev = AttendanceLateComeEarlyOut.objects.filter(
+            attendance_id__attendance_date__range=[prev_start, prev_end],
+            is_active=True,
+        ).count()
+
+        # ── Approved leave (actual) ───────────────────────────────
+        leave_qs = LeaveRequest.objects.filter(
+            status="approved",
+            start_date__lte=end,
+            end_date__gte=start,
+            is_active=True,
+        )
+        actual_leave = leave_qs.count()
+        leave_prev = LeaveRequest.objects.filter(
+            status="approved",
+            start_date__lte=prev_end,
+            end_date__gte=prev_start,
+            is_active=True,
+        ).count()
+
+        # ── Planned leave (future, requested) ─────────────────────
+        planned_leave = LeaveRequest.objects.filter(
+            status="requested",
+            start_date__gte=today,
+            is_active=True,
+        ).count()
+
+        # ── Monthly trend (12 months back) ───────────────────────
+        monthly_trend = []
+        for i in range(11, -1, -1):
+            if today.month - i <= 0:
+                mo = today.month - i + 12
+                yr = today.year - 1
+            else:
+                mo = today.month - i
+                yr = today.year
+            m_start = date(yr, mo, 1)
+            import calendar as cal_mod
+            m_end = date(yr, mo, cal_mod.monthrange(yr, mo)[1])
+            leave_count = LeaveRequest.objects.filter(
+                status="approved",
+                start_date__lte=m_end,
+                end_date__gte=m_start,
+                is_active=True,
+            ).count()
+            late_c = AttendanceLateComeEarlyOut.objects.filter(
+                attendance_id__attendance_date__range=[m_start, m_end],
+                is_active=True,
+            ).count()
+            monthly_trend.append({
+                "month": f"T{mo}",
+                "leave": leave_count,
+                "late": late_c,
+            })
+
+        # ── Leave by type ─────────────────────────────────────────
+        type_map = defaultdict(int)
+        for lr in LeaveRequest.objects.filter(
+            status="approved",
+            start_date__lte=end,
+            end_date__gte=start,
+            is_active=True,
+        ).select_related("leave_type_id"):
+            name = lr.leave_type_id.name if lr.leave_type_id else "Khác"
+            type_map[name] += 1
+
+        palette = ["#3b82f6", "#22c55e", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#f97316", "#ec4899"]
+        leave_by_type = [
+            {"name": k, "count": v, "color": palette[i % len(palette)]}
+            for i, (k, v) in enumerate(sorted(type_map.items(), key=lambda x: -x[1]))
+        ]
+
+        # ── Leave by department ───────────────────────────────────
+        dept_map = defaultdict(int)
+        for lr in LeaveRequest.objects.filter(
+            status="approved",
+            start_date__lte=end,
+            end_date__gte=start,
+            is_active=True,
+        ).select_related("employee_id__employee_work_info__department_id"):
+            try:
+                dept = lr.employee_id.employee_work_info.department_id
+                dept_name = dept.department if dept else "Không rõ"
+            except Exception:
+                dept_name = "Không rõ"
+            dept_map[dept_name] += 1
+
+        leave_by_dept = [
+            {"name": k, "count": v}
+            for k, v in sorted(dept_map.items(), key=lambda x: -x[1])
+        ][:10]
+
+        # ── Top late/early employees ──────────────────────────────
+        emp_map = defaultdict(int)
+        for lc in AttendanceLateComeEarlyOut.objects.filter(
+            attendance_id__attendance_date__range=[start, end],
+            is_active=True,
+        ).select_related("employee_id__employee_work_info__department_id"):
+            emp = lc.employee_id
+            if emp:
+                emp_map[emp.id] = emp_map.get(emp.id, 0) + 1
+
+        top_late = []
+        for emp_id, cnt in sorted(emp_map.items(), key=lambda x: -x[1])[:8]:
+            try:
+                emp = Employee.objects.select_related(
+                    "employee_work_info__department_id"
+                ).get(id=emp_id)
+                name = emp.get_full_name()
+                try:
+                    dept = emp.employee_work_info.department_id
+                    dept_name = dept.department if dept else ""
+                except Exception:
+                    dept_name = ""
+                initials = "".join(p[0].upper() for p in name.split() if p)[-2:]
+                top_late.append({"name": name, "dept": dept_name, "count": cnt, "initials": initials})
+            except Exception:
+                pass
+
+        return Response({
+            "period_label": label,
+            "stats": {
+                "late_early": {"count": late_count, "trend": late_count - late_prev},
+                "actual_leave": {"count": actual_leave, "trend": actual_leave - leave_prev},
+                "planned_leave": {"count": planned_leave, "trend": 0},
+            },
+            "monthly_trend": monthly_trend,
+            "leave_by_type": leave_by_type,
+            "leave_by_dept": leave_by_dept,
+            "top_late_early": top_late,
+        })
