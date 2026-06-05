@@ -12,7 +12,6 @@ def add_hnh_leave_types(apps, schema_editor):
         name="Phép Bù",
         defaults=dict(
             payment="paid",
-            leave_type_icon="palm",
             total_days=0,
             is_compensatory_leave=True,
             require_approval="yes",
@@ -22,7 +21,6 @@ def add_hnh_leave_types(apps, schema_editor):
         name="Phép Thâm Niên",
         defaults=dict(
             payment="paid",
-            leave_type_icon="star",
             total_days=0,
             require_approval="yes",
         ),
