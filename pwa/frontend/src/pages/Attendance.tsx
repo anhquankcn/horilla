@@ -11,11 +11,16 @@ import { ClockModal } from '../components/ClockModal'
 import { AttendanceDetailModal } from '../components/AttendanceDetailModal'
 import { useTablet } from '../lib/useTablet'
 
-function LogRow({ date, day, inT, outT, hours, tag, tagTone, last, onClick }: {
-  date: string; day: string; inT: string; outT: string; hours: string
+function LogRow({ date, day, firstIn, actIn, actOut, hours, tag, tagTone, last, onClick }: {
+  date: string; day: string
+  firstIn: string   // attendance_clock_in — first arrival of the day
+  actIn: string     // latest activity clock_in
+  actOut: string    // latest activity clock_out (or '--:--')
+  hours: string
   tag: string; tagTone: 'navy' | 'red' | 'gold' | 'success' | 'warn' | 'ink'; last?: boolean
   onClick?: () => void
 }) {
+  const actOutColor = actOut === '--:--' ? HNH.ink3 : HNH.ink
   return (
     <button
       onClick={onClick}
@@ -27,10 +32,13 @@ function LogRow({ date, day, inT, outT, hours, tag, tagTone, last, onClick }: {
         <div style={{ fontSize: 10.5, color: HNH.ink3, fontWeight: 600 }}>{day}</div>
       </div>
       <div className="flex-1">
-        <div className="flex items-center gap-1.5">
-          <span style={{ fontSize: 13, fontWeight: 600, color: HNH.ink }}>{inT}</span>
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {/* First arrival → latest activity in/out */}
+          <span style={{ fontSize: 13, fontWeight: 700, color: HNH.ink }}>{firstIn}</span>
           <span style={{ color: HNH.ink3, fontSize: 11 }}>→</span>
-          <span style={{ fontSize: 13, fontWeight: 600, color: HNH.ink }}>{outT}</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: HNH.ink }}>{actIn}</span>
+          <span style={{ color: HNH.ink3, fontSize: 11 }}>/</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: actOutColor }}>{actOut}</span>
           <span className="ml-auto" style={{ fontSize: 12.5, color: HNH.ink2, fontWeight: 600 }}>{hours}</span>
         </div>
         <div style={{ marginTop: 4 }}><Badge tone={tagTone} size="s">{tag}</Badge></div>
@@ -46,6 +54,8 @@ interface AttendanceRecord {
   attendance_clock_in: string | null
   attendance_clock_out: string | null
   attendance_worked_hour: string | null
+  latest_activity_clock_in: string | null
+  latest_activity_clock_out: string | null
 }
 
 interface PaginatedResponse<T> {
@@ -191,16 +201,19 @@ export function AttendancePage() {
           const d = new Date(att.attendance_date)
           const dayLabels = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
           const dateLabel = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
-          const inTime = att.attendance_clock_in?.slice(0, 5) ?? '--:--'
-          const outTime = att.attendance_clock_out?.slice(0, 5) ?? '--:--'
+          const firstIn = att.attendance_clock_in?.slice(0, 5) ?? '--:--'
+          // latest activity times; fall back to attendance-level times if not yet populated
+          const actIn = att.latest_activity_clock_in ?? att.attendance_clock_in?.slice(0, 5) ?? '--:--'
+          const actOut = att.latest_activity_clock_out ?? att.attendance_clock_out?.slice(0, 5) ?? '--:--'
           const hours = att.attendance_worked_hour?.slice(0, 5) ?? '—'
           return (
             <LogRow
               key={att.id}
               date={dateLabel}
               day={dayLabels[d.getDay()]}
-              inT={inTime}
-              outT={outTime}
+              firstIn={firstIn}
+              actIn={actIn}
+              actOut={actOut}
               hours={hours}
               tag="Văn phòng"
               tagTone="navy"

@@ -228,6 +228,18 @@ class UserAttendanceListSerializer(serializers.ModelSerializer):
 
 
 class UserAttendanceDetailedSerializer(serializers.ModelSerializer):
+    latest_activity_clock_in = serializers.SerializerMethodField()
+    latest_activity_clock_out = serializers.SerializerMethodField()
+
     class Meta:
         model = Attendance
         fields = "__all__"
+
+    def get_latest_activity_clock_in(self, obj):
+        # Uses Subquery annotation from UserAttendanceView list (no extra query)
+        val = getattr(obj, 'latest_act_clock_in', None)
+        return str(val)[:5] if val else None
+
+    def get_latest_activity_clock_out(self, obj):
+        val = getattr(obj, 'latest_act_clock_out', None)
+        return str(val)[:5] if val else None

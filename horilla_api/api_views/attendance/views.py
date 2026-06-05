@@ -1237,10 +1237,21 @@ class UserAttendanceView(APIView):
     serializer_class = UserAttendanceDetailedSerializer
 
     def get(self, request):
+        from django.db.models import Subquery, OuterRef
+
         employee_id = request.user.employee_get.id
+
+        # Annotate with latest AttendanceActivity clock_in/clock_out per attendance date
+        latest_act = AttendanceActivity.objects.filter(
+            employee_id=OuterRef('employee_id'),
+            attendance_date=OuterRef('attendance_date'),
+        ).order_by('-id')
 
         attendance_queryset = Attendance.objects.filter(
             employee_id=employee_id
+        ).annotate(
+            latest_act_clock_in=Subquery(latest_act.values('clock_in')[:1]),
+            latest_act_clock_out=Subquery(latest_act.values('clock_out')[:1]),
         ).order_by("-id")
 
         paginator = PageNumberPagination()
