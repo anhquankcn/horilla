@@ -35,7 +35,8 @@ export function AppShell() {
       className="flex flex-col"
       style={{
         background: HNH.cream,
-        ...(isTablet ? { height: '100dvh', overflow: 'hidden' } : { minHeight: '100dvh' }),
+        height: '100dvh',
+        overflow: 'hidden',
       }}
     >
       <WelcomeWizard />
