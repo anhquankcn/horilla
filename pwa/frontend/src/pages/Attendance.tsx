@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { Badge } from '../components/ui/Badge'
@@ -59,8 +59,28 @@ export function AttendancePage() {
   const { now, time } = useLiveClock()
   const [clockModalOpen, setClockModalOpen] = useState(false)
   const [selectedAtt, setSelectedAtt] = useState<AttendanceRecord | null>(null)
-  const { data: historyResp } = useApi<PaginatedResponse<AttendanceRecord>>('/api/attendance/my-attendance/')
+  const { data: historyResp, refresh: refreshHistory } = useApi<PaginatedResponse<AttendanceRecord>>('/api/attendance/my-attendance/')
   const isTablet = useTablet()
+
+  // Refresh history when app returns to foreground (iPhone PWA backgrounding)
+  useEffect(() => {
+    const onVisible = () => { if (document.visibilityState === 'visible') refreshHistory() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [refreshHistory])
+
+  // Wrap clock actions to also refresh history list after success
+  const handleClockIn = useCallback(async (body?: Record<string, unknown>) => {
+    const res = await clockIn(body)
+    refreshHistory()
+    return res
+  }, [clockIn, refreshHistory])
+
+  const handleClockOut = useCallback(async (body?: Record<string, unknown>) => {
+    const res = await clockOut(body)
+    refreshHistory()
+    return res
+  }, [clockOut, refreshHistory])
   const px = isTablet ? 28 : 20
 
   const history = historyResp?.results ?? []
@@ -246,8 +266,8 @@ export function AttendancePage() {
         duration={duration}
         shiftName={employee?.shift_name ?? 'Ca hành chính'}
         acting={acting}
-        onClockIn={clockIn}
-        onClockOut={clockOut}
+        onClockIn={handleClockIn}
+        onClockOut={handleClockOut}
       />
 
       <AttendanceDetailModal
