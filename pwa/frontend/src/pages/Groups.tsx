@@ -31,7 +31,17 @@ interface GroupDetail {
   permissions: Perm[]
   members: Member[]
   allowed_apps: string[]
+  nav_tabs: string[]
 }
+
+const NAV_TAB_OPTIONS = [
+  { id: 'home',   label: 'Trang chủ',  icon: 'home' },
+  { id: 'attend', label: 'Chấm công',  icon: 'clock' },
+  { id: 'apps',   label: 'Ứng dụng',   icon: 'grid' },
+  { id: 'ruby',   label: 'Ruby AI',    icon: 'star' },
+  { id: 'tasks',  label: 'Công việc',  icon: 'check' },
+  { id: 'me',     label: 'Cá nhân',    icon: 'users' },
+]
 
 interface AvailEmp {
   id: number
@@ -338,6 +348,10 @@ function EditGroupModal({ detail, onClose, onSaved }: {
   const [selectedApps, setSelectedApps] = useState<Set<string>>(
     new Set(detail.allowed_apps || [])
   )
+  // Empty set = all tabs shown (no restriction). Non-empty = only those tabs.
+  const [selectedNavTabs, setSelectedNavTabs] = useState<Set<string>>(
+    new Set(detail.nav_tabs || [])
+  )
   const [allPerms, setAllPerms] = useState<Record<string, AppPermGroup>>({})
   const [loadingPerms, setLoadingPerms] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -388,6 +402,14 @@ function EditGroupModal({ detail, onClose, onSaved }: {
     })
   }
 
+  const toggleNavTab = (id: string) => {
+    setSelectedNavTabs(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
   const handleSave = async () => {
     setSaving(true)
     try {
@@ -395,7 +417,10 @@ function EditGroupModal({ detail, onClose, onSaved }: {
         name: name.trim(),
         permission_ids: Array.from(selectedPerms),
         allowed_apps: Array.from(selectedApps),
+        nav_tabs: Array.from(selectedNavTabs),
       })
+      // Clear cached nav tabs so BottomNav re-fetches
+      localStorage.removeItem('hnh_nav_tabs')
       onSaved()
       onClose()
     } catch { /* ignore */ } finally { setSaving(false) }
@@ -406,6 +431,8 @@ function EditGroupModal({ detail, onClose, onSaved }: {
     || !detail.permissions.every(p => selectedPerms.has(p.id))
     || selectedApps.size !== (detail.allowed_apps || []).length
     || !(detail.allowed_apps || []).every(a => selectedApps.has(a))
+    || selectedNavTabs.size !== (detail.nav_tabs || []).length
+    || !(detail.nav_tabs || []).every(t => selectedNavTabs.has(t))
 
   const tabs: { key: EditTab; label: string; icon: string }[] = [
     { key: 'info', label: 'Thông tin', icon: 'doc' },
@@ -491,6 +518,81 @@ function EditGroupModal({ detail, onClose, onSaved }: {
                 <div style={{ fontSize: 12, fontWeight: 600, color: HNH.ink3, marginTop: 2 }}>
                   Thành viên: {detail.members.length}
                 </div>
+              </div>
+
+              {/* Nav tabs visibility */}
+              <div style={{ marginTop: 20 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: HNH.ink2, marginBottom: 4 }}>
+                  Bottom Nav hiển thị
+                </div>
+                <div style={{
+                  fontSize: 11.5, color: HNH.ink3, fontWeight: 500, marginBottom: 10, lineHeight: 1.4,
+                }}>
+                  Bỏ chọn để ẩn tab đó khỏi thanh điều hướng.
+                  {selectedNavTabs.size === 0 && (
+                    <span style={{ color: HNH.success, fontWeight: 700 }}> (Đang hiện tất cả)</span>
+                  )}
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 8 }}>
+                  {NAV_TAB_OPTIONS.map(tab => {
+                    // Empty selectedNavTabs = all tabs shown; treat as all checked
+                    const effectivelyAll = selectedNavTabs.size === 0
+                    const checked = effectivelyAll || selectedNavTabs.has(tab.id)
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => {
+                          if (effectivelyAll) {
+                            // First click: switch to explicit-all mode then uncheck this tab
+                            const all = new Set(NAV_TAB_OPTIONS.map(t => t.id))
+                            all.delete(tab.id)
+                            setSelectedNavTabs(all)
+                          } else {
+                            toggleNavTab(tab.id)
+                          }
+                        }}
+                        className="flex flex-col items-center gap-1 border-none cursor-pointer"
+                        style={{
+                          background: checked ? HNH.navy50 : HNH.cream2,
+                          borderRadius: 12, padding: '10px 6px',
+                          border: `1.5px solid ${checked ? HNH.navy : HNH.line}`,
+                        }}
+                      >
+                        <div
+                          className="flex items-center justify-center"
+                          style={{
+                            width: 22, height: 22, borderRadius: 7,
+                            background: checked ? HNH.navy : '#fff',
+                            border: checked ? 'none' : `2px solid ${HNH.line}`,
+                            marginBottom: 2,
+                          }}
+                        >
+                          {checked && <Icon name="check" size={13} color="#fff" stroke={2.5} />}
+                        </div>
+                        <Icon name={tab.icon} size={15} color={checked ? HNH.navy : HNH.ink3} stroke={2} />
+                        <span style={{
+                          fontSize: 10.5, fontWeight: 700,
+                          color: checked ? HNH.navy : HNH.ink3,
+                          textAlign: 'center', lineHeight: 1.2,
+                        }}>
+                          {tab.label}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+                {selectedNavTabs.size > 0 && selectedNavTabs.size < NAV_TAB_OPTIONS.length && (
+                  <button
+                    onClick={() => setSelectedNavTabs(new Set())}
+                    className="border-none cursor-pointer"
+                    style={{
+                      marginTop: 8, fontSize: 11, fontWeight: 600, color: HNH.ink3,
+                      background: 'transparent', textDecoration: 'underline',
+                    }}
+                  >
+                    Khôi phục hiện tất cả
+                  </button>
+                )}
               </div>
             </div>
           )}

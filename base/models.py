@@ -359,6 +359,12 @@ class GroupAppVisibility(models.Model):
         blank=True,
         verbose_name=_("Allowed Apps"),
     )
+    nav_tabs = models.JSONField(
+        default=list,
+        blank=True,
+        verbose_name=_("Allowed Nav Tabs"),
+        help_text="Empty = all tabs visible. List tab IDs to restrict: home, attend, apps, ruby, tasks, me",
+    )
 
     class Meta:
         verbose_name = _("Group App Visibility")

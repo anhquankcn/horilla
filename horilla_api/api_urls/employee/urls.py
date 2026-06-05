@@ -203,6 +203,11 @@ urlpatterns = [
         name="api-my-apps",
     ),
     path(
+        "my-nav-tabs/",
+        views.MyNavTabsView.as_view(),
+        name="api-my-nav-tabs",
+    ),
+    path(
         "dashboard/",
         views.DashboardView.as_view(),
         name="api-dashboard",

@@ -1546,6 +1546,7 @@ class GroupDetailView(APIView):
 
         vis = GroupAppVisibility.objects.filter(group=group).first()
         allowed_apps = vis.allowed_apps if vis else []
+        nav_tabs = vis.nav_tabs if vis else []
 
         return Response({
             "id": group.pk,
@@ -1553,6 +1554,7 @@ class GroupDetailView(APIView):
             "permissions": perms,
             "members": member_list,
             "allowed_apps": allowed_apps,
+            "nav_tabs": nav_tabs,
         })
 
 
@@ -1740,9 +1742,13 @@ class GroupUpdateView(APIView):
             )
 
         allowed_apps = request.data.get("allowed_apps")
-        if allowed_apps is not None:
+        nav_tabs = request.data.get("nav_tabs")
+        if allowed_apps is not None or nav_tabs is not None:
             vis, _ = GroupAppVisibility.objects.get_or_create(group=group)
-            vis.allowed_apps = allowed_apps
+            if allowed_apps is not None:
+                vis.allowed_apps = allowed_apps
+            if nav_tabs is not None:
+                vis.nav_tabs = nav_tabs
             vis.save()
 
         return Response({
@@ -2377,6 +2383,56 @@ class MyAppsView(APIView):
             return Response({"allowed": self.ALL_APP_SLUGS, "is_admin": False})
 
         return Response({"allowed": sorted(allowed), "is_admin": False})
+
+
+class MyNavTabsView(APIView):
+    """Return allowed bottom nav tab IDs for the current user's groups.
+
+    Empty list means all tabs are visible (no restriction).
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    ALL_TABS = ["home", "attend", "apps", "ruby", "tasks", "me"]
+
+    def get(self, request):
+        from base.models import GroupAppVisibility
+
+        user = request.user
+        if user.is_superuser:
+            return Response({"allowed_tabs": self.ALL_TABS})
+
+        groups = user.groups.all()
+        if not groups.exists():
+            return Response({"allowed_tabs": self.ALL_TABS})
+
+        vis_map = {
+            vis.group_id: vis.nav_tabs
+            for vis in GroupAppVisibility.objects.filter(group__in=groups)
+        }
+
+        group_ids = set(groups.values_list("id", flat=True))
+        groups_without_config = group_ids - set(vis_map.keys())
+
+        # Any group with no restriction → all tabs visible
+        if groups_without_config:
+            return Response({"allowed_tabs": self.ALL_TABS})
+
+        # All groups have config — check if any group has empty nav_tabs (= unrestricted)
+        for tabs in vis_map.values():
+            if not tabs:
+                return Response({"allowed_tabs": self.ALL_TABS})
+
+        # Union of all allowed tabs across groups
+        allowed: set[str] = set()
+        for tabs in vis_map.values():
+            allowed.update(tabs)
+
+        if not allowed:
+            return Response({"allowed_tabs": self.ALL_TABS})
+
+        ordered = [t for t in self.ALL_TABS if t in allowed]
+        return Response({"allowed_tabs": ordered})
 
 
 class ReportsView(APIView):

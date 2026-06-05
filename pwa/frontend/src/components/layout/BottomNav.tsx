@@ -1,8 +1,10 @@
+import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { HNH } from '../../lib/theme'
+import { api } from '../../lib/api'
 
 // home | attend | [apps] | [ruby] | tasks | me  — apps+ruby are twin elevated centre buttons
-const tabs = [
+const ALL_TABS = [
   { id: 'home',   label: 'Trang chủ', path: '/' },
   { id: 'attend', label: 'Chấm công', path: '/attendance' },
   { id: 'apps',   label: 'Ứng dụng',  path: '/apps' },
@@ -10,6 +12,8 @@ const tabs = [
   { id: 'tasks',  label: 'Công việc', path: '/tasks' },
   { id: 'me',     label: 'Cá nhân',   path: '/profile' },
 ] as const
+
+type TabId = typeof ALL_TABS[number]['id']
 
 function TabIcon({ name, active }: { name: string; active: boolean }) {
   const c = active ? HNH.red : HNH.ink3
@@ -84,9 +88,33 @@ function RubyIcon({ active }: { active: boolean }) {
   )
 }
 
+const NAV_TABS_KEY = 'hnh_nav_tabs'
+
 export function BottomNav() {
   const location = useLocation()
   const navigate = useNavigate()
+
+  const [allowedTabs, setAllowedTabs] = useState<TabId[] | null>(
+    () => {
+      try {
+        const cached = localStorage.getItem(NAV_TABS_KEY)
+        return cached ? JSON.parse(cached) : null
+      } catch { return null }
+    }
+  )
+
+  useEffect(() => {
+    api.get<{ allowed_tabs: TabId[] }>('/api/employee/my-nav-tabs/')
+      .then(data => {
+        setAllowedTabs(data.allowed_tabs)
+        localStorage.setItem(NAV_TABS_KEY, JSON.stringify(data.allowed_tabs))
+      })
+      .catch(() => {})
+  }, [])
+
+  const tabs = allowedTabs && allowedTabs.length < ALL_TABS.length
+    ? ALL_TABS.filter(t => allowedTabs.includes(t.id as TabId))
+    : ALL_TABS
 
   const activeTab = tabs.find(t => t.path === location.pathname)?.id ?? 'home'
 
