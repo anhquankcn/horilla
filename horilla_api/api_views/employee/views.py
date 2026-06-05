@@ -1658,6 +1658,20 @@ class GroupAvailableEmployeesView(APIView):
 # ── All available permissions (for permission picker) ──
 
 
+class AllAppFeaturesView(APIView):
+    """Return all active AppFeature records from DB (for Groups modal selector)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from base.models import AppFeature
+
+        features = AppFeature.objects.filter(is_active=True).order_by("order", "slug").values(
+            "slug", "label", "group", "is_base", "order"
+        )
+        return Response(list(features))
+
+
 class AllPermissionsView(APIView):
     """List all Django permissions grouped by app label."""
 
@@ -2326,61 +2340,54 @@ class DashboardView(APIView):
 
 
 class MyAppsView(APIView):
-    """Return list of allowed app slugs for the current user."""
+    """Return list of allowed app slugs for the current user.
+
+    Source of truth is base.AppFeature table — no hardcoded slug lists.
+    Add/remove features via Django Admin > Base > App Features.
+    """
 
     permission_classes = [IsAuthenticated]
 
-    ALL_APP_SLUGS = [
-        "attendance", "work-schedule", "monthly-attendance", "proposals", "approvals",
-        "payslip", "notifications", "documents", "helpdesk", "leave",
-        "employees", "roles", "groups", "attendance-activity",
-        "tasks", "projects", "announcement-hub", "dashboard", "unified-calendar",
-        "assets", "reports", "payroll-mgmt", "onboarding", "journey", "pms",
-        "training", "org-chart", "promotion-hub", "monthly-att",
-    ]
+    @staticmethod
+    def _all_slugs():
+        from base.models import AppFeature
+        return list(AppFeature.objects.filter(is_active=True).order_by("order", "slug").values_list("slug", flat=True))
 
-    # Self-service slugs always visible to every authenticated employee regardless
-    # of group visibility config — these are personal data views, not management tools.
-    BASE_SLUGS = {
-        "attendance", "work-schedule", "monthly-attendance",
-        "proposals", "payslip", "notifications", "documents", "helpdesk", "leave",
-    }
+    @staticmethod
+    def _base_slugs():
+        from base.models import AppFeature
+        return set(AppFeature.objects.filter(is_active=True, is_base=True).values_list("slug", flat=True))
 
     def get(self, request):
         from base.models import GroupAppVisibility
 
+        all_slugs = self._all_slugs()
         user = request.user
         if user.is_superuser:
-            return Response({"allowed": self.ALL_APP_SLUGS, "is_admin": True})
+            return Response({"allowed": all_slugs, "is_admin": True})
 
         groups = user.groups.all()
         if not groups.exists():
-            return Response({"allowed": self.ALL_APP_SLUGS, "is_admin": False})
+            return Response({"allowed": all_slugs, "is_admin": False})
 
-        # Build map: group_id → allowed_apps (only groups that have a non-empty config)
         vis_map = {
             vis.group_id: vis.allowed_apps
             for vis in GroupAppVisibility.objects.filter(group__in=groups)
-            if vis.allowed_apps  # empty list treated as "no config"
+            if vis.allowed_apps
         }
 
         group_ids = set(groups.values_list("id", flat=True))
-
-        # If ANY group has no visibility config → that group is unrestricted → all apps
-        # (e.g. user is in "Admin Hệ thống" which has no restriction AND "Nhân Viên HNH"
-        #  which has 12 apps → the unrestricted group wins → return all apps)
         groups_without_config = group_ids - set(vis_map.keys())
         if groups_without_config:
-            return Response({"allowed": self.ALL_APP_SLUGS, "is_admin": False})
+            return Response({"allowed": all_slugs, "is_admin": False})
 
-        # All groups have explicit config → return union of their allowed apps,
-        # always adding BASE_SLUGS so self-service features are never locked out.
-        allowed = set(self.BASE_SLUGS)
+        base_slugs = self._base_slugs()
+        allowed = set(base_slugs)
         for apps in vis_map.values():
             allowed.update(apps)
 
         if not allowed:
-            return Response({"allowed": self.ALL_APP_SLUGS, "is_admin": False})
+            return Response({"allowed": all_slugs, "is_admin": False})
 
         return Response({"allowed": sorted(allowed), "is_admin": False})
 

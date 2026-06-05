@@ -9,6 +9,7 @@ from simple_history.admin import SimpleHistoryAdmin
 
 from base.models import (
     Announcement,
+    AppFeature,
     Attachment,
     AttendanceAllowedIP,
     Company,
@@ -68,6 +69,15 @@ admin.site.register(Attachment)
 admin.site.register(EmailLog)
 admin.site.register(DashboardEmployeeCharts)
 admin.site.register(Holidays)
+
+
+@admin.register(AppFeature)
+class AppFeatureAdmin(admin.ModelAdmin):
+    list_display = ["slug", "label", "group", "is_base", "is_active", "order"]
+    list_editable = ["label", "group", "is_base", "is_active", "order"]
+    list_filter = ["group", "is_active", "is_base"]
+    search_fields = ["slug", "label"]
+    ordering = ["order", "slug"]
 admin.site.register(CompanyLeaves)
 admin.site.register(PenaltyAccounts)
 admin.site.register(MultipleApprovalCondition)

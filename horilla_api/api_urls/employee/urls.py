@@ -198,6 +198,11 @@ urlpatterns = [
         name="api-group-all-permissions",
     ),
     path(
+        "all-app-features/",
+        views.AllAppFeaturesView.as_view(),
+        name="api-all-app-features",
+    ),
+    path(
         "my-apps/",
         views.MyAppsView.as_view(),
         name="api-my-apps",

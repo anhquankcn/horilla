@@ -375,6 +375,39 @@ class GroupAppVisibility(models.Model):
         return f"{self.group.name} → {len(self.allowed_apps)} apps"
 
 
+class AppFeature(models.Model):
+    """PWA app feature slug registry — source of truth for MyAppsView."""
+
+    GROUP_CHOICES = [("use", "Sử dụng"), ("manage", "Quản lý")]
+
+    slug = models.CharField(max_length=60, unique=True, verbose_name=_("Slug"))
+    label = models.CharField(max_length=100, verbose_name=_("Tên hiển thị"))
+    group = models.CharField(
+        max_length=20,
+        choices=GROUP_CHOICES,
+        default="use",
+        verbose_name=_("Nhóm"),
+    )
+    is_base = models.BooleanField(
+        default=False,
+        verbose_name=_("Luôn hiển thị"),
+        help_text=_(
+            "Nếu bật, tính năng này luôn hiển thị cho mọi user bất kể cấu hình nhóm quyền."
+        ),
+    )
+    is_active = models.BooleanField(default=True, verbose_name=_("Kích hoạt"))
+    order = models.PositiveSmallIntegerField(default=0, verbose_name=_("Thứ tự"))
+
+    class Meta:
+        ordering = ["order", "slug"]
+        verbose_name = _("App Feature")
+        verbose_name_plural = _("App Features")
+        db_table = "base_appfeature"
+
+    def __str__(self):
+        return f"{self.label} ({self.slug})"
+
+
 class WorkType(HorillaModel):
     """
     WorkType model
