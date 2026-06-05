@@ -1621,3 +1621,41 @@ class AttendanceComment(models.Model):
 
     def __str__(self):
         return f"Comment by {self.author} on {self.attendance.attendance_date}"
+
+
+class EmployeeShiftPlan(models.Model):
+    """Daily shift assignment plan per employee (overrides permanent shift for a date)."""
+
+    employee = models.ForeignKey(
+        "employee.Employee",
+        on_delete=models.CASCADE,
+        related_name="shift_plans",
+        verbose_name="Nhân viên",
+    )
+    shift = models.ForeignKey(
+        "base.EmployeeShift",
+        on_delete=models.PROTECT,
+        related_name="plan_entries",
+        verbose_name="Ca làm việc",
+    )
+    date = models.DateField(verbose_name="Ngày")
+    note = models.CharField(max_length=200, blank=True, default="")
+    created_by = models.ForeignKey(
+        "employee.Employee",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="created_shift_plans",
+        verbose_name="Người tạo",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [("employee", "date")]
+        ordering = ["date", "employee"]
+        db_table = "attendance_employeeshiftplan"
+        verbose_name = "Employee Shift Plan"
+        verbose_name_plural = "Employee Shift Plans"
+
+    def __str__(self):
+        return f"{self.employee} | {self.date} → {self.shift.employee_shift}"

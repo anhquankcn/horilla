@@ -408,6 +408,33 @@ class AppFeature(models.Model):
         return f"{self.label} ({self.slug})"
 
 
+class DepartmentShift(models.Model):
+    """Which shifts are active/assigned to each department (configured by C&B)."""
+
+    department = models.ForeignKey(
+        "Department",
+        on_delete=models.CASCADE,
+        related_name="active_shifts",
+        verbose_name=_("Phòng ban"),
+    )
+    shift = models.ForeignKey(
+        "EmployeeShift",
+        on_delete=models.CASCADE,
+        related_name="department_assignments",
+        verbose_name=_("Ca làm việc"),
+    )
+    is_primary = models.BooleanField(default=False, verbose_name=_("Ca chính"))
+
+    class Meta:
+        unique_together = [("department", "shift")]
+        db_table = "base_departmentshift"
+        verbose_name = _("Department Shift")
+        verbose_name_plural = _("Department Shifts")
+
+    def __str__(self):
+        return f"{self.department.department} → {self.shift.employee_shift}"
+
+
 class WorkType(HorillaModel):
     """
     WorkType model

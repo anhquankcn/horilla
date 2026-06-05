@@ -49,6 +49,7 @@ import { MonthlyAttendancePage } from './pages/MonthlyAttendance'
 import { HelpDeskPage } from './pages/HelpDesk'
 import { AttendanceDashboardPage } from './pages/AttendanceDashboard'
 import { MonthlyAttendanceDetailPage } from './pages/MonthlyAttendanceDetail'
+import { ShiftManagementPage } from './pages/ShiftManagement'
 
 export function App() {
   return (
@@ -101,6 +102,7 @@ export function App() {
         <Route path="/helpdesk" element={<HelpDeskPage />} />
         <Route path="/attendance-dashboard" element={<AttendanceDashboardPage />} />
         <Route path="/attendance-monthly-detail" element={<MonthlyAttendanceDetailPage />} />
+        <Route path="/shift-management" element={<ShiftManagementPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
 

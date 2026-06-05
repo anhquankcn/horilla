@@ -1,6 +1,7 @@
 from django.urls import path
 
 from ...api_views.employee import views as views
+from ...api_views.employee import shift_management_views as smv
 
 urlpatterns = [
     path("me/", views.EmployeeMeAPIView.as_view(), name="api-employee-me"),
@@ -272,4 +273,10 @@ urlpatterns = [
         views.PromotionHubView.as_view(),
         name="api-promotion-hub",
     ),
+    # ── Shift Management ──
+    path("shift-mgmt/scope/", smv.ShiftMgmtScopeView.as_view(), name="api-shift-mgmt-scope"),
+    path("shift-mgmt/shifts/", smv.ShiftMgmtShiftsView.as_view(), name="api-shift-mgmt-shifts"),
+    path("shift-mgmt/dept-shifts/", smv.ShiftMgmtDeptShiftView.as_view(), name="api-shift-mgmt-dept-shifts"),
+    path("shift-mgmt/employees/", smv.ShiftMgmtEmployeesView.as_view(), name="api-shift-mgmt-employees"),
+    path("shift-mgmt/plan/", smv.ShiftMgmtPlanView.as_view(), name="api-shift-mgmt-plan"),
 ]
