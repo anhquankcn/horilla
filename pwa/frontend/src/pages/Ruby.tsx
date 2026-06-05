@@ -1,75 +1,76 @@
+import { useState } from 'react'
 import { HNH } from '../lib/theme'
-import { LogoMark } from '../components/ui/Logo'
 import { Icon } from '../components/ui/Icon'
+import { LogoMark } from '../components/ui/Logo'
+
+const ARKON_URL = 'https://arkon.hnhtravel.work'
 
 export function RubyPage() {
+  const [loading, setLoading] = useState(true)
+
   return (
-    <div className="flex flex-col items-center justify-center min-h-full" style={{ padding: '40px 24px', background: HNH.cream }}>
-      <div
-        className="flex items-center justify-center"
-        style={{
-          width: 80, height: 80, borderRadius: 22,
-          background: `linear-gradient(135deg, ${HNH.red} 0%, ${HNH.redDark} 100%)`,
-          boxShadow: '0 12px 28px rgba(192,34,43,0.3)',
-          marginBottom: 20,
-        }}
-      >
-        <LogoMark size={52} />
-      </div>
-
-      <div style={{
-        fontFamily: "'Plus Jakarta Sans', sans-serif",
-        fontSize: 24, fontWeight: 800, color: HNH.ink, letterSpacing: -0.5,
-        textAlign: 'center',
+    <div className="flex flex-col" style={{ height: '100%', minHeight: 0 }}>
+      {/* Mini header */}
+      <div className="flex items-center gap-3 shrink-0" style={{
+        padding: '8px 16px',
+        background: `linear-gradient(135deg, #1a1530 0%, ${HNH.navy} 100%)`,
       }}>
-        Ruby AI
-      </div>
-      <div style={{ fontSize: 13.5, color: HNH.ink3, marginTop: 8, textAlign: 'center', lineHeight: 1.5, maxWidth: 280 }}>
-        Trợ lý AI thông minh của HNH Travel — giúp bạn tra cứu thông tin, tạo báo cáo, và hỗ trợ nghiệp vụ.
-      </div>
-
-      <div
-        className="flex items-center gap-3 w-full"
-        style={{
-          marginTop: 28, background: '#fff', borderRadius: 16,
-          border: `1px solid ${HNH.line}`, padding: '14px 16px',
-        }}
-      >
-        <div
-          className="flex items-center justify-center shrink-0"
-          style={{ width: 34, height: 34, borderRadius: 10, background: HNH.red50 }}
+        <div style={{
+          width: 28, height: 28, borderRadius: 8,
+          background: `linear-gradient(135deg, ${HNH.red} 0%, ${HNH.redDark} 100%)`,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+        }}>
+          <LogoMark size={18} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div style={{ fontSize: 14, fontWeight: 700, color: '#fff', letterSpacing: -0.2 }}>Ruby AI</div>
+          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', fontWeight: 500 }}>arkon.hnhtravel.work</div>
+        </div>
+        <div style={{ width: 6, height: 6, borderRadius: '50%', background: HNH.gold, flexShrink: 0 }} />
+        <button
+          onClick={() => window.open(ARKON_URL, '_blank')}
+          className="flex items-center justify-center border-none cursor-pointer shrink-0"
+          style={{ width: 32, height: 32, borderRadius: 9, background: 'rgba(255,255,255,0.12)' }}
+          title="Mở trong trình duyệt"
         >
-          <Icon name="sparkle" size={18} color={HNH.red} stroke={1.9} />
-        </div>
-        <div className="flex-1" style={{ fontSize: 14, color: HNH.ink3, fontWeight: 500 }}>
-          Hỏi Ruby bất cứ điều gì...
-        </div>
+          <Icon name="globe" size={15} color="rgba(255,255,255,0.7)" stroke={1.8} />
+        </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 w-full" style={{ marginTop: 14 }}>
-        {[
-          'Còn bao nhiêu ngày phép?',
-          'Lương tháng này bao nhiêu?',
-          'Tour sắp tới của tôi?',
-          'Ai đang nghỉ hôm nay?',
-        ].map((q, i) => (
-          <button
-            key={i}
-            className="border-none cursor-pointer text-left"
-            style={{
-              background: '#fff', borderRadius: 12, padding: '10px 12px',
-              border: `1px solid ${HNH.line}`,
-              fontSize: 12, color: HNH.ink2, fontWeight: 500, lineHeight: 1.35,
-            }}
-          >
-            {q}
-          </button>
-        ))}
-      </div>
+      {loading && (
+        <div className="flex flex-col items-center justify-center" style={{ flex: 1, gap: 16, padding: 40 }}>
+          <div style={{
+            width: 60, height: 60, borderRadius: 18,
+            background: `linear-gradient(135deg, ${HNH.red} 0%, ${HNH.redDark} 100%)`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 8px 20px rgba(192,34,43,0.3)',
+          }}>
+            <LogoMark size={40} />
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: HNH.ink }}>Ruby AI đang khởi động...</div>
+            <div style={{ fontSize: 12, color: HNH.ink3, marginTop: 4 }}>Đăng nhập tự động qua HNH SSO</div>
+          </div>
+          <div style={{
+            width: 32, height: 32, border: `3px solid ${HNH.line}`,
+            borderTopColor: HNH.red, borderRadius: '50%',
+            animation: 'spin 0.8s linear infinite',
+          }} />
+        </div>
+      )}
 
-      <div style={{ marginTop: 32, fontSize: 11, color: HNH.ink4, fontWeight: 500 }}>
-        Powered by Ruby AI · v1.0 beta
-      </div>
+      <iframe
+        src={ARKON_URL}
+        onLoad={() => setLoading(false)}
+        style={{
+          flex: 1,
+          width: '100%',
+          border: 'none',
+          display: loading ? 'none' : 'block',
+        }}
+        allow="clipboard-write; fullscreen; microphone"
+        title="Ruby AI — Arkon"
+      />
     </div>
   )
 }

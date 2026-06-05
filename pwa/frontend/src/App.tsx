@@ -51,6 +51,8 @@ import { AttendanceDashboardPage } from './pages/AttendanceDashboard'
 import { MonthlyAttendanceDetailPage } from './pages/MonthlyAttendanceDetail'
 import { ShiftManagementPage } from './pages/ShiftManagement'
 import { LeaveManagementPage } from './pages/LeaveManagement'
+import { HNHLifePage } from './pages/HNHLife'
+import { TaskBoardPage } from './pages/TaskBoard'
 
 export function App() {
   return (
@@ -105,6 +107,8 @@ export function App() {
         <Route path="/attendance-monthly-detail" element={<MonthlyAttendanceDetailPage />} />
         <Route path="/shift-management" element={<ShiftManagementPage />} />
         <Route path="/leave-management" element={<LeaveManagementPage />} />
+        <Route path="/life" element={<HNHLifePage />} />
+        <Route path="/task-board" element={<TaskBoardPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
 

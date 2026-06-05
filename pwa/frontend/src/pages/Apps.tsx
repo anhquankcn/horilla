@@ -100,11 +100,10 @@ const toneColor: Record<string, string> = {
 }
 
 function groupFeatures(features: AppFeature[], allowed: Set<string> | null): { group: FeatureGroup; items: AppFeature[] }[] {
-  const order: FeatureGroup[] = ['use', 'manage']
   const visible = allowed ? features.filter(f => allowed.has(f.slug)) : features
-  return order
-    .map(g => ({ group: g, items: visible.filter(f => f.group === g) }))
-    .filter(g => g.items.length > 0)
+  // Ứng dụng tab: chỉ hiển thị nhóm Quản lý
+  const items = visible.filter(f => f.group === 'manage')
+  return items.length > 0 ? [{ group: 'manage' as FeatureGroup, items }] : []
 }
 
 function GroupLabel({ group, variant }: { group: FeatureGroup; variant: 'light' | 'dark' }) {

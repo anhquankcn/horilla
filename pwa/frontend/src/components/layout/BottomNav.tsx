@@ -3,13 +3,13 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { HNH } from '../../lib/theme'
 import { api } from '../../lib/api'
 
-// home | attend | [apps] | [ruby] | tasks | me  — apps+ruby are twin elevated centre buttons
+// home | life | [apps] | [ruby] | tasks | me  — apps+ruby are twin elevated centre buttons
 const ALL_TABS = [
   { id: 'home',   label: 'Trang chủ', path: '/' },
-  { id: 'attend', label: 'Chấm công', path: '/attendance' },
+  { id: 'life',   label: 'HNH Life',  path: '/life' },
   { id: 'apps',   label: 'Ứng dụng',  path: '/apps' },
   { id: 'ruby',   label: 'Ruby AI',   path: '/ruby' },
-  { id: 'tasks',  label: 'Công việc', path: '/tasks' },
+  { id: 'tasks',  label: 'Công việc', path: '/task-board' },
   { id: 'me',     label: 'Cá nhân',   path: '/profile' },
 ] as const
 
@@ -22,8 +22,14 @@ function TabIcon({ name, active }: { name: string; active: boolean }) {
   switch (name) {
     case 'home':
       return <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1v-8Z" stroke={c} strokeWidth={sw} strokeLinejoin="round" fill={fill}/></svg>
-    case 'attend':
-      return <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke={c} strokeWidth={sw} fill={fill}/><path d="M12 8v4l2.5 2.5" stroke={c} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round"/></svg>
+    case 'life':
+      return (
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+          <path d="M12 21C6 15.5 2 12 2 8a5 5 0 0 1 10-1.5A5 5 0 0 1 22 8c0 4-4 7.5-10 13Z"
+            stroke={c} strokeWidth={sw} strokeLinejoin="round"
+            fill={active ? HNH.red50 : 'none'} />
+        </svg>
+      )
     case 'tasks':
       return <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="2" stroke={c} strokeWidth={sw} fill={fill}/><path d="M9 12l2 2 4-4" stroke={c} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round"/></svg>
     case 'me':
