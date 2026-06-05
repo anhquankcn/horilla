@@ -2336,7 +2336,7 @@ class MyAppsView(APIView):
         "employees", "roles", "groups", "attendance-activity",
         "tasks", "projects", "announcement-hub", "dashboard", "unified-calendar",
         "assets", "reports", "payroll-mgmt", "onboarding", "journey", "pms",
-        "training", "org-chart", "promotion-hub",
+        "training", "org-chart", "promotion-hub", "monthly-att",
     ]
 
     # Self-service slugs always visible to every authenticated employee regardless
