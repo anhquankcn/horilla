@@ -1897,6 +1897,163 @@ class PWAAttendanceRequestView(APIView):
             return Response({"status": "created", "id": att.id}, status=201)
 
 
+class MonthlyAttendanceDetailView(APIView):
+    """Per-employee daily attendance matrix for a given month."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        import calendar as _cal
+        from employee.models import Employee
+        from leave.models import LeaveRequest
+
+        if not request.user.has_perm("attendance.view_attendance"):
+            return Response({"error": "Không có quyền"}, status=403)
+
+        month_str = request.GET.get("month", "")
+        department_id = request.GET.get("department_id")
+        company_id = request.GET.get("company_id")
+
+        try:
+            year, month = map(int, month_str.split("-"))
+        except (ValueError, AttributeError):
+            today_d = date.today()
+            year, month = today_d.year, today_d.month
+
+        days_in_month = _cal.monthrange(year, month)[1]
+        first_day = date(year, month, 1)
+        last_day = date(year, month, days_in_month)
+        today_date = date.today()
+
+        emp_qs = (
+            Employee.objects.filter(is_active=True)
+            .select_related(
+                "employee_work_info__department_id",
+                "employee_work_info__company_id",
+            )
+            .order_by("employee_first_name", "employee_last_name")
+        )
+        if department_id:
+            emp_qs = emp_qs.filter(employee_work_info__department_id=department_id)
+        if company_id:
+            emp_qs = emp_qs.filter(employee_work_info__company_id=company_id)
+
+        emp_ids = list(emp_qs.values_list("id", flat=True))
+
+        # Attendance records
+        att_map = {}  # {emp_id: {date: info}}
+        for a in Attendance.objects.filter(
+            employee_id__in=emp_ids,
+            attendance_date__gte=first_day,
+            attendance_date__lte=last_day,
+        ).values(
+            "employee_id", "attendance_date",
+            "attendance_clock_in", "attendance_clock_out",
+            "minimum_hour", "at_work_second",
+        ):
+            eid = a["employee_id"]
+            if eid not in att_map:
+                att_map[eid] = {}
+            att_map[eid][a["attendance_date"]] = a
+
+        # Approved leave requests
+        leave_map = {}  # {emp_id: {date: leave_info}}
+        for lr in LeaveRequest.objects.filter(
+            employee_id__in=emp_ids,
+            status="approved",
+            start_date__lte=last_day,
+            end_date__gte=first_day,
+        ).values(
+            "employee_id", "start_date", "end_date",
+            "leave_type_id__payment", "leave_type_id__name",
+        ):
+            eid = lr["employee_id"]
+            if eid not in leave_map:
+                leave_map[eid] = {}
+            cur = max(lr["start_date"], first_day)
+            end = min(lr["end_date"], last_day)
+            while cur <= end:
+                leave_map[eid][cur] = lr
+                cur += timedelta(days=1)
+
+        weekday_vi = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
+        days_header = [
+            {
+                "day": n,
+                "weekday": weekday_vi[date(year, month, n).weekday()],
+                "is_weekend": date(year, month, n).weekday() >= 5,
+            }
+            for n in range(1, days_in_month + 1)
+        ]
+
+        employees_data = []
+        for emp in emp_qs:
+            days_data = {}
+            for day_num in range(1, days_in_month + 1):
+                d = date(year, month, day_num)
+                cell = {"check_in": None, "check_out": None, "status": ""}
+
+                if d.weekday() >= 5:
+                    cell["status"] = "weekend"
+                elif d > today_date:
+                    cell["status"] = "future"
+                else:
+                    att = att_map.get(emp.id, {}).get(d)
+                    leave = leave_map.get(emp.id, {}).get(d)
+
+                    if att:
+                        ci = att["attendance_clock_in"]
+                        co = att["attendance_clock_out"]
+                        cell["check_in"] = ci.strftime("%H:%M") if ci else None
+                        cell["check_out"] = co.strftime("%H:%M") if co else None
+                        try:
+                            mh, mm = map(int, str(att.get("minimum_hour") or "00:00").split(":"))
+                            min_secs = mh * 3600 + mm * 60
+                        except Exception:
+                            min_secs = 0
+                        work_secs = att.get("at_work_second") or 0
+                        cell["status"] = "late" if (min_secs > 0 and work_secs < min_secs) else "present"
+                    elif leave:
+                        payment = leave.get("leave_type_id__payment", "unpaid")
+                        cell["status"] = "leave" if payment == "paid" else "unpaid"
+                        cell["leave_name"] = leave.get("leave_type_id__name", "")
+                    else:
+                        cell["status"] = "absent"
+
+                days_data[str(day_num)] = cell
+
+            avatar = None
+            try:
+                if emp.employee_profile:
+                    avatar = request.build_absolute_uri(emp.employee_profile.url)
+            except Exception:
+                pass
+
+            dept_name = ""
+            try:
+                wi = emp.employee_work_info
+                if wi and wi.department_id:
+                    dept_name = wi.department_id.department
+            except Exception:
+                pass
+
+            employees_data.append({
+                "id": emp.id,
+                "name": emp.get_full_name(),
+                "avatar": avatar,
+                "department": dept_name,
+                "days": days_data,
+            })
+
+        return Response({
+            "month_label": f"Tháng {month}/{year}",
+            "year": year,
+            "month": month,
+            "days": days_header,
+            "employees": employees_data,
+        })
+
+
 class CompanyAttendanceDashboardView(APIView):
     """Company-wide attendance dashboard for managers."""
 

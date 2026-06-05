@@ -79,4 +79,5 @@ urlpatterns = [
     path("my-calendar/", MyCalendarView.as_view(), name="api-my-calendar"),
     path("attendance/<int:pk>/comments/", AttendanceCommentView.as_view(), name="api-attendance-comments"),
     path("company-dashboard/", CompanyAttendanceDashboardView.as_view(), name="api-company-dashboard"),
+    path("monthly-detail/", MonthlyAttendanceDetailView.as_view(), name="api-monthly-attendance-detail"),
 ]

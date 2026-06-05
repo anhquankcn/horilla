@@ -48,6 +48,7 @@ import { WorkSchedulePage } from './pages/WorkSchedule'
 import { MonthlyAttendancePage } from './pages/MonthlyAttendance'
 import { HelpDeskPage } from './pages/HelpDesk'
 import { AttendanceDashboardPage } from './pages/AttendanceDashboard'
+import { MonthlyAttendanceDetailPage } from './pages/MonthlyAttendanceDetail'
 
 export function App() {
   return (
@@ -99,6 +100,7 @@ export function App() {
         <Route path="/attendance/monthly" element={<MonthlyAttendancePage />} />
         <Route path="/helpdesk" element={<HelpDeskPage />} />
         <Route path="/attendance-dashboard" element={<AttendanceDashboardPage />} />
+        <Route path="/attendance-monthly-detail" element={<MonthlyAttendanceDetailPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
 
