@@ -1,8 +1,7 @@
 import { useNavigate } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
-import { Badge } from '../components/ui/Badge'
 import { useApi } from '../lib/useApi'
 import { api } from '../lib/api'
 
@@ -21,6 +20,23 @@ interface AvailableLeave {
   total_leave_days: number
 }
 
+interface HNHSummarySlot {
+  id: number | null
+  leave_type_id: number | null
+  name: string
+  available_days: number
+  total_days: number
+  carryforward_days: number
+}
+
+interface HNHSummary {
+  annual: HNHSummarySlot | null
+  compensatory: HNHSummarySlot | null
+  sick: HNHSummarySlot | null
+  seniority: HNHSummarySlot
+  seniority_days: number
+}
+
 interface Paginated<T> { count: number; results: T[] }
 
 function calcDays(start: string, end: string): number {
@@ -31,11 +47,36 @@ function calcDays(start: string, end: string): number {
   return Math.max(1, Math.round((d2.getTime() - d1.getTime()) / 86400000) + 1)
 }
 
+// Priority order for display: Phép Bù, Phép Năm, Phép Ốm, Phép Thâm Niên, others
+function sortLeaveTypes(types: AvailableLeave[]): AvailableLeave[] {
+  const priority = (name: string) => {
+    const n = name.toLowerCase()
+    if (n.includes('phép bù') || n.includes('bù')) return 0
+    if (n.includes('phép năm') || n.includes('annual')) return 1
+    if (n.includes('ốm') || n.includes('sick')) return 2
+    if (n.includes('thâm niên') || n.includes('seniority')) return 3
+    return 10
+  }
+  return [...types].sort((a, b) => priority(a.leave_type_id.name) - priority(b.leave_type_id.name))
+}
+
+function leaveIcon(name: string) {
+  const n = name.toLowerCase()
+  if (n.includes('bù')) return { icon: 'palm', color: '#a87908', bg: '#faf1d6' }
+  if (n.includes('phép năm') || n.includes('annual')) return { icon: 'leaf', color: HNH.success, bg: HNH.success50 }
+  if (n.includes('ốm')) return { icon: 'shield', color: HNH.navy, bg: HNH.navy50 }
+  if (n.includes('thâm niên')) return { icon: 'star', color: HNH.red, bg: HNH.red50 }
+  if (n.includes('thai sản')) return { icon: 'sparkle', color: HNH.red, bg: HNH.red50 }
+  return { icon: 'cal', color: HNH.navy, bg: HNH.navy50 }
+}
+
 export function LeaveNewPage() {
   const navigate = useNavigate()
   const { data: balResp } = useApi<Paginated<AvailableLeave>>('/api/leave/available-leave/?page_size=20')
+  const { data: summary } = useApi<HNHSummary>('/api/leave/hnh-leave-summary/')
 
-  const leaveTypes = balResp?.results ?? []
+  const rawTypes = balResp?.results ?? []
+  const leaveTypes = sortLeaveTypes(rawTypes)
 
   const [selectedTypeId, setSelectedTypeId] = useState<number | null>(null)
   const [startDate, setStartDate] = useState('')
@@ -43,6 +84,14 @@ export function LeaveNewPage() {
   const [reason, setReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  // Auto-select Phép Bù if available, else Phép Năm
+  useEffect(() => {
+    if (selectedTypeId !== null || leaveTypes.length === 0) return
+    const bu = leaveTypes.find(t => t.leave_type_id.name.toLowerCase().includes('bù') && t.available_days > 0)
+    const annual = leaveTypes.find(t => t.leave_type_id.name.toLowerCase().includes('phép năm'))
+    setSelectedTypeId((bu ?? annual ?? leaveTypes[0])?.leave_type_id?.id ?? null)
+  }, [leaveTypes, selectedTypeId])
 
   const selected = leaveTypes.find(t => t.leave_type_id.id === selectedTypeId)
   const totalDays = calcDays(startDate, endDate)
@@ -69,6 +118,9 @@ export function LeaveNewPage() {
       setSubmitting(false)
     }
   }
+
+  // Seniority days from summary
+  const seniorityDays = summary?.seniority_days ?? 0
 
   return (
     <div className="flex flex-col min-h-[100dvh]" style={{ background: HNH.cream }}>
@@ -108,6 +160,20 @@ export function LeaveNewPage() {
           </div>
         )}
 
+        {/* Priority notice when Phép Bù available */}
+        {summary?.compensatory && summary.compensatory.available_days > 0 && (
+          <div style={{
+            background: '#faf1d6', border: `1px solid ${HNH.gold}`, borderRadius: 12,
+            padding: '9px 12px', marginBottom: 12,
+            display: 'flex', alignItems: 'center', gap: 8,
+          }}>
+            <Icon name="palm" size={14} color="#a87908" stroke={2} />
+            <span style={{ fontSize: 12, color: '#a87908', fontWeight: 700 }}>
+              Bạn còn {summary.compensatory.available_days} ngày Phép Bù — sẽ được trừ trước
+            </span>
+          </div>
+        )}
+
         {/* Type selector */}
         <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, padding: '6px 6px 6px' }}>LOẠI NGHỈ</div>
         <div style={{ background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`, overflow: 'hidden' }}>
@@ -121,7 +187,14 @@ export function LeaveNewPage() {
             const remainStr = total > 1
               ? `${avail} / ${total % 1 === 0 ? total : total.toFixed(1)} ngày`
               : `${avail} ngày`
-            const isTour = opt.leave_type_id.name.toLowerCase().includes('bù')
+            const isBu = opt.leave_type_id.name.toLowerCase().includes('bù')
+            const meta = leaveIcon(opt.leave_type_id.name)
+
+            // Show seniority total from summary if available
+            const displayRemain = isBu && summary?.compensatory
+              ? `${summary.compensatory.available_days % 1 === 0 ? summary.compensatory.available_days : summary.compensatory.available_days.toFixed(1)} ngày`
+              : remainStr
+
             return (
               <button
                 key={opt.leave_type_id.id}
@@ -130,30 +203,44 @@ export function LeaveNewPage() {
                 style={{
                   padding: '12px 14px',
                   borderBottom: i === leaveTypes.length - 1 ? 'none' : `1px solid ${HNH.line}`,
-                  background: isSelected ? HNH.red50 : 'transparent',
+                  background: isSelected ? (isBu ? '#faf1d6' : HNH.red50) : 'transparent',
                 }}
               >
                 <div
                   className="flex items-center justify-center shrink-0"
                   style={{
                     width: 22, height: 22, borderRadius: '50%',
-                    border: `2px solid ${isSelected ? HNH.red : HNH.line2}`,
-                    background: isSelected ? HNH.red : '#fff',
+                    border: `2px solid ${isSelected ? (isBu ? '#a87908' : HNH.red) : HNH.line2}`,
+                    background: isSelected ? (isBu ? '#a87908' : HNH.red) : '#fff',
                   }}
                 >
                   {isSelected && <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />}
                 </div>
+                <div className="flex items-center justify-center shrink-0" style={{ width: 28, height: 28, borderRadius: 8, background: meta.bg }}>
+                  <Icon name={meta.icon} size={13} color={meta.color} stroke={2} />
+                </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-1.5" style={{ fontSize: 14, fontWeight: 600, color: HNH.ink }}>
                     {opt.leave_type_id.name}
-                    {isTour && <Badge tone="gold" size="s">Đặc thù du lịch</Badge>}
+                    {isBu && (
+                      <span style={{ fontSize: 10, color: '#a87908', fontWeight: 700, background: '#fceac9', borderRadius: 4, padding: '1px 5px' }}>
+                        Ưu tiên
+                      </span>
+                    )}
                   </div>
-                  <div style={{ fontSize: 11.5, color: HNH.ink3, marginTop: 1 }}>{remainStr}</div>
+                  <div style={{ fontSize: 11.5, color: HNH.ink3, marginTop: 1 }}>{displayRemain}</div>
                 </div>
               </button>
             )
           })}
         </div>
+
+        {/* Seniority info */}
+        {seniorityDays > 0 && (
+          <div style={{ fontSize: 11.5, color: HNH.ink3, padding: '8px 6px', fontStyle: 'italic' }}>
+            Thâm niên: bạn được cộng thêm <strong style={{ color: HNH.red }}>{seniorityDays} ngày</strong> phép thâm niên năm nay
+          </div>
+        )}
 
         {/* Date range */}
         <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, padding: '14px 6px 6px' }}>KHOẢNG NGHỈ</div>

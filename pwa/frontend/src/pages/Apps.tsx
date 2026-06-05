@@ -63,6 +63,7 @@ const apps: AppCard[] = [
       { slug: 'dashboard', icon: 'clock', label: 'Dashboard CC', desc: 'Nghỉ phép, đi muộn, xu hướng theo tháng', path: '/attendance-dashboard', tone: 'red', group: 'manage' },
       { slug: 'monthly-att', icon: 'grid', label: 'CC Tháng', desc: 'Bảng chấm công từng ngày cho toàn bộ nhân viên', path: '/attendance-monthly-detail', tone: 'navy', group: 'manage' },
       { slug: 'shift-management', icon: 'clock', label: 'Quản lý Ca', desc: 'Phân ca nhân viên, cấu hình ca theo phòng ban', path: '/shift-management', tone: 'red', group: 'manage' },
+      { slug: 'leave-management', icon: 'leaf', label: 'Quản lý Phép', desc: 'Phép bù, thâm niên, duyệt đề xuất', path: '/leave-management', tone: 'success', group: 'manage' },
       { slug: 'assets', icon: 'doc', label: 'Tài sản', desc: 'Quản lý tài sản, cấp phát, yêu cầu', path: '/assets', tone: 'navy', group: 'manage' },
       { slug: 'reports', icon: 'grid', label: 'Báo cáo', desc: 'Chấm công, nghỉ phép, đề xuất', path: '/reports', tone: 'red', group: 'manage' },
       { slug: 'payroll-mgmt', icon: 'doc', label: 'Bảng lương', desc: 'Tổng hợp lương tháng, BHXH, thuế', path: '/payroll-mgmt', tone: 'gold', group: 'manage' },

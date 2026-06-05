@@ -61,9 +61,15 @@ def query_dict(data):
 
 
 def _is_clocked_in(employee):
-    """Check if employee has an open AttendanceActivity (no clock_out)."""
+    """Check if employee has an open AttendanceActivity (no clock_out) within the last 2 days.
+    Activities older than 2 days without clock_out are considered dangling and ignored.
+    """
+    cutoff = date.today() - timedelta(days=2)
     activity = (
-        AttendanceActivity.objects.filter(employee_id=employee)
+        AttendanceActivity.objects.filter(
+            employee_id=employee,
+            attendance_date__gte=cutoff,
+        )
         .order_by("-id")
         .first()
     )

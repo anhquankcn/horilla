@@ -2386,3 +2386,58 @@ if apps.is_installed("attendance"):
 
 #     thread = threading.Thread(target=update_leaves)
 #     thread.start()
+
+
+HNH_PROPOSAL_STATUS = [
+    ("requested", _("Requested")),
+    ("approved", _("Approved")),
+    ("rejected", _("Rejected")),
+]
+
+
+class HNHCompensatoryProposal(HorillaModel):
+    """Manager-initiated Phép Bù proposal that C&B approves."""
+
+    employee_id = models.ForeignKey(
+        Employee,
+        on_delete=models.CASCADE,
+        related_name="compensatory_proposals",
+        verbose_name=_("Employee"),
+    )
+    proposed_by = models.ForeignKey(
+        Employee,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="created_compensatory_proposals",
+        verbose_name=_("Proposed by"),
+    )
+    days = models.FloatField(verbose_name=_("Days"))
+    note = models.TextField(blank=True, default="", verbose_name=_("Note"))
+    status = models.CharField(
+        max_length=20,
+        choices=HNH_PROPOSAL_STATUS,
+        default="requested",
+        verbose_name=_("Status"),
+    )
+    reject_reason = models.TextField(blank=True, default="")
+    approved_by = models.ForeignKey(
+        Employee,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="approved_compensatory_proposals",
+        verbose_name=_("Approved by"),
+    )
+    approved_at = models.DateTimeField(null=True, blank=True)
+    objects = HorillaCompanyManager(
+        related_company_field="employee_id__employee_work_info__company_id"
+    )
+
+    class Meta:
+        ordering = ["-id"]
+        db_table = "leave_hnh_compensatory_proposal"
+        verbose_name = "Phép Bù Proposal"
+        verbose_name_plural = "Phép Bù Proposals"
+
+    def __str__(self):
+        return f"{self.employee_id} | {self.days} ngày | {self.status}"

@@ -5,6 +5,7 @@ horilla_api/urls/leave/urls.py
 from django.urls import path
 
 from horilla_api.api_views.leave.views import *
+from horilla_api.api_views.leave import leave_management_views as lmv
 
 urlpatterns = [
     path("available-leave/", EmployeeAvailableLeaveGetAPIView.as_view()),
@@ -53,4 +54,11 @@ urlpatterns = [
     path("pending-approvals/", PendingApprovalsView.as_view(), name="api-leave-pending-approvals"),
     path("pwa-approve/<int:pk>/", ApproveLeaveView.as_view(), name="api-leave-pwa-approve"),
     path("pwa-reject/<int:pk>/", RejectLeaveView.as_view(), name="api-leave-pwa-reject"),
+    # ── HNH Leave Management ──
+    path("hnh-leave-summary/", lmv.HNHLeaveSummaryView.as_view(), name="api-leave-hnh-summary"),
+    path("hnh-compensatory/", lmv.HNHCompensatoryProposalListCreateView.as_view(), name="api-leave-hnh-compensatory"),
+    path("hnh-compensatory/<int:pk>/approve/", lmv.HNHCompensatoryProposalApproveView.as_view(), name="api-leave-hnh-comp-approve"),
+    path("hnh-compensatory/<int:pk>/reject/", lmv.HNHCompensatoryProposalRejectView.as_view(), name="api-leave-hnh-comp-reject"),
+    path("hnh-compensatory/<int:pk>/", lmv.HNHCompensatoryProposalDeleteView.as_view(), name="api-leave-hnh-comp-delete"),
+    path("hnh-team-employees/", lmv.HNHTeamEmployeesView.as_view(), name="api-leave-hnh-team"),
 ]

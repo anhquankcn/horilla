@@ -50,6 +50,7 @@ import { HelpDeskPage } from './pages/HelpDesk'
 import { AttendanceDashboardPage } from './pages/AttendanceDashboard'
 import { MonthlyAttendanceDetailPage } from './pages/MonthlyAttendanceDetail'
 import { ShiftManagementPage } from './pages/ShiftManagement'
+import { LeaveManagementPage } from './pages/LeaveManagement'
 
 export function App() {
   return (
@@ -103,6 +104,7 @@ export function App() {
         <Route path="/attendance-dashboard" element={<AttendanceDashboardPage />} />
         <Route path="/attendance-monthly-detail" element={<MonthlyAttendanceDetailPage />} />
         <Route path="/shift-management" element={<ShiftManagementPage />} />
+        <Route path="/leave-management" element={<LeaveManagementPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
 
