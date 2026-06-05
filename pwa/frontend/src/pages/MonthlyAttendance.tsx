@@ -25,6 +25,7 @@ interface DayData {
   attendance_id: number | null
   comment_count: number
   leave_type: string | null
+  leave_is_paid: boolean
   holiday_name: string | null
 }
 
@@ -55,15 +56,17 @@ function fmtDate(y: number, m: number, d: number) { return `${y}-${pad(m)}-${pad
 
 // ── Status helpers ─────────────────────────────────────────────────────────────
 
+// Blue = validated workday | Yellow = pending | Green = paid leave (tính công)
+// Gray = unpaid/approved leave (không tính công) | Red = absent (không phép) | Purple = holiday
 function statusColor(day: DayData | undefined): string {
   if (!day) return 'transparent'
   if (day.status === 'future') return 'transparent'
   if (day.status === 'holiday') return '#8b5cf6'
-  if (day.status === 'leave') return '#3b82f6'
+  if (day.status === 'leave') return day.leave_is_paid ? '#16a34a' : '#9ca3af'
   if (day.status === 'off') return 'transparent'
   if (day.status === 'absent') return HNH.red
   // present
-  if (day.validated) return HNH.success
+  if (day.validated) return '#2563eb'
   if (day.is_validate_request) return '#f59e0b'
   return '#94a3b8'
 }
@@ -411,10 +414,12 @@ function CalendarGrid({ year, month, days, selected, onSelect }: {
       {/* Legend */}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 14px', marginTop: 10, paddingLeft: 2 }}>
         {[
-          { color: HNH.success, label: 'Hợp lệ' },
+          { color: '#2563eb', label: 'Hợp lệ' },
           { color: '#f59e0b', label: 'Chờ duyệt' },
+          { color: '#94a3b8', label: 'Chưa xác nhận' },
+          { color: '#16a34a', label: 'NP tính công' },
+          { color: '#9ca3af', label: 'NP có phép' },
           { color: HNH.red, label: 'Vắng' },
-          { color: '#3b82f6', label: 'Nghỉ phép' },
           { color: '#8b5cf6', label: 'Lễ' },
           { color: HNH.navy, label: 'Có ý kiến' },
         ].map(({ color, label }) => (
@@ -464,7 +469,7 @@ export function MonthlyAttendancePage() {
 
   return (
     <div style={{ background: HNH.cream, minHeight: '100%' }}>
-      <TopBar title="Lịch công tháng" onBack={() => navigate(-1)} />
+      <TopBar title="Tính Công Tháng" onBack={() => navigate(-1)} />
 
       {/* Month navigator */}
       <div style={{ background: HNH.white, borderBottom: `1px solid ${HNH.line}`, padding: '10px 16px' }}>

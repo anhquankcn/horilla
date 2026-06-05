@@ -1643,17 +1643,20 @@ class MyCalendarView(APIView):
             }
 
         # Approved leaves in the month
-        leave_map = {}
+        leave_map = {}  # date → (leave_type_name, is_paid)
         for lr in LeaveRequest.objects.filter(
             employee_id=employee,
             status="approved",
             start_date__lte=end,
             end_date__gte=start,
         ).select_related("leave_type_id"):
+            lt = lr.leave_type_id
+            name = lt.name if lt else "Nghỉ phép"
+            is_paid = (lt.payment == "paid") if lt else False
             d = lr.start_date
             while d <= (lr.end_date or lr.start_date):
                 if start <= d <= end:
-                    leave_map[d.isoformat()] = lr.leave_type_id.name if lr.leave_type_id else "Nghỉ phép"
+                    leave_map[d.isoformat()] = (name, is_paid)
                 d += timedelta(days=1)
 
         # Holidays
@@ -1683,7 +1686,9 @@ class MyCalendarView(APIView):
 
             sched = schedule_map.get(weekday_name)
             att = att_map.get(d_iso)
-            leave_name = leave_map.get(d_iso)
+            leave_entry = leave_map.get(d_iso)  # (name, is_paid) or None
+            leave_name = leave_entry[0] if leave_entry else None
+            leave_is_paid = leave_entry[1] if leave_entry else False
             holiday_name = holiday_map.get(d_iso)
             is_company_leave = str(d.weekday()) in company_leave_days
 
@@ -1727,6 +1732,7 @@ class MyCalendarView(APIView):
                 "attendance_id": att["id"] if att else None,
                 "comment_count": att["comment_count"] if att else 0,
                 "leave_type": leave_name,
+                "leave_is_paid": leave_is_paid,
                 "holiday_name": holiday_name,
             }
 
