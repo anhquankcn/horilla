@@ -38,22 +38,61 @@ interface ShiftPlan {
   shift_id: number
   shift_name: string
   date: string
+  start_time: string  // HH:MM for sorting
 }
 
 type Scope = 'cnb' | 'manager' | 'none'
-type TimeScope = '1day' | 'weekdays' | 'next_week' | 'next_month'
 
 const DAY_VI: Record<string, string> = {
   monday: 'T2', tuesday: 'T3', wednesday: 'T4',
   thursday: 'T5', friday: 'T6', saturday: 'T7', sunday: 'CN',
 }
-const WEEKDAY_LABELS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']
 
-function fmtDateVi(d: Date) {
+const SHIFT_COLORS = ['#1e3a5f', '#7c3aed', '#0d7c66', '#c27803', '#c0222b', '#0284c7']
+
+function shiftColor(shiftId: number): string {
+  return SHIFT_COLORS[shiftId % SHIFT_COLORS.length]
+}
+
+function abbrevShift(name: string): string {
+  const stripped = name.replace(/^[Cc]a\s+/u, '').trim()
+  const words = stripped.split(/\s+/)
+  const twoWords = words.slice(0, 2).join(' ')
+  return twoWords.length > 10 ? twoWords.slice(0, 9) + '…' : twoWords
+}
+
+function fmtDMM(d: Date): string {
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
-// ── Reusable sub-components ───────────────────────────────────────────────────
+function toIso(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+function nextMonday(): Date {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const isoDay = (today.getDay() + 6) % 7  // Mon=0 … Sun=6
+  const daysAhead = 7 - isoDay             // Mon→7, Tue→6, …, Sun→1
+  const nm = new Date(today)
+  nm.setDate(today.getDate() + daysAhead)
+  return nm
+}
+
+function buildGridDates(): Date[] {
+  const mon = nextMonday()
+  return Array.from({ length: 14 }, (_, i) => {
+    const d = new Date(mon)
+    d.setDate(mon.getDate() + i)
+    return d
+  })
+}
+
+const GRID_DATES = buildGridDates()
+const GRID_FROM = toIso(GRID_DATES[0])
+const GRID_TO = toIso(GRID_DATES[13])
+
+// ── ShiftCard (SetupTab) ───────────────────────────────────────────────────────
 
 function ShiftCard({ shift, depts, isCnb, onToggleDept }: {
   shift: Shift; depts: Dept[]; isCnb: boolean
@@ -103,7 +142,6 @@ function ShiftCard({ shift, depts, isCnb, onToggleDept }: {
 
       {expanded && (
         <div style={{ borderTop: `1px solid ${HNH.line}`, padding: '12px 16px' }}>
-          {/* Assigned depts */}
           {assigned.length > 0 && (
             <div style={{ marginBottom: 10 }}>
               <div style={{ fontSize: 10.5, fontWeight: 700, color: HNH.ink3, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 }}>
@@ -129,7 +167,6 @@ function ShiftCard({ shift, depts, isCnb, onToggleDept }: {
             </div>
           )}
 
-          {/* Unassigned depts (C&B can add) */}
           {isCnb && unassigned.length > 0 && (
             <div>
               <div style={{ fontSize: 10.5, fontWeight: 700, color: HNH.ink3, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 6 }}>
@@ -163,7 +200,7 @@ function ShiftCard({ shift, depts, isCnb, onToggleDept }: {
   )
 }
 
-// ── Setup Tab (C&B only) ───────────────────────────────────────────────────────
+// ── Setup Tab ─────────────────────────────────────────────────────────────────
 
 function SetupTab({ shifts, depts, onToggleDept, isCnb }: {
   shifts: Shift[]; depts: Dept[]; isCnb: boolean
@@ -190,459 +227,440 @@ function SetupTab({ shifts, depts, onToggleDept, isCnb }: {
   )
 }
 
-// ── Schedule Tab ───────────────────────────────────────────────────────────────
+// ── Shift Picker Sheet ─────────────────────────────────────────────────────────
+
+interface ActiveCell {
+  empId: number
+  empName: string
+  date: string       // YYYY-MM-DD
+  dateLabel: string  // e.g. "T2 06/06"
+}
+
+function ShiftPickerSheet({ cell, availableShifts, cellPlans, onAdd, onRemove, onClose }: {
+  cell: ActiveCell
+  availableShifts: Shift[]
+  cellPlans: ShiftPlan[]
+  onAdd: (empId: number, shiftId: number, date: string) => Promise<void>
+  onRemove: (planId: number) => Promise<void>
+  onClose: () => void
+}) {
+  const [busy, setBusy] = useState<number | null>(null)
+  const assignedIds = new Set(cellPlans.map(p => p.shift_id))
+  const canAdd = cellPlans.length < 3
+
+  const handleAdd = async (shiftId: number) => {
+    setBusy(shiftId)
+    try { await onAdd(cell.empId, shiftId, cell.date) } finally { setBusy(null) }
+  }
+
+  const handleRemove = async (planId: number) => {
+    setBusy(-planId)
+    try { await onRemove(planId) } finally { setBusy(null) }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end"
+      style={{ background: 'rgba(15,20,40,0.5)' }}
+      onClick={onClose}
+    >
+      <div
+        className="w-full"
+        style={{ background: '#fff', borderRadius: '20px 20px 0 0', padding: '20px 20px 40px', maxHeight: '80dvh', overflowY: 'auto' }}
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between" style={{ marginBottom: 4 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: HNH.ink }}>Phân ca</div>
+          <button onClick={onClose} className="border-none bg-transparent cursor-pointer">
+            <Icon name="close" size={20} color={HNH.ink3} />
+          </button>
+        </div>
+        <div style={{ fontSize: 12.5, color: HNH.ink3, marginBottom: 16 }}>
+          {cell.empName} · {cell.dateLabel}
+        </div>
+
+        {/* Currently assigned */}
+        {cellPlans.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 10.5, fontWeight: 700, color: HNH.ink3, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>
+              Đã phân ({cellPlans.length}/3)
+            </div>
+            {cellPlans.map(p => (
+              <div key={p.id} className="flex items-center justify-between" style={{
+                background: shiftColor(p.shift_id) + '18',
+                border: `1px solid ${shiftColor(p.shift_id)}44`,
+                borderRadius: 10, padding: '9px 12px', marginBottom: 6,
+              }}>
+                <div className="flex items-center gap-2">
+                  <div style={{ width: 8, height: 8, borderRadius: 4, background: shiftColor(p.shift_id), flexShrink: 0 }} />
+                  <span style={{ fontSize: 13, fontWeight: 600, color: HNH.ink }}>{p.shift_name}</span>
+                  <span style={{ fontSize: 11, color: HNH.ink3 }}>{p.start_time}</span>
+                </div>
+                <button
+                  onClick={() => handleRemove(p.id)}
+                  disabled={busy === -p.id}
+                  className="border-none cursor-pointer flex items-center gap-1"
+                  style={{ background: HNH.red50, borderRadius: 7, padding: '4px 8px' }}
+                >
+                  <Icon name="x" size={12} color={HNH.red} stroke={2.5} />
+                  <span style={{ fontSize: 11, fontWeight: 700, color: HNH.red }}>Xóa</span>
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Available to add */}
+        <div style={{ fontSize: 10.5, fontWeight: 700, color: HNH.ink3, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>
+          {canAdd ? 'Thêm ca' : 'Đã đủ 3 ca'}
+        </div>
+        {availableShifts
+          .filter(s => !assignedIds.has(s.id))
+          .map(s => {
+            const firstSched = s.schedules.find(sc => sc.start_time)
+            const timeStr = firstSched ? `${firstSched.start_time} – ${firstSched.end_time}` : 'Linh hoạt'
+            return (
+              <button
+                key={s.id}
+                onClick={() => canAdd && handleAdd(s.id)}
+                disabled={!canAdd || busy === s.id}
+                className="flex items-center w-full border-none cursor-pointer text-left"
+                style={{
+                  background: canAdd ? '#fff' : HNH.cream,
+                  border: `1.5px solid ${canAdd ? HNH.line : HNH.line}`,
+                  borderRadius: 10, padding: '9px 12px', marginBottom: 6,
+                  opacity: !canAdd ? 0.5 : 1,
+                }}
+              >
+                <div style={{ width: 8, height: 8, borderRadius: 4, background: shiftColor(s.id), flexShrink: 0, marginRight: 10 }} />
+                <div className="flex-1">
+                  <div style={{ fontSize: 13, fontWeight: 600, color: HNH.ink }}>{s.name}</div>
+                  <div style={{ fontSize: 11, color: HNH.ink3, marginTop: 1 }}>{timeStr}</div>
+                </div>
+                {canAdd && (
+                  <div style={{
+                    width: 28, height: 28, borderRadius: 8, background: busy === s.id ? HNH.cream2 : HNH.navy,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                  }}>
+                    <Icon name="plus" size={14} color="#fff" stroke={2.5} />
+                  </div>
+                )}
+              </button>
+            )
+          })}
+        {availableShifts.filter(s => !assignedIds.has(s.id)).length === 0 && (
+          <div style={{ fontSize: 12.5, color: HNH.ink3, textAlign: 'center', paddingTop: 4 }}>
+            {cellPlans.length === 3 ? 'Đã đủ 3 ca.' : 'Không có ca khả dụng.'}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ── Schedule Tab (2D table grid) ───────────────────────────────────────────────
 
 function ScheduleTab({
   shifts, depts, employees, plans, userScope, mgrDeptIds,
-  onAssign, loading,
+  onAddPlan, onRemovePlan,
 }: {
-  shifts: Shift[]; depts: Dept[]; employees: Emp[]
-  plans: ShiftPlan[]; userScope: Scope; mgrDeptIds: number[]
-  onAssign: (empIds: number[], shiftId: number, scope: TimeScope, date: string, weekdays: number[]) => Promise<void>
-  loading: boolean
+  shifts: Shift[]
+  depts: Dept[]
+  employees: Emp[]
+  plans: ShiftPlan[]
+  userScope: Scope
+  mgrDeptIds: number[]
+  onAddPlan: (empId: number, shiftId: number, date: string) => Promise<void>
+  onRemovePlan: (planId: number) => Promise<void>
 }) {
-  const today = new Date()
-  const [timeScope, setTimeScope] = useState<TimeScope>('1day')
-  const [selectedDate, setSelectedDate] = useState(today.toISOString().slice(0, 10))
-  const [selectedWeekdays, setSelectedWeekdays] = useState<number[]>([0, 1, 2, 3, 4]) // Mon-Fri
-  const [filterDeptId, setFilterDeptId] = useState<number | null>(null)
-  const [selectedEmpIds, setSelectedEmpIds] = useState<Set<number>>(new Set())
-  const [selectedShiftId, setSelectedShiftId] = useState<number | null>(null)
-  const [applying, setApplying] = useState(false)
-  const [searchQ, setSearchQ] = useState('')
-
   const isCnb = userScope === 'cnb'
+  const [filterDeptId, setFilterDeptId] = useState<number | null>(null)
+  const [activeCell, setActiveCell] = useState<ActiveCell | null>(null)
 
-  // Department list filtered by scope
-  const availableDepts = useMemo(() => {
-    if (isCnb) return depts
-    return depts.filter(d => mgrDeptIds.includes(d.id))
-  }, [depts, isCnb, mgrDeptIds])
+  // Depts visible to this user
+  const availableDepts = useMemo(() =>
+    isCnb ? depts : depts.filter(d => mgrDeptIds.includes(d.id)),
+    [depts, isCnb, mgrDeptIds]
+  )
 
-  // Available shifts for selected dept (if dept-shift config exists, use it; else all)
-  const selectedDept = availableDepts.find(d => d.id === filterDeptId) ?? null
-  const availableShifts = useMemo(() => {
-    if (!selectedDept || selectedDept.shift_ids.length === 0) return shifts
-    return shifts.filter(s => selectedDept.shift_ids.includes(s.id))
-  }, [shifts, selectedDept])
+  // Auto-select first dept for manager if only one
+  useEffect(() => {
+    if (!isCnb && availableDepts.length === 1) {
+      setFilterDeptId(availableDepts[0].id)
+    }
+  }, [isCnb, availableDepts])
 
-  // Employees filtered
+  // Shifts available for the selected dept (from Setup tab assignments)
+  const activeDept = availableDepts.find(d => d.id === filterDeptId) ?? null
+  const availableShiftsForDept = useMemo(() => {
+    if (!activeDept || activeDept.shift_ids.length === 0) return shifts
+    return shifts.filter(s => activeDept.shift_ids.includes(s.id))
+  }, [shifts, activeDept])
+
+  // Filtered employees
   const filteredEmps = useMemo(() => {
     let list = employees
-    if (filterDeptId) list = list.filter(e => e.department_id === filterDeptId)
-    if (searchQ) {
-      const q = searchQ.toLowerCase()
-      list = list.filter(e => e.name.toLowerCase().includes(q) || e.badge_id.includes(q))
+    if (!isCnb) {
+      list = list.filter(e => mgrDeptIds.includes(e.department_id ?? -1))
+    }
+    if (filterDeptId) {
+      list = list.filter(e => e.department_id === filterDeptId)
     }
     return list
-  }, [employees, filterDeptId, searchQ])
+  }, [employees, isCnb, mgrDeptIds, filterDeptId])
 
-  // Plans map: employee_id → {[date]: plan}
+  // Plans map: employee_id → date_str → ShiftPlan[] sorted by start_time
   const planMap = useMemo(() => {
-    const m: Record<number, Record<string, ShiftPlan>> = {}
+    const m: Record<number, Record<string, ShiftPlan[]>> = {}
     for (const p of plans) {
       if (!m[p.employee_id]) m[p.employee_id] = {}
-      m[p.employee_id][p.date] = p
+      if (!m[p.employee_id][p.date]) m[p.employee_id][p.date] = []
+      m[p.employee_id][p.date].push(p)
+    }
+    // Sort each cell by start_time
+    for (const empId of Object.keys(m)) {
+      for (const date of Object.keys(m[+empId])) {
+        m[+empId][date].sort((a, b) => (a.start_time ?? '').localeCompare(b.start_time ?? ''))
+      }
     }
     return m
   }, [plans])
 
-  // Compute preview dates
-  const previewDates = useMemo((): Date[] => {
-    const base = new Date(selectedDate + 'T00:00:00')
-    if (timeScope === '1day') return [base]
-    if (timeScope === 'weekdays') {
-      const result: Date[] = []
-      for (let i = 0; i < 7; i++) {
-        const d = new Date(base)
-        d.setDate(d.getDate() + i)
-        if (selectedWeekdays.includes(d.getDay() === 0 ? 6 : d.getDay() - 1)) result.push(d)
-      }
-      return result
-    }
-    if (timeScope === 'next_week') {
-      const daysAhead = 7 - (base.getDay() || 7) + 1
-      const monday = new Date(base)
-      monday.setDate(base.getDate() + daysAhead)
-      return Array.from({ length: 7 }, (_, i) => {
-        const d = new Date(monday)
-        d.setDate(monday.getDate() + i)
-        return d
-      })
-    }
-    if (timeScope === 'next_month') {
-      const nm = new Date(base.getFullYear(), base.getMonth() + 1, 1)
-      const days = new Date(nm.getFullYear(), nm.getMonth() + 1, 0).getDate()
-      return Array.from({ length: days }, (_, i) => new Date(nm.getFullYear(), nm.getMonth(), i + 1))
-    }
-    return []
-  }, [timeScope, selectedDate, selectedWeekdays])
+  // Find week boundary index (first day of week 2 = index 7)
+  // so we can style the two weeks differently
 
-  const toggleEmp = (id: number) => {
-    setSelectedEmpIds(prev => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
+  const handleCellClick = (emp: Emp, date: Date) => {
+    const dow = date.getDay()
+    const dayLabel = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][dow]
+    setActiveCell({
+      empId: emp.id,
+      empName: emp.name,
+      date: toIso(date),
+      dateLabel: `${dayLabel} ${fmtDMM(date)}`,
     })
   }
 
-  const toggleAll = () => {
-    if (selectedEmpIds.size === filteredEmps.length) {
-      setSelectedEmpIds(new Set())
-    } else {
-      setSelectedEmpIds(new Set(filteredEmps.map(e => e.id)))
-    }
+  const handleAdd = async (empId: number, shiftId: number, date: string) => {
+    await onAddPlan(empId, shiftId, date)
   }
 
-  const toggleWeekday = (wd: number) => {
-    setSelectedWeekdays(prev =>
-      prev.includes(wd) ? prev.filter(x => x !== wd) : [...prev, wd]
-    )
+  const handleRemove = async (planId: number) => {
+    await onRemovePlan(planId)
   }
 
-  const handleApply = async () => {
-    if (!selectedShiftId || selectedEmpIds.size === 0) return
-    setApplying(true)
-    try {
-      await onAssign(
-        Array.from(selectedEmpIds),
-        selectedShiftId,
-        timeScope,
-        selectedDate,
-        selectedWeekdays,
-      )
-    } finally {
-      setApplying(false)
-    }
-  }
+  const activeCellPlans = activeCell
+    ? (planMap[activeCell.empId]?.[activeCell.date] ?? [])
+    : []
 
-  const previewLabel = (() => {
-    if (timeScope === '1day') return fmtDateVi(new Date(selectedDate + 'T00:00:00'))
-    if (timeScope === 'next_week') return 'Tuần tới'
-    if (timeScope === 'next_month') return 'Tháng tới'
-    return `${previewDates.length} ngày`
-  })()
-
-  const selectedShift = shifts.find(s => s.id === selectedShiftId)
+  // Column header bg alternating by week
+  const colBg = (i: number) => i < 7 ? '#fff' : '#f8f7f4'
 
   return (
-    <div style={{ paddingBottom: 120 }}>
-      {/* ── Scope selector ── */}
-      <div style={{ padding: '12px 16px 0' }}>
-        <div style={{ fontSize: 10.5, fontWeight: 700, color: HNH.ink3, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>
-          Phạm vi áp dụng
-        </div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          {([
-            { key: '1day', label: '1 ngày' },
-            { key: 'weekdays', label: 'Ngày chọn' },
-            { key: 'next_week', label: 'Tuần tới' },
-            { key: 'next_month', label: 'Tháng tới' },
-          ] as { key: TimeScope; label: string }[]).map(opt => (
-            <button
-              key={opt.key}
-              onClick={() => setTimeScope(opt.key)}
-              style={{
-                flex: 1, height: 34, borderRadius: 10, border: 'none', cursor: 'pointer',
-                background: timeScope === opt.key ? HNH.navy : HNH.cream2,
-                color: timeScope === opt.key ? '#fff' : HNH.ink2,
-                fontSize: 11.5, fontWeight: 700,
-                transition: 'all 0.15s',
-              }}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Date / weekday picker ── */}
-      {(timeScope === '1day' || timeScope === 'weekdays') && (
+    <div style={{ paddingBottom: 80 }}>
+      {/* Dept filter */}
+      {availableDepts.length > 1 && (
         <div style={{ padding: '10px 16px 0' }}>
-          {timeScope === '1day' && (
-            <input
-              type="date"
-              value={selectedDate}
-              onChange={e => setSelectedDate(e.target.value)}
-              style={{
-                width: '100%', height: 40, borderRadius: 10, border: `1px solid ${HNH.line}`,
-                padding: '0 12px', fontSize: 13, fontWeight: 600, color: HNH.ink,
-                background: '#fff', boxSizing: 'border-box',
-              }}
-            />
-          )}
-          {timeScope === 'weekdays' && (
-            <div>
-              <div style={{ fontSize: 10.5, fontWeight: 700, color: HNH.ink3, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>
-                Chọn ngày trong tuần
-              </div>
-              <div style={{ display: 'flex', gap: 6, marginBottom: 8 }}>
-                {WEEKDAY_LABELS.map((lbl, i) => (
-                  <button
-                    key={i}
-                    onClick={() => toggleWeekday(i)}
-                    style={{
-                      flex: 1, height: 36, borderRadius: 9, border: 'none', cursor: 'pointer',
-                      background: selectedWeekdays.includes(i) ? HNH.red : HNH.cream2,
-                      color: selectedWeekdays.includes(i) ? '#fff' : HNH.ink3,
-                      fontSize: 11.5, fontWeight: 700,
-                    }}
-                  >
-                    {lbl}
-                  </button>
-                ))}
-              </div>
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={e => setSelectedDate(e.target.value)}
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 6 }}>
+            {isCnb && (
+              <button
+                onClick={() => setFilterDeptId(null)}
                 style={{
-                  width: '100%', height: 36, borderRadius: 10, border: `1px solid ${HNH.line}`,
-                  padding: '0 12px', fontSize: 12.5, color: HNH.ink, background: '#fff',
-                  boxSizing: 'border-box',
+                  flexShrink: 0, height: 32, borderRadius: 20, border: 'none', cursor: 'pointer',
+                  padding: '0 14px',
+                  background: filterDeptId === null ? HNH.red : HNH.cream2,
+                  color: filterDeptId === null ? '#fff' : HNH.ink2,
+                  fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap',
                 }}
-              />
-              <div style={{ fontSize: 11, color: HNH.ink3, marginTop: 4 }}>
-                Bắt đầu từ ngày trên, áp dụng cho các ngày đã chọn trong 7 ngày tiếp theo.
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Preview dates */}
-      {previewDates.length > 0 && (
-        <div style={{ padding: '8px 16px 0' }}>
-          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-            {previewDates.slice(0, 14).map((d, i) => (
-              <div key={i} style={{
-                background: HNH.cream2, borderRadius: 7, padding: '3px 8px',
-                fontSize: 11, fontWeight: 600, color: HNH.ink2,
-              }}>
-                {fmtDateVi(d)}
-              </div>
-            ))}
-            {previewDates.length > 14 && (
-              <div style={{
-                background: HNH.cream2, borderRadius: 7, padding: '3px 8px',
-                fontSize: 11, fontWeight: 600, color: HNH.ink3,
-              }}>
-                +{previewDates.length - 14} ngày
-              </div>
+              >
+                Tất cả
+              </button>
             )}
+            {availableDepts.map(d => (
+              <button
+                key={d.id}
+                onClick={() => setFilterDeptId(d.id)}
+                style={{
+                  flexShrink: 0, height: 32, borderRadius: 20, border: 'none', cursor: 'pointer',
+                  padding: '0 14px', whiteSpace: 'nowrap',
+                  background: filterDeptId === d.id ? HNH.navy : HNH.cream2,
+                  color: filterDeptId === d.id ? '#fff' : HNH.ink2,
+                  fontSize: 12, fontWeight: 600,
+                }}
+              >
+                {d.name}
+              </button>
+            ))}
           </div>
         </div>
       )}
 
-      {/* ── Dept filter ── */}
-      <div style={{ padding: '10px 16px 0' }}>
-        <div style={{ fontSize: 10.5, fontWeight: 700, color: HNH.ink3, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>
-          Phòng ban
-        </div>
-        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
-          <button
-            onClick={() => setFilterDeptId(null)}
-            style={{
-              flexShrink: 0, height: 32, borderRadius: 9, border: 'none', cursor: 'pointer',
-              padding: '0 12px',
-              background: filterDeptId === null ? HNH.red : HNH.cream2,
-              color: filterDeptId === null ? '#fff' : HNH.ink2,
-              fontSize: 12, fontWeight: 600,
-            }}
-          >
-            Tất cả
-          </button>
-          {availableDepts.map(d => (
-            <button
-              key={d.id}
-              onClick={() => setFilterDeptId(d.id)}
-              style={{
-                flexShrink: 0, height: 32, borderRadius: 9, border: 'none', cursor: 'pointer',
-                padding: '0 12px', whiteSpace: 'nowrap',
-                background: filterDeptId === d.id ? HNH.navy : HNH.cream2,
-                color: filterDeptId === d.id ? '#fff' : HNH.ink2,
-                fontSize: 12, fontWeight: 600,
-              }}
-            >
-              {d.name}
-            </button>
-          ))}
-        </div>
+      {/* Date range label */}
+      <div style={{ padding: '6px 16px 8px', fontSize: 11.5, color: HNH.ink3, fontWeight: 600 }}>
+        {fmtDMM(GRID_DATES[0])} – {fmtDMM(GRID_DATES[13])} · {filteredEmps.length} nhân viên
       </div>
 
-      {/* ── Shift picker ── */}
-      <div style={{ padding: '10px 16px 0' }}>
-        <div style={{ fontSize: 10.5, fontWeight: 700, color: HNH.ink3, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>
-          Ca sẽ áp dụng
+      {/* 2D table */}
+      {filteredEmps.length === 0 ? (
+        <div style={{ textAlign: 'center', color: HNH.ink3, padding: '40px 16px', fontSize: 13 }}>
+          {filterDeptId ? 'Phòng ban này chưa có nhân viên.' : 'Không có nhân viên.'}
         </div>
-        <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
-          {availableShifts.map(s => {
-            const firstSched = s.schedules.find(sc => sc.start_time)
-            const timeStr = firstSched ? `${firstSched.start_time}–${firstSched.end_time}` : ''
-            const active = selectedShiftId === s.id
-            return (
-              <button
-                key={s.id}
-                onClick={() => setSelectedShiftId(s.id)}
-                style={{
-                  flexShrink: 0, borderRadius: 11, cursor: 'pointer',
-                  padding: '7px 12px', textAlign: 'left',
-                  background: active ? HNH.red : '#fff',
-                  border: `1.5px solid ${active ? HNH.red : HNH.line}`,
-                  transition: 'all 0.15s',
-                }}
-              >
-                <div style={{ fontSize: 12.5, fontWeight: 700, color: active ? '#fff' : HNH.ink, whiteSpace: 'nowrap' }}>
-                  {s.name}
-                </div>
-                {timeStr && (
-                  <div style={{ fontSize: 10.5, color: active ? 'rgba(255,255,255,0.75)' : HNH.ink3, marginTop: 1 }}>
-                    {timeStr}
-                  </div>
-                )}
-              </button>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* ── Employee list ── */}
-      <div style={{ padding: '12px 16px 0' }}>
-        <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
-          <div style={{ fontSize: 10.5, fontWeight: 700, color: HNH.ink3, textTransform: 'uppercase', letterSpacing: 0.4 }}>
-            Nhân viên ({filteredEmps.length})
-          </div>
-          <button
-            onClick={toggleAll}
-            style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, color: HNH.navy, fontWeight: 600 }}
-          >
-            {selectedEmpIds.size === filteredEmps.length && filteredEmps.length > 0 ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
-          </button>
-        </div>
-
-        {/* Search */}
-        <div className="flex items-center gap-2" style={{
-          background: '#fff', borderRadius: 10, border: `1px solid ${HNH.line}`,
-          padding: '8px 12px', marginBottom: 8,
-        }}>
-          <Icon name="search" size={15} color={HNH.ink3} />
-          <input
-            placeholder="Tìm nhân viên..."
-            value={searchQ}
-            onChange={e => setSearchQ(e.target.value)}
-            style={{ border: 'none', outline: 'none', flex: 1, fontSize: 13, color: HNH.ink, background: 'transparent' }}
-          />
-        </div>
-
-        {/* Employee rows */}
-        <div style={{ background: '#fff', borderRadius: 14, border: `1px solid ${HNH.line}`, overflow: 'hidden' }}>
-          {filteredEmps.length === 0 && (
-            <div style={{ padding: '20px', textAlign: 'center', color: HNH.ink3, fontSize: 13 }}>
-              Không có nhân viên phù hợp.
-            </div>
-          )}
-          {filteredEmps.map((emp, i) => {
-            const checked = selectedEmpIds.has(emp.id)
-            // Find planned shift for selected date (1day scope)
-            const planForDate = planMap[emp.id]?.[selectedDate]
-            return (
-              <button
-                key={emp.id}
-                onClick={() => toggleEmp(emp.id)}
-                className="flex items-center gap-3 w-full border-none cursor-pointer text-left"
-                style={{
-                  padding: '10px 14px',
-                  borderBottom: i < filteredEmps.length - 1 ? `1px solid ${HNH.line}` : 'none',
-                  background: checked ? HNH.navy + '12' : 'transparent',
-                  transition: 'background 0.12s',
-                }}
-              >
-                {/* Checkbox */}
-                <div style={{
-                  width: 20, height: 20, borderRadius: 6, flexShrink: 0,
-                  border: `2px solid ${checked ? HNH.navy : HNH.line}`,
-                  background: checked ? HNH.navy : 'transparent',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+      ) : (
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' as never }}>
+          <table style={{
+            borderCollapse: 'collapse',
+            minWidth: 'max-content',
+            tableLayout: 'fixed',
+          }}>
+            {/* Column header */}
+            <thead>
+              <tr>
+                {/* Sticky name column */}
+                <th style={{
+                  position: 'sticky', left: 0, zIndex: 20,
+                  width: 96, minWidth: 96,
+                  background: HNH.cream, borderBottom: `2px solid ${HNH.line}`,
+                  borderRight: `1px solid ${HNH.line}`,
+                  padding: '6px 8px', textAlign: 'left',
+                  fontSize: 10, fontWeight: 700, color: HNH.ink3,
+                  textTransform: 'uppercase', letterSpacing: 0.3,
                 }}>
-                  {checked && <Icon name="check" size={11} color="#fff" stroke={3} />}
-                </div>
+                  Nhân viên
+                </th>
+                {/* Date columns */}
+                {GRID_DATES.map((d, i) => {
+                  const dow = d.getDay()
+                  const dayLabel = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][dow]
+                  const isWeekend = dow === 0 || dow === 6
+                  return (
+                    <th key={i} style={{
+                      width: 68, minWidth: 68,
+                      background: colBg(i),
+                      borderBottom: `2px solid ${HNH.line}`,
+                      borderRight: i === 6 ? `2px solid ${HNH.navy}44` : `1px solid ${HNH.line}`,
+                      padding: '5px 4px',
+                      textAlign: 'center',
+                    }}>
+                      <div style={{
+                        fontSize: 11, fontWeight: 800,
+                        color: isWeekend ? HNH.red : HNH.ink2,
+                      }}>
+                        {dayLabel}
+                      </div>
+                      <div style={{ fontSize: 10, color: HNH.ink3, marginTop: 1 }}>
+                        {fmtDMM(d)}
+                      </div>
+                    </th>
+                  )
+                })}
+              </tr>
+            </thead>
 
-                {/* Avatar */}
-                {emp.avatar ? (
-                  <img src={emp.avatar} alt="" style={{ width: 32, height: 32, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }} />
-                ) : (
-                  <div style={{
-                    width: 32, height: 32, borderRadius: 10, background: HNH.cream2,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            {/* Rows */}
+            <tbody>
+              {filteredEmps.map((emp, ri) => (
+                <tr key={emp.id} style={{ background: ri % 2 === 0 ? '#fff' : '#fafaf8' }}>
+                  {/* Sticky name cell */}
+                  <td style={{
+                    position: 'sticky', left: 0, zIndex: 10,
+                    background: ri % 2 === 0 ? '#fff' : '#fafaf8',
+                    borderBottom: `1px solid ${HNH.line}`,
+                    borderRight: `1px solid ${HNH.line}`,
+                    padding: '6px 8px',
+                    verticalAlign: 'middle',
                   }}>
-                    <Icon name="user" size={16} color={HNH.ink3} />
-                  </div>
-                )}
+                    <div style={{
+                      fontSize: 12, fontWeight: 600, color: HNH.ink,
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      maxWidth: 80,
+                    }}>
+                      {emp.name}
+                    </div>
+                    <div style={{ fontSize: 10, color: HNH.ink3, marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {emp.badge_id || emp.department_name || '—'}
+                    </div>
+                  </td>
 
-                <div className="flex-1 min-w-0">
-                  <div style={{ fontSize: 13, fontWeight: 600, color: HNH.ink, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {emp.name}
-                  </div>
-                  <div style={{ fontSize: 11, color: HNH.ink3, marginTop: 1 }}>
-                    {emp.department_name || '—'}
-                  </div>
-                </div>
+                  {/* Date cells */}
+                  {GRID_DATES.map((d, ci) => {
+                    const dateStr = toIso(d)
+                    const cellPlans = planMap[emp.id]?.[dateStr] ?? []
+                    const dow = d.getDay()
+                    const isWeekend = dow === 0 || dow === 6
 
-                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  {planForDate ? (
-                    <Badge tone="gold" size="s">{planForDate.shift_name}</Badge>
-                  ) : emp.shift_name ? (
-                    <Badge tone="navy" size="s">{emp.shift_name}</Badge>
-                  ) : (
-                    <Badge tone="ink" size="s">Chưa có ca</Badge>
-                  )}
-                </div>
-              </button>
-            )
-          })}
+                    return (
+                      <td
+                        key={ci}
+                        onClick={() => handleCellClick(emp, d)}
+                        style={{
+                          background: isWeekend
+                            ? (colBg(ci) === '#fff' ? '#fff7f7' : '#f5f2ef')
+                            : colBg(ci),
+                          borderBottom: `1px solid ${HNH.line}`,
+                          borderRight: ci === 6 ? `2px solid ${HNH.navy}44` : `1px solid ${HNH.line}`,
+                          padding: '4px',
+                          verticalAlign: 'top',
+                          cursor: 'pointer',
+                          minHeight: 48,
+                        }}
+                      >
+                        {cellPlans.length === 0 ? (
+                          <div style={{
+                            width: '100%', minHeight: 40,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          }}>
+                            <Icon name="plus" size={12} color={HNH.line} stroke={2} />
+                          </div>
+                        ) : (
+                          <div>
+                            {cellPlans.map(p => (
+                              <div key={p.id} style={{
+                                background: shiftColor(p.shift_id),
+                                borderRadius: 5, padding: '2px 4px', marginBottom: 2,
+                              }}>
+                                <div style={{
+                                  fontSize: 9.5, fontWeight: 700, color: '#fff',
+                                  whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                                }}>
+                                  {abbrevShift(p.shift_name)}
+                                </div>
+                                <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.75)' }}>
+                                  {p.start_time}
+                                </div>
+                              </div>
+                            ))}
+                            {cellPlans.length < 3 && (
+                              <div style={{
+                                borderRadius: 5, padding: '1px 4px',
+                                border: `1px dashed ${HNH.line}`,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              }}>
+                                <Icon name="plus" size={10} color={HNH.ink4 ?? HNH.ink3} stroke={2} />
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                    )
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-      </div>
+      )}
 
-      {/* ── Fixed bottom apply bar ── */}
-      <div style={{
-        position: 'fixed', bottom: 56, left: 0, right: 0,
-        padding: '12px 16px',
-        background: 'rgba(250,249,246,0.95)', backdropFilter: 'blur(10px)',
-        borderTop: `1px solid ${HNH.line}`,
-        zIndex: 100,
-      }}>
-        {selectedEmpIds.size > 0 && selectedShiftId ? (
-          <div className="flex items-center gap-3">
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: HNH.ink }}>
-                {selectedShift?.name} · {previewLabel}
-              </div>
-              <div style={{ fontSize: 11, color: HNH.ink3, marginTop: 1 }}>
-                {selectedEmpIds.size} nhân viên · {previewDates.length} ngày
-              </div>
-            </div>
-            <button
-              onClick={handleApply}
-              disabled={applying || loading}
-              style={{
-                height: 44, paddingLeft: 20, paddingRight: 20, borderRadius: 13,
-                border: 'none', cursor: 'pointer',
-                background: applying ? HNH.ink3 : HNH.red,
-                color: '#fff', fontSize: 14, fontWeight: 700,
-                boxShadow: applying ? 'none' : '0 4px 12px rgba(192,34,43,0.28)',
-              }}
-            >
-              {applying ? 'Đang lưu...' : 'Áp dụng'}
-            </button>
-          </div>
-        ) : (
-          <div style={{ textAlign: 'center', fontSize: 12.5, color: HNH.ink3 }}>
-            {selectedEmpIds.size === 0
-              ? 'Chọn nhân viên và ca để phân lịch'
-              : 'Chọn ca để áp dụng'}
-          </div>
-        )}
-      </div>
+      {/* Shift picker sheet */}
+      {activeCell && (
+        <ShiftPickerSheet
+          cell={activeCell}
+          availableShifts={availableShiftsForDept}
+          cellPlans={activeCellPlans}
+          onAdd={handleAdd}
+          onRemove={handleRemove}
+          onClose={() => setActiveCell(null)}
+        />
+      )}
     </div>
   )
 }
@@ -665,33 +683,42 @@ export function ShiftManagementPage() {
     setTimeout(() => setToast(null), 2800)
   }
 
+  const loadPlans = useCallback(async () => {
+    try {
+      const plansRes = await api.get<ShiftPlan[]>(
+        `/api/employee/shift-mgmt/plan/?from_date=${GRID_FROM}&to_date=${GRID_TO}`
+      )
+      setPlans(plansRes)
+    } catch (e) {
+      console.error('plans load error', e)
+    }
+  }, [])
+
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const [scopeRes, shiftsRes, deptsRes, empsRes] = await Promise.all([
+      const [scopeRes, shiftsRes, deptsRes, empsRes] = await Promise.allSettled([
         api.get<{ scope: Scope; department_ids: number[] }>('/api/employee/shift-mgmt/scope/'),
         api.get<Shift[]>('/api/employee/shift-mgmt/shifts/'),
         api.get<Dept[]>('/api/employee/shift-mgmt/dept-shifts/'),
         api.get<Emp[]>('/api/employee/shift-mgmt/employees/'),
       ])
-      setUserScope(scopeRes.scope)
-      setMgrDeptIds(scopeRes.department_ids)
-      setShifts(shiftsRes)
-      setDepts(deptsRes)
-      setEmployees(empsRes)
 
-      // Load plans for next 60 days
-      const today = new Date()
-      const from = today.toISOString().slice(0, 10)
-      const to = new Date(today.getFullYear(), today.getMonth() + 2, 0).toISOString().slice(0, 10)
-      const plansRes = await api.get<ShiftPlan[]>(`/api/employee/shift-mgmt/plan/?from_date=${from}&to_date=${to}`)
-      setPlans(plansRes)
+      if (scopeRes.status === 'fulfilled') {
+        setUserScope(scopeRes.value.scope)
+        setMgrDeptIds(scopeRes.value.department_ids)
+      }
+      if (shiftsRes.status === 'fulfilled') setShifts(shiftsRes.value)
+      if (deptsRes.status === 'fulfilled') setDepts(deptsRes.value)
+      if (empsRes.status === 'fulfilled') setEmployees(empsRes.value)
+
+      await loadPlans()
     } catch (e) {
       console.error('ShiftManagement load error', e)
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [loadPlans])
 
   useEffect(() => { loadData() }, [loadData])
 
@@ -702,7 +729,6 @@ export function ShiftManagementPage() {
       } else {
         await api.delete('/api/employee/shift-mgmt/dept-shifts/', { department_id: deptId, shift_id: shiftId })
       }
-      // Optimistic update
       setShifts(prev => prev.map(s => {
         if (s.id !== shiftId) return s
         return {
@@ -727,23 +753,43 @@ export function ShiftManagementPage() {
     }
   }, [])
 
-  const handleAssign = useCallback(async (
-    empIds: number[], shiftId: number, scope: TimeScope, date: string, weekdays: number[]
-  ) => {
+  const handleAddPlan = useCallback(async (empId: number, shiftId: number, date: string) => {
     try {
-      const res = await api.post<{ created: number; updated: number; dates: string[] }>(
-        '/api/employee/shift-mgmt/plan/',
-        { employee_ids: empIds, shift_id: shiftId, scope, date, weekdays }
-      )
-      // Reload plans after assign
-      const today = new Date()
-      const from = today.toISOString().slice(0, 10)
-      const to = new Date(today.getFullYear(), today.getMonth() + 2, 0).toISOString().slice(0, 10)
-      const plansRes = await api.get<ShiftPlan[]>(`/api/employee/shift-mgmt/plan/?from_date=${from}&to_date=${to}`)
-      setPlans(plansRes)
-      showToast(`Đã phân ca: ${res.created + res.updated} bản ghi (${res.dates.length} ngày)`)
+      const res = await api.post<{ id: number }>('/api/employee/shift-mgmt/plan/', {
+        employee_id: empId, shift_id: shiftId, date,
+      })
+      const shift = shifts.find(s => s.id === shiftId)
+      // Compute start_time from shift schedules for the given date
+      const d = new Date(date + 'T00:00:00')
+      const dayName = ['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][d.getDay()]
+      const sch = shift?.schedules.find(sc => sc.day.toLowerCase() === dayName && sc.start_time)
+        ?? shift?.schedules.find(sc => sc.start_time)
+      const startTime = sch?.start_time ?? '00:00'
+      const newPlan: ShiftPlan = {
+        id: res.id,
+        employee_id: empId,
+        shift_id: shiftId,
+        shift_name: shift?.name ?? '',
+        date,
+        start_time: startTime,
+      }
+      setPlans(prev => [...prev, newPlan])
+      showToast('Đã thêm ca')
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Lỗi khi thêm ca'
+      showToast(msg)
+      throw e
+    }
+  }, [shifts])
+
+  const handleRemovePlan = useCallback(async (planId: number) => {
+    try {
+      await api.delete('/api/employee/shift-mgmt/plan/', { plan_id: planId })
+      setPlans(prev => prev.filter(p => p.id !== planId))
+      showToast('Đã xóa ca')
     } catch {
-      showToast('Lỗi: không thể phân ca')
+      showToast('Lỗi khi xóa ca')
+      throw new Error('remove failed')
     }
   }, [])
 
@@ -765,7 +811,7 @@ export function ShiftManagementPage() {
       <div style={{ background: HNH.cream, minHeight: '100%' }}>
         <TopBar title="Quản lý Ca" />
         <div className="flex flex-col items-center justify-center gap-3" style={{ height: 250, padding: '0 32px', textAlign: 'center' }}>
-          <Icon name="shield" size={40} color={HNH.ink4} />
+          <Icon name="shield" size={40} color={HNH.ink4 ?? HNH.ink3} />
           <div style={{ fontSize: 14, fontWeight: 600, color: HNH.ink }}>Không có quyền truy cập</div>
           <div style={{ fontSize: 13, color: HNH.ink3 }}>
             Liên hệ quản trị viên để được cấp quyền <strong>Quản lý Ca</strong> hoặc <strong>Chuyên viên C&B</strong>.
@@ -805,7 +851,6 @@ export function ShiftManagementPage() {
         ))}
       </div>
 
-      {/* Content */}
       {tab === 'schedule' && (
         <ScheduleTab
           shifts={shifts}
@@ -814,8 +859,8 @@ export function ShiftManagementPage() {
           plans={plans}
           userScope={userScope}
           mgrDeptIds={mgrDeptIds}
-          onAssign={handleAssign}
-          loading={loading}
+          onAddPlan={handleAddPlan}
+          onRemovePlan={handleRemovePlan}
         />
       )}
       {tab === 'setup' && (
@@ -827,7 +872,6 @@ export function ShiftManagementPage() {
         />
       )}
 
-      {/* Toast */}
       {toast && (
         <div style={{
           position: 'fixed', bottom: 70, left: 16, right: 16,
@@ -835,7 +879,6 @@ export function ShiftManagementPage() {
           padding: '12px 16px', fontSize: 13, fontWeight: 600,
           zIndex: 9999, textAlign: 'center',
           boxShadow: '0 4px 16px rgba(0,0,0,0.2)',
-          animation: 'fadeIn 0.2s ease',
         }}>
           {toast}
         </div>

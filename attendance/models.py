@@ -1651,7 +1651,6 @@ class EmployeeShiftPlan(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = [("employee", "date")]
         ordering = ["date", "employee"]
         db_table = "attendance_employeeshiftplan"
         verbose_name = "Employee Shift Plan"

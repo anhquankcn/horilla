@@ -266,7 +266,7 @@ class ShiftMgmtPlanView(APIView):
 
         qs = EmployeeShiftPlan.objects.filter(
             date__gte=from_date, date__lte=to_date
-        ).select_related("employee", "shift")
+        ).select_related("employee", "shift").prefetch_related("shift__employeeshiftschedule_set")
 
         if scope == "manager":
             mgr_ids = _manager_dept_ids(request)
@@ -274,117 +274,93 @@ class ShiftMgmtPlanView(APIView):
         if dept_id:
             qs = qs.filter(employee__employee_work_info__department_id=dept_id)
 
+        def _start_time(plan):
+            day_name = plan.date.strftime("%A").lower()
+            for sch in plan.shift.employeeshiftschedule_set.all():
+                if sch.day.day.lower() == day_name and sch.start_time:
+                    return str(sch.start_time)[:5]
+            for sch in plan.shift.employeeshiftschedule_set.all():
+                if sch.start_time:
+                    return str(sch.start_time)[:5]
+            return "00:00"
+
         return Response([
             {
                 "id": p.id,
                 "employee_id": p.employee_id,
-                "employee_name": p.employee.get_full_name(),
                 "shift_id": p.shift_id,
                 "shift_name": p.shift.employee_shift,
                 "date": str(p.date),
+                "start_time": _start_time(p),
             }
             for p in qs
         ])
 
     def post(self, request):
         """
-        Bulk-assign a shift to employees for a date scope.
-        Body: {
-          employee_ids: [int, ...],
-          shift_id: int,
-          scope: '1day' | 'weekdays' | 'next_week' | 'next_month',
-          date: 'YYYY-MM-DD',       # base/reference date
-          weekdays: [0,1,2,3,4,5,6] # used only for 'weekdays' scope (0=Mon)
-        }
+        Assign a single shift to one employee on one date (max 3 shifts/day).
+        Body: {employee_id: int, shift_id: int, date: 'YYYY-MM-DD'}
         """
         scope = _get_scope(request)
         if not scope:
             return Response({"error": "Không có quyền"}, status=403)
 
-        emp_ids = request.data.get("employee_ids", [])
+        emp_id = request.data.get("employee_id")
         shift_id = request.data.get("shift_id")
-        time_scope = request.data.get("scope", "1day")
         date_str = request.data.get("date")
-        weekdays = [int(w) for w in request.data.get("weekdays", [])]
 
-        if not emp_ids or not shift_id or not date_str:
-            return Response({"error": "Thiếu employee_ids, shift_id hoặc date"}, status=400)
+        if not emp_id or not shift_id or not date_str:
+            return Response({"error": "Thiếu employee_id, shift_id hoặc date"}, status=400)
 
         try:
-            base_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+            target_date = datetime.strptime(date_str, "%Y-%m-%d").date()
         except ValueError:
             return Response({"error": "Định dạng ngày không hợp lệ"}, status=400)
 
-        # Validate employee access
-        emp_qs = Employee.objects.filter(id__in=emp_ids, is_active=True)
+        emp_qs = Employee.objects.filter(id=emp_id, is_active=True)
         if scope == "manager":
             mgr_ids = _manager_dept_ids(request)
             emp_qs = emp_qs.filter(employee_work_info__department_id__in=mgr_ids)
-        valid_ids = list(emp_qs.values_list("id", flat=True))
-        if not valid_ids:
-            return Response({"error": "Không có nhân viên hợp lệ"}, status=400)
+        if not emp_qs.exists():
+            return Response({"error": "Không tìm thấy nhân viên hoặc không có quyền"}, status=403)
 
-        target_dates = _compute_dates(time_scope, base_date, weekdays)
-        if not target_dates:
-            return Response({"error": "Không có ngày hợp lệ"}, status=400)
+        existing = EmployeeShiftPlan.objects.filter(employee_id=emp_id, date=target_date)
+        if existing.count() >= 3:
+            return Response({"error": "Tối đa 3 ca mỗi ngày"}, status=400)
+        if existing.filter(shift_id=shift_id).exists():
+            return Response({"error": "Ca này đã được phân cho ngày đó"}, status=400)
 
         try:
             creator = request.user.employee_get
         except Exception:
             creator = None
 
-        created = updated = 0
-        for eid in valid_ids:
-            for d in target_dates:
-                _, c = EmployeeShiftPlan.objects.update_or_create(
-                    employee_id=eid,
-                    date=d,
-                    defaults={"shift_id": shift_id, "created_by": creator},
-                )
-                if c:
-                    created += 1
-                else:
-                    updated += 1
-
-        return Response({
-            "created": created,
-            "updated": updated,
-            "employees": len(valid_ids),
-            "dates": [str(d) for d in target_dates],
-        })
+        plan = EmployeeShiftPlan.objects.create(
+            employee_id=emp_id,
+            shift_id=shift_id,
+            date=target_date,
+            created_by=creator,
+        )
+        return Response({"id": plan.id, "created": True}, status=201)
 
     def delete(self, request):
         """
-        Remove shift plans. Body: {employee_ids: [...], from_date, to_date}
+        Remove a single shift plan by ID. Body: {plan_id: int}
         """
         scope = _get_scope(request)
         if not scope:
             return Response({"error": "Không có quyền"}, status=403)
 
-        emp_ids = request.data.get("employee_ids", [])
-        from_str = request.data.get("from_date")
-        to_str = request.data.get("to_date")
-        if not emp_ids or not from_str or not to_str:
-            return Response({"error": "Thiếu thông tin"}, status=400)
+        plan_id = request.data.get("plan_id")
+        if not plan_id:
+            return Response({"error": "Thiếu plan_id"}, status=400)
 
-        try:
-            from_date = datetime.strptime(from_str, "%Y-%m-%d").date()
-            to_date = datetime.strptime(to_str, "%Y-%m-%d").date()
-        except ValueError:
-            return Response({"error": "Định dạng ngày không hợp lệ"}, status=400)
-
+        qs = EmployeeShiftPlan.objects.filter(id=plan_id)
         if scope == "manager":
             mgr_ids = _manager_dept_ids(request)
-            emp_ids = list(
-                Employee.objects.filter(
-                    id__in=emp_ids,
-                    employee_work_info__department_id__in=mgr_ids,
-                ).values_list("id", flat=True)
-            )
+            qs = qs.filter(employee__employee_work_info__department_id__in=mgr_ids)
 
-        count, _ = EmployeeShiftPlan.objects.filter(
-            employee_id__in=emp_ids,
-            date__gte=from_date,
-            date__lte=to_date,
-        ).delete()
+        count, _ = qs.delete()
+        if count == 0:
+            return Response({"error": "Không tìm thấy hoặc không có quyền"}, status=404)
         return Response({"deleted": count})
