@@ -4,7 +4,7 @@
 	{% for field in form %}
     {% if field.label != "Employee profile" and field.label != 'Country' and field.label != 'State' and field.label != 'Address' and field.label != 'Badge id' %}
         <div class="col-lg-6">
-            <div class="oh-input__group">
+            <div class="oh-input__group" {% if field.name == 'job_position_id' %}id="id_job_position_id_parent_div"{% elif field.name == 'job_role_id' %}id="id_job_role_id_parent_div"{% endif %}>
                 <label
                     class="oh-label {% if field.field.required %}required-star{% endif %}"
                     for="id_{{ field.name }}"
