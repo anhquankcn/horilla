@@ -747,19 +747,6 @@ export function ShiftManagementPage() {
     }
   }, [])
 
-  const handleDeletePlan = useCallback(async (empId: number, dateStr: string) => {
-    try {
-      await api.delete('/api/employee/shift-mgmt/plan/', {
-        employee_ids: [empId],
-        from_date: dateStr,
-        to_date: dateStr,
-      })
-      setPlans(prev => prev.filter(p => !(p.employee_id === empId && p.date === dateStr)))
-    } catch {
-      showToast('Lỗi: không thể xóa lịch')
-    }
-  }, [])
-
   const isCnb = userScope === 'cnb'
 
   if (loading) {
