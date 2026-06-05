@@ -194,12 +194,11 @@ function SetupTab({ shifts, depts, onToggleDept, isCnb }: {
 
 function ScheduleTab({
   shifts, depts, employees, plans, userScope, mgrDeptIds,
-  onAssign, onDeletePlan, loading,
+  onAssign, loading,
 }: {
   shifts: Shift[]; depts: Dept[]; employees: Emp[]
   plans: ShiftPlan[]; userScope: Scope; mgrDeptIds: number[]
   onAssign: (empIds: number[], shiftId: number, scope: TimeScope, date: string, weekdays: number[]) => Promise<void>
-  onDeletePlan: (empId: number, date: string) => Promise<void>
   loading: boolean
 }) {
   const today = new Date()
@@ -486,7 +485,7 @@ function ScheduleTab({
                 key={s.id}
                 onClick={() => setSelectedShiftId(s.id)}
                 style={{
-                  flexShrink: 0, borderRadius: 11, border: 'none', cursor: 'pointer',
+                  flexShrink: 0, borderRadius: 11, cursor: 'pointer',
                   padding: '7px 12px', textAlign: 'left',
                   background: active ? HNH.red : '#fff',
                   border: `1.5px solid ${active ? HNH.red : HNH.line}`,
@@ -829,7 +828,6 @@ export function ShiftManagementPage() {
           userScope={userScope}
           mgrDeptIds={mgrDeptIds}
           onAssign={handleAssign}
-          onDeletePlan={handleDeletePlan}
           loading={loading}
         />
       )}
