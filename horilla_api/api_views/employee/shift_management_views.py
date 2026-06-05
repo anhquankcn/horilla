@@ -112,14 +112,14 @@ class ShiftMgmtShiftsView(APIView):
             return Response([])
 
         shifts = EmployeeShift.objects.prefetch_related(
-            "employee_shift_schedule__day",
+            "employeeshiftschedule_set__day",
             "department_assignments__department",
         ).all()
 
         result = []
         for s in shifts:
             schedules = sorted(
-                s.employee_shift_schedule.all(),
+                s.employeeshiftschedule_set.all(),
                 key=lambda x: ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].index(
                     x.day.day.lower()
                 ) if x.day.day.lower() in ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"] else 7,
