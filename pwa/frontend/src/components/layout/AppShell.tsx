@@ -7,6 +7,7 @@ import { Icon } from '../ui/Icon'
 import { useTablet } from '../../lib/useTablet'
 import { useNotificationPolling } from '../../lib/useNotificationPolling'
 import { WelcomeWizard } from '../WelcomeWizard'
+import { PWAInstallBanner } from '../PWAInstallBanner'
 
 export const SKY_BG_EVENT = 'hnh-sky-bg'
 export const SKY_BG_KEY   = 'hnh_sky_bg'
@@ -78,6 +79,7 @@ export function AppShell() {
           <div className="flex-1 overflow-auto flex flex-col" style={{ minHeight: 0 }}>
             <Outlet />
           </div>
+          <PWAInstallBanner />
           <BottomNav />
         </>
       )}
