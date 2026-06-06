@@ -2,13 +2,18 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { HNH } from '../../lib/theme'
 
 const tabs = [
-  { id: 'home', label: 'Trang chủ', path: '/', icon: 'home' },
-  { id: 'apps', label: 'Ứng dụng', path: '/apps', icon: 'grid' },
-  { id: 'ruby', label: 'Ruby AI', path: '/ruby', icon: 'ruby' },
-  { id: 'me', label: 'Cá nhân', path: '/profile', icon: 'user' },
+  { id: 'home',  label: 'Trang chủ', path: '/',          icon: 'home'  },
+  { id: 'life',  label: 'HNH Life',  path: '/life',       icon: 'life'  },
+  { id: 'apps',  label: 'Ứng dụng',  path: '/apps',       icon: 'grid'  },
+  { id: 'ruby',  label: 'Ruby AI',   path: '/ruby',       icon: 'ruby'  },
+  { id: 'tasks', label: 'Công việc', path: '/task-board', icon: 'tasks' },
+  { id: 'me',    label: 'Cá nhân',  path: '/profile',    icon: 'user'  },
 ] as const
 
-const appChildPaths = ['/attendance', '/tasks', '/employees', '/roles']
+// Sub-paths that highlight "apps" tab (attendance, employees, roles)
+const appChildPaths = ['/attendance', '/employees', '/roles']
+// Sub-paths that highlight "tasks" tab
+const taskChildPaths = ['/tasks', '/task-board']
 
 function NavIcon({ icon, active }: { icon: string; active: boolean }) {
   const c = active ? '#fff' : 'rgba(255,255,255,0.5)'
@@ -16,10 +21,25 @@ function NavIcon({ icon, active }: { icon: string; active: boolean }) {
   switch (icon) {
     case 'home':
       return <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 11 12 4l8 7v8a1 1 0 0 1-1 1h-4v-6h-6v6H5a1 1 0 0 1-1-1v-8Z" stroke={c} strokeWidth={sw} strokeLinejoin="round" fill={active ? 'rgba(255,255,255,0.15)' : 'none'}/></svg>
+
+    case 'life':
+      return (
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+          <path d="M12 21C6 15.5 2 12 2 8a5 5 0 0 1 10-1.5A5 5 0 0 1 22 8c0 4-4 7.5-10 13Z"
+            stroke={c} strokeWidth={sw} strokeLinejoin="round"
+            fill={active ? 'rgba(255,255,255,0.15)' : 'none'} />
+        </svg>
+      )
+
     case 'grid':
       return <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="7" height="7" rx="1.5" stroke={c} strokeWidth={sw} fill={active ? 'rgba(255,255,255,0.15)' : 'none'}/><rect x="14" y="3" width="7" height="7" rx="1.5" stroke={c} strokeWidth={sw} fill={active ? 'rgba(255,255,255,0.15)' : 'none'}/><rect x="3" y="14" width="7" height="7" rx="1.5" stroke={c} strokeWidth={sw} fill={active ? 'rgba(255,255,255,0.15)' : 'none'}/><rect x="14" y="14" width="7" height="7" rx="1.5" stroke={c} strokeWidth={sw} fill={active ? 'rgba(255,255,255,0.15)' : 'none'}/></svg>
+
+    case 'tasks':
+      return <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="2" stroke={c} strokeWidth={sw} fill={active ? 'rgba(255,255,255,0.15)' : 'none'}/><path d="M9 12l2 2 4-4" stroke={c} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round"/></svg>
+
     case 'user':
       return <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.5" r="3.5" stroke={c} strokeWidth={sw} fill={active ? 'rgba(255,255,255,0.15)' : 'none'}/><path d="M4.5 20c1.5-3.5 4.5-5 7.5-5s6 1.5 7.5 5" stroke={c} strokeWidth={sw} strokeLinecap="round" fill="none"/></svg>
+
     case 'ruby':
       return (
         <div className="flex items-center justify-center" style={{
@@ -35,6 +55,7 @@ function NavIcon({ icon, active }: { icon: string; active: boolean }) {
           </svg>
         </div>
       )
+
     default: return null
   }
 }
@@ -46,6 +67,7 @@ export function SideNav({ skyBg }: { skyBg?: string }) {
   function getActiveTab() {
     const path = location.pathname
     if (appChildPaths.some(p => path.startsWith(p))) return 'apps'
+    if (taskChildPaths.some(p => path.startsWith(p))) return 'tasks'
     return tabs.find(t => t.path === path)?.id ?? 'home'
   }
 

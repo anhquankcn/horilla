@@ -651,53 +651,99 @@ export function EmployeesPage() {
           ))}
         </div>
 
-        {/* Search */}
-        <SearchBar value={search} onChange={setSearch} />
-
-        {/* Company filter */}
-        {tab === 'assigned' && companies.length > 1 && (
-          <div className="flex gap-2 overflow-x-auto" style={{ marginTop: 10, padding: '2px 0', scrollbarWidth: 'none' }}>
-            <button
-              onClick={() => setCompanyFilter(null)}
-              className="shrink-0 border-none cursor-pointer whitespace-nowrap"
-              style={{
-                padding: '5px 12px', borderRadius: 8,
-                background: companyFilter === null ? HNH.red : '#fff',
-                color: companyFilter === null ? '#fff' : HNH.ink2,
-                fontSize: 11, fontWeight: 700,
-                border: `1px solid ${companyFilter === null ? HNH.red : HNH.line}`,
-              }}
-            >
-              Tất cả Cty
-            </button>
-            {companies.map(c => (
-              <button
-                key={c.id}
-                onClick={() => setCompanyFilter(c.id === companyFilter ? null : c.id)}
-                className="shrink-0 border-none cursor-pointer whitespace-nowrap"
+        {/* Search + filters — tablet: single toolbar row; mobile: stacked chips */}
+        {isTablet ? (
+          <div className="flex items-center gap-2" style={{ marginTop: 8 }}>
+            <div style={{ flex: 1 }}>
+              <SearchBar value={search} onChange={setSearch} />
+            </div>
+            {tab === 'assigned' && companies.length > 1 && (
+              <select
+                value={companyFilter ?? ''}
+                onChange={e => setCompanyFilter(e.target.value ? Number(e.target.value) : null)}
                 style={{
-                  padding: '5px 12px', borderRadius: 8,
-                  background: c.id === companyFilter ? HNH.red : '#fff',
-                  color: c.id === companyFilter ? '#fff' : HNH.ink2,
-                  fontSize: 11, fontWeight: 700,
-                  border: `1px solid ${c.id === companyFilter ? HNH.red : HNH.line}`,
+                  padding: '9px 32px 9px 12px', borderRadius: 10, cursor: 'pointer',
+                  border: `1.5px solid ${companyFilter !== null ? HNH.red : HNH.line}`,
+                  background: companyFilter !== null ? HNH.red50 : '#fff',
+                  color: companyFilter !== null ? HNH.red : HNH.ink2,
+                  fontSize: 13, fontWeight: 600,
+                  appearance: 'none', WebkitAppearance: 'none',
+                  backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238a8fa6'/%3E%3C/svg%3E\")",
+                  backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center',
+                  minWidth: 140,
                 }}
               >
-                {c.name}
-              </button>
-            ))}
+                <option value="">Tất cả Cty</option>
+                {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            )}
+            {tab === 'assigned' && depts.length > 0 && (
+              <select
+                value={deptFilter ?? ''}
+                onChange={e => setDeptFilter(e.target.value ? Number(e.target.value) : null)}
+                style={{
+                  padding: '9px 32px 9px 12px', borderRadius: 10, cursor: 'pointer',
+                  border: `1.5px solid ${deptFilter !== null ? HNH.navy : HNH.line}`,
+                  background: deptFilter !== null ? HNH.navy50 : '#fff',
+                  color: deptFilter !== null ? HNH.navy : HNH.ink2,
+                  fontSize: 13, fontWeight: 600,
+                  appearance: 'none', WebkitAppearance: 'none',
+                  backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238a8fa6'/%3E%3C/svg%3E\")",
+                  backgroundRepeat: 'no-repeat', backgroundPosition: 'right 10px center',
+                  minWidth: 160,
+                }}
+              >
+                <option value="">Tất cả Phòng ban</option>
+                {depts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+            )}
           </div>
+        ) : (
+          <>
+            <SearchBar value={search} onChange={setSearch} />
+
+            {/* Company chips */}
+            {tab === 'assigned' && companies.length > 1 && (
+              <div className="flex gap-2 overflow-x-auto" style={{ marginTop: 10, padding: '2px 0', scrollbarWidth: 'none' }}>
+                <button
+                  onClick={() => setCompanyFilter(null)}
+                  className="shrink-0 border-none cursor-pointer whitespace-nowrap"
+                  style={{
+                    padding: '5px 12px', borderRadius: 8,
+                    background: companyFilter === null ? HNH.red : '#fff',
+                    color: companyFilter === null ? '#fff' : HNH.ink2,
+                    fontSize: 11, fontWeight: 700,
+                    border: `1px solid ${companyFilter === null ? HNH.red : HNH.line}`,
+                  }}
+                >Tất cả Cty</button>
+                {companies.map(c => (
+                  <button
+                    key={c.id}
+                    onClick={() => setCompanyFilter(c.id === companyFilter ? null : c.id)}
+                    className="shrink-0 border-none cursor-pointer whitespace-nowrap"
+                    style={{
+                      padding: '5px 12px', borderRadius: 8,
+                      background: c.id === companyFilter ? HNH.red : '#fff',
+                      color: c.id === companyFilter ? '#fff' : HNH.ink2,
+                      fontSize: 11, fontWeight: 700,
+                      border: `1px solid ${c.id === companyFilter ? HNH.red : HNH.line}`,
+                    }}
+                  >{c.name}</button>
+                ))}
+              </div>
+            )}
+
+            {/* Department chips */}
+            {tab === 'assigned' && depts.length > 0 && (
+              <div style={{ marginTop: 8 }}>
+                <DeptChips depts={depts} active={deptFilter} onPick={setDeptFilter} />
+              </div>
+            )}
+          </>
         )}
 
-        {/* Department filters */}
-        {tab === 'assigned' && depts.length > 0 && (
-          <div style={{ marginTop: 8 }}>
-            <DeptChips depts={depts} active={deptFilter} onPick={setDeptFilter} />
-          </div>
-        )}
-
-        {/* Active filter label */}
-        {tab === 'assigned' && deptName && (
+        {/* Active filter label (mobile only — tablet shows via select highlight) */}
+        {!isTablet && tab === 'assigned' && deptName && (
           <div className="flex items-center gap-2" style={{ marginTop: 10 }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: HNH.ink2 }}>Phòng ban:</span>
             <span style={{ fontSize: 12, fontWeight: 700, color: HNH.navy, background: HNH.navy50, borderRadius: 6, padding: '2px 8px' }}>
