@@ -106,7 +106,7 @@ export function AttendanceSettingsPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    api.get<HRMConfigData>('/api/hrm-config/')
+    api.get<HRMConfigData>('/api/base/hrm-config/')
       .then(data => { setHrmConfig(data); setLoading(false) })
       .catch(() => setLoading(false))
   }, [])
@@ -115,7 +115,7 @@ export function AttendanceSettingsPage() {
     if (!hrmConfig) return
     setHrmSaving(key)
     try {
-      await api.patch('/api/hrm-config/', { [key]: value })
+      await api.patch('/api/base/hrm-config/', { [key]: value })
       setHrmConfig(prev => prev ? { ...prev, [key]: value } : prev)
       showToast('Đã lưu cấu hình')
     } catch {

@@ -11,6 +11,7 @@ import { useApi } from '../lib/useApi'
 import { api } from '../lib/api'
 import { ClockModal } from '../components/ClockModal'
 import { useTablet, useSmallPhone } from '../lib/useTablet'
+import { useToast } from '../components/ui/Toast'
 
 interface AttendanceRecord {
   id: number
@@ -599,16 +600,28 @@ export function HomePage() {
   const { isClockedIn, duration, clockInTime, clockOutTime, clockIn, clockOut, acting } = useClock()
   const { now, time } = useLiveClock()
   const [clockModalOpen, setClockModalOpen] = useState(false)
-  const { data: tasks, refresh: rTasks } = useApi<TaskSummary>('/api/eoffice/my-summary/')
-  const { data: attendanceData, refresh: rAtt } = useApi<PaginatedResponse<AttendanceRecord>>(
+  const { data: tasks } = useApi<TaskSummary>('/api/eoffice/my-summary/')
+  const { data: attendanceData } = useApi<PaginatedResponse<AttendanceRecord>>(
     '/api/attendance/my-attendance/?page_size=50'
   )
-  const { data: leaveData, refresh: rLeave } = useApi<PaginatedResponse<LeaveAvailable>>('/api/leave/available-leave/?page_size=20')
-  const { data: notifSummary, refresh: rNotif } = useApi<NotifSummary>('/api/notifications/summary/')
-  const { data: payrollData, refresh: rPay } = useApi<PayrollEntry[]>('/api/payroll/my-monthly-payroll/')
+  const { data: leaveData } = useApi<PaginatedResponse<LeaveAvailable>>('/api/leave/available-leave/?page_size=20')
+  const { data: notifSummary } = useApi<NotifSummary>('/api/notifications/summary/')
+  const { data: payrollData } = useApi<PayrollEntry[]>('/api/payroll/my-monthly-payroll/')
+  const { toast: showToast } = useToast()
   const refreshAll = useCallback(async () => {
-    rTasks(); rAtt(); rLeave(); rNotif(); rPay()
-  }, [rTasks, rAtt, rLeave, rNotif, rPay])
+    showToast('Đang xóa cache, tải lại ứng dụng...')
+    try {
+      if ('caches' in window) {
+        const names = await caches.keys()
+        await Promise.all(names.map(n => caches.delete(n)))
+      }
+      if ('serviceWorker' in navigator) {
+        const reg = await navigator.serviceWorker.getRegistration()
+        if (reg) await reg.unregister()
+      }
+    } catch { /* ignore */ }
+    setTimeout(() => window.location.reload(), 1200)
+  }, [showToast])
   const isTablet = useTablet()
   const isSmall = useSmallPhone()
   const px = isTablet ? 28 : isSmall ? 14 : 20
