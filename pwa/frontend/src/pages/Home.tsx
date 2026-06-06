@@ -60,6 +60,25 @@ interface NotifSummary {
   total: number
 }
 
+interface CalendarDay {
+  date: string
+  day: number
+  weekday: number
+  color_status: string
+  first_in: string | null
+  last_out: string | null
+  worked_hours: string | null
+  leave_name: string | null
+  leave_status: string | null
+}
+
+interface MonthCalendarData {
+  year: number
+  month: number
+  today: string
+  days: CalendarDay[]
+}
+
 /* ── Helpers ── */
 function fmtMoney(n: number | null | undefined): string {
   if (n == null || n === 0) return '—'
@@ -593,6 +612,168 @@ function NotifStrip({ onClick }: { onClick: () => void }) {
   )
 }
 
+/* ── Attendance Calendar ── */
+const CAL_STATUS_COLORS: Record<string, string> = {
+  valid:          '#16a34a',
+  leave_deducted: '#0ea5e9',
+  pending:        '#f59e0b',
+  absent:         '#ef4444',
+  leave:          '#8b5cf6',
+  leave_pending:  '#fb923c',
+  holiday:        '#ec4899',
+}
+const CAL_LEGEND: [string, string][] = [
+  ['#16a34a', 'Hợp lệ'],
+  ['#0ea5e9', 'Bù phép'],
+  ['#f59e0b', 'Chờ duyệt'],
+  ['#ef4444', 'Vắng'],
+  ['#8b5cf6', 'Nghỉ phép'],
+]
+const DAY_HEADERS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']
+
+function MonthCalendar({ compact }: { compact?: boolean }) {
+  const now = new Date()
+  const [viewYear, setViewYear] = useState(now.getFullYear())
+  const [viewMonth, setViewMonth] = useState(now.getMonth() + 1)
+  const url = `/api/attendance/my-month-calendar/?year=${viewYear}&month=${viewMonth}`
+  const { data, loading } = useApi<MonthCalendarData>(url)
+
+  const prevMonth = () => {
+    if (viewMonth === 1) { setViewYear(y => y - 1); setViewMonth(12) }
+    else setViewMonth(m => m - 1)
+  }
+  const nextMonth = () => {
+    if (viewMonth === 12) { setViewYear(y => y + 1); setViewMonth(1) }
+    else setViewMonth(m => m + 1)
+  }
+
+  const today = data?.today ?? now.toISOString().slice(0, 10)
+  const firstWeekday = data?.days?.[0]?.weekday ?? 0
+  const cells: (CalendarDay | null)[] = [
+    ...Array(firstWeekday).fill(null),
+    ...(data?.days ?? []),
+  ]
+
+  return (
+    <div style={{
+      background: '#fff', borderRadius: 16,
+      padding: compact ? '10px 10px 8px' : '12px 14px 10px',
+      border: `1px solid ${HNH.line}`,
+      boxShadow: '0 1px 3px rgba(15,20,40,0.05)',
+    }}>
+      {/* Header */}
+      <div className="flex items-center justify-between" style={{ marginBottom: compact ? 7 : 9 }}>
+        <div style={{ fontSize: compact ? 12 : 13, fontWeight: 700, color: HNH.ink }}>
+          Lịch công T{viewMonth}/{viewYear}
+        </div>
+        <div className="flex items-center" style={{ gap: 4 }}>
+          <button onClick={prevMonth} className="border-none cursor-pointer flex items-center justify-center"
+            style={{ width: 24, height: 24, borderRadius: 6, background: HNH.cream }}>
+            <Icon name="chev-l" size={12} color={HNH.ink2} stroke={2.5} />
+          </button>
+          <button onClick={nextMonth} className="border-none cursor-pointer flex items-center justify-center"
+            style={{ width: 24, height: 24, borderRadius: 6, background: HNH.cream }}>
+            <Icon name="chev-r" size={12} color={HNH.ink2} stroke={2.5} />
+          </button>
+        </div>
+      </div>
+
+      {/* Weekday headers */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', marginBottom: 3 }}>
+        {DAY_HEADERS.map(d => (
+          <div key={d} style={{
+            textAlign: 'center', fontSize: compact ? 9 : 9.5, fontWeight: 700,
+            color: d === 'CN' ? HNH.red : HNH.ink3, paddingBottom: 4,
+          }}>{d}</div>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="flex items-center justify-center" style={{ height: 110 }}>
+          <div style={{ width: 18, height: 18, border: `2.5px solid ${HNH.line}`, borderTopColor: HNH.navy, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+        </div>
+      ) : (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: compact ? 2 : 3 }}>
+          {cells.map((day, i) => {
+            if (!day) return <div key={`e${i}`} />
+            const isToday = day.date === today
+            const statusColor = CAL_STATUS_COLORS[day.color_status]
+            const isWeekend = day.weekday >= 5
+
+            return (
+              <div key={day.date} style={{
+                borderRadius: compact ? 5 : 6,
+                background: statusColor ? statusColor + '1a' : isWeekend ? '#fafafa' : 'transparent',
+                border: isToday
+                  ? `1.5px solid ${HNH.navy}`
+                  : statusColor ? `1px solid ${statusColor}35` : `1px solid ${HNH.line}`,
+                padding: compact ? '3px 2px' : '4px 2px',
+                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                minHeight: compact ? 54 : 62,
+                position: 'relative', overflow: 'hidden',
+              }}>
+                {statusColor && (
+                  <div style={{
+                    position: 'absolute', top: 3, right: 3,
+                    width: 4, height: 4, borderRadius: '50%', background: statusColor,
+                  }} />
+                )}
+
+                {/* Day number */}
+                <div style={{
+                  fontSize: compact ? 11 : 12, fontWeight: isToday ? 800 : 600, lineHeight: 1.2,
+                  color: isToday ? HNH.navy : isWeekend ? HNH.red : HNH.ink,
+                }}>{day.day}</div>
+
+                {/* Worked hours */}
+                {day.worked_hours && (
+                  <div style={{
+                    fontSize: compact ? 9 : 10, fontWeight: 700, lineHeight: 1.2,
+                    color: statusColor ?? HNH.ink2, marginTop: 1,
+                  }}>{day.worked_hours}</div>
+                )}
+
+                {/* Leave label (if no attendance) */}
+                {!day.worked_hours && day.leave_name && (
+                  <div style={{
+                    fontSize: 7, fontWeight: 600, lineHeight: 1.2, marginTop: 2,
+                    color: statusColor ?? '#8b5cf6', textAlign: 'center',
+                    overflow: 'hidden', maxWidth: '100%',
+                  }}>
+                    {day.leave_name.length > 9 ? day.leave_name.slice(0, 8) + '…' : day.leave_name}
+                  </div>
+                )}
+
+                {/* First in / last out times */}
+                {day.first_in && (
+                  <div style={{ fontSize: compact ? 7 : 7.5, color: HNH.ink3, lineHeight: 1.15, marginTop: 'auto' }}>
+                    {day.first_in}
+                  </div>
+                )}
+                {day.last_out && (
+                  <div style={{ fontSize: compact ? 7 : 7.5, color: HNH.ink3, lineHeight: 1.15 }}>
+                    {day.last_out}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Legend */}
+      <div className="flex flex-wrap" style={{ gap: '3px 10px', marginTop: 8 }}>
+        {CAL_LEGEND.map(([color, label]) => (
+          <div key={label} className="flex items-center" style={{ gap: 4 }}>
+            <div style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }} />
+            <span style={{ fontSize: 8.5, color: HNH.ink3, fontWeight: 500 }}>{label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /* ── Main ── */
 export function HomePage() {
   const navigate = useNavigate()
@@ -765,6 +946,11 @@ export function HomePage() {
       {/* Work schedule widget */}
       <div style={{ padding: `${isSmall ? 10 : 12}px ${px}px 0` }}>
         <WorkScheduleWidget onClick={() => navigate('/work-schedule')} />
+      </div>
+
+      {/* Monthly attendance calendar */}
+      <div style={{ padding: `${isSmall ? 10 : 12}px ${px}px 0` }}>
+        <MonthCalendar compact={isSmall} />
       </div>
 
       {/* 2-column: Monthly overview + eOffice tasks */}

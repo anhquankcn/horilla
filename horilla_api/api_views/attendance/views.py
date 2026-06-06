@@ -2280,3 +2280,210 @@ class CompanyAttendanceDashboardView(APIView):
             "leave_by_dept": leave_by_dept,
             "top_late_early": top_late,
         })
+
+
+def _parse_hhmm_to_sec(hhmm: str | None) -> int:
+    """Convert 'HH:MM' string to total seconds."""
+    if not hhmm:
+        return 0
+    try:
+        parts = str(hhmm).split(":")
+        return int(parts[0]) * 3600 + int(parts[1]) * 60
+    except (ValueError, IndexError):
+        return 0
+
+
+def _sec_to_hhmm(seconds: int) -> str:
+    """Convert total seconds to 'HH:MM' string."""
+    h = seconds // 3600
+    m = (seconds % 3600) // 60
+    return f"{h}:{m:02d}"
+
+
+class MyMonthCalendarView(APIView):
+    """Compact per-day calendar data for the Home page attendance calendar widget.
+
+    Query params: year (int), month (int). Defaults to current month.
+
+    Color status per day:
+    - valid:           attendance validated AND worked_sec >= min_sec
+    - leave_deducted:  validated AND worked_sec < min_sec AND has approved leave
+    - pending:         attendance exists but not yet validated
+    - absent:          working day, no attendance, no leave
+    - leave:           approved leave, no attendance (shown as planned)
+    - off:             weekend / company-off / no shift schedule
+    - holiday:         public holiday
+    - future:          date in the future
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        import calendar as cal_mod
+        from leave.models import LeaveRequest, Holiday, CompanyLeave
+
+        employee = request.user.employee_get
+        today = date.today()
+
+        try:
+            year = int(request.query_params.get("year", today.year))
+            month = int(request.query_params.get("month", today.month))
+        except (ValueError, TypeError):
+            year, month = today.year, today.month
+
+        _, last_day = cal_mod.monthrange(year, month)
+        start = date(year, month, 1)
+        end = date(year, month, last_day)
+
+        # Attendance records: first clock-in, last clock-out, total worked_sec per day
+        att_map = {}
+        for a in Attendance.objects.filter(
+            employee_id=employee,
+            attendance_date__range=[start, end],
+        ).order_by("attendance_date", "attendance_clock_in"):
+            d = a.attendance_date.isoformat()
+            if d not in att_map:
+                att_map[d] = {
+                    "clock_in": a.attendance_clock_in,
+                    "clock_out": a.attendance_clock_out,
+                    "worked_sec": a.at_work_second or 0,
+                    "min_sec": _parse_hhmm_to_sec(a.minimum_hour),
+                    "validated": a.attendance_validated,
+                }
+            else:
+                entry = att_map[d]
+                if a.attendance_clock_out:
+                    entry["clock_out"] = a.attendance_clock_out
+                entry["worked_sec"] += a.at_work_second or 0
+                if not a.attendance_validated:
+                    entry["validated"] = False
+
+        # AttendanceActivity: accurate first clock-in / last clock-out per day
+        act_map = {}
+        for act in AttendanceActivity.objects.filter(
+            employee_id=employee,
+            attendance_date__range=[start, end],
+        ).order_by("attendance_date", "clock_in"):
+            d = act.attendance_date.isoformat()
+            if d not in act_map:
+                act_map[d] = {"first_in": act.clock_in, "last_out": act.clock_out}
+            else:
+                if act.clock_out:
+                    act_map[d]["last_out"] = act.clock_out
+
+        # Leaves (approved + pending "requested")
+        leave_map = {}
+        for lr in LeaveRequest.objects.filter(
+            employee_id=employee,
+            start_date__lte=end,
+            end_date__gte=start,
+            status__in=["approved", "requested"],
+        ).select_related("leave_type_id").order_by("start_date"):
+            lt = lr.leave_type_id
+            name = lt.name if lt else "Nghỉ phép"
+            d = lr.start_date
+            while d <= (lr.end_date or lr.start_date):
+                if start <= d <= end:
+                    iso = d.isoformat()
+                    if iso not in leave_map or lr.status == "approved":
+                        leave_map[iso] = {"name": name, "status": lr.status}
+                d += timedelta(days=1)
+
+        # Shift schedule → which weekdays are working days
+        work_info = getattr(employee, "employee_work_info", None)
+        shift = work_info.shift_id if work_info else None
+        working_weekdays = None  # None = all days (fallback)
+        if shift:
+            DAY_NAMES = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+            working_weekdays = set()
+            for s in EmployeeShiftSchedule.objects.filter(shift_id=shift).select_related("day"):
+                dn = s.day.day if s.day else None
+                if dn and dn in DAY_NAMES:
+                    working_weekdays.add(DAY_NAMES.index(dn))
+
+        # Company-level off days (recurring weekly)
+        company_off_days = set()
+        try:
+            for cl in CompanyLeave.objects.all():
+                if cl.based_on_week_day is not None:
+                    company_off_days.add(int(cl.based_on_week_day))
+        except Exception:
+            pass
+
+        # Holidays
+        holiday_dates = set()
+        for h in Holiday.objects.filter(start_date__lte=end, end_date__gte=start):
+            d = h.start_date
+            while d <= (h.end_date or h.start_date):
+                if start <= d <= end:
+                    holiday_dates.add(d.isoformat())
+                d += timedelta(days=1)
+
+        days = []
+        for day_num in range(1, last_day + 1):
+            d = date(year, month, day_num)
+            d_iso = d.isoformat()
+            is_future = d > today
+            is_holiday = d_iso in holiday_dates
+            is_off = (
+                d.weekday() in company_off_days
+                or (working_weekdays is not None and d.weekday() not in working_weekdays)
+            )
+
+            att = att_map.get(d_iso)
+            act = act_map.get(d_iso)
+            leave = leave_map.get(d_iso)
+
+            if act:
+                first_in = act["first_in"].strftime("%H:%M") if act["first_in"] else None
+                last_out = act["last_out"].strftime("%H:%M") if act.get("last_out") else None
+            elif att:
+                first_in = att["clock_in"].strftime("%H:%M") if att["clock_in"] else None
+                last_out = att["clock_out"].strftime("%H:%M") if att["clock_out"] else None
+            else:
+                first_in = None
+                last_out = None
+
+            worked_sec = att["worked_sec"] if att else 0
+            min_sec = att["min_sec"] if att else 0
+            worked_str = _sec_to_hhmm(worked_sec) if worked_sec else None
+
+            # Determine color status
+            if is_future:
+                color_status = "future"
+            elif is_holiday:
+                color_status = "holiday"
+            elif att:
+                if not att["validated"]:
+                    color_status = "pending"
+                elif min_sec > 0 and worked_sec < min_sec and leave and leave["status"] == "approved":
+                    color_status = "leave_deducted"
+                else:
+                    color_status = "valid"
+            elif leave and leave["status"] == "approved":
+                color_status = "leave"
+            elif leave and leave["status"] == "requested":
+                color_status = "leave_pending"
+            elif not is_off:
+                color_status = "absent"
+            else:
+                color_status = "off"
+
+            days.append({
+                "date": d_iso,
+                "day": day_num,
+                "weekday": d.weekday(),
+                "color_status": color_status,
+                "first_in": first_in,
+                "last_out": last_out,
+                "worked_hours": worked_str,
+                "leave_name": leave["name"] if leave else None,
+                "leave_status": leave["status"] if leave else None,
+            })
+
+        return Response({
+            "year": year,
+            "month": month,
+            "today": today.isoformat(),
+            "days": days,
+        })
