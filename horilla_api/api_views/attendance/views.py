@@ -2002,7 +2002,7 @@ class MonthlyAttendanceDetailView(APIView):
         ).values(
             "employee_id", "attendance_date",
             "attendance_clock_in", "attendance_clock_out",
-            "minimum_hour", "at_work_second",
+            "minimum_hour", "at_work_second", "overtime_second",
         ):
             eid = a["employee_id"]
             if eid not in att_map:
@@ -2059,12 +2059,14 @@ class MonthlyAttendanceDetailView(APIView):
                         co = att["attendance_clock_out"]
                         cell["check_in"] = ci.strftime("%H:%M") if ci else None
                         cell["check_out"] = co.strftime("%H:%M") if co else None
+                        cell["at_work_second"] = att.get("at_work_second") or 0
+                        cell["overtime_second"] = att.get("overtime_second") or 0
                         try:
                             mh, mm = map(int, str(att.get("minimum_hour") or "00:00").split(":"))
                             min_secs = mh * 3600 + mm * 60
                         except Exception:
                             min_secs = 0
-                        work_secs = att.get("at_work_second") or 0
+                        work_secs = cell["at_work_second"]
                         cell["status"] = "late" if (min_secs > 0 and work_secs < min_secs) else "present"
                     elif leave:
                         payment = leave.get("leave_type_id__payment", "unpaid")
@@ -2093,6 +2095,7 @@ class MonthlyAttendanceDetailView(APIView):
             employees_data.append({
                 "id": emp.id,
                 "name": emp.get_full_name(),
+                "badge_id": emp.badge_id or "",
                 "avatar": avatar,
                 "department": dept_name,
                 "days": days_data,
