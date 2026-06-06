@@ -5131,3 +5131,250 @@ class PromotionHubView(APIView):
         ann.nomination.status = "announced"
         ann.nomination.save()
         return Response({"ok": True, "published_at": ann.published_at.strftime("%d/%m/%Y %H:%M")})
+
+
+# ─── Ten-Day Schedule (Home Widget) ────────────────────────────────────────────
+
+class TenDayScheduleView(APIView):
+    """
+    GET /api/employee/me/ten-day-schedule/
+    Returns today + 9 days with shift info, leave, meetings, and day labels.
+    Each day: date, day_type (office/leave/off/trip/event), leave_type,
+              shift_start, meetings (list of {title,start,end,meet_url,slots})
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    # 8 business time slots: 4 morning + 4 afternoon
+    SLOTS = [
+        (8, 0, 9, 0),    # 08:00–09:00
+        (9, 0, 10, 0),   # 09:00–10:00
+        (10, 0, 11, 0),  # 10:00–11:00
+        (11, 0, 12, 0),  # 11:00–12:00
+        (13, 30, 14, 30),# 13:30–14:30
+        (14, 30, 15, 30),# 14:30–15:30
+        (15, 30, 16, 30),# 15:30–16:30
+        (16, 30, 17, 30),# 16:30–17:30
+    ]
+
+    def _meeting_slots(self, start_local, duration_min):
+        """Return set of slot indices (0-7) that overlap with a meeting."""
+        from datetime import timedelta as td
+        end_local = start_local + td(minutes=duration_min)
+        sh, sm = start_local.hour, start_local.minute
+        eh, em = end_local.hour, end_local.minute
+        busy = set()
+        for i, (sh0, sm0, eh0, em0) in enumerate(self.SLOTS):
+            # overlap if meeting_start < slot_end AND meeting_end > slot_start
+            meet_start_min = sh * 60 + sm
+            meet_end_min = eh * 60 + em
+            slot_start_min = sh0 * 60 + sm0
+            slot_end_min = eh0 * 60 + em0
+            if meet_start_min < slot_end_min and meet_end_min > slot_start_min:
+                busy.add(i)
+        return busy
+
+    def get(self, request):
+        from datetime import date, timedelta
+        from django.utils import timezone
+        from base.models import EmployeeShiftSchedule
+        from leave.models import LeaveRequest
+        from eoffice.models import EmployeeDayLabel
+
+        emp = getattr(request.user, "employee_get", None)
+        if not emp:
+            return Response({"error": "No employee record"}, status=404)
+
+        today = date.today()
+        days_out = [today + timedelta(days=i) for i in range(10)]
+        date_start, date_end = days_out[0], days_out[-1]
+
+        # ── Shift schedule ──────────────────────────────────────────────────
+        wi = getattr(emp, "employee_work_info", None)
+        shift = wi.shift_id if wi else None
+        sched_map = {}
+        if shift:
+            DAY_NAMES = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+            for s in EmployeeShiftSchedule.objects.filter(shift_id=shift).select_related("day"):
+                sched_map[s.day.day] = {
+                    "start": s.start_time.strftime("%H:%M") if s.start_time else None,
+                    "end": s.end_time.strftime("%H:%M") if s.end_time else None,
+                }
+
+        # ── Leave requests ──────────────────────────────────────────────────
+        leave_dates: dict = {}
+        for lr in LeaveRequest.objects.filter(
+            employee_id=emp, status="approved",
+            start_date__lte=date_end, end_date__gte=date_start,
+        ).select_related("leave_type_id"):
+            d = lr.start_date
+            while d <= lr.end_date:
+                leave_dates[d] = lr.leave_type_id.name if lr.leave_type_id else "Nghỉ phép"
+                d += timedelta(days=1)
+
+        # ── Day labels (trip / event) ────────────────────────────────────────
+        label_map: dict = {}
+        for dl in EmployeeDayLabel.objects.filter(
+            employee=emp, date__range=(date_start, date_end)
+        ):
+            label_map[dl.date] = dl.label
+
+        # ── Google Meetings ─────────────────────────────────────────────────
+        meetings_by_date: dict = {}
+        try:
+            from horilla_meet.models import GoogleMeeting
+            tz_local = timezone.get_current_timezone()
+            # Also match meetings where employee email appears in attendees
+            emp_email = emp.employee_work_info.email if hasattr(emp, "employee_work_info") and emp.employee_work_info else None
+            from django.db.models import Q
+            q = Q(employee_id=emp)
+            if emp_email:
+                q |= Q(attendees__contains=emp_email)
+            start_dt = timezone.make_aware(
+                __import__("datetime").datetime.combine(date_start, __import__("datetime").time.min), tz_local
+            )
+            end_dt = timezone.make_aware(
+                __import__("datetime").datetime.combine(date_end, __import__("datetime").time(23, 59, 59)), tz_local
+            )
+            for m in GoogleMeeting.objects.filter(q, start_time__range=(start_dt, end_dt)):
+                local_start = timezone.localtime(m.start_time, tz_local)
+                d = local_start.date()
+                slots = list(self._meeting_slots(local_start, m.duration))
+                entry = {
+                    "id": m.pk,
+                    "title": m.title,
+                    "start": local_start.strftime("%H:%M"),
+                    "end": (local_start + __import__("datetime").timedelta(minutes=m.duration)).strftime("%H:%M"),
+                    "meet_url": m.meet_url,
+                    "slots": slots,
+                }
+                meetings_by_date.setdefault(d, []).append(entry)
+        except Exception:
+            pass
+
+        # ── Build result ─────────────────────────────────────────────────────
+        DAY_NAMES_IDX = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+        WEEKDAY_VI = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"]
+
+        result = []
+        for d in days_out:
+            leave_type = leave_dates.get(d)
+            label = label_map.get(d)
+            dow = d.weekday()  # 0=Mon
+            day_name = DAY_NAMES_IDX[dow]
+            sched = sched_map.get(day_name, {})
+            has_shift = bool(sched.get("start"))
+            is_weekend = dow >= 5
+
+            if leave_type:
+                day_type = "leave"
+            elif label:
+                day_type = label  # "trip" or "event"
+            elif has_shift:
+                day_type = "office"
+            else:
+                day_type = "off"
+
+            result.append({
+                "date": d.isoformat(),
+                "day": d.day,
+                "weekday_vi": WEEKDAY_VI[dow],
+                "is_today": d == today,
+                "is_weekend": is_weekend,
+                "day_type": day_type,
+                "leave_type": leave_type,
+                "shift_start": sched.get("start"),
+                "shift_end": sched.get("end"),
+                "meetings": meetings_by_date.get(d, []),
+                "busy_slots": sorted({s for m in meetings_by_date.get(d, []) for s in m["slots"]}),
+            })
+
+        return Response({"days": result})
+
+
+class DayDetailView(APIView):
+    """
+    GET /api/employee/me/day-detail/?date=YYYY-MM-DD
+    Returns 24-hour breakdown for a specific day: meetings + tasks.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from datetime import date as dt_date, datetime, time, timedelta
+        from django.utils import timezone
+        from eoffice.models import WorkTask
+
+        emp = getattr(request.user, "employee_get", None)
+        if not emp:
+            return Response({"error": "No employee record"}, status=404)
+
+        date_str = request.query_params.get("date", "")
+        try:
+            target_date = dt_date.fromisoformat(date_str)
+        except ValueError:
+            return Response({"error": "date param required (YYYY-MM-DD)"}, status=400)
+
+        tz_local = timezone.get_current_timezone()
+
+        # Tasks due on this date
+        tasks = []
+        for t in WorkTask.objects.filter(
+            assigned_to=emp, due_date=target_date, is_active=True
+        ).order_by("priority"):
+            tasks.append({
+                "id": t.pk,
+                "title": t.title,
+                "status": t.status,
+                "priority": t.priority,
+                "type": "task",
+                "hour": None,  # tasks have no time, shown at top of day
+                "url": f"/tasks/{t.pk}",
+            })
+
+        # Google Meetings on this date
+        meetings = []
+        try:
+            from horilla_meet.models import GoogleMeeting
+            from django.db.models import Q
+            emp_email = emp.employee_work_info.email if hasattr(emp, "employee_work_info") and emp.employee_work_info else None
+            q = Q(employee_id=emp)
+            if emp_email:
+                q |= Q(attendees__contains=emp_email)
+            start_dt = timezone.make_aware(datetime.combine(target_date, time.min), tz_local)
+            end_dt = timezone.make_aware(datetime.combine(target_date, time(23, 59, 59)), tz_local)
+            for m in GoogleMeeting.objects.filter(q, start_time__range=(start_dt, end_dt)):
+                local_start = timezone.localtime(m.start_time, tz_local)
+                end_local = local_start + timedelta(minutes=m.duration)
+                meetings.append({
+                    "id": m.pk,
+                    "title": m.title,
+                    "status": "meeting",
+                    "priority": "normal",
+                    "type": "meeting",
+                    "hour": local_start.hour,
+                    "start": local_start.strftime("%H:%M"),
+                    "end": end_local.strftime("%H:%M"),
+                    "meet_url": m.meet_url,
+                    "url": m.meet_url,
+                })
+        except Exception:
+            pass
+
+        # Organise all items into 24 buckets
+        hours = []
+        for h in range(24):
+            hour_meetings = [m for m in meetings if m["hour"] == h]
+            hours.append({
+                "hour": h,
+                "label": f"{h:02d}:00",
+                "items": hour_meetings,
+            })
+
+        return Response({
+            "date": date_str,
+            "day": target_date.day,
+            "weekday_vi": ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"][target_date.weekday()],
+            "tasks": tasks,
+            "hours": hours,
+        })

@@ -8,6 +8,8 @@ urlpatterns = [
     path("me/", views.EmployeeMeAPIView.as_view(), name="api-employee-me"),
     path("me/bank/", views.EmployeeBankView.as_view(), name="api-employee-me-bank"),
     path("me/schedule/", views.EmployeeScheduleView.as_view(), name="api-employee-schedule"),
+    path("me/ten-day-schedule/", views.TenDayScheduleView.as_view(), name="api-ten-day-schedule"),
+    path("me/day-detail/", views.DayDetailView.as_view(), name="api-day-detail"),
     # path('employees/', views.EmployeeAPIView.as_view(), name='api-employees-list'),
     path(
         "employees/<int:pk>/",

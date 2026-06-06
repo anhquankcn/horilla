@@ -54,6 +54,7 @@ import { ShiftManagementPage } from './pages/ShiftManagement'
 import { LeaveManagementPage } from './pages/LeaveManagement'
 import { HNHLifePage } from './pages/HNHLife'
 import { TaskBoardPage } from './pages/TaskBoard'
+import { DayDetailPage } from './pages/DayDetail'
 
 export function App() {
   return (
@@ -110,6 +111,7 @@ export function App() {
         <Route path="/leave-management" element={<LeaveManagementPage />} />
         <Route path="/life" element={<HNHLifePage />} />
         <Route path="/task-board" element={<TaskBoardPage />} />
+        <Route path="/day/:date" element={<DayDetailPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/attendance-settings" element={<AttendanceSettingsPage />} />
       </Route>

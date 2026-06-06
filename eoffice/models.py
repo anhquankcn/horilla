@@ -144,6 +144,31 @@ class WorkTask(HorillaModel):
         return 0
 
 
+class EmployeeDayLabel(models.Model):
+    """HR/manager tags a specific date for an employee: trip, event."""
+
+    LABEL_CHOICES = [
+        ("trip",  _("Công tác")),
+        ("event", _("Sự kiện")),
+    ]
+
+    employee = models.ForeignKey(
+        Employee, on_delete=models.CASCADE, related_name="day_labels", verbose_name=_("Nhân viên")
+    )
+    date = models.DateField(verbose_name=_("Ngày"))
+    label = models.CharField(max_length=10, choices=LABEL_CHOICES, verbose_name=_("Loại"))
+    note = models.CharField(max_length=200, blank=True, verbose_name=_("Ghi chú"))
+
+    class Meta:
+        unique_together = [("employee", "date")]
+        verbose_name = _("Nhãn ngày")
+        verbose_name_plural = _("Nhãn ngày làm việc")
+        indexes = [models.Index(fields=["employee", "date"], name="edaylabel_emp_date_idx")]
+
+    def __str__(self):
+        return f"{self.employee} – {self.date} ({self.label})"
+
+
 class DashboardVisit(models.Model):
     """Records every CEO/manager dashboard page load — used for the Phase 1b gate criterion."""
     user = models.ForeignKey(

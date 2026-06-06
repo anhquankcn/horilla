@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
@@ -379,163 +379,186 @@ function WeatherWidget({ name, hour, liveTime, compact }: { name: string; hour: 
   )
 }
 
-/* ── Work Schedule Widget ── */
-interface DaySchedule {
-  day_name: string
-  start_time: string | null
-  end_time: string | null
-  start_time_2: string | null
-  end_time_2: string | null
-  is_night_shift: boolean
-  is_leave: boolean
+/* ── Ten-Day Schedule Widget ── */
+interface TenDayMeeting {
+  id: number
+  title: string
+  start: string
+  end: string
+  meet_url: string
+  slots: number[]
+}
+
+interface TenDayDay {
+  date: string
+  day: number
+  weekday_vi: string
+  is_today: boolean
+  is_weekend: boolean
+  day_type: 'office' | 'leave' | 'off' | 'trip' | 'event'
   leave_type: string | null
-  is_off: boolean
-}
-interface ScheduleData {
-  shift_name: string | null
-  days: Record<string, DaySchedule>   // keyed by ISO date YYYY-MM-DD
-}
-
-const DAY_SHORT: Record<string, string> = {
-  monday:'T2', tuesday:'T3', wednesday:'T4', thursday:'T5',
-  friday:'T6', saturday:'T7', sunday:'CN',
+  shift_start: string | null
+  shift_end: string | null
+  meetings: TenDayMeeting[]
+  busy_slots: number[]
 }
 
-function toISO(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+interface TenDayData {
+  days: TenDayDay[]
 }
 
-function WeekStrip({ schedule, todayIso }: { schedule: ScheduleData | null; todayIso: string }) {
-  const sortedDays = schedule?.days ? Object.keys(schedule.days).sort().slice(0, 6) : []
-  if (sortedDays.length === 0) return (
-    <div style={{ padding: '14px', textAlign: 'center', color: HNH.ink4, fontSize: 11 }}>Đang tải...</div>
-  )
-  return (
-    <div className="flex">
-      {sortedDays.map((iso, i) => {
-        const sched = schedule?.days?.[iso] ?? null
-        const [y, mo, d] = iso.split('-').map(Number)
-        const date = new Date(y, mo - 1, d)
-        const isToday = iso === todayIso
-        const dayShort = sched
-          ? (DAY_SHORT[sched.day_name] ?? '?')
-          : DAY_SHORT[['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][date.getDay()]]
-        const isLeave = sched?.is_leave ?? false
-        const hasShift = !!sched?.start_time && !isLeave
+// Slot labels: 0-3 = morning, 4-7 = afternoon
+const SLOT_LABEL = ['8h','9h','10h','11h','13h30','14h30','15h30','16h30']
 
-        let bg = isToday ? HNH.navy : '#fff'
-        if (isToday && isLeave) bg = '#fff3e6'
-
-        const textMain = isToday && !isLeave ? '#fff' : isLeave ? HNH.warn : HNH.ink
-        const textSub = isToday && !isLeave ? 'rgba(255,255,255,0.75)' : isLeave ? HNH.warn : HNH.navy
-        const offColor = isToday && !isLeave ? 'rgba(255,255,255,0.4)' : HNH.ink4
-
-        return (
-          <div
-            key={iso}
-            className="flex flex-col items-center"
-            style={{
-              flex: 1,
-              padding: '7px 2px 9px',
-              background: bg,
-              borderRight: i < 5 ? `1px solid ${HNH.line}` : 'none',
-            }}
-          >
-            <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.3, color: isToday && !isLeave ? 'rgba(255,255,255,0.7)' : HNH.ink3 }}>
-              {dayShort}
-            </div>
-            <div style={{ fontSize: 15, fontWeight: 800, color: textMain, lineHeight: 1.2, marginTop: 2 }}>
-              {date.getDate()}
-            </div>
-            <div style={{ marginTop: 3, textAlign: 'center' }}>
-              {isLeave ? (
-                <div style={{ fontSize: 9, fontWeight: 700, color: HNH.warn }}>
-                  <Icon name="leaf" size={9} color={HNH.warn} stroke={2} />
-                </div>
-              ) : hasShift ? (
-                <>
-                  <div style={{ fontSize: 9, fontWeight: 700, color: textSub, whiteSpace: 'nowrap' }}>
-                    {sched!.start_time?.slice(0, 5)}
-                  </div>
-                  <div style={{ fontSize: 9, fontWeight: 600, color: textSub, opacity: 0.85 }}>
-                    {sched!.end_time?.slice(0, 5)}
-                  </div>
-                  {sched!.is_night_shift && (
-                    <div style={{ fontSize: 8, color: textSub, opacity: 0.75, marginTop: 1 }}>🌙</div>
-                  )}
-                </>
-              ) : (
-                <div style={{ fontSize: 9, fontWeight: 600, color: offColor }}>Nghỉ</div>
-              )}
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
+const DAY_TYPE_CONFIG: Record<string, { label: string; bg: string; fg: string; icon: string }> = {
+  office: { label: 'Văn phòng', bg: HNH.navy,    fg: '#fff',          icon: '🏢' },
+  leave:  { label: 'Nghỉ phép', bg: '#8b5cf6',   fg: '#fff',          icon: '🌿' },
+  off:    { label: 'Nghỉ',      bg: '#94a3b8',   fg: '#fff',          icon: '🏠' },
+  trip:   { label: 'Công tác',  bg: '#f59e0b',   fg: '#fff',          icon: '✈️' },
+  event:  { label: 'Sự kiện',   bg: '#ec4899',   fg: '#fff',          icon: '🎉' },
 }
 
-function weekDateRange(schedule: ScheduleData | null): string {
-  if (!schedule?.days) return ''
-  const keys = Object.keys(schedule.days).sort()
-  if (keys.length < 6) return ''
-  return `${keys[0].slice(8)}/${keys[0].slice(5, 7)} – ${keys[5].slice(8)}/${keys[5].slice(5, 7)}`
-}
-
-function WorkScheduleWidget({ onClick }: { onClick: () => void }) {
-  const { data: schedCurrent } = useApi<ScheduleData>('/api/employee/me/schedule/?week_offset=0')
-  const { data: schedNext }    = useApi<ScheduleData>('/api/employee/me/schedule/?week_offset=1')
-  const todayIso = toISO(new Date())
-
-  if (!schedCurrent?.shift_name) return null
+function DayCard({ day, onClick }: { day: TenDayDay; onClick: () => void }) {
+  const cfg = DAY_TYPE_CONFIG[day.day_type] ?? DAY_TYPE_CONFIG.office
+  const isOff = day.day_type === 'off' || day.day_type === 'leave'
+  const [mm, dd] = day.date.slice(5).split('-')
+  const shortWd = day.weekday_vi.replace('Thứ ', 'T').replace('Chủ nhật', 'CN')
 
   return (
     <button
       onClick={onClick}
-      className="w-full border-none cursor-pointer text-left"
-      style={{ background: 'none', padding: 0 }}
+      className="flex flex-col border-none cursor-pointer shrink-0"
+      style={{
+        width: 74, borderRadius: 12,
+        background: day.is_today ? cfg.bg : '#fff',
+        border: day.is_today ? `2px solid ${cfg.bg}` : `1.5px solid ${day.is_weekend ? '#fde8e8' : HNH.line}`,
+        padding: '7px 5px 6px',
+        boxShadow: day.is_today ? `0 4px 14px ${cfg.bg}40` : '0 1px 3px rgba(15,20,40,0.05)',
+        alignItems: 'center', gap: 3,
+      }}
     >
+      {/* Weekday */}
       <div style={{
-        background: '#fff', borderRadius: 18,
-        border: `1px solid ${HNH.line}`,
-        overflow: 'hidden',
-        boxShadow: '0 1px 3px rgba(15,20,40,0.05)',
-      }}>
-        {/* Tuần này */}
-        <div>
-          <div className="flex items-center justify-between" style={{ padding: '5px 10px 4px', background: HNH.navy50 }}>
-            <div className="flex items-center gap-1" style={{ minWidth: 0, overflow: 'hidden' }}>
-              <Icon name="cal" size={11} color={HNH.navy} stroke={2} />
-              <span style={{ fontSize: 9.5, fontWeight: 700, color: HNH.navy, letterSpacing: 0.3, whiteSpace: 'nowrap' }}>TUẦN NÀY</span>
-              {schedCurrent.shift_name && (
-                <span style={{ fontSize: 9, color: HNH.navy, opacity: 0.65, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  · {schedCurrent.shift_name}
-                </span>
-              )}
-            </div>
-            <span style={{ fontSize: 9, color: HNH.ink3, fontWeight: 500, flexShrink: 0, marginLeft: 6 }}>{weekDateRange(schedCurrent)}</span>
-          </div>
-          <WeekStrip schedule={schedCurrent} todayIso={todayIso} />
-        </div>
+        fontSize: 9, fontWeight: 700, letterSpacing: 0.3,
+        color: day.is_today ? 'rgba(255,255,255,0.75)' : day.is_weekend ? HNH.red : HNH.ink3,
+      }}>{shortWd}</div>
 
-        {/* Tuần tới */}
-        <div style={{ borderTop: `1px solid ${HNH.line}` }}>
-          <div className="flex items-center justify-between" style={{ padding: '5px 10px 4px', background: '#f0f3fa' }}>
-            <div className="flex items-center gap-1" style={{ minWidth: 0, overflow: 'hidden' }}>
-              <Icon name="cal" size={11} color={HNH.ink3} stroke={2} />
-              <span style={{ fontSize: 9.5, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.3, whiteSpace: 'nowrap' }}>TUẦN TỚI</span>
-              {(schedNext?.shift_name ?? schedCurrent.shift_name) && (
-                <span style={{ fontSize: 9, color: HNH.ink3, opacity: 0.7, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  · {schedNext?.shift_name ?? schedCurrent.shift_name}
-                </span>
-              )}
-            </div>
-            <span style={{ fontSize: 9, color: HNH.ink3, fontWeight: 500, flexShrink: 0, marginLeft: 6 }}>{weekDateRange(schedNext)}</span>
-          </div>
-          <WeekStrip schedule={schedNext} todayIso={todayIso} />
+      {/* Date number */}
+      <div style={{
+        fontSize: 17, fontWeight: 800, lineHeight: 1.1,
+        color: day.is_today ? '#fff' : day.is_weekend ? HNH.red : HNH.ink,
+      }}>{parseInt(dd)}</div>
+
+      {/* Month (only if 1st or today) */}
+      {(day.day === 1 || day.is_today) && (
+        <div style={{ fontSize: 8, color: day.is_today ? 'rgba(255,255,255,0.6)' : HNH.ink4 }}>T{parseInt(mm)}</div>
+      )}
+
+      {/* Day type badge */}
+      <div style={{
+        fontSize: 8, fontWeight: 700, padding: '2px 5px', borderRadius: 5, marginTop: 1,
+        background: day.is_today ? 'rgba(255,255,255,0.18)' : cfg.bg + '20',
+        color: day.is_today ? '#fff' : cfg.bg,
+        display: 'flex', alignItems: 'center', gap: 2, whiteSpace: 'nowrap',
+      }}>
+        <span>{cfg.icon}</span>
+        <span style={{ display: day.is_today ? 'inline' : 'none' }}>{cfg.label}</span>
+      </div>
+
+      {/* Meeting slot grid 2×4 */}
+      {!isOff && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, marginTop: 2, width: '100%', padding: '0 2px' }}>
+          {[0,1,2,3].map(i => {
+            const leftBusy = day.busy_slots.includes(i)
+            const rightBusy = day.busy_slots.includes(i + 4)
+            return (
+              <React.Fragment key={i}>
+                <div title={SLOT_LABEL[i]} style={{
+                  height: 7, borderRadius: 2,
+                  background: leftBusy ? HNH.red : day.is_today ? 'rgba(255,255,255,0.22)' : HNH.line,
+                }} />
+                <div title={SLOT_LABEL[i + 4]} style={{
+                  height: 7, borderRadius: 2,
+                  background: rightBusy ? HNH.red : day.is_today ? 'rgba(255,255,255,0.22)' : HNH.line,
+                }} />
+              </React.Fragment>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Leave label */}
+      {isOff && day.leave_type && (
+        <div style={{
+          fontSize: 7, color: day.is_today ? 'rgba(255,255,255,0.8)' : '#8b5cf6',
+          textAlign: 'center', lineHeight: 1.2, marginTop: 1,
+          overflow: 'hidden', maxWidth: '100%',
+        }}>
+          {day.leave_type.length > 9 ? day.leave_type.slice(0, 8) + '…' : day.leave_type}
+        </div>
+      )}
+    </button>
+  )
+}
+
+function TenDayWidget() {
+  const navigate = useNavigate()
+  const { data } = useApi<TenDayData>('/api/employee/me/ten-day-schedule/')
+  const days = data?.days ?? []
+
+  if (days.length === 0) return null
+
+  return (
+    <div style={{
+      background: '#fff', borderRadius: 18,
+      border: `1px solid ${HNH.line}`,
+      overflow: 'hidden',
+      boxShadow: '0 1px 3px rgba(15,20,40,0.05)',
+    }}>
+      {/* Header */}
+      <div className="flex items-center justify-between" style={{ padding: '6px 12px 5px', background: HNH.navy50 }}>
+        <div className="flex items-center gap-1.5">
+          <Icon name="cal" size={11} color={HNH.navy} stroke={2} />
+          <span style={{ fontSize: 9.5, fontWeight: 700, color: HNH.navy, letterSpacing: 0.3 }}>LỊCH LÀM VIỆC 10 NGÀY</span>
+        </div>
+        <div className="flex items-center gap-2" style={{ fontSize: 8, color: HNH.ink3 }}>
+          <span>🔴 Có họp</span>
+          <span>✈️ Công tác</span>
+          <span>🎉 Sự kiện</span>
         </div>
       </div>
-    </button>
+
+      {/* Horizontal scroll cards */}
+      <div
+        className="flex"
+        style={{
+          overflowX: 'auto',
+          padding: '10px 10px 10px',
+          gap: 7,
+          scrollbarWidth: 'none',
+        }}
+      >
+        {days.map(day => (
+          <DayCard
+            key={day.date}
+            day={day}
+            onClick={() => navigate(`/day/${day.date}`)}
+          />
+        ))}
+      </div>
+
+      {/* Slot grid legend */}
+      <div className="flex items-center justify-between" style={{ padding: '4px 12px 7px', borderTop: `1px solid ${HNH.line}` }}>
+        <div className="flex items-center gap-1">
+          <div style={{ width: 10, height: 7, borderRadius: 2, background: HNH.line }} />
+          <span style={{ fontSize: 8, color: HNH.ink3 }}>Cột trái: 8–12h · Cột phải: 13:30–17:30</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <div style={{ width: 10, height: 7, borderRadius: 2, background: HNH.red }} />
+          <span style={{ fontSize: 8, color: HNH.ink3 }}>Có lịch họp</span>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -943,9 +966,9 @@ export function HomePage() {
         <WeatherWidget name={employee?.employee_first_name ?? 'bạn'} hour={now.getHours()} liveTime={time} compact={isSmall} />
       </div>
 
-      {/* Work schedule widget */}
+      {/* Ten-day schedule widget */}
       <div style={{ padding: `${isSmall ? 10 : 12}px ${px}px 0` }}>
-        <WorkScheduleWidget onClick={() => navigate('/work-schedule')} />
+        <TenDayWidget />
       </div>
 
       {/* Monthly attendance calendar */}
