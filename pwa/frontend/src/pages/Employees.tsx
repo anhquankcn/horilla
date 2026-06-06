@@ -5,6 +5,10 @@ import { Icon } from '../components/ui/Icon'
 import { TopBar } from '../components/layout/TopBar'
 import { useTablet } from '../lib/useTablet'
 import { api } from '../lib/api'
+import {
+  ProfileData, ProfileTab,
+  ProfileTabBar, ProfileTabContent,
+} from '../components/employee/ProfileTabs'
 
 /* ── Types ── */
 interface Emp {
@@ -55,11 +59,6 @@ function avatarColor(id: number) {
   return AVATAR_COLORS[id % AVATAR_COLORS.length]
 }
 
-function formatDate(iso: string | null) {
-  if (!iso) return '—'
-  const d = new Date(iso)
-  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
-}
 
 /* ── Employee Avatar ── */
 function EmpAvatar({ emp, size = 44 }: { emp: Emp; size?: number }) {
@@ -125,25 +124,6 @@ function EmpCard({ emp, onTap }: { emp: Emp; onTap: () => void }) {
 }
 
 /* ── Detail Modal ── */
-type DetailTab = 'info' | 'work'
-
-function InfoRow({ label, value, icon }: { label: string; value: string | null; icon?: string }) {
-  return (
-    <div className="flex items-start gap-3" style={{ padding: '10px 0', borderBottom: `1px solid ${HNH.line}` }}>
-      {icon && (
-        <div className="flex items-center justify-center shrink-0" style={{ width: 32, height: 32, borderRadius: 9, background: HNH.cream2, marginTop: 1 }}>
-          <Icon name={icon} size={15} color={HNH.ink3} stroke={1.8} />
-        </div>
-      )}
-      <div className="flex-1 min-w-0">
-        <div style={{ fontSize: 11, fontWeight: 600, color: HNH.ink3, letterSpacing: 0.3, textTransform: 'uppercase' }}>{label}</div>
-        <div style={{ fontSize: 13.5, fontWeight: 600, color: value ? HNH.ink : HNH.ink4, marginTop: 1, wordBreak: 'break-word' }}>
-          {value || '—'}
-        </div>
-      </div>
-    </div>
-  )
-}
 
 function SelectField({ label, value, options, onChange, disabled }: {
   label: string; value: number | null; options: { id: number; name: string }[];
@@ -334,14 +314,19 @@ function DetailModal({ emp: initialEmp, onClose, isTablet, onEmpUpdated, onViewP
   onViewProfile?: (id: number) => void
 }) {
   const [emp, setEmp] = useState(initialEmp)
-  const [tab, setTab] = useState<DetailTab>('info')
+  const [tab, setTab] = useState<ProfileTab>('overview')
+  const [profileData, setProfileData] = useState<ProfileData | null>(null)
+  const [profileLoading, setProfileLoading] = useState(true)
   const [showAssign, setShowAssign] = useState(false)
   const [revoking, setRevoking] = useState(false)
 
-  const tabs: { id: DetailTab; label: string }[] = [
-    { id: 'info', label: 'Thông tin' },
-    { id: 'work', label: 'Công việc' },
-  ]
+  useEffect(() => {
+    setProfileLoading(true)
+    api.get<ProfileData>(`/api/employee/${emp.id}/profile/`)
+      .then(d => setProfileData(d))
+      .catch(() => setProfileData(null))
+      .finally(() => setProfileLoading(false))
+  }, [emp.id])
 
   const hasPosition = !!emp.job_position
 
@@ -349,17 +334,13 @@ function DetailModal({ emp: initialEmp, onClose, isTablet, onEmpUpdated, onViewP
     if (!confirm('Thu hồi Vị trí của nhân viên này?')) return
     setRevoking(true)
     try {
-      const res = await api.post<{ ok: boolean }>('/api/employee/revoke-position/', {
-        employee_id: emp.id,
-      })
+      const res = await api.post<{ ok: boolean }>('/api/employee/revoke-position/', { employee_id: emp.id })
       if (res.ok) {
         const updated = { ...emp, job_position: null, job_role: null }
         setEmp(updated)
         onEmpUpdated?.(updated)
       }
-    } catch { /* ignore */ } finally {
-      setRevoking(false)
-    }
+    } catch { /* ignore */ } finally { setRevoking(false) }
   }
 
   const handleAssigned = (partial: Partial<Emp>) => {
@@ -375,6 +356,8 @@ function DetailModal({ emp: initialEmp, onClose, isTablet, onEmpUpdated, onViewP
     onEmpUpdated?.(updated)
   }
 
+  const canEdit = profileData?.can_edit_work_info || !profileData?.is_self || false
+
   return (
     <div
       className={isTablet ? 'fixed inset-0 flex items-center justify-center' : 'fixed inset-0 flex flex-col'}
@@ -384,7 +367,7 @@ function DetailModal({ emp: initialEmp, onClose, isTablet, onEmpUpdated, onViewP
       <div
         className={isTablet ? '' : 'flex-1 overflow-y-auto'}
         style={isTablet
-          ? { width: '100%', maxWidth: 520, maxHeight: '90vh', overflow: 'auto', borderRadius: 24, boxShadow: '0 24px 48px rgba(0,0,0,0.25)' }
+          ? { width: '100%', maxWidth: 560, maxHeight: '92vh', overflow: 'auto', borderRadius: 24, boxShadow: '0 24px 48px rgba(0,0,0,0.25)' }
           : { WebkitOverflowScrolling: 'touch' as never }
         }
       >
@@ -401,7 +384,7 @@ function DetailModal({ emp: initialEmp, onClose, isTablet, onEmpUpdated, onViewP
               style={{ background: HNH.navy50, borderRadius: 8, padding: '6px 10px', fontSize: 11, fontWeight: 700, color: HNH.navy }}
             >
               <Icon name="doc" size={12} color={HNH.navy} stroke={2} />
-              Chi tiết
+              Trang đầy đủ
             </button>
           </div>
 
@@ -445,92 +428,72 @@ function DetailModal({ emp: initialEmp, onClose, isTablet, onEmpUpdated, onViewP
             )}
           </div>
 
-          {/* Tabs */}
-          <div className="flex" style={{ padding: '8px 20px 0', background: HNH.cream }}>
-            {tabs.map(t => (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                className="flex-1 border-none cursor-pointer"
-                style={{
-                  padding: '10px 0', background: 'transparent',
-                  borderBottom: tab === t.id ? `2.5px solid ${HNH.navy}` : '2.5px solid transparent',
-                  fontSize: 13, fontWeight: tab === t.id ? 700 : 600,
-                  color: tab === t.id ? HNH.navy : HNH.ink3,
-                }}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
+          {/* 4 tabs */}
+          <ProfileTabBar tab={tab} onTab={setTab} px={20} />
 
           {/* Tab content */}
-          <div style={{ padding: '8px 20px 32px' }}>
-            <div style={{ background: '#fff', borderRadius: 18, padding: '4px 16px', border: `1px solid ${HNH.line}` }}>
-              {tab === 'info' && (
-                <>
-                  <InfoRow icon="doc" label="Họ và Tên" value={fullName(emp)} />
-                  <InfoRow icon="doc" label="Badge ID" value={emp.badge_id} />
-                  <InfoRow icon="send" label="Email" value={emp.email} />
-                  <InfoRow icon="phone" label="Điện thoại" value={emp.phone} />
-                  <InfoRow icon="users" label="Giới tính" value={emp.gender === 'male' ? 'Nam' : emp.gender === 'female' ? 'Nữ' : emp.gender || '—'} />
-                </>
-              )}
-              {tab === 'work' && (
-                <>
-                  <InfoRow icon="home" label="Công ty" value={emp.company} />
-                  <InfoRow icon="users" label="Phòng ban" value={emp.department} />
-                  <InfoRow icon="star" label="Chức danh" value={emp.job_position} />
-                  <InfoRow icon="shield" label="Vai trò" value={emp.job_role} />
-                  <InfoRow icon="clock" label="Ca làm việc" value={emp.shift} />
-                  <InfoRow icon="doc" label="Hình thức" value={emp.work_type} />
-                  <InfoRow icon="flag" label="Loại NV" value={emp.employee_type} />
-                  <InfoRow icon="cal" label="Ngày vào làm" value={formatDate(emp.date_joining)} />
-                  <InfoRow icon="users" label="Quản lý" value={emp.reporting_manager} />
-
-                  {/* Change role (only when has position and multiple roles) */}
-                  {hasPosition && <ChangeRolePanel emp={emp} onDone={handleRoleChanged} />}
-
-                  {/* Action buttons */}
-                  <div style={{ padding: '14px 0 4px' }}>
-                    {hasPosition ? (
-                      <button
-                        onClick={handleRevoke}
-                        disabled={revoking}
-                        className="w-full flex items-center justify-center gap-2 border-none cursor-pointer"
-                        style={{
-                          padding: '11px', borderRadius: 12,
-                          background: '#fef2f2', color: '#dc2626',
-                          fontSize: 13, fontWeight: 700, opacity: revoking ? 0.6 : 1,
-                          border: '1px solid #fecaca',
-                        }}
-                      >
-                        <Icon name="trash" size={15} color="#dc2626" stroke={2} />
-                        {revoking ? 'Đang thu hồi...' : 'Thu hồi Vị trí'}
-                      </button>
-                    ) : !showAssign ? (
-                      <button
-                        onClick={() => setShowAssign(true)}
-                        className="w-full flex items-center justify-center gap-2 border-none cursor-pointer"
-                        style={{
-                          padding: '11px', borderRadius: 12,
-                          background: HNH.navy, color: '#fff',
-                          fontSize: 13, fontWeight: 700,
-                        }}
-                      >
-                        <Icon name="briefcase" size={15} color="#fff" stroke={2} />
-                        Giao Vị Trí
-                      </button>
-                    ) : null}
-                  </div>
-
-                  {/* Assign form */}
-                  {!hasPosition && showAssign && (
-                    <AssignPositionPanel emp={emp} onDone={handleAssigned} />
-                  )}
-                </>
-              )}
-            </div>
+          <div style={{ padding: '4px 20px 32px' }}>
+            {profileLoading ? (
+              <div style={{ textAlign: 'center', padding: 40, color: HNH.ink3, fontSize: 13 }}>Đang tải...</div>
+            ) : profileData ? (
+              <>
+                {/* Tổng quan tab also has work-management actions */}
+                {tab === 'overview' && (
+                  <>
+                    <ProfileTabContent tab="overview" data={profileData} canEdit={canEdit} />
+                    {/* Work management actions (assign/revoke position) */}
+                    <div style={{
+                      background: '#fff', borderRadius: 18,
+                      border: `1px solid ${HNH.line}`, padding: '12px 16px',
+                      marginTop: 4,
+                    }}>
+                      {hasPosition && <ChangeRolePanel emp={emp} onDone={handleRoleChanged} />}
+                      <div style={{ paddingTop: hasPosition ? 0 : 4 }}>
+                        {hasPosition ? (
+                          <button
+                            onClick={handleRevoke}
+                            disabled={revoking}
+                            className="w-full flex items-center justify-center gap-2 border-none cursor-pointer"
+                            style={{
+                              padding: '11px', borderRadius: 12,
+                              background: '#fef2f2', color: '#dc2626',
+                              fontSize: 13, fontWeight: 700, opacity: revoking ? 0.6 : 1,
+                              border: '1px solid #fecaca',
+                            }}
+                          >
+                            <Icon name="trash" size={15} color="#dc2626" stroke={2} />
+                            {revoking ? 'Đang thu hồi...' : 'Thu hồi Vị trí'}
+                          </button>
+                        ) : !showAssign ? (
+                          <button
+                            onClick={() => setShowAssign(true)}
+                            className="w-full flex items-center justify-center gap-2 border-none cursor-pointer"
+                            style={{
+                              padding: '11px', borderRadius: 12,
+                              background: HNH.navy, color: '#fff',
+                              fontSize: 13, fontWeight: 700,
+                            }}
+                          >
+                            <Icon name="briefcase" size={15} color="#fff" stroke={2} />
+                            Giao Vị Trí
+                          </button>
+                        ) : null}
+                      </div>
+                      {!hasPosition && showAssign && (
+                        <AssignPositionPanel emp={emp} onDone={handleAssigned} />
+                      )}
+                    </div>
+                  </>
+                )}
+                {tab !== 'overview' && (
+                  <ProfileTabContent tab={tab} data={profileData} canEdit={canEdit} />
+                )}
+              </>
+            ) : (
+              <div style={{ textAlign: 'center', padding: 40, color: HNH.ink3, fontSize: 13 }}>
+                Không tải được dữ liệu
+              </div>
+            )}
           </div>
         </div>
       </div>
