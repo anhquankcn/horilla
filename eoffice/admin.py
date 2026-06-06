@@ -2,7 +2,7 @@
 
 from django.contrib import admin
 
-from .models import DashboardVisit, TaskComment, WorkTask
+from .models import DashboardVisit, EmployeeDayLabel, TaskComment, WorkTask
 
 
 @admin.register(WorkTask)
@@ -25,6 +25,20 @@ class TaskCommentAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(EmployeeDayLabel)
+class EmployeeDayLabelAdmin(admin.ModelAdmin):
+    list_display = ["employee", "date", "label", "note"]
+    list_filter = ["label", "date"]
+    search_fields = [
+        "employee__employee_first_name",
+        "employee__employee_last_name",
+        "employee__badge_id",
+        "note",
+    ]
+    date_hierarchy = "date"
+    ordering = ["-date", "employee"]
 
 
 @admin.register(DashboardVisit)
