@@ -74,6 +74,7 @@ const apps: AppCard[] = [
       { slug: 'training', icon: 'book', label: 'Đào tạo', desc: 'Khóa học, chứng chỉ, phát triển NV', path: '/training', tone: 'gold', group: 'manage' },
       { slug: 'org-chart', icon: 'sitemap', label: 'Cây tổ chức', desc: 'Sơ đồ phân cấp, phân công quản lý', path: '/org-chart', tone: 'navy', group: 'manage' },
       { slug: 'promotion-hub', icon: 'trophy', label: 'Hub Thăng Tiến', desc: '9-Box, đề xuất, phê duyệt, công bố', path: '/promotion-hub', tone: 'gold', group: 'manage' },
+      { slug: 'settings', icon: 'gear', label: 'Cài đặt', desc: 'Cài đặt CC & Tính năng Quản lý', path: '/settings', tone: 'navy', group: 'manage' },
     ],
   },
   {
