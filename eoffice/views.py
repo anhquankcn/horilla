@@ -13,7 +13,7 @@ from django.utils.translation import gettext_lazy as _
 from django.views.decorators.http import require_POST
 
 from .forms import TaskCommentForm, TaskStatusForm, WorkTaskForm
-from .models import DashboardVisit, TaskComment, WorkTask
+from .models import DashboardVisit, EmployeeDayLabel, TaskComment, WorkTask
 from .services import transition_status
 
 logger = logging.getLogger(__name__)
@@ -339,3 +339,153 @@ def dashboard(request):
         "today": today,
     }
     return render(request, "eoffice/dashboard.html", context)
+
+
+# ─── Label Day (Gán lịch bận) ────────────────────────────────────────────────
+
+def _can_manage_labels(user):
+    return user.is_superuser or user.has_perm("eoffice.change_employeedaylabel")
+
+
+@login_required
+def labelday_view(request):
+    from datetime import date, timedelta
+    from base.models import Department
+    from employee.models import Employee
+
+    if not _can_manage_labels(request.user):
+        raise PermissionDenied
+
+    # ── Week offset ────────────────────────────────────────────────────────────
+    week_offset = int(request.GET.get("week_offset", 0))
+    today = date.today()
+    dow = today.weekday()
+    monday = today - timedelta(days=dow) + timedelta(weeks=week_offset)
+    DAY_NAMES = ["Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ nhật"]
+    week_dates = [monday + timedelta(days=i) for i in range(7)]
+
+    # ── Department filter ──────────────────────────────────────────────────────
+    departments = Department.objects.filter(is_active=True).order_by("department")
+    dept_id = request.GET.get("dept_id")
+    selected_dept = None
+
+    emp_qs = Employee.objects.filter(is_active=True).select_related(
+        "employee_work_info__department_id"
+    ).order_by("employee_first_name", "employee_last_name")
+
+    if dept_id:
+        try:
+            selected_dept = Department.objects.get(pk=dept_id)
+            emp_qs = emp_qs.filter(employee_work_info__department_id=selected_dept)
+        except Department.DoesNotExist:
+            dept_id = None
+
+    # ── Existing labels for this week ──────────────────────────────────────────
+    emp_ids = list(emp_qs.values_list("pk", flat=True))
+    labels_qs = EmployeeDayLabel.objects.filter(
+        employee_id__in=emp_ids,
+        date__range=(monday, week_dates[-1]),
+    )
+    # Map: {(employee_id, date): label_obj}
+    label_map = {(l.employee_id, l.date): l for l in labels_qs}
+
+    # ── Build grid rows ────────────────────────────────────────────────────────
+    rows = []
+    for emp in emp_qs:
+        cells = []
+        for d in week_dates:
+            lbl = label_map.get((emp.pk, d))
+            cells.append({"date": d, "label": lbl})
+        rows.append({"emp": emp, "cells": cells})
+
+    # Combine dates with their day names and weekend flag for easy template iteration
+    week_cols = [
+        {
+            "date": d,
+            "day_name": DAY_NAMES[i],
+            "is_today": d == today,
+            "is_weekend": i >= 5,
+        }
+        for i, d in enumerate(week_dates)
+    ]
+
+    context = {
+        "rows": rows,
+        "week_cols": week_cols,
+        "departments": departments,
+        "selected_dept": selected_dept,
+        "dept_id": dept_id or "",
+        "week_offset": week_offset,
+        "prev_offset": week_offset - 1,
+        "next_offset": week_offset + 1,
+        "week_label": f"{monday.strftime('%d/%m')} – {week_dates[-1].strftime('%d/%m/%Y')}",
+        "week_dates_json": [d.isoformat() for d in week_dates],
+        "label_choices": EmployeeDayLabel.LABEL_CHOICES,
+        "today": today,
+    }
+    return render(request, "eoffice/labelday.html", context)
+
+
+@login_required
+@require_POST
+def labelday_assign(request):
+    import json
+    from datetime import date
+
+    if not _can_manage_labels(request.user):
+        raise PermissionDenied
+
+    try:
+        body = json.loads(request.body)
+        emp_ids = [int(x) for x in body.get("employee_ids", [])]
+        date_strs = body.get("dates", [])  # list of YYYY-MM-DD
+        label = body.get("label", "").strip()
+        note = body.get("note", "").strip()
+    except Exception:
+        from django.http import JsonResponse
+        return JsonResponse({"ok": False, "error": "Invalid JSON"}, status=400)
+
+    from django.http import JsonResponse
+    from employee.models import Employee
+
+    valid_labels = {k for k, _ in EmployeeDayLabel.LABEL_CHOICES}
+    if label not in valid_labels:
+        return JsonResponse({"ok": False, "error": "Invalid label"}, status=400)
+
+    employees = Employee.objects.filter(pk__in=emp_ids, is_active=True)
+    created = updated = 0
+    for emp in employees:
+        for ds in date_strs:
+            try:
+                d = date.fromisoformat(ds)
+            except ValueError:
+                continue
+            obj, was_created = EmployeeDayLabel.objects.update_or_create(
+                employee=emp, date=d,
+                defaults={"label": label, "note": note},
+            )
+            if was_created:
+                created += 1
+            else:
+                updated += 1
+
+    return JsonResponse({"ok": True, "created": created, "updated": updated})
+
+
+@login_required
+@require_POST
+def labelday_delete(request):
+    import json
+    from django.http import JsonResponse
+
+    if not _can_manage_labels(request.user):
+        raise PermissionDenied
+
+    try:
+        body = json.loads(request.body)
+        label_id = int(body.get("label_id", 0))
+    except Exception:
+        return JsonResponse({"ok": False, "error": "Invalid request"}, status=400)
+
+    deleted, _ = EmployeeDayLabel.objects.filter(pk=label_id).delete()
+    return JsonResponse({"ok": True, "deleted": deleted})

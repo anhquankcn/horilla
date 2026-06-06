@@ -15,4 +15,7 @@ urlpatterns = [
     path("task/<int:pk>/comment/", views.comment_create, name="eoffice-comment-create"),
     path("tasks/", views.task_list, name="eoffice-task-list"),
     path("dashboard/", views.dashboard, name="eoffice-dashboard"),
+    path("labelday/", views.labelday_view, name="eoffice-labelday"),
+    path("labelday/assign/", views.labelday_assign, name="eoffice-labelday-assign"),
+    path("labelday/delete/", views.labelday_delete, name="eoffice-labelday-delete"),
 ]

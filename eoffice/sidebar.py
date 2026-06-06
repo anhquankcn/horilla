@@ -23,6 +23,11 @@ SUBMENUS = [
         "redirect": reverse_lazy("deeplink-tasks"),
         "accessibility": "eoffice.sidebar.default_accessibility",
     },
+    {
+        "menu": _("Gán lịch bận"),
+        "redirect": reverse_lazy("eoffice-labelday"),
+        "accessibility": "eoffice.sidebar.labelday_accessibility",
+    },
 ]
 
 
@@ -37,4 +42,10 @@ def default_accessibility(request, submenu, user_perms, *args, **kwargs):
 def dashboard_accessibility(request, submenu, user_perms, *args, **kwargs):
     return request.user.is_authenticated and (
         request.user.is_superuser or request.user.has_perm("eoffice.change_worktask")
+    )
+
+
+def labelday_accessibility(request, submenu, user_perms, *args, **kwargs):
+    return request.user.is_authenticated and (
+        request.user.is_superuser or request.user.has_perm("eoffice.change_employeedaylabel")
     )

@@ -150,6 +150,7 @@ class EmployeeDayLabel(models.Model):
     LABEL_CHOICES = [
         ("trip",  _("Công tác")),
         ("event", _("Sự kiện")),
+        ("sick",  _("Nghỉ ốm")),
     ]
 
     employee = models.ForeignKey(
