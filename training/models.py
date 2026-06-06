@@ -85,6 +85,12 @@ class TrainingCourse(models.Model):
     )
     is_mandatory = models.BooleanField(default=False, verbose_name=_("Mandatory"))
     is_active = models.BooleanField(default=True, verbose_name=_("Active"))
+    target_departments = models.ManyToManyField(
+        "base.Department",
+        blank=True,
+        related_name="training_courses",
+        verbose_name=_("Target Departments"),
+    )
     company_id = models.ForeignKey(
         Company,
         on_delete=models.CASCADE,

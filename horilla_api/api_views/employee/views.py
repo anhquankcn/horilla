@@ -4044,7 +4044,7 @@ class TrainingPWAView(APIView):
         if action == "create_course":
             if not can_manage:
                 return Response({"error": "Permission denied"}, status=403)
-            from training.models import TrainingCategory, TrainingCourse
+            from training.models import TrainingCategory, TrainingCourse, TrainingEnrollment
             from base.models import Company
 
             title = request.data.get("title", "").strip()
@@ -4053,6 +4053,9 @@ class TrainingPWAView(APIView):
 
             category_id = request.data.get("category_id") or None
             company = getattr(getattr(emp, "employee_work_info", None), "company_id", None)
+            dept_ids = request.data.get("target_departments") or []
+            if isinstance(dept_ids, str):
+                dept_ids = [d.strip() for d in dept_ids.split(",") if d.strip()]
 
             course = TrainingCourse.objects.create(
                 title=title,
@@ -4069,7 +4072,11 @@ class TrainingPWAView(APIView):
                 category_id=category_id,
                 company_id=company,
             )
-            return Response({"ok": True, "id": course.id, "title": course.title}, status=201)
+            if dept_ids:
+                course.target_departments.set(dept_ids)
+                self._auto_enroll_departments(course, dept_ids)
+            enrolled_count = TrainingEnrollment.objects.filter(course=course).count()
+            return Response({"ok": True, "id": course.id, "title": course.title, "enrolled": enrolled_count}, status=201)
 
         elif action == "update_course":
             if not can_manage:
@@ -4103,6 +4110,16 @@ class TrainingPWAView(APIView):
                 if "category_id" in request.data:
                     course.category_id = request.data["category_id"] or None
                 course.save()
+                if "target_departments" in request.data:
+                    dept_ids = request.data.get("target_departments") or []
+                    if isinstance(dept_ids, str):
+                        dept_ids = [d.strip() for d in dept_ids.split(",") if d.strip()]
+                    new_dept_ids = set(str(d) for d in dept_ids)
+                    old_dept_ids = set(str(d) for d in course.target_departments.values_list("id", flat=True))
+                    course.target_departments.set(dept_ids)
+                    added = new_dept_ids - old_dept_ids
+                    if added:
+                        self._auto_enroll_departments(course, list(added))
                 return Response({"ok": True})
             except TrainingCourse.DoesNotExist:
                 return Response({"error": "Course not found"}, status=404)
@@ -4132,6 +4149,20 @@ class TrainingPWAView(APIView):
             return Response({"ok": True, "id": cat.id, "name": cat.name}, status=201)
 
         return Response({"error": "Invalid action"}, status=400)
+
+    def _auto_enroll_departments(self, course, dept_ids):
+        """Enroll all active employees in the given departments who aren't already enrolled."""
+        from training.models import TrainingEnrollment
+        employees = Employee.objects.filter(
+            is_active=True,
+            employee_work_info__department_id__in=dept_ids,
+        ).exclude(
+            training_enrollments__course=course
+        )
+        TrainingEnrollment.objects.bulk_create(
+            [TrainingEnrollment(employee=e, course=course, status="enrolled") for e in employees],
+            ignore_conflicts=True,
+        )
 
     def _course_row(self, course, enrollment=None):
         from training.models import TrainingCourse as TC
@@ -4280,16 +4311,35 @@ class TrainingPWAView(APIView):
     def _tab_team(self, emp, is_manager, today):
         from training.models import TrainingEnrollment
 
-        if not is_manager:
+        is_hr = (
+            self.request.user.is_superuser
+            or self.request.user.has_perm("training.view_trainingenrollment")
+        )
+
+        if not is_manager and not is_hr:
             return Response({"tab": "team", "members": [], "is_manager": False})
 
-        team_ids = Employee.objects.filter(
-            employee_work_info__reporting_manager_id=emp
-        ).values_list("id", flat=True)
+        dept_filter = self.request.query_params.get("dept", "")
+        course_filter = self.request.query_params.get("course", "")
 
-        enrollments = TrainingEnrollment.objects.filter(
-            employee__in=team_ids
-        ).select_related(
+        if is_hr:
+            employee_qs = Employee.objects.filter(is_active=True)
+        else:
+            employee_qs = Employee.objects.filter(
+                employee_work_info__reporting_manager_id=emp,
+            )
+
+        team_ids = employee_qs.values_list("id", flat=True)
+        if dept_filter:
+            team_ids = employee_qs.filter(
+                employee_work_info__department_id=dept_filter
+            ).values_list("id", flat=True)
+
+        enroll_qs = TrainingEnrollment.objects.filter(employee__in=team_ids)
+        if course_filter:
+            enroll_qs = enroll_qs.filter(course_id=course_filter)
+
+        enrollments = enroll_qs.select_related(
             "employee", "employee__employee_work_info__department_id",
             "course", "course__category",
         ).order_by("employee__employee_first_name", "-enrolled_date")
@@ -4324,16 +4374,20 @@ class TrainingPWAView(APIView):
         return Response({
             "tab": "team",
             "members": list(members.values()),
-            "is_manager": True,
+            "is_manager": is_manager or is_hr,
+            "is_hr": is_hr,
         })
 
     def _tab_manage(self, emp, can_manage):
         from training.models import TrainingCategory, TrainingCourse
+        from base.models import Department
 
         if not can_manage:
-            return Response({"tab": "manage", "can_manage": False, "courses": [], "categories": []})
+            return Response({"tab": "manage", "can_manage": False, "courses": [], "categories": [], "departments": []})
 
-        courses_qs = TrainingCourse.objects.select_related(
+        courses_qs = TrainingCourse.objects.prefetch_related(
+            "target_departments",
+        ).select_related(
             "category", "instructor_employee",
         ).order_by("-created_at")[:200]
 
@@ -4355,10 +4409,14 @@ class TrainingPWAView(APIView):
                 "location": c.location or "",
                 "is_mandatory": c.is_mandatory,
                 "is_active": c.is_active,
+                "target_departments": list(c.target_departments.values("id", "department")),
             })
 
         categories = list(
             TrainingCategory.objects.values("id", "name").order_by("name")
+        )
+        departments = list(
+            Department.objects.values("id", "department").order_by("department")
         )
 
         return Response({
@@ -4366,6 +4424,7 @@ class TrainingPWAView(APIView):
             "can_manage": True,
             "courses": courses,
             "categories": categories,
+            "departments": departments,
         })
 
 

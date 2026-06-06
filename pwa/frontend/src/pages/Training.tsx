@@ -59,6 +59,7 @@ interface TeamMember {
 }
 
 interface Category { id: number; name: string }
+interface Department { id: number; department: string }
 
 interface OverviewData {
   total_enrollments: number
@@ -464,13 +465,15 @@ const EMPTY_FORM = {
   title: '', description: '', course_type: 'internal', instructor: '',
   duration_hours: '', max_participants: '0', start_date: '', end_date: '',
   location: '', is_mandatory: false, category_id: '',
+  target_departments: [] as number[],
 }
 
 function CourseForm({
-  initial, categories, onSave, onCancel, saving,
+  initial, categories, departments, onSave, onCancel, saving,
 }: {
   initial?: Partial<typeof EMPTY_FORM>
   categories: Category[]
+  departments: Department[]
   onSave: (data: typeof EMPTY_FORM) => void
   onCancel: () => void
   saving: boolean
@@ -478,6 +481,13 @@ function CourseForm({
   const [form, setForm] = useState<typeof EMPTY_FORM>({ ...EMPTY_FORM, ...initial })
   const set = (k: keyof typeof EMPTY_FORM, v: string | boolean) =>
     setForm(f => ({ ...f, [k]: v }))
+  const toggleDept = (id: number) =>
+    setForm(f => ({
+      ...f,
+      target_departments: f.target_departments.includes(id)
+        ? f.target_departments.filter(d => d !== id)
+        : [...f.target_departments, id],
+    }))
 
   return (
     <div style={{
@@ -559,6 +569,32 @@ function CourseForm({
         </div>
       </div>
 
+      {departments.length > 0 && (
+        <FieldRow label="Gán cho phòng ban (tự động đăng ký nhân viên)">
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {departments.map(d => {
+              const selected = form.target_departments.includes(d.id)
+              return (
+                <button key={d.id} type="button" onClick={() => toggleDept(d.id)} style={{
+                  padding: '5px 10px', borderRadius: 8,
+                  border: `1.5px solid ${selected ? HNH.navy : HNH.line}`,
+                  background: selected ? HNH.navy50 : HNH.white,
+                  color: selected ? HNH.navy : HNH.ink3,
+                  fontSize: 12, fontWeight: selected ? 600 : 400, cursor: 'pointer',
+                }}>
+                  {d.department}
+                </button>
+              )
+            })}
+          </div>
+          {form.target_departments.length > 0 && (
+            <div style={{ fontSize: 11, color: HNH.ink3, marginTop: 6 }}>
+              Nhân viên đang hoạt động của các phòng ban được chọn sẽ được tự động đăng ký
+            </div>
+          )}
+        </FieldRow>
+      )}
+
       <div style={{ display: 'flex', gap: 8 }}>
         <button onClick={() => onSave(form)} disabled={saving} style={{
           flex: 1, padding: '11px', borderRadius: 10, border: 'none', cursor: saving ? 'not-allowed' : 'pointer',
@@ -579,9 +615,10 @@ function CourseForm({
 }
 
 /* ── Manage Course Row ── */
-function ManageCourseRow({ course, categories, onEdit, onToggleActive }: {
-  course: Course & { is_active: boolean }
+function ManageCourseRow({ course, categories, departments, onEdit, onToggleActive }: {
+  course: Course & { is_active: boolean; target_departments?: {id: number; department: string}[] }
   categories: Category[]
+  departments: Department[]
   onEdit: (id: number, data: any) => void
   onToggleActive: (id: number, active: boolean) => void
 }) {
@@ -611,8 +648,10 @@ function ManageCourseRow({ course, categories, onEdit, onToggleActive }: {
           location: course.location,
           is_mandatory: course.is_mandatory,
           category_id: course.category_id ? String(course.category_id) : '',
+          target_departments: (course.target_departments || []).map(d => d.id),
         }}
         categories={categories}
+        departments={departments}
         onSave={handleSave}
         onCancel={() => setEditing(false)}
         saving={saving}
@@ -646,6 +685,16 @@ function ManageCourseRow({ course, categories, onEdit, onToggleActive }: {
             {course.enrolled_count} đăng ký
             {course.start_date && ` · ${formatDate(course.start_date)} → ${formatDate(course.end_date)}`}
           </div>
+          {course.target_departments && course.target_departments.length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 4 }}>
+              {course.target_departments.map(d => (
+                <span key={d.id} style={{
+                  fontSize: 10, padding: '2px 6px', borderRadius: 5,
+                  background: HNH.navy50, color: HNH.navy, fontWeight: 500,
+                }}>{d.department}</span>
+              ))}
+            </div>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
           <button onClick={() => setEditing(true)} style={{
@@ -670,9 +719,10 @@ function ManageCourseRow({ course, categories, onEdit, onToggleActive }: {
 }
 
 /* ── Manage Tab ── */
-function ManageTab({ data, categories, onRefresh }: {
-  data: { courses: (Course & { is_active: boolean })[]; categories: Category[]; can_manage: boolean }
+function ManageTab({ data, categories, departments, onRefresh }: {
+  data: { courses: (Course & { is_active: boolean; target_departments?: {id: number; department: string}[] })[]; categories: Category[]; can_manage: boolean }
   categories: Category[]
+  departments: Department[]
   onRefresh: () => void
 }) {
   const [showCreate, setShowCreate] = useState(false)
@@ -787,6 +837,7 @@ function ManageTab({ data, categories, onRefresh }: {
       {showCreate && (
         <CourseForm
           categories={categories}
+          departments={departments}
           onSave={handleCreate}
           onCancel={() => setShowCreate(false)}
           saving={saving}
@@ -849,6 +900,7 @@ function ManageTab({ data, categories, onRefresh }: {
             key={c.id}
             course={c}
             categories={categories}
+            departments={departments}
             onEdit={handleEdit}
             onToggleActive={handleToggleActive}
           />
@@ -1032,6 +1084,7 @@ export function TrainingPage() {
               <ManageTab
                 data={data}
                 categories={data.categories || []}
+                departments={data.departments || []}
                 onRefresh={() => fetchTab('manage')}
               />
             )}
