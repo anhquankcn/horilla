@@ -267,7 +267,7 @@ class ClockOutAPIView(APIView):
 
     @staticmethod
     def _save_clock_out_extras(request, employee):
-        """Save GPS + selfie photo to the just-closed AttendanceActivity."""
+        """Save GPS, selfie photo, and supplement fields to the just-closed AttendanceActivity."""
         activity = (
             AttendanceActivity.objects.filter(employee_id=employee, clock_out__isnull=False)
             .order_by("-id")
@@ -298,6 +298,21 @@ class ClockOutAPIView(APIView):
             filename = f"out_{employee.badge_id}_{activity.clock_out_date}_{activity.clock_out.strftime('%H%M%S')}.{ext}"
             activity.clock_out_photo.save(filename, ContentFile(base64.b64decode(data)), save=False)
             updates.append("clock_out_photo")
+        if request.data.get("no_camera"):
+            activity.no_camera = True
+            updates.append("no_camera")
+        work_location = request.data.get("work_location")
+        if work_location in ("in_office", "out_of_office"):
+            activity.work_location = work_location
+            updates.append("work_location")
+        oof_type = request.data.get("out_of_office_type")
+        if oof_type:
+            activity.out_of_office_type = oof_type
+            updates.append("out_of_office_type")
+        oof_note = request.data.get("out_of_office_note")
+        if oof_note:
+            activity.out_of_office_note = oof_note
+            updates.append("out_of_office_note")
         if updates:
             activity.save(update_fields=updates)
 
