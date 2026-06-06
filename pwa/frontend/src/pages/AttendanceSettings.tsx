@@ -38,7 +38,7 @@ function SettingCard({ children }: { children: React.ReactNode }) {
 function Toggle({ value, onChange, disabled }: { value: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
   return (
     <button
-      onClick={() => !disabled && onChange(!value)}
+      onClick={(e) => { e.stopPropagation(); !disabled && onChange(!value) }}
       style={{
         width: 44, height: 26, borderRadius: 13, border: 'none',
         background: value ? HNH.success : HNH.ink4,
@@ -168,6 +168,7 @@ export function AttendanceSettingsPage() {
             }
             tone={hrmConfig.geo_approval_required ? 'warn' : 'success'}
             last
+            onClick={hrmSaving !== 'geo_approval_required' ? () => patchHRMConfig('geo_approval_required', !hrmConfig.geo_approval_required) : undefined}
             trailing={
               <Toggle
                 value={hrmConfig.geo_approval_required}
