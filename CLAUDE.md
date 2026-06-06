@@ -134,16 +134,17 @@ Nghỉ không lương, Nghỉ chăm sóc con ốm
 ## Deploy Production
 
 ```bash
-# SSH vào server
+# SSH vào server, chạy deploy script (tự detect Django vs PWA thay đổi)
 ssh -i "D:/HNH2026/Cloud/naquan.pem" naquan@100.88.75.106
-
-# Project tại /opt/horilla, dùng docker-compose.stage.yml
-cd /opt/horilla
-sudo git pull
-sudo docker compose -f docker-compose.stage.yml build web
-sudo docker compose -f docker-compose.stage.yml up -d
-sudo docker compose -f docker-compose.stage.yml exec web python manage.py migrate
+sudo /opt/horilla/deploy.sh
 ```
+
+Script `/opt/horilla/deploy.sh` tự động:
+1. `git pull` — lấy code mới
+2. So sánh files thay đổi: `pwa/frontend/` → rebuild pwa; file Django → rebuild web; `pwa/bff/` → rebuild bff
+3. `docker compose up -d` + `manage.py migrate`
+
+**Lưu ý**: Phải `git push origin horilla_aqv10` trên máy local **trước** khi SSH vào chạy deploy.
 
 - `.env` symlink → `.env.stage` (cần thiết cho docker-compose variable substitution)
 - Site: https://qlns.hnhtravel.work (qua Cloudflare tunnel)
