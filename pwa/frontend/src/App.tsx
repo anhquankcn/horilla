@@ -23,6 +23,7 @@ import { ProposalsPage } from './pages/Proposals'
 import { LeaveProposalPage } from './pages/LeaveProposal'
 import { ApprovalsPage } from './pages/Approvals'
 import { SettingsPage } from './pages/Settings'
+import { AttendanceSettingsPage } from './pages/AttendanceSettings'
 import { ShiftProposalPage } from './pages/ShiftProposal'
 import { WorkTypeProposalPage } from './pages/WorkTypeProposal'
 import { AttendanceProposalPage } from './pages/AttendanceProposal'
@@ -110,6 +111,7 @@ export function App() {
         <Route path="/life" element={<HNHLifePage />} />
         <Route path="/task-board" element={<TaskBoardPage />} />
         <Route path="/settings" element={<SettingsPage />} />
+        <Route path="/attendance-settings" element={<AttendanceSettingsPage />} />
       </Route>
 
       <Route path="/leave/new" element={<ProtectedRoute><LeaveNewPage /></ProtectedRoute>} />

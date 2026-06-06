@@ -53,6 +53,7 @@ const apps: AppCard[] = [
       { slug: 'payslip', icon: 'doc', label: 'Phiếu lương', desc: 'Xem chi tiết lương hàng tháng', path: '/payslip', tone: 'navy', group: 'use' },
       { slug: 'notifications', icon: 'bell', label: 'Thông báo', desc: 'Xem thông báo hệ thống', path: '/notifications', tone: 'navy', group: 'use' },
       { slug: 'helpdesk', icon: 'help', label: 'Hỗ trợ IT', desc: 'Gửi yêu cầu hỗ trợ, theo dõi tiến độ', path: '/helpdesk', tone: 'navy', group: 'use' },
+      { slug: 'hrm-app-setting', icon: 'gear', label: 'Cài đặt Ứng dụng', desc: 'Thông báo đẩy, bộ nhớ cache, tài khoản', path: '/settings', tone: 'navy', group: 'use' },
       { slug: 'employees', icon: 'users', label: 'Nhân sự', desc: 'Danh sách, hồ sơ nhân viên', path: '/employees', tone: 'navy', group: 'manage' },
       { slug: 'helpdesk', icon: 'help', label: 'YC Hỗ trợ', desc: 'Xem và xử lý tất cả yêu cầu hỗ trợ', path: '/helpdesk?tab=all', tone: 'red', group: 'manage' },
       { slug: 'roles', icon: 'shield', label: 'Vai trò & Quyền', desc: 'Phân quyền, nhóm vai trò', path: '/roles', tone: 'navy', group: 'manage' },
@@ -74,7 +75,7 @@ const apps: AppCard[] = [
       { slug: 'training', icon: 'book', label: 'Đào tạo', desc: 'Khóa học, chứng chỉ, phát triển NV', path: '/training', tone: 'gold', group: 'manage' },
       { slug: 'org-chart', icon: 'sitemap', label: 'Cây tổ chức', desc: 'Sơ đồ phân cấp, phân công quản lý', path: '/org-chart', tone: 'navy', group: 'manage' },
       { slug: 'promotion-hub', icon: 'trophy', label: 'Hub Thăng Tiến', desc: '9-Box, đề xuất, phê duyệt, công bố', path: '/promotion-hub', tone: 'gold', group: 'manage' },
-      { slug: 'settings', icon: 'gear', label: 'Cài đặt', desc: 'Cài đặt CC & Tính năng Quản lý', path: '/settings', tone: 'navy', group: 'manage' },
+      { slug: 'hrm-att-setting', icon: 'gear', label: 'Cài đặt CC', desc: 'Cấu hình Chấm công, Geofence', path: '/attendance-settings', tone: 'navy', group: 'manage' },
     ],
   },
   {
