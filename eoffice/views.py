@@ -6,6 +6,7 @@ from datetime import timedelta
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.views.decorators.clickjacking import xframe_options_exempt
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -347,6 +348,7 @@ def _can_manage_labels(user):
     return user.is_superuser or user.has_perm("eoffice.change_employeedaylabel")
 
 
+@xframe_options_exempt
 @login_required
 def labelday_view(request):
     from datetime import date, timedelta
@@ -426,6 +428,7 @@ def labelday_view(request):
     return render(request, "eoffice/labelday.html", context)
 
 
+@xframe_options_exempt
 @login_required
 @require_POST
 def labelday_assign(request):
@@ -472,6 +475,7 @@ def labelday_assign(request):
     return JsonResponse({"ok": True, "created": created, "updated": updated})
 
 
+@xframe_options_exempt
 @login_required
 @require_POST
 def labelday_delete(request):

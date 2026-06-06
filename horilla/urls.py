@@ -25,7 +25,7 @@ import notifications.urls
 
 from . import settings
 from .oidc_backend import HorillaOIDCCallbackView, HorillaOIDCRequestView
-from .deeplink_views import task_deeplink
+from .deeplink_views import task_deeplink, labelday_deeplink
 from .oidc_signup_views import oidc_signup_view
 
 
@@ -54,6 +54,7 @@ urlpatterns = [
     path("jsi18n/", JavaScriptCatalog.as_view(), name="javascript-catalog"),
     path("health/", health_check),
     path("deeplink/tasks/", task_deeplink, name="deeplink-tasks"),
+    path("deeplink/labelday/", labelday_deeplink, name="deeplink-labelday"),
 ]
 
 

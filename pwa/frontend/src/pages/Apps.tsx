@@ -76,6 +76,7 @@ const apps: AppCard[] = [
       { slug: 'org-chart', icon: 'sitemap', label: 'Cây tổ chức', desc: 'Sơ đồ phân cấp, phân công quản lý', path: '/org-chart', tone: 'navy', group: 'manage' },
       { slug: 'promotion-hub', icon: 'trophy', label: 'Hub Thăng Tiến', desc: '9-Box, đề xuất, phê duyệt, công bố', path: '/promotion-hub', tone: 'gold', group: 'manage' },
       { slug: 'hrm-att-setting', icon: 'gear', label: 'Cài đặt CC', desc: 'Cấu hình Chấm công, Geofence', path: '/attendance-settings', tone: 'navy', group: 'manage' },
+      { slug: 'hrm-wds-labelday', icon: 'cal', label: 'Gán lịch bận', desc: 'Tag Công tác / Sự kiện / Nghỉ ốm theo tuần', path: '/labelday', tone: 'gold', group: 'manage' },
     ],
   },
   {

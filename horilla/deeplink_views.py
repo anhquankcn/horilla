@@ -8,6 +8,15 @@ from django.views.decorators.clickjacking import xframe_options_exempt
 
 @xframe_options_exempt
 @login_required
+def labelday_deeplink(request):
+    """Embed the Gán lịch bận (hrm-wds-labelday) page inside the PWA iframe."""
+    qs = request.GET.urlencode()
+    url = "/eoffice/labelday/" + (f"?{qs}" if qs else "")
+    return redirect(url)
+
+
+@xframe_options_exempt
+@login_required
 def task_deeplink(request):
     """
     Redirect authenticated user to the external task system (1StopShop).

@@ -55,6 +55,7 @@ import { LeaveManagementPage } from './pages/LeaveManagement'
 import { HNHLifePage } from './pages/HNHLife'
 import { TaskBoardPage } from './pages/TaskBoard'
 import { DayDetailPage } from './pages/DayDetail'
+import { LabelDayWebViewPage } from './pages/LabelDayWebView'
 
 export function App() {
   return (
@@ -112,6 +113,7 @@ export function App() {
         <Route path="/life" element={<HNHLifePage />} />
         <Route path="/task-board" element={<TaskBoardPage />} />
         <Route path="/day/:date" element={<DayDetailPage />} />
+        <Route path="/labelday" element={<LabelDayWebViewPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/attendance-settings" element={<AttendanceSettingsPage />} />
       </Route>
