@@ -138,6 +138,14 @@ function VerifyChip({ icon, label, value, ok, warn, bad }: {
   )
 }
 
+const OOF_TYPES = [
+  { id: 'remote', label: 'Làm từ xa' },
+  { id: 'client', label: 'Gặp KH' },
+  { id: 'business_trip', label: 'Công tác' },
+  { id: 'event', label: 'Sự kiện' },
+  { id: 'other', label: 'Khác' },
+]
+
 type DoneState = null | 'valid' | 'pending'
 
 export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, shiftName, acting, onClockIn, onClockOut }: ClockModalProps) {
@@ -153,6 +161,10 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
   const wasClockedIn = useRef(false)
   const [offices, setOffices] = useState<Office[]>([])
   const [selectedOfficeId, setSelectedOfficeId] = useState<number | null>(null)
+  // TT Bổ sung
+  const [workLocation, setWorkLocation] = useState<'in_office' | 'out_of_office'>('in_office')
+  const [oofType, setOofType] = useState('')
+  const [oofNote, setOofNote] = useState('')
 
   useEffect(() => {
     if (!open) {
@@ -162,6 +174,9 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
       setCameraError(null)
       setSelfie(null)
       setDone(null)
+      setWorkLocation('in_office')
+      setOofType('')
+      setOofNote('')
       return
     }
     wasClockedIn.current = isClockedIn
@@ -245,9 +260,18 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
     }
     if (dataUrl) {
       gpsBody.photo = dataUrl
+    } else if (cameraError) {
+      gpsBody.no_camera = true
     }
     if (selectedOfficeId !== null) {
       gpsBody.office_id = selectedOfficeId
+    }
+    gpsBody.work_location = workLocation
+    if (workLocation === 'out_of_office' && oofType) {
+      gpsBody.out_of_office_type = oofType
+      if (oofType === 'other' && oofNote.trim()) {
+        gpsBody.out_of_office_note = oofNote.trim()
+      }
     }
 
     try {
@@ -263,11 +287,12 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
     } catch {
       setTimeout(() => onClose(), 1000)
     }
-  }, [isClockedIn, onClockIn, onClockOut, capture, geo.position, selectedOfficeId, onClose])
+  }, [isClockedIn, onClockIn, onClockOut, capture, geo.position, selectedOfficeId, onClose, cameraError, workLocation, oofType, oofNote])
 
   if (!open) return null
 
   const isOutside = isInsideSelected === false
+  const gpsBlocked = geo.loading && !isClockedIn
 
   const gpsLabel = geo.loading
     ? 'Đang định vị...'
@@ -291,6 +316,8 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
       ? (wasClockedIn.current ? 'ĐÃ KẾT THÚC CA' : 'ĐÃ CHẤM CÔNG VÀO CA')
     : done === 'pending'
       ? 'CHỜ XÁC NHẬN'
+    : gpsBlocked
+      ? 'ĐANG ĐỊNH VỊ GPS...'
     : isClockedIn
       ? 'ĐANG LÀM VIỆC'
     : isOutside
@@ -305,13 +332,14 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
     done === 'valid' ? HNH.success
     : done === 'pending' ? HNH.warn
     : acting ? HNH.ink3
+    : gpsBlocked ? HNH.ink3
     : isClockedIn
       ? `radial-gradient(circle at 30% 30%, ${HNH.navy} 0%, ${HNH.navy2} 100%)`
     : isOutside
       ? `radial-gradient(circle at 30% 30%, #e67e22 0%, #d35400 100%)`
     : `radial-gradient(circle at 30% 30%, #d83641 0%, ${HNH.red} 50%, ${HNH.redDark} 100%)`
 
-  const btnShadow = (acting || done)
+  const btnShadow = (acting || done || gpsBlocked)
     ? 'none'
     : isClockedIn
       ? '0 16px 32px rgba(20,43,111,0.3), inset 0 -4px 12px rgba(0,0,0,0.18), inset 0 4px 12px rgba(255,255,255,0.25)'
@@ -323,6 +351,7 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
     done === 'valid' ? 'THÀNH\nCÔNG'
     : done === 'pending' ? 'CHỜ XÁC\nNHẬN'
     : acting ? 'ĐANG\nXỬ LÝ...'
+    : gpsBlocked ? 'ĐỊNH VỊ\nGPS...'
     : isClockedIn ? 'KẾT THÚC\nCA'
     : isOutside ? 'CHẤM CÔNG\nNGOÀI VP'
     : 'CHẤM\nVÀO CA'
@@ -371,7 +400,8 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
               {cameraError && !selfie && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center gap-2" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>
                   <Icon name="shield" size={32} color="rgba(255,255,255,0.3)" />
-                  {cameraError}
+                  <div>{cameraError}</div>
+                  <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>Chấm công sẽ được ghi chú "nocam"</div>
                 </div>
               )}
 
@@ -386,8 +416,9 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
               >
                 <Icon name="pin" size={14} color={geo.inside ? '#4ade80' : geo.inside === false ? '#f87171' : '#94a3b8'} />
                 <span style={{ fontSize: 12, color: '#fff', fontWeight: 600, flex: 1 }}>{gpsLabel}</span>
-                {geo.inside === true && <Badge tone="success" size="s">Hợp lệ</Badge>}
-                {geo.inside === false && <Badge tone="red" size="s">Ngoài VP</Badge>}
+                {geo.loading && <div style={{ width: 12, height: 12, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />}
+                {!geo.loading && geo.inside === true && <Badge tone="success" size="s">Hợp lệ</Badge>}
+                {!geo.loading && geo.inside === false && <Badge tone="red" size="s">Ngoài VP</Badge>}
               </div>
             </div>
 
@@ -449,8 +480,27 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
               </div>
             )}
 
-            {/* GPS warning (before action) */}
-            {!done && isOutside && (
+            {/* GPS blocked warning */}
+            {!done && gpsBlocked && (
+              <div
+                className="flex items-center gap-2"
+                style={{
+                  background: HNH.navy50, border: `1px solid ${HNH.navy}50`,
+                  borderRadius: 14, padding: '12px 14px', marginBottom: 12,
+                }}
+              >
+                <div style={{ width: 18, height: 18, border: `2.5px solid ${HNH.navy}40`, borderTopColor: HNH.navy, borderRadius: '50%', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />
+                <div>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: HNH.navy }}>Đang lấy tọa độ GPS</div>
+                  <div style={{ fontSize: 11, fontWeight: 500, color: HNH.ink2, marginTop: 2 }}>
+                    Vui lòng chờ GPS xác định vị trí trước khi chấm công
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* GPS outside warning */}
+            {!done && !gpsBlocked && isOutside && (
               <div
                 className="flex items-center gap-2"
                 style={{
@@ -552,19 +602,23 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
 
               <button
                 onClick={handleAction}
-                disabled={acting || !!done}
-                className="relative flex flex-col items-center justify-center gap-2 border-none cursor-pointer mx-auto"
+                disabled={acting || !!done || gpsBlocked}
+                className="relative flex flex-col items-center justify-center gap-2 border-none mx-auto"
                 style={{
                   marginTop: 18, width: 130, height: 130, borderRadius: '50%',
                   background: btnBg,
                   color: '#fff', fontFamily: "'Plus Jakarta Sans', sans-serif", fontWeight: 800,
                   fontSize: 14, letterSpacing: 0.3,
-                  opacity: acting ? 0.6 : 1,
+                  opacity: (acting || gpsBlocked) ? 0.6 : 1,
                   boxShadow: btnShadow,
                   transition: 'all 0.3s ease',
+                  cursor: (acting || gpsBlocked || !!done) ? 'not-allowed' : 'pointer',
                 }}
               >
-                <Icon name={done ? (done === 'valid' ? 'check' : 'clock') : isClockedIn ? 'clock' : 'check'} size={28} color="#fff" stroke={3} />
+                {gpsBlocked
+                  ? <div style={{ width: 28, height: 28, border: '3px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                  : <Icon name={done ? (done === 'valid' ? 'check' : 'clock') : isClockedIn ? 'clock' : 'check'} size={28} color="#fff" stroke={3} />
+                }
                 <div style={{ whiteSpace: 'pre-line', lineHeight: 1.2 }}>{btnLabel}</div>
               </button>
 
@@ -607,11 +661,95 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
               <VerifyChip
                 icon="sparkle"
                 label="Khuôn mặt"
-                value={selfie ? 'Đã chụp' : cameraReady ? 'Sẵn sàng' : cameraError ?? 'Đang mở...'}
+                value={selfie ? 'Đã chụp' : cameraReady ? 'Sẵn sàng' : cameraError ? `${cameraError} (nocam)` : 'Đang mở...'}
                 ok={!!selfie}
                 warn={!!cameraError}
               />
             </div>
+
+            {/* TT Bổ sung — chỉ hiển thị khi chưa xong */}
+            {!done && (
+              <div style={{ marginTop: 12 }}>
+                <div style={{ fontSize: 10.5, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 8 }}>
+                  TT Bổ sung
+                </div>
+                {/* Trong VP / Ngoài VP toggle */}
+                <div className="flex gap-2" style={{ marginBottom: workLocation === 'out_of_office' ? 10 : 0 }}>
+                  {(['in_office', 'out_of_office'] as const).map(loc => {
+                    const sel = workLocation === loc
+                    const isOof = loc === 'out_of_office'
+                    return (
+                      <button
+                        key={loc}
+                        onClick={() => { setWorkLocation(loc); if (loc === 'in_office') { setOofType(''); setOofNote('') } }}
+                        className="flex-1 flex items-center justify-center gap-1.5 border-none cursor-pointer"
+                        style={{
+                          padding: '10px 0', borderRadius: 12,
+                          background: sel ? (isOof ? HNH.warn50 : HNH.success50) : '#fff',
+                          border: `1.5px solid ${sel ? (isOof ? HNH.warn : HNH.success) : HNH.line}`,
+                          fontSize: 13, fontWeight: 700,
+                          color: sel ? (isOof ? HNH.warn : HNH.success) : HNH.ink3,
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        <Icon name={isOof ? 'pin' : 'home'} size={14} color={sel ? (isOof ? HNH.warn : HNH.success) : HNH.ink3} stroke={2} />
+                        {isOof ? 'Ngoài VP' : 'Trong VP'}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {/* Phân loại Ngoài VP */}
+                {workLocation === 'out_of_office' && (
+                  <>
+                    <div style={{ fontSize: 10.5, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.3, marginBottom: 6 }}>
+                      Phân loại
+                    </div>
+                    <div className="flex flex-wrap gap-2" style={{ marginBottom: 8 }}>
+                      {OOF_TYPES.map(t => {
+                        const sel = oofType === t.id
+                        return (
+                          <button
+                            key={t.id}
+                            onClick={() => { setOofType(t.id); if (t.id !== 'other') setOofNote('') }}
+                            className="border-none cursor-pointer"
+                            style={{
+                              padding: '7px 14px', borderRadius: 20,
+                              background: sel ? HNH.navy : '#fff',
+                              border: `1.5px solid ${sel ? HNH.navy : HNH.line}`,
+                              fontSize: 12.5, fontWeight: 700,
+                              color: sel ? '#fff' : HNH.ink3,
+                              transition: 'all 0.15s',
+                            }}
+                          >
+                            {t.label}
+                          </button>
+                        )
+                      })}
+                    </div>
+
+                    {/* Ô nhập khi chọn Khác */}
+                    {oofType === 'other' && (
+                      <textarea
+                        value={oofNote}
+                        onChange={e => setOofNote(e.target.value)}
+                        placeholder="Mô tả thêm..."
+                        rows={2}
+                        style={{
+                          width: '100%', borderRadius: 12,
+                          border: `1.5px solid ${HNH.navy}60`,
+                          padding: '10px 12px', fontSize: 13,
+                          fontFamily: 'inherit', color: HNH.ink,
+                          background: HNH.navy50,
+                          resize: 'none', outline: 'none',
+                          boxSizing: 'border-box',
+                        }}
+                      />
+                    )}
+                  </>
+                )}
+              </div>
+            )}
 
             {/* GPS coordinates: device + selected office side by side */}
             {geo.position && (

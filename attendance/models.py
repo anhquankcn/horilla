@@ -95,6 +95,28 @@ class AttendanceActivity(HorillaModel):
     )
     clock_in_address = models.CharField(max_length=255, blank=True, default="")
     clock_out_address = models.CharField(max_length=255, blank=True, default="")
+
+    WORK_LOCATION_CHOICES = [
+        ("in_office", "Trong VP"),
+        ("out_of_office", "Ngoài VP"),
+    ]
+    OUT_OF_OFFICE_TYPE_CHOICES = [
+        ("remote", "Làm từ xa"),
+        ("client", "Gặp KH"),
+        ("business_trip", "Công tác"),
+        ("event", "Sự kiện"),
+        ("other", "Khác"),
+    ]
+    no_camera = models.BooleanField(default=False)
+    work_location = models.CharField(
+        max_length=20, choices=WORK_LOCATION_CHOICES,
+        default="in_office", null=True, blank=True,
+    )
+    out_of_office_type = models.CharField(
+        max_length=20, choices=OUT_OF_OFFICE_TYPE_CHOICES, null=True, blank=True,
+    )
+    out_of_office_note = models.TextField(null=True, blank=True)
+
     objects = HorillaCompanyManager(
         related_company_field="employee_id__employee_work_info__company_id"
     )
