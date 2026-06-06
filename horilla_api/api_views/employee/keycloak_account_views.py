@@ -1,9 +1,11 @@
 """API endpoints for creating/managing employee Keycloak SSO accounts."""
 from django.conf import settings
-from django.core.mail import EmailMultiAlternatives, get_connection
+from django.core.mail import EmailMultiAlternatives
+from django.core.mail.backends.smtp import EmailBackend as SmtpBackend
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from base.models import DynamicEmailConfiguration
 from employee.models import Employee
 from horilla_api import keycloak_service as kc
 
@@ -117,16 +119,40 @@ class KcAccountView(APIView):
 
 # ── Email ─────────────────────────────────────────────────────────────
 
+def _get_smtp_backend() -> tuple[SmtpBackend, str]:
+    """
+    Đọc cấu hình SMTP từ DynamicEmailConfiguration.
+    Ưu tiên Gmail (smtp.gmail.com), sau đó is_primary=True.
+    Trả về (backend, from_email).
+    """
+    cfg = (
+        DynamicEmailConfiguration.objects.filter(host__icontains="gmail").first()
+        or DynamicEmailConfiguration.objects.filter(is_primary=True).first()
+        or DynamicEmailConfiguration.objects.first()
+    )
+    if not cfg:
+        raise RuntimeError("Chưa cấu hình SMTP — vào Admin > Email Configuration để thiết lập")
+
+    backend = SmtpBackend(
+        host=cfg.host,
+        port=cfg.port,
+        username=cfg.username,
+        password=cfg.password,
+        use_tls=getattr(cfg, "use_tls", True),
+        use_ssl=getattr(cfg, "use_ssl", False),
+        fail_silently=False,
+    )
+    display = getattr(cfg, "display_name", None)
+    from_email = f"{display} <{cfg.from_email}>" if display else cfg.from_email
+    return backend, from_email
+
+
 def _send_welcome_email(emp, email: str, first: str, last: str) -> None:
     pwa_url = getattr(settings, "HNH_PWA_URL", "https://qlns.hnhtravel.work/pwa")
     coo_email = getattr(settings, "HNH_COO_EMAIL", "coo@hongngocha.com")
     full_name = f"{first} {last}".strip() or email
 
-    # Use Horilla's DB-driven email config (DynamicEmailConfiguration)
-    connection = get_connection("base.backends.ConfiguredEmailBackend")
-    from_email = getattr(connection, "dynamic_from_email_with_display_name", None) or getattr(
-        settings, "DEFAULT_FROM_EMAIL", "HNH Travel <noreply@hongngocha.com>"
-    )
+    connection, from_email = _get_smtp_backend()
 
     subject = f"Thông báo tài khoản HNH Travel App — {full_name}"
 
