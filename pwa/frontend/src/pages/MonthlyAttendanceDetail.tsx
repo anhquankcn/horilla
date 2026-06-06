@@ -12,6 +12,7 @@ interface DayCell {
   leave_name?: string
   at_work_second?: number
   overtime_second?: number
+  is_weekend?: boolean
 }
 
 interface DayHeader {
@@ -343,6 +344,7 @@ export function MonthlyAttendanceDetailPage() {
                       const st = (cell?.status || '') as DayStatus
                       const cfg = STATUS_CFG[st] ?? STATUS_CFG['']
                       const isToday = isCurrentMonth && dh.day === todayDay
+                      const isWeekendWork = cell?.is_weekend && (st === 'present' || st === 'late')
                       const clickable = cell && (st === 'present' || st === 'late' || st === 'absent' || st === 'leave' || st === 'unpaid')
 
                       return (
@@ -351,9 +353,9 @@ export function MonthlyAttendanceDetailPage() {
                           onClick={() => clickable && setCellDetail({ emp, day: dh.day, dh, cell })}
                           style={{
                             background: isToday ? (cfg.bg === '#ffffff' ? '#eff6ff' : cfg.bg) : cfg.bg,
-                            borderRight: '1px solid rgba(0,0,0,0.04)',
-                            borderBottom: isToday ? '2px solid #93c5fd' : '1px solid rgba(0,0,0,0.04)',
-                            borderTop: isToday ? '2px solid #93c5fd' : undefined,
+                            borderRight: isWeekendWork ? '1px solid #f59e0b' : '1px solid rgba(0,0,0,0.04)',
+                            borderBottom: isToday ? '2px solid #93c5fd' : isWeekendWork ? '2px solid #f59e0b' : '1px solid rgba(0,0,0,0.04)',
+                            borderTop: isToday ? '2px solid #93c5fd' : isWeekendWork ? '2px solid #f59e0b' : undefined,
                             padding: '3px 2px',
                             textAlign: 'center',
                             verticalAlign: 'middle',
@@ -475,6 +477,7 @@ function CellDetailModal({
             <div style={{ fontSize: 11, color: HNH.ink3, marginTop: 1 }}>
               {emp.badge_id && <span style={{ color: HNH.navy, fontWeight: 600 }}>{emp.badge_id} · </span>}
               {dh.weekday} {dateStr}
+              {cell.is_weekend && <span style={{ marginLeft: 6, color: '#d97706', fontWeight: 600 }}>· Cuối tuần</span>}
             </div>
           </div>
           <div style={{

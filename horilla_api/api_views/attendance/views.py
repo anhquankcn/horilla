@@ -2046,34 +2046,36 @@ class MonthlyAttendanceDetailView(APIView):
                 d = date(year, month, day_num)
                 cell = {"check_in": None, "check_out": None, "status": ""}
 
-                if d.weekday() >= 5:
+                is_weekend = d.weekday() >= 5
+                att = att_map.get(emp.id, {}).get(d)
+                leave = leave_map.get(emp.id, {}).get(d)
+
+                if att:
+                    # Always show actual attendance, even on weekends
+                    ci = att["attendance_clock_in"]
+                    co = att["attendance_clock_out"]
+                    cell["check_in"] = ci.strftime("%H:%M") if ci else None
+                    cell["check_out"] = co.strftime("%H:%M") if co else None
+                    cell["at_work_second"] = att.get("at_work_second") or 0
+                    cell["overtime_second"] = att.get("overtime_second") or 0
+                    cell["is_weekend"] = is_weekend
+                    try:
+                        mh, mm = map(int, str(att.get("minimum_hour") or "00:00").split(":"))
+                        min_secs = mh * 3600 + mm * 60
+                    except Exception:
+                        min_secs = 0
+                    work_secs = cell["at_work_second"]
+                    cell["status"] = "late" if (min_secs > 0 and work_secs < min_secs) else "present"
+                elif is_weekend:
                     cell["status"] = "weekend"
                 elif d > today_date:
                     cell["status"] = "future"
+                elif leave:
+                    payment = leave.get("leave_type_id__payment", "unpaid")
+                    cell["status"] = "leave" if payment == "paid" else "unpaid"
+                    cell["leave_name"] = leave.get("leave_type_id__name", "")
                 else:
-                    att = att_map.get(emp.id, {}).get(d)
-                    leave = leave_map.get(emp.id, {}).get(d)
-
-                    if att:
-                        ci = att["attendance_clock_in"]
-                        co = att["attendance_clock_out"]
-                        cell["check_in"] = ci.strftime("%H:%M") if ci else None
-                        cell["check_out"] = co.strftime("%H:%M") if co else None
-                        cell["at_work_second"] = att.get("at_work_second") or 0
-                        cell["overtime_second"] = att.get("overtime_second") or 0
-                        try:
-                            mh, mm = map(int, str(att.get("minimum_hour") or "00:00").split(":"))
-                            min_secs = mh * 3600 + mm * 60
-                        except Exception:
-                            min_secs = 0
-                        work_secs = cell["at_work_second"]
-                        cell["status"] = "late" if (min_secs > 0 and work_secs < min_secs) else "present"
-                    elif leave:
-                        payment = leave.get("leave_type_id__payment", "unpaid")
-                        cell["status"] = "leave" if payment == "paid" else "unpaid"
-                        cell["leave_name"] = leave.get("leave_type_id__name", "")
-                    else:
-                        cell["status"] = "absent"
+                    cell["status"] = "absent"
 
                 days_data[str(day_num)] = cell
 
