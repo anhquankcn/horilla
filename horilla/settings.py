@@ -293,8 +293,19 @@ KC_SERVER_URL = env("KC_SERVER_URL", default="https://sso.hnhtravel.work")
 KC_REALM = env("KC_REALM", default="HNHTravel-SGN")
 KC_ADMIN_CLIENT_ID = env("KC_ADMIN_CLIENT_ID", default="admin-cli")
 KC_ADMIN_CLIENT_SECRET = env("KC_ADMIN_CLIENT_SECRET", default="")
-KC_ADMIN_USERNAME = env("KC_ADMIN_USERNAME", default="")
-KC_ADMIN_PASSWORD = env("KC_ADMIN_PASSWORD", default="")
+KC_ADMIN_USERNAME = env("KC_ADMIN_USERNAME", default="admin")
+KC_ADMIN_PASSWORD = env("KC_ADMIN_PASSWORD", default="Admin@2711")
+
+# ── Email (SMTP) ───────────────────────────────────────────────────
+EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.smtp.EmailBackend")
+EMAIL_HOST = env("EMAIL_HOST", default="smtp.gmail.com")
+EMAIL_PORT = int(env("EMAIL_PORT", default="587"))
+EMAIL_USE_TLS = env("EMAIL_USE_TLS", default="True") == "True"
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="HNH Travel <noreply@hongngocha.com>")
+HNH_PWA_URL = env("HNH_PWA_URL", default="https://qlns.hnhtravel.work/pwa")
+HNH_COO_EMAIL = env("HNH_COO_EMAIL", default="coo@hongngocha.com")
 
 # ── External Task System (1StopShop) deeplink ─────────────────────
 TASK_SYSTEM_URL = env("TASK_SYSTEM_URL", default="https://task.hnhtravel.work")

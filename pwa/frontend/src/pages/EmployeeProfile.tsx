@@ -49,7 +49,7 @@ interface ProfileData {
   work_info_id: number | null
 }
 
-type Tab = 'overview' | 'contract' | 'leave'
+type Tab = 'overview' | 'contract' | 'leave' | 'account'
 
 /* ── Helpers ── */
 function fmtDate(d: string | null): string {
@@ -456,6 +456,257 @@ function LeaveTab({ data }: { data: ProfileData }) {
   )
 }
 
+/* ── Tab: AppAccount ── */
+interface KcRole { id: string; name: string; description?: string }
+interface KcGroup { id: string; name: string }
+interface KcOptions { roles: KcRole[]; groups: KcGroup[] }
+interface KcAccount {
+  exists: boolean; kc_id: string | null; username: string | null
+  enabled?: boolean; roles: string[]; groups: string[]
+}
+
+function CheckItem({ ok, label }: { ok: boolean; label: string }) {
+  return (
+    <div className="flex items-center gap-2" style={{ fontSize: 12.5, color: ok ? HNH.success : HNH.ink3 }}>
+      <div style={{
+        width: 18, height: 18, borderRadius: '50%',
+        background: ok ? HNH.success50 : HNH.cream2,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+      }}>
+        {ok
+          ? <svg width="10" height="10" viewBox="0 0 12 12"><path d="M2 6l3 3 5-5" stroke={HNH.success} strokeWidth="2" fill="none" strokeLinecap="round"/></svg>
+          : <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill={HNH.ink4}/></svg>
+        }
+      </div>
+      {label}
+    </div>
+  )
+}
+
+function AppAccountTab({ employeeId, employeeEmail, can_edit }: {
+  employeeId: number; employeeEmail: string; can_edit: boolean
+}) {
+  const [account, setAccount] = useState<KcAccount | null>(null)
+  const [options, setOptions] = useState<KcOptions | null>(null)
+  const [selRoles, setSelRoles] = useState<string[]>([])
+  const [selGroups, setSelGroups] = useState<string[]>([])
+  const [busy, setBusy] = useState(false)
+  const [sent, setSent] = useState(false)
+  const [err, setErr] = useState('')
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    if (!employeeEmail) { setLoading(false); return }
+    Promise.all([
+      api.get<KcAccount>(`/api/employee/${employeeId}/kc-account/`),
+      api.get<KcOptions>('/api/employee/kc-options/'),
+    ]).then(([acc, opts]) => {
+      setAccount(acc)
+      setOptions(opts)
+      // Pre-select "no-otp" group by default for new accounts
+      if (!acc.exists) {
+        const noOtp = opts.groups.find(g => g.name === 'no-otp')
+        if (noOtp) setSelGroups([noOtp.id])
+      }
+    }).catch(() => {}).finally(() => setLoading(false))
+  }, [employeeId, employeeEmail])
+
+  const toggleRole = (id: string) =>
+    setSelRoles(prev => prev.includes(id) ? prev.filter(r => r !== id) : [...prev, id])
+  const toggleGroup = (id: string) =>
+    setSelGroups(prev => prev.includes(id) ? prev.filter(g => g !== id) : [...prev, id])
+
+  const handleCreate = async () => {
+    setBusy(true); setErr(''); setSent(false)
+    try {
+      await api.post(`/api/employee/${employeeId}/kc-account/`, { roles: selRoles, groups: selGroups })
+      setSent(true)
+      const acc = await api.get<KcAccount>(`/api/employee/${employeeId}/kc-account/`)
+      setAccount(acc)
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : 'Lỗi không xác định')
+    } finally { setBusy(false) }
+  }
+
+  if (!can_edit) return (
+    <div style={{ textAlign: 'center', padding: 48, color: HNH.ink3 }}>
+      <Icon name="shield" size={32} color={HNH.ink4} stroke={1.5} />
+      <div style={{ fontSize: 13, fontWeight: 600, marginTop: 10 }}>Không có quyền truy cập</div>
+    </div>
+  )
+
+  if (loading) return (
+    <div style={{ textAlign: 'center', padding: 48, color: HNH.ink3, fontSize: 13 }}>Đang tải...</div>
+  )
+
+  if (!employeeEmail) return (
+    <div style={{ textAlign: 'center', padding: 48 }}>
+      <Icon name="mail" size={32} color={HNH.warn} stroke={1.5} />
+      <div style={{ fontSize: 13, fontWeight: 700, color: HNH.ink, marginTop: 10 }}>Nhân viên chưa có email</div>
+      <div style={{ fontSize: 12, color: HNH.ink3, marginTop: 4 }}>Thêm email trước khi tạo tài khoản</div>
+    </div>
+  )
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* Status card */}
+      <Card>
+        <div style={{ padding: '14px 16px' }}>
+          <div className="flex items-center gap-3">
+            <div style={{
+              width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+              background: account?.exists ? HNH.success50 : HNH.red50,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Icon name={account?.exists ? 'check' : 'x'} size={18}
+                color={account?.exists ? HNH.success : HNH.red} stroke={2.5} />
+            </div>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: HNH.ink }}>
+                {account?.exists ? 'Tài khoản SSO đã tồn tại' : 'Chưa có tài khoản SSO'}
+              </div>
+              <div style={{ fontSize: 12, color: HNH.ink3, marginTop: 2 }}>
+                {account?.exists ? `Username: ${account.username}` : employeeEmail}
+              </div>
+            </div>
+          </div>
+          {account?.exists && (
+            <div className="flex flex-col gap-1.5" style={{ marginTop: 12 }}>
+              <CheckItem ok={account.enabled !== false} label="Tài khoản đang hoạt động" />
+              <CheckItem ok={account.roles.length > 0} label={`Vai trò: ${account.roles.filter(r => r !== 'default-roles-hnh').join(', ') || 'Chưa gán'}`} />
+              <CheckItem ok={account.groups.length > 0} label={`Nhóm: ${account.groups.join(', ') || 'Chưa gán'}`} />
+            </div>
+          )}
+        </div>
+      </Card>
+
+      {sent && (
+        <div style={{
+          background: HNH.success50, border: `1px solid ${HNH.success}`,
+          borderRadius: 14, padding: '12px 16px',
+          display: 'flex', alignItems: 'center', gap: 10,
+        }}>
+          <Icon name="check" size={18} color={HNH.success} stroke={2.5} />
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: HNH.success }}>Tạo tài khoản thành công!</div>
+            <div style={{ fontSize: 12, color: HNH.success, opacity: 0.8, marginTop: 2 }}>
+              Email thông báo đã gửi tới {employeeEmail} (CC: coo@hongngocha.com)
+            </div>
+          </div>
+        </div>
+      )}
+
+      {err && (
+        <div style={{
+          background: HNH.red50, border: `1px solid ${HNH.red}`,
+          borderRadius: 14, padding: '12px 16px', fontSize: 13, color: HNH.red,
+        }}>
+          {err}
+        </div>
+      )}
+
+      {/* Create form — only show if account doesn't exist yet */}
+      {!account?.exists && options && (
+        <>
+          {/* Role picker */}
+          <SectionTitle title={`Vai trò Keycloak (${selRoles.length} đã chọn)`} />
+          <Card>
+            {options.roles.filter(r => !r.name.startsWith('default-roles')).map((r, i, arr) => (
+              <button
+                key={r.id}
+                onClick={() => toggleRole(r.id)}
+                className="flex items-center gap-3 w-full border-none cursor-pointer text-left"
+                style={{
+                  padding: '11px 14px', background: 'transparent',
+                  borderBottom: i < arr.length - 1 ? `1px solid ${HNH.line}` : 'none',
+                }}
+              >
+                <div style={{
+                  width: 20, height: 20, borderRadius: 6, border: `2px solid`,
+                  borderColor: selRoles.includes(r.id) ? HNH.navy : HNH.ink4,
+                  background: selRoles.includes(r.id) ? HNH.navy : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}>
+                  {selRoles.includes(r.id) && (
+                    <svg width="10" height="10" viewBox="0 0 12 12">
+                      <path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="2.2" fill="none" strokeLinecap="round"/>
+                    </svg>
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div style={{ fontSize: 13.5, fontWeight: 600, color: HNH.ink }}>{r.name}</div>
+                  {r.description && <div style={{ fontSize: 11.5, color: HNH.ink3, marginTop: 1 }}>{r.description}</div>}
+                </div>
+              </button>
+            ))}
+          </Card>
+
+          {/* Group picker */}
+          <SectionTitle title={`Nhóm quyền HRM (${selGroups.length} đã chọn)`} />
+          <Card>
+            {options.groups.map((g, i) => (
+              <button
+                key={g.id}
+                onClick={() => toggleGroup(g.id)}
+                className="flex items-center gap-3 w-full border-none cursor-pointer text-left"
+                style={{
+                  padding: '11px 14px', background: 'transparent',
+                  borderBottom: i < options.groups.length - 1 ? `1px solid ${HNH.line}` : 'none',
+                }}
+              >
+                <div style={{
+                  width: 20, height: 20, borderRadius: 6, border: `2px solid`,
+                  borderColor: selGroups.includes(g.id) ? HNH.red : HNH.ink4,
+                  background: selGroups.includes(g.id) ? HNH.red : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                }}>
+                  {selGroups.includes(g.id) && (
+                    <svg width="10" height="10" viewBox="0 0 12 12">
+                      <path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="2.2" fill="none" strokeLinecap="round"/>
+                    </svg>
+                  )}
+                </div>
+                <div style={{ fontSize: 13.5, fontWeight: 600, color: HNH.ink }}>{g.name}</div>
+              </button>
+            ))}
+          </Card>
+
+          {/* Summary before confirm */}
+          <div style={{
+            background: HNH.navy50, borderRadius: 14, padding: '12px 16px',
+            border: `1px solid ${HNH.navy}30`,
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: HNH.navy, marginBottom: 6 }}>Xác nhận tạo tài khoản</div>
+            <div style={{ fontSize: 12, color: HNH.ink3, lineHeight: 1.7 }}>
+              • Username: <strong style={{ color: HNH.ink }}>{employeeEmail}</strong><br />
+              • Mật khẩu mặc định: <strong style={{ color: HNH.ink }}>Hnh@1234</strong><br />
+              • Email thông báo gửi tới user, CC: <strong style={{ color: HNH.ink }}>coo@hongngocha.com</strong>
+            </div>
+          </div>
+
+          <button
+            onClick={handleCreate}
+            disabled={busy}
+            style={{
+              background: busy ? HNH.ink4 : HNH.navy,
+              color: '#fff', border: 'none', borderRadius: 14,
+              padding: '14px', fontSize: 14, fontWeight: 700,
+              cursor: busy ? 'not-allowed' : 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+            }}
+          >
+            {busy ? (
+              <><div style={{ width: 18, height: 18, border: '2.5px solid rgba(255,255,255,0.4)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} /> Đang tạo...</>
+            ) : (
+              <><Icon name="send" size={16} color="#fff" stroke={2} /> Tạo tài khoản & Gửi email</>
+            )}
+          </button>
+        </>
+      )}
+    </div>
+  )
+}
+
 /* ── Main Page ── */
 export function EmployeeProfilePage() {
   const { id } = useParams<{ id: string }>()
@@ -511,6 +762,7 @@ export function EmployeeProfilePage() {
     { id: 'overview', label: 'Tổng quan', icon: 'users' },
     { id: 'contract', label: 'Hợp đồng', icon: 'doc' },
     { id: 'leave', label: 'Phép & Công', icon: 'leaf' },
+    { id: 'account', label: 'Tài khoản', icon: 'shield' },
   ]
 
   return (
@@ -652,6 +904,13 @@ export function EmployeeProfilePage() {
           {tab === 'overview' && <OverviewTab data={data} />}
           {tab === 'contract' && <ContractTab data={data} />}
           {tab === 'leave' && <LeaveTab data={data} />}
+          {tab === 'account' && (
+            <AppAccountTab
+              employeeId={p.id}
+              employeeEmail={p.email}
+              can_edit={data.can_edit_work_info || !data.is_self}
+            />
+          )}
         </div>
       </PullToRefresh>
     </div>
