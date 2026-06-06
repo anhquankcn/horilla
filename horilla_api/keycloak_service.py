@@ -121,3 +121,32 @@ def get_user_groups(user_id: str) -> list[str]:
         headers=_h(), timeout=10,
     )
     return [g["name"] for g in r.json()] if r.ok else []
+
+
+def reset_password(user_id: str, password: str = "Hnh@1234") -> None:
+    r = requests.put(
+        f"{_KC}/admin/realms/{_REALM}/users/{user_id}/reset-password",
+        headers=_h(),
+        json={"type": "password", "value": password, "temporary": False},
+        timeout=10,
+    )
+    r.raise_for_status()
+
+
+def get_required_actions(user_id: str) -> list[str]:
+    r = requests.get(
+        f"{_KC}/admin/realms/{_REALM}/users/{user_id}",
+        headers=_h(), timeout=10,
+    )
+    r.raise_for_status()
+    return r.json().get("requiredActions", [])
+
+
+def set_required_actions(user_id: str, actions: list[str]) -> None:
+    r = requests.put(
+        f"{_KC}/admin/realms/{_REALM}/users/{user_id}",
+        headers=_h(),
+        json={"requiredActions": actions},
+        timeout=10,
+    )
+    r.raise_for_status()

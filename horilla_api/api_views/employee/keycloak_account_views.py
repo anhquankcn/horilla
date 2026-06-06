@@ -77,6 +77,7 @@ class KcAccountView(APIView):
                 "enabled": user.get("enabled", True),
                 "roles": kc.get_user_roles(uid),
                 "groups": kc.get_user_groups(uid),
+                "required_actions": user.get("requiredActions", []),
             })
         except Exception as e:
             return Response({"error": str(e)}, status=502)
@@ -112,6 +113,57 @@ class KcAccountView(APIView):
                 "kc_id": uid,
                 "message": f"Tài khoản đã tạo và gửi email tới {email}",
             }, status=201)
+
+        except Exception as e:
+            return Response({"error": str(e)}, status=502)
+
+    def patch(self, request, pk):
+        emp, err = self._get_employee(pk, request)
+        if err:
+            return err
+
+        email = emp.email
+        if not email:
+            return Response({"error": "Nhân viên chưa có email"}, status=400)
+
+        try:
+            user = kc.get_user_by_email(email)
+        except Exception as e:
+            return Response({"error": str(e)}, status=502)
+
+        if not user:
+            return Response({"error": "Chưa có tài khoản SSO"}, status=404)
+
+        uid = user["id"]
+        action = request.data.get("action")
+        first = emp.employee_first_name or ""
+        last = emp.employee_last_name or ""
+
+        try:
+            if action == "resend_welcome":
+                _send_welcome_email(emp, email, first, last)
+                return Response({"success": True, "message": f"Đã gửi email chào mừng tới {email}"})
+
+            elif action == "reset_password":
+                kc.reset_password(uid, DEFAULT_PASSWORD)
+                _send_welcome_email(emp, email, first, last)
+                return Response({
+                    "success": True,
+                    "message": f"Đã reset mật khẩu về {DEFAULT_PASSWORD} và gửi email tới {email}",
+                })
+
+            elif action == "set_force_change":
+                enabled: bool = bool(request.data.get("enabled", True))
+                current = kc.get_required_actions(uid)
+                if enabled and "UPDATE_PASSWORD" not in current:
+                    current.append("UPDATE_PASSWORD")
+                elif not enabled and "UPDATE_PASSWORD" in current:
+                    current.remove("UPDATE_PASSWORD")
+                kc.set_required_actions(uid, current)
+                return Response({"success": True, "required_actions": current})
+
+            else:
+                return Response({"error": "action không hợp lệ"}, status=400)
 
         except Exception as e:
             return Response({"error": str(e)}, status=502)

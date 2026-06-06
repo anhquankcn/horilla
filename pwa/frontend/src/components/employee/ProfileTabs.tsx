@@ -441,6 +441,7 @@ interface KcOptions { roles: KcRole[]; groups: KcGroup[] }
 interface KcAccount {
   exists: boolean; kc_id: string | null; username: string | null
   enabled?: boolean; roles: string[]; groups: string[]
+  required_actions?: string[]
 }
 
 export function AppAccountTab({ employeeId, employeeEmail, can_edit }: {
@@ -451,9 +452,17 @@ export function AppAccountTab({ employeeId, employeeEmail, can_edit }: {
   const [selRoles, setSelRoles] = useState<string[]>([])
   const [selGroups, setSelGroups] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
+  const [actionBusy, setActionBusy] = useState<string | null>(null)
   const [sent, setSent] = useState(false)
+  const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
   const [loading, setLoading] = useState(true)
+
+  const refreshAccount = async () => {
+    const acc = await api.get<KcAccount>(`/api/employee/${employeeId}/kc-account/`)
+    setAccount(acc)
+    return acc
+  }
 
   useEffect(() => {
     if (!employeeEmail) { setLoading(false); return }
@@ -476,16 +485,35 @@ export function AppAccountTab({ employeeId, employeeEmail, can_edit }: {
     setSelGroups(prev => prev.includes(id) ? prev.filter(g => g !== id) : [...prev, id])
 
   const handleCreate = async () => {
-    setBusy(true); setErr(''); setSent(false)
+    setBusy(true); setErr(''); setSent(false); setMsg('')
     try {
       await api.post(`/api/employee/${employeeId}/kc-account/`, { roles: selRoles, groups: selGroups })
       setSent(true)
-      const acc = await api.get<KcAccount>(`/api/employee/${employeeId}/kc-account/`)
-      setAccount(acc)
+      await refreshAccount()
     } catch (e: unknown) {
       setErr(e instanceof Error ? e.message : 'Lỗi không xác định')
     } finally { setBusy(false) }
   }
+
+  const handleAction = async (action: string, payload?: object) => {
+    setActionBusy(action); setErr(''); setMsg('')
+    try {
+      const res = await api.patch<{ success: boolean; message?: string; required_actions?: string[] }>(
+        `/api/employee/${employeeId}/kc-account/`,
+        { action, ...payload },
+      )
+      if (res.message) setMsg(res.message)
+      if (res.required_actions !== undefined && account) {
+        setAccount({ ...account, required_actions: res.required_actions })
+      } else if (action !== 'set_force_change') {
+        await refreshAccount()
+      }
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : 'Lỗi không xác định')
+    } finally { setActionBusy(null) }
+  }
+
+  const forceChange = account?.required_actions?.includes('UPDATE_PASSWORD') ?? false
 
   if (!can_edit) return (
     <div style={{ textAlign: 'center', padding: 48, color: HNH.ink3 }}>
@@ -539,7 +567,7 @@ export function AppAccountTab({ employeeId, employeeEmail, can_edit }: {
         </div>
       </ProfileCard>
 
-      {sent && (
+      {(sent || msg) && (
         <div style={{
           background: HNH.success50, border: `1px solid ${HNH.success}`,
           borderRadius: 14, padding: '12px 16px',
@@ -547,9 +575,11 @@ export function AppAccountTab({ employeeId, employeeEmail, can_edit }: {
         }}>
           <Icon name="check" size={18} color={HNH.success} stroke={2.5} />
           <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: HNH.success }}>Tạo tài khoản thành công!</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: HNH.success }}>
+              {sent ? 'Tạo tài khoản thành công!' : 'Thành công'}
+            </div>
             <div style={{ fontSize: 12, color: HNH.success, opacity: 0.8, marginTop: 2 }}>
-              Email thông báo đã gửi tới {employeeEmail} (CC: coo@hongngocha.com)
+              {msg || `Email thông báo đã gửi tới ${employeeEmail} (CC: coo@hongngocha.com)`}
             </div>
           </div>
         </div>
@@ -562,6 +592,105 @@ export function AppAccountTab({ employeeId, employeeEmail, can_edit }: {
         }}>
           {err}
         </div>
+      )}
+
+      {/* Action buttons when account EXISTS */}
+      {account?.exists && can_edit && (
+        <ProfileCard>
+          <div style={{ padding: '4px 0' }}>
+            {/* Resend welcome email */}
+            <button
+              onClick={() => handleAction('resend_welcome')}
+              disabled={actionBusy !== null}
+              className="flex items-center gap-3 w-full border-none cursor-pointer text-left"
+              style={{
+                padding: '12px 16px', background: 'transparent',
+                borderBottom: `1px solid ${HNH.line}`,
+                opacity: actionBusy !== null ? 0.5 : 1,
+              }}
+            >
+              <div style={{
+                width: 34, height: 34, borderRadius: 10, background: HNH.navy50,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
+                {actionBusy === 'resend_welcome'
+                  ? <div style={{ width: 16, height: 16, border: `2px solid ${HNH.navy}40`, borderTopColor: HNH.navy, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                  : <Icon name="send" size={15} color={HNH.navy} stroke={2} />
+                }
+              </div>
+              <div>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: HNH.ink }}>Gửi lại email chào mừng</div>
+                <div style={{ fontSize: 11.5, color: HNH.ink3, marginTop: 1 }}>Gửi thông tin đăng nhập hiện tại</div>
+              </div>
+            </button>
+
+            {/* Reset password + resend email */}
+            <button
+              onClick={() => handleAction('reset_password')}
+              disabled={actionBusy !== null}
+              className="flex items-center gap-3 w-full border-none cursor-pointer text-left"
+              style={{
+                padding: '12px 16px', background: 'transparent',
+                borderBottom: `1px solid ${HNH.line}`,
+                opacity: actionBusy !== null ? 0.5 : 1,
+              }}
+            >
+              <div style={{
+                width: 34, height: 34, borderRadius: 10, background: HNH.warn50,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
+                {actionBusy === 'reset_password'
+                  ? <div style={{ width: 16, height: 16, border: `2px solid ${HNH.warn}40`, borderTopColor: HNH.warn, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                  : <Icon name="refresh" size={15} color={HNH.warn} stroke={2} />
+                }
+              </div>
+              <div>
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: HNH.ink }}>Reset mật khẩu về Hnh@1234</div>
+                <div style={{ fontSize: 11.5, color: HNH.ink3, marginTop: 1 }}>Đặt lại mật khẩu mặc định và gửi email</div>
+              </div>
+            </button>
+
+            {/* Toggle force password change */}
+            <div
+              className="flex items-center gap-3"
+              style={{ padding: '12px 16px' }}
+            >
+              <div style={{
+                width: 34, height: 34, borderRadius: 10,
+                background: forceChange ? HNH.red50 : HNH.cream,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
+                {actionBusy === 'set_force_change'
+                  ? <div style={{ width: 16, height: 16, border: `2px solid ${HNH.ink3}40`, borderTopColor: HNH.ink3, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                  : <Icon name="shield" size={15} color={forceChange ? HNH.red : HNH.ink3} stroke={2} />
+                }
+              </div>
+              <div className="flex-1">
+                <div style={{ fontSize: 13.5, fontWeight: 700, color: HNH.ink }}>Yêu cầu đổi mật khẩu khi đăng nhập</div>
+                <div style={{ fontSize: 11.5, color: HNH.ink3, marginTop: 1 }}>
+                  {forceChange ? 'Đang bật — user phải đổi mật khẩu lần đăng nhập tiếp' : 'Đang tắt'}
+                </div>
+              </div>
+              <button
+                onClick={() => handleAction('set_force_change', { enabled: !forceChange })}
+                disabled={actionBusy !== null}
+                style={{
+                  width: 44, height: 26, borderRadius: 13, border: 'none', cursor: actionBusy !== null ? 'not-allowed' : 'pointer',
+                  background: forceChange ? HNH.red : HNH.ink4,
+                  position: 'relative', transition: 'background 0.2s', flexShrink: 0,
+                  opacity: actionBusy !== null ? 0.5 : 1,
+                }}
+              >
+                <div style={{
+                  position: 'absolute', top: 3, width: 20, height: 20, borderRadius: '50%',
+                  background: '#fff', transition: 'left 0.2s',
+                  left: forceChange ? 21 : 3,
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
+                }} />
+              </button>
+            </div>
+          </div>
+        </ProfileCard>
       )}
 
       {!account?.exists && options && (
