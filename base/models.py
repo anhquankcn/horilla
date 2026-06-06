@@ -408,6 +408,29 @@ class AppFeature(models.Model):
         return f"{self.label} ({self.slug})"
 
 
+class HRMConfig(models.Model):
+    """Key-value store for company-level HRM feature configuration (singleton-style)."""
+
+    key = models.CharField(max_length=100, unique=True)
+    value = models.JSONField(null=True, blank=True)
+
+    class Meta:
+        db_table = "base_hrmconfig"
+        verbose_name = "HRM Config"
+
+    @classmethod
+    def get_value(cls, key, default=None):
+        try:
+            return cls.objects.get(key=key).value
+        except cls.DoesNotExist:
+            return default
+
+    @classmethod
+    def set_value(cls, key, value):
+        obj, _ = cls.objects.update_or_create(key=key, defaults={"value": value})
+        return obj
+
+
 class DepartmentShift(models.Model):
     """Which shifts are active/assigned to each department (configured by C&B)."""
 

@@ -17,6 +17,7 @@ from base.models import (
     Department,
     EmployeeShift,
     EmployeeShiftSchedule,
+    HRMConfig,
     JobPosition,
     JobRole,
     RotatingShift,
@@ -1994,3 +1995,48 @@ class WeatherProxyView(APIView):
             pass
 
         return Response({"temp": temp, "code": code, "suburb": suburb, "city": city})
+
+
+# ── HRM Company Configuration ─────────────────────────────────────────────────
+
+KNOWN_KEYS = {
+    "geo_approval_required": bool,
+}
+
+
+class HRMConfigView(APIView):
+    """
+    GET  /api/hrm-config/  — return all HRM config values + is_hr flag
+    PATCH /api/hrm-config/ — update one or more config values (HR/admin only)
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def _is_hr(self, request) -> bool:
+        u = request.user
+        return u.is_superuser or u.has_perm("attendance.change_attendance")
+
+    def get(self, request):
+        data = {k: HRMConfig.get_value(k, self._default(k)) for k in KNOWN_KEYS}
+        data["is_hr"] = self._is_hr(request)
+        return Response(data)
+
+    def patch(self, request):
+        if not self._is_hr(request):
+            return Response({"error": "Không có quyền"}, status=403)
+        updated = {}
+        for key, cast in KNOWN_KEYS.items():
+            if key in request.data:
+                val = request.data[key]
+                if cast is bool:
+                    val = bool(val)
+                HRMConfig.set_value(key, val)
+                updated[key] = val
+        if not updated:
+            return Response({"error": "Không có key hợp lệ"}, status=400)
+        return Response(updated)
+
+    @staticmethod
+    def _default(key):
+        defaults = {"geo_approval_required": True}
+        return defaults.get(key)

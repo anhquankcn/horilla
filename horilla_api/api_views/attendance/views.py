@@ -208,7 +208,7 @@ class ClockInAPIView(APIView):
             return None
         try:
             from geofencing.utils import check_geofence
-            from base.models import Company
+            from base.models import Company, HRMConfig
 
             office_id = request.data.get("office_id")
             if office_id:
@@ -220,9 +220,13 @@ class ClockInAPIView(APIView):
                 company = employee.get_company()
 
             inside, distance_m, _ = check_geofence(lat, lng, company)
+            geo_approval = HRMConfig.get_value("geo_approval_required", True)
             if inside:
                 attendance.attendance_validated = True
                 attendance.save(update_fields=["attendance_validated"])
+            elif not geo_approval:
+                # setting tắt — bỏ qua duyệt, coi như hợp lệ
+                return True
             return inside
         except Exception:
             return None
@@ -300,28 +304,30 @@ class ClockOutAPIView(APIView):
     @staticmethod
     def _check_geofence(request):
         """Check GPS against company geofence on clock-out.
-        If outside, force attendance_validated=False."""
+        If outside, force attendance_validated=False (unless geo_approval_required=False)."""
         lat = request.data.get("latitude")
         lng = request.data.get("longitude")
         if lat is None or lng is None:
             return None
         try:
             from geofencing.utils import check_geofence
+            from base.models import HRMConfig
 
             employee = request.user.employee_get
             company = employee.get_company()
             inside, distance_m, _ = check_geofence(lat, lng, company)
-            attendance = (
-                Attendance.objects.filter(employee_id=employee)
-                .order_by("-attendance_date", "-id")
-                .first()
-            )
-            if attendance:
-                if inside:
-                    pass
-                else:
+            geo_approval = HRMConfig.get_value("geo_approval_required", True)
+            if not inside and geo_approval:
+                attendance = (
+                    Attendance.objects.filter(employee_id=employee)
+                    .order_by("-attendance_date", "-id")
+                    .first()
+                )
+                if attendance:
                     attendance.attendance_validated = False
                     attendance.save(update_fields=["attendance_validated"])
+            if not inside and not geo_approval:
+                return True
             return inside
         except Exception:
             return None
