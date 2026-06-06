@@ -67,6 +67,9 @@ function shiftMonth(y: number, m: number, delta: number) {
 export function MonthlyAttendanceDetailPage() {
   const navigate = useNavigate()
   const now = new Date()
+  const todayDay = now.getDate()
+  const todayMonth = now.getMonth() + 1
+  const todayYear = now.getFullYear()
   const [year, setYear]   = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth() + 1)
   const [deptId, setDeptId] = useState('')
@@ -225,21 +228,24 @@ export function MonthlyAttendanceDetailPage() {
                   NHÂN VIÊN
                 </th>
                 {/* Day headers */}
-                {data.days.map(dh => (
+                {data.days.map(dh => {
+                  const isToday = dh.day === todayDay && month === todayMonth && year === todayYear
+                  return (
                   <th key={dh.day} style={{
                     position: 'sticky', top: 0, zIndex: 20,
-                    background: dh.is_weekend ? '#1e2d4e' : HNH.navy,
+                    background: isToday ? '#1e40af' : dh.is_weekend ? '#1e2d4e' : HNH.navy,
                     width: DAY_COL_W, minWidth: DAY_COL_W,
                     padding: '5px 2px', textAlign: 'center',
                     fontSize: 11,
                     color: dh.is_weekend ? '#4b6182' : '#a8bde0',
                     borderRight: '1px solid rgba(255,255,255,0.06)',
-                    borderBottom: '1px solid rgba(255,255,255,0.08)',
+                    borderBottom: isToday ? '2px solid #60a5fa' : '1px solid rgba(255,255,255,0.08)',
                   }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: dh.is_weekend ? '#4b6182' : '#e0eaf8' }}>{dh.day}</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: isToday ? '#93c5fd' : dh.is_weekend ? '#4b6182' : '#e0eaf8' }}>{dh.day}</div>
                     <div style={{ fontSize: 9, letterSpacing: 0.3 }}>{dh.weekday}</div>
                   </th>
-                ))}
+                  )
+                })}
               </tr>
             </thead>
 
@@ -274,6 +280,7 @@ export function MonthlyAttendanceDetailPage() {
                       const cell = emp.days[String(dh.day)]
                       const st = (cell?.status || '') as DayStatus
                       const cfg = STATUS_CFG[st] ?? STATUS_CFG['']
+                      const isToday = dh.day === todayDay && month === todayMonth && year === todayYear
 
                       return (
                         <td
@@ -287,9 +294,9 @@ export function MonthlyAttendanceDetailPage() {
                             : ''
                           }
                           style={{
-                            background: cfg.bg,
-                            borderRight: '1px solid rgba(0,0,0,0.04)',
-                            borderBottom: '1px solid rgba(0,0,0,0.04)',
+                            background: isToday ? (cfg.bg === '#ffffff' ? '#eff6ff' : cfg.bg) : cfg.bg,
+                            borderRight: isToday ? '1px solid #93c5fd' : '1px solid rgba(0,0,0,0.04)',
+                            borderBottom: isToday ? '1px solid #93c5fd' : '1px solid rgba(0,0,0,0.04)',
                             padding: '3px 2px',
                             textAlign: 'center',
                             verticalAlign: 'middle',

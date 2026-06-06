@@ -24,6 +24,21 @@ export default defineConfig(({ command }) => ({
       },
       workbox: {
         importScripts: ['push-sw.js'],
+        // Exclude Django backend URLs from service worker navigation interception.
+        // Without this, iframe loads to /deeplink/, /eoffice/, etc. get served
+        // index.html by the SW, which then falls back to <Navigate to="/" />.
+        navigateFallbackDenylist: [
+          /^\/deeplink\//,
+          /^\/eoffice\//,
+          /^\/accounts\//,
+          /^\/oidc\//,
+          /^\/admin\//,
+          /^\/api\//,
+          /^\/attendance\//,
+          /^\/employee\//,
+          /^\/leave\//,
+          /^\/payroll\//,
+        ],
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
