@@ -600,15 +600,18 @@ export function HomePage() {
   const { isClockedIn, duration, clockInTime, clockOutTime, clockIn, clockOut, acting } = useClock()
   const { now, time } = useLiveClock()
   const [clockModalOpen, setClockModalOpen] = useState(false)
-  const { data: tasks } = useApi<TaskSummary>('/api/eoffice/my-summary/')
-  const { data: attendanceData } = useApi<PaginatedResponse<AttendanceRecord>>(
+  const { data: tasks, refresh: rTasks } = useApi<TaskSummary>('/api/eoffice/my-summary/')
+  const { data: attendanceData, refresh: rAtt } = useApi<PaginatedResponse<AttendanceRecord>>(
     '/api/attendance/my-attendance/?page_size=50'
   )
-  const { data: leaveData } = useApi<PaginatedResponse<LeaveAvailable>>('/api/leave/available-leave/?page_size=20')
-  const { data: notifSummary } = useApi<NotifSummary>('/api/notifications/summary/')
-  const { data: payrollData } = useApi<PayrollEntry[]>('/api/payroll/my-monthly-payroll/')
+  const { data: leaveData, refresh: rLeave } = useApi<PaginatedResponse<LeaveAvailable>>('/api/leave/available-leave/?page_size=20')
+  const { data: notifSummary, refresh: rNotif } = useApi<NotifSummary>('/api/notifications/summary/')
+  const { data: payrollData, refresh: rPay } = useApi<PayrollEntry[]>('/api/payroll/my-monthly-payroll/')
   const { toast: showToast } = useToast()
   const refreshAll = useCallback(async () => {
+    rTasks(); rAtt(); rLeave(); rNotif(); rPay()
+  }, [rTasks, rAtt, rLeave, rNotif, rPay])
+  const clearCacheAndReload = useCallback(async () => {
     showToast('Đang xóa cache...')
     await new Promise(r => setTimeout(r, 400))
     try {
@@ -667,7 +670,14 @@ export function HomePage() {
     <div style={{ padding: '6px 0 14px' }}>
       {/* Greeting header */}
       <div className="flex items-center gap-2" style={{ padding: `6px ${px}px ${isSmall ? 10 : 14}px` }}>
-        <Avatar initials={initials} bg={HNH.red} size={isSmall ? 36 : 42} />
+        <button
+          onClick={clearCacheAndReload}
+          className="border-none bg-transparent p-0 shrink-0"
+          style={{ cursor: 'pointer', borderRadius: '50%' }}
+          title="Xóa cache & tải lại"
+        >
+          <Avatar initials={initials} bg={HNH.red} size={isSmall ? 36 : 42} />
+        </button>
         <div className="flex-1">
           <div style={{ fontSize: isSmall ? 10.5 : 11.5, color: HNH.ink3, fontWeight: 600, letterSpacing: 0.4 }}>{dateStr}</div>
           <div style={{ fontSize: isSmall ? 15 : 18, fontWeight: 700, color: HNH.ink, letterSpacing: -0.2 }}>{displayName}</div>
