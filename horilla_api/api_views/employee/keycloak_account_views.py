@@ -1,6 +1,6 @@
 """API endpoints for creating/managing employee Keycloak SSO accounts."""
 from django.conf import settings
-from django.core.mail import EmailMultiAlternatives
+from django.core.mail import EmailMultiAlternatives, get_connection
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -122,6 +122,12 @@ def _send_welcome_email(emp, email: str, first: str, last: str) -> None:
     coo_email = getattr(settings, "HNH_COO_EMAIL", "coo@hongngocha.com")
     full_name = f"{first} {last}".strip() or email
 
+    # Use Horilla's DB-driven email config (DynamicEmailConfiguration)
+    connection = get_connection("base.backends.ConfiguredEmailBackend")
+    from_email = getattr(connection, "dynamic_from_email_with_display_name", None) or getattr(
+        settings, "DEFAULT_FROM_EMAIL", "HNH Travel <noreply@hongngocha.com>"
+    )
+
     subject = f"Thông báo tài khoản HNH Travel App — {full_name}"
 
     html = f"""<!DOCTYPE html>
@@ -223,9 +229,10 @@ def _send_welcome_email(emp, email: str, first: str, last: str) -> None:
     msg = EmailMultiAlternatives(
         subject=subject,
         body=text,
-        from_email=settings.DEFAULT_FROM_EMAIL,
+        from_email=from_email,
         to=[email],
         cc=[coo_email],
+        connection=connection,
     )
     msg.attach_alternative(html, "text/html")
     msg.send(fail_silently=False)
