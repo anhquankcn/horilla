@@ -609,18 +609,16 @@ export function HomePage() {
   const { data: payrollData } = useApi<PayrollEntry[]>('/api/payroll/my-monthly-payroll/')
   const { toast: showToast } = useToast()
   const refreshAll = useCallback(async () => {
+    showToast('Đang xóa cache...')
+    await new Promise(r => setTimeout(r, 400))
     try {
       if ('caches' in window) {
         const names = await caches.keys()
         await Promise.all(names.map(n => caches.delete(n)))
       }
-      if ('serviceWorker' in navigator) {
-        const reg = await navigator.serviceWorker.getRegistration()
-        if (reg) await reg.unregister()
-      }
     } catch { /* ignore */ }
     showToast('Đã xóa cache — đang tải lại ứng dụng...')
-    setTimeout(() => window.location.reload(), 1800)
+    setTimeout(() => window.location.reload(), 1600)
   }, [showToast])
   const isTablet = useTablet()
   const isSmall = useSmallPhone()
