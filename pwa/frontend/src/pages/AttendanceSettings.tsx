@@ -23,6 +23,7 @@ interface ShiftSchedule {
 }
 
 interface GraceTime {
+  id: number
   allowed_time: string
   allowed_min: number
   clock_in: boolean
@@ -47,6 +48,7 @@ interface Department {
 interface ShiftCategoriesData {
   shifts: ShiftInfo[]
   departments: Department[]
+  grace_times: GraceTimeItem[]
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -382,35 +384,101 @@ function ShiftDetailCard({ shift, onEdit, onDelete, deleting }: {
 
 interface ShiftModalProps {
   departments: Department[]
+  graceTimes: GraceTimeItem[]
   onClose: () => void
-  onSaved: () => void
+  onSaved: (newShiftId?: number) => void
   editing: ShiftInfo | null
 }
 
-function ShiftModal({ departments, onClose, onSaved, editing }: ShiftModalProps) {
+type DaySchedForm = {
+  enabled: boolean
+  start_time: string
+  end_time: string
+  minimum_working_hour: string
+  is_night_shift: boolean
+}
+
+function initDayForm(schedules: ShiftSchedule[]): Record<string, DaySchedForm> {
+  const result: Record<string, DaySchedForm> = {}
+  DAY_ORDER.forEach(day => {
+    const ex = schedules.find(s => s.day === day)
+    result[day] = {
+      enabled: !!ex,
+      start_time: ex?.start_time ?? '08:00',
+      end_time: ex?.end_time ?? '17:00',
+      minimum_working_hour: ex?.minimum_working_hour ?? '08:15',
+      is_night_shift: ex?.is_night_shift ?? false,
+    }
+  })
+  return result
+}
+
+function ShiftModal({ departments, graceTimes, onClose, onSaved, editing }: ShiftModalProps) {
   const { toast: showToast } = useToast()
   const [name, setName] = useState(editing?.name ?? '')
+  const [weeklyFullTime, setWeeklyFullTime] = useState(editing?.weekly_full_time ?? '40:00')
   const [selectedDepts, setSelectedDepts] = useState<number[]>(editing?.department_ids ?? [])
+  const [selectedGraceId, setSelectedGraceId] = useState<number | null>(editing?.grace_time?.id ?? null)
+  const [scheduleForm, setScheduleForm] = useState<Record<string, DaySchedForm>>(
+    editing ? initDayForm(editing.schedules) : {} as Record<string, DaySchedForm>
+  )
+  const [schedSection, setSchedSection] = useState(false)
   const [saving, setSaving] = useState(false)
 
   const toggleDept = (id: number) =>
     setSelectedDepts(prev => prev.includes(id) ? prev.filter(d => d !== id) : [...prev, id])
 
+  const setDay = (day: string, patch: Partial<DaySchedForm>) =>
+    setScheduleForm(f => ({ ...f, [day]: { ...f[day], ...patch } }))
+
   const handleSave = async () => {
     if (!name.trim()) { showToast('Vui lòng nhập tên ca'); return }
     setSaving(true)
+    let shiftId: number | null = editing?.id ?? null
     try {
       if (editing) {
         await api.post('/api/employee/shift-categories/', {
-          action: 'update_shift', shift_id: editing.id, name: name.trim(), department_ids: selectedDepts,
+          action: 'update_shift',
+          shift_id: editing.id,
+          name: name.trim(),
+          weekly_full_time: weeklyFullTime || '40:00',
+          grace_time_id: selectedGraceId,
+          department_ids: selectedDepts,
         })
+        // sync schedules
+        const prevDays = new Set(editing.schedules.map(s => s.day))
+        for (const day of DAY_ORDER) {
+          const form = scheduleForm[day]
+          if (!form) continue
+          if (form.enabled) {
+            await api.post('/api/employee/shift-categories/', {
+              action: 'upsert_schedule',
+              shift_id: shiftId,
+              day,
+              start_time: form.start_time,
+              end_time: form.end_time,
+              minimum_working_hour: form.minimum_working_hour,
+              is_night_shift: form.is_night_shift,
+            })
+          } else if (prevDays.has(day)) {
+            await api.post('/api/employee/shift-categories/', {
+              action: 'delete_schedule',
+              shift_id: shiftId,
+              day,
+            })
+          }
+        }
       } else {
-        await api.post('/api/employee/shift-categories/', {
-          action: 'create_shift', name: name.trim(), department_ids: selectedDepts,
+        const res = await api.post<{ ok: boolean; id: number }>('/api/employee/shift-categories/', {
+          action: 'create_shift',
+          name: name.trim(),
+          weekly_full_time: weeklyFullTime || '40:00',
+          department_ids: selectedDepts,
         })
+        shiftId = res.id
       }
-      showToast(editing ? 'Đã cập nhật ca' : 'Đã thêm ca mới')
-      onSaved()
+      showToast(editing ? 'Đã cập nhật ca' : 'Đã tạo ca — mở để cấu hình lịch làm việc')
+      onSaved(shiftId ?? undefined)
     } catch (e: any) {
       showToast(e?.message ?? 'Lỗi khi lưu ca')
     } finally {
@@ -418,60 +486,63 @@ function ShiftModal({ departments, onClose, onSaved, editing }: ShiftModalProps)
     }
   }
 
+  const inp: React.CSSProperties = {
+    width: '100%', padding: '9px 12px', borderRadius: 11,
+    border: `1.5px solid ${HNH.line}`, fontSize: 13.5, color: HNH.ink,
+    outline: 'none', boxSizing: 'border-box', background: '#fff',
+  }
+
   return (
-    <div style={{
-      position: 'fixed', inset: 0, zIndex: 9999,
-      background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end',
-    }} onClick={onClose}>
-      <div
-        style={{
-          background: '#fff', borderRadius: '20px 20px 0 0', width: '100%',
-          maxHeight: '85vh', overflowY: 'auto', padding: '24px 20px 40px',
-        }}
-        onClick={e => e.stopPropagation()}
-      >
-        <div style={{ fontWeight: 700, fontSize: 17, color: HNH.ink, marginBottom: 6 }}>
-          {editing ? `Sửa ca — #${editing.id}` : 'Thêm ca làm việc'}
-        </div>
-        {editing && (
-          <div style={{ fontSize: 12, color: HNH.ink3, marginBottom: 14 }}>
-            Để cấu hình giờ bắt đầu/kết thúc và grace time, vào Admin → Base → Employee Shift
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '93vh', overflowY: 'auto', padding: '20px 18px 44px' }} onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+          <div style={{ fontWeight: 700, fontSize: 16, color: HNH.ink }}>
+            {editing ? `Sửa ca #${editing.id}` : 'Thêm ca làm việc'}
           </div>
-        )}
-        {!editing && (
-          <div style={{ fontSize: 12, color: HNH.ink3, marginBottom: 14 }}>
-            Sau khi tạo, vào Admin → Base → Employee Shift để cấu hình lịch và grace time
+          <button onClick={onClose} style={{ border: 'none', background: HNH.cream, borderRadius: 10, width: 32, height: 32, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="x" size={15} color={HNH.ink3} stroke={2} />
+          </button>
+        </div>
+
+        {/* Tên ca */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11.5, fontWeight: 600, color: HNH.ink3, marginBottom: 5 }}>Tên ca</div>
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="VD: Ca hành chính 8h–17h" style={inp} />
+        </div>
+
+        {/* Giờ tuần chuẩn */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11.5, fontWeight: 600, color: HNH.ink3, marginBottom: 5 }}>Giờ làm chuẩn / tuần (HH:MM)</div>
+          <input value={weeklyFullTime} onChange={e => setWeeklyFullTime(e.target.value)} placeholder="40:00" style={inp} />
+        </div>
+
+        {/* Grace Time selector — only when editing */}
+        {editing && graceTimes.length > 0 && (
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11.5, fontWeight: 600, color: HNH.ink3, marginBottom: 6 }}>Dung sai chấm công (Grace Time)</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              <button onClick={() => setSelectedGraceId(null)} style={{ padding: '5px 11px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: `1.5px solid ${selectedGraceId === null ? HNH.navy : HNH.line}`, background: selectedGraceId === null ? HNH.navy50 : '#fff', color: selectedGraceId === null ? HNH.navy : HNH.ink3 }}>
+                Không dùng
+              </button>
+              {graceTimes.map(gt => (
+                <button key={gt.id} onClick={() => setSelectedGraceId(gt.id)} style={{ padding: '5px 11px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: `1.5px solid ${selectedGraceId === gt.id ? HNH.navy : HNH.line}`, background: selectedGraceId === gt.id ? HNH.navy50 : '#fff', color: selectedGraceId === gt.id ? HNH.navy : HNH.ink3 }}>
+                  ±{gt.allowed_min}'{gt.is_default ? ' ★' : ''}
+                </button>
+              ))}
+            </div>
           </div>
         )}
 
-        <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: HNH.ink3, marginBottom: 6 }}>Tên ca</div>
-          <input
-            value={name} onChange={e => setName(e.target.value)}
-            placeholder="Ví dụ: Ca hành chính 8h-17h"
-            style={{
-              width: '100%', padding: '10px 12px', borderRadius: 12,
-              border: `1.5px solid ${HNH.line}`, fontSize: 14, color: HNH.ink,
-              outline: 'none', boxSizing: 'border-box',
-            }}
-          />
-        </div>
-
-        <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, color: HNH.ink3, marginBottom: 8 }}>
-            Phòng ban được dùng ca này
-          </div>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+        {/* Phòng ban */}
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11.5, fontWeight: 600, color: HNH.ink3, marginBottom: 6 }}>Phòng ban áp dụng</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
             {departments.map(d => {
               const active = selectedDepts.includes(d.id)
               return (
-                <button key={d.id} onClick={() => toggleDept(d.id)} style={{
-                  padding: '6px 12px', borderRadius: 20,
-                  border: `1.5px solid ${active ? HNH.red : HNH.line}`,
-                  background: active ? HNH.red50 : '#fff',
-                  color: active ? HNH.red : HNH.ink2,
-                  fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
-                }}>
+                <button key={d.id} onClick={() => toggleDept(d.id)} style={{ padding: '5px 11px', borderRadius: 20, cursor: 'pointer', border: `1.5px solid ${active ? HNH.red : HNH.line}`, background: active ? HNH.red50 : '#fff', color: active ? HNH.red : HNH.ink3, fontSize: 12, fontWeight: 600 }}>
                   {d.department}
                 </button>
               )
@@ -479,18 +550,73 @@ function ShiftModal({ departments, onClose, onSaved, editing }: ShiftModalProps)
           </div>
         </div>
 
+        {/* Lịch làm việc theo ngày — only when editing */}
+        {editing && (
+          <div style={{ marginBottom: 16 }}>
+            <button onClick={() => setSchedSection(s => !s)} style={{ width: '100%', padding: '10px 14px', borderRadius: 12, border: `1.5px solid ${HNH.line}`, background: HNH.cream, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: schedSection ? 8 : 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Icon name="cal" size={15} color={HNH.navy} stroke={1.9} />
+                <span style={{ fontSize: 13, fontWeight: 700, color: HNH.ink }}>Lịch làm việc theo ngày</span>
+                <span style={{ fontSize: 11, color: HNH.ink4 }}>({Object.values(scheduleForm).filter(f => f.enabled).length}/7 ngày)</span>
+              </div>
+              <Icon name={schedSection ? 'chev-u' : 'chev-d'} size={15} color={HNH.ink4} stroke={2} />
+            </button>
+
+            {schedSection && (
+              <div style={{ border: `1.5px solid ${HNH.line}`, borderRadius: 12, overflow: 'hidden' }}>
+                {DAY_ORDER.map((day, idx) => {
+                  const form = scheduleForm[day]
+                  if (!form) return null
+                  return (
+                    <div key={day} style={{ borderTop: idx === 0 ? 'none' : `1px solid ${HNH.line}`, padding: '10px 12px', background: form.enabled ? '#fff' : HNH.cream }}>
+                      {/* Day header row */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: form.enabled ? 10 : 0 }}>
+                        <span style={{ fontSize: 11, fontWeight: 800, minWidth: 28, textAlign: 'center', padding: '3px 7px', borderRadius: 7, background: form.enabled ? HNH.navy50 : HNH.line, color: form.enabled ? HNH.navy : HNH.ink4 }}>
+                          {DAY_VI[day]}
+                        </span>
+                        <span style={{ flex: 1, fontSize: 12.5, color: form.enabled ? HNH.ink : HNH.ink4 }}>
+                          {form.enabled ? `${form.start_time} → ${form.end_time}${form.is_night_shift ? ' 🌙' : ''}` : 'Không làm'}
+                        </span>
+                        <Toggle value={form.enabled} onChange={v => setDay(day, { enabled: v })} />
+                      </div>
+
+                      {/* Expanded inputs */}
+                      {form.enabled && (
+                        <div style={{ paddingLeft: 36, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                            <div>
+                              <div style={{ fontSize: 10.5, color: HNH.ink4, fontWeight: 600, marginBottom: 4 }}>BẮT ĐẦU</div>
+                              <input type="time" value={form.start_time} onChange={e => setDay(day, { start_time: e.target.value })} style={{ ...inp, padding: '7px 9px', fontSize: 13 }} />
+                            </div>
+                            <div>
+                              <div style={{ fontSize: 10.5, color: HNH.ink4, fontWeight: 600, marginBottom: 4 }}>KẾT THÚC</div>
+                              <input type="time" value={form.end_time} onChange={e => setDay(day, { end_time: e.target.value })} style={{ ...inp, padding: '7px 9px', fontSize: 13 }} />
+                            </div>
+                          </div>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'flex-end' }}>
+                            <div>
+                              <div style={{ fontSize: 10.5, color: HNH.ink4, fontWeight: 600, marginBottom: 4 }}>TÍNH CÔNG TỐI THIỂU (HH:MM)</div>
+                              <input value={form.minimum_working_hour} onChange={e => setDay(day, { minimum_working_hour: e.target.value })} placeholder="08:15" style={{ ...inp, padding: '7px 9px', fontSize: 13 }} />
+                            </div>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, paddingBottom: 2 }}>
+                              <span style={{ fontSize: 10, color: HNH.ink4, fontWeight: 600 }}>CA ĐÊM</span>
+                              <Toggle value={form.is_night_shift} onChange={v => setDay(day, { is_night_shift: v })} />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Buttons */}
         <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={onClose} style={{
-            flex: 1, padding: '12px 0', borderRadius: 12,
-            border: `1.5px solid ${HNH.line}`, background: '#fff',
-            fontSize: 14, fontWeight: 600, color: HNH.ink2, cursor: 'pointer',
-          }}>Huỷ</button>
-          <button onClick={handleSave} disabled={saving} style={{
-            flex: 2, padding: '12px 0', borderRadius: 12,
-            border: 'none', background: HNH.red,
-            fontSize: 14, fontWeight: 700, color: '#fff',
-            cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
-          }}>
+          <button onClick={onClose} style={{ flex: 1, padding: '12px 0', borderRadius: 12, border: `1.5px solid ${HNH.line}`, background: '#fff', fontSize: 14, fontWeight: 600, color: HNH.ink2, cursor: 'pointer' }}>Huỷ</button>
+          <button onClick={handleSave} disabled={saving} style={{ flex: 2, padding: '12px 0', borderRadius: 12, border: 'none', background: HNH.red, fontSize: 14, fontWeight: 700, color: '#fff', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
             {saving ? 'Đang lưu...' : (editing ? 'Cập nhật' : 'Thêm ca')}
           </button>
         </div>
@@ -600,9 +726,24 @@ function ShiftCategoriesSection() {
       {modalOpen && (
         <ShiftModal
           departments={data?.departments ?? []}
+          graceTimes={data?.grace_times ?? []}
           editing={editing}
           onClose={() => setModalOpen(false)}
-          onSaved={() => { setModalOpen(false); loadData() }}
+          onSaved={async (newShiftId) => {
+            setModalOpen(false)
+            await loadData()
+            // Auto-open edit for newly created shift
+            if (!editing && newShiftId) {
+              setData(prev => {
+                if (!prev) return prev
+                const newShift = prev.shifts.find(s => s.id === newShiftId)
+                if (newShift) {
+                  setTimeout(() => { setEditing(newShift); setModalOpen(true) }, 100)
+                }
+                return prev
+              })
+            }
+          }}
         />
       )}
     </>

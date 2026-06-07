@@ -6,14 +6,14 @@ Permission scope:
   'manager' — Quản lý Ca: manage employees in own department(s) only
 """
 import calendar
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time as dtime, timedelta
 
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from attendance.models import AttendanceValidationCondition, EmployeeShiftPlan, ShiftChangeRequest
-from base.models import Department, DepartmentShift, EmployeeShift, EmployeeShiftSchedule, HRMConfig
+from base.models import Department, DepartmentShift, EmployeeShift, EmployeeShiftDay, EmployeeShiftSchedule, HRMConfig
 from employee.models import Employee
 
 try:
@@ -421,6 +421,7 @@ class ShiftCRUDView(APIView):
             grace_data = None
             if grace:
                 grace_data = {
+                    "id": grace.id,
                     "allowed_time": grace.allowed_time,
                     "allowed_min": round(grace.allowed_time_in_secs / 60),
                     "clock_in": grace.allowed_clock_in,
@@ -437,7 +438,18 @@ class ShiftCRUDView(APIView):
                 "grace_time": grace_data,
             })
         depts = list(Department.objects.values("id", "department").order_by("department"))
-        return Response({"shifts": result, "departments": depts})
+        grace_times_data = []
+        if _HAS_GRACE_TIME:
+            for g in GraceTime.objects.all().order_by("allowed_time_in_secs"):
+                grace_times_data.append({
+                    "id": g.id,
+                    "allowed_time": g.allowed_time,
+                    "allowed_min": round(g.allowed_time_in_secs / 60),
+                    "is_default": g.is_default,
+                    "clock_in": g.allowed_clock_in,
+                    "clock_out": g.allowed_clock_out,
+                })
+        return Response({"shifts": result, "departments": depts, "grace_times": grace_times_data})
 
     def post(self, request):
         if not self._is_hr(request):
@@ -452,8 +464,14 @@ class ShiftCRUDView(APIView):
                 return Response({"error": "Ca này đã tồn tại"}, status=400)
             shift = EmployeeShift.objects.create(
                 employee_shift=name,
-                weekly_full_time=float(request.data.get("weekly_full_time") or 40),
+                weekly_full_time=request.data.get("weekly_full_time") or "40:00",
             )
+            dept_ids = request.data.get("department_ids") or []
+            for did in dept_ids:
+                try:
+                    DepartmentShift.objects.get_or_create(department_id=int(did), shift_id=shift.id)
+                except Exception:
+                    pass
             return Response({"ok": True, "id": shift.id, "name": shift.employee_shift}, status=201)
 
         if action == "update_shift":
@@ -465,8 +483,25 @@ class ShiftCRUDView(APIView):
             if "name" in request.data:
                 shift.employee_shift = request.data["name"].strip()
             if "weekly_full_time" in request.data:
-                shift.weekly_full_time = float(request.data["weekly_full_time"] or 40)
+                shift.weekly_full_time = request.data["weekly_full_time"] or "40:00"
+            if _HAS_GRACE_TIME and "grace_time_id" in request.data:
+                gid = request.data["grace_time_id"]
+                if gid:
+                    try:
+                        shift.grace_time_id = GraceTime.objects.get(id=int(gid))
+                    except GraceTime.DoesNotExist:
+                        pass
+                else:
+                    shift.grace_time_id = None
             shift.save()
+            if "department_ids" in request.data:
+                dept_ids = request.data["department_ids"] or []
+                DepartmentShift.objects.filter(shift_id=shift_id).exclude(department_id__in=dept_ids).delete()
+                for did in dept_ids:
+                    try:
+                        DepartmentShift.objects.get_or_create(department_id=int(did), shift_id=shift_id)
+                    except Exception:
+                        pass
             return Response({"ok": True})
 
         if action == "delete_shift":
@@ -493,6 +528,53 @@ class ShiftCRUDView(APIView):
             shift_id = request.data.get("shift_id")
             DepartmentShift.objects.filter(department_id=dept_id, shift_id=shift_id).delete()
             return Response({"ok": True})
+
+        if action == "upsert_schedule":
+            shift_id = request.data.get("shift_id")
+            day_name = (request.data.get("day") or "").lower()
+            start_time_str = request.data.get("start_time")
+            end_time_str = request.data.get("end_time")
+            minimum_working_hour = request.data.get("minimum_working_hour") or "08:15"
+            is_night_shift = bool(request.data.get("is_night_shift", False))
+            try:
+                shift = EmployeeShift.objects.get(id=shift_id)
+            except EmployeeShift.DoesNotExist:
+                return Response({"error": "Ca không tồn tại"}, status=404)
+            day_obj = EmployeeShiftDay.objects.filter(day=day_name).first()
+            if not day_obj:
+                day_obj = EmployeeShiftDay.objects.create(day=day_name)
+            schedule, _ = EmployeeShiftSchedule.objects.get_or_create(shift_id=shift, day=day_obj)
+            if start_time_str:
+                try:
+                    h, m = map(int, start_time_str.split(":"))
+                    schedule.start_time = dtime(h, m)
+                except (ValueError, TypeError):
+                    pass
+            if end_time_str:
+                try:
+                    h, m = map(int, end_time_str.split(":"))
+                    schedule.end_time = dtime(h, m)
+                except (ValueError, TypeError):
+                    pass
+            schedule.minimum_working_hour = minimum_working_hour
+            schedule.is_night_shift = is_night_shift
+            schedule.save()
+            blocks = None
+            if schedule.start_time and schedule.end_time:
+                start_dt = datetime.combine(datetime.today(), schedule.start_time)
+                end_dt = datetime.combine(datetime.today(), schedule.end_time)
+                if end_dt <= start_dt:
+                    end_dt += timedelta(days=1)
+                blocks = int((end_dt - start_dt).total_seconds() / 900)
+            return Response({"ok": True, "blocks": blocks})
+
+        if action == "delete_schedule":
+            shift_id = request.data.get("shift_id")
+            day_name = (request.data.get("day") or "").lower()
+            deleted, _ = EmployeeShiftSchedule.objects.filter(
+                shift_id_id=shift_id, day__day=day_name
+            ).delete()
+            return Response({"ok": True, "deleted": deleted})
 
         return Response({"error": "action không hợp lệ"}, status=400)
 
