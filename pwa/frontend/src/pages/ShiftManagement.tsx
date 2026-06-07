@@ -15,18 +15,28 @@ interface Shift {
   schedules: { day: string; start_time: string | null; end_time: string | null; is_night_shift: boolean }[]
 }
 
+interface Company {
+  id: number
+  name: string
+}
+
 interface Dept {
   id: number
   name: string
+  company_ids: number[]
   shift_ids: number[]
 }
 
 interface Emp {
   id: number
   name: string
+  first_name: string
+  last_name: string
   badge_id: string
   department_id: number | null
   department_name: string
+  company_id: number | null
+  company_name: string
   shift_id: number | null
   shift_name: string
   avatar: string | null
@@ -362,12 +372,13 @@ function ShiftPickerSheet({ cell, availableShifts, cellPlans, onAdd, onRemove, o
 // ── Schedule Tab (2D table grid) ───────────────────────────────────────────────
 
 function ScheduleTab({
-  shifts, depts, employees, plans, userScope, mgrDeptIds,
+  shifts, depts, employees, companies, plans, userScope, mgrDeptIds,
   onAddPlan, onRemovePlan,
 }: {
   shifts: Shift[]
   depts: Dept[]
   employees: Emp[]
+  companies: Company[]
   plans: ShiftPlan[]
   userScope: Scope
   mgrDeptIds: number[]
@@ -375,6 +386,7 @@ function ScheduleTab({
   onRemovePlan: (planId: number) => Promise<void>
 }) {
   const isCnb = userScope === 'cnb'
+  const [filterCompanyId, setFilterCompanyId] = useState<number | null>(null)
   const [filterDeptId, setFilterDeptId] = useState<number | null>(null)
   const [activeCell, setActiveCell] = useState<ActiveCell | null>(null)
 
@@ -384,6 +396,17 @@ function ScheduleTab({
     [depts, isCnb, mgrDeptIds]
   )
 
+  // Depts filtered by selected company
+  const visibleDepts = useMemo(() => {
+    if (!filterCompanyId) return availableDepts
+    return availableDepts.filter(d => d.company_ids.includes(filterCompanyId))
+  }, [availableDepts, filterCompanyId])
+
+  // Reset dept filter when company changes
+  useEffect(() => {
+    setFilterDeptId(null)
+  }, [filterCompanyId])
+
   // Auto-select first dept for manager if only one
   useEffect(() => {
     if (!isCnb && availableDepts.length === 1) {
@@ -392,7 +415,7 @@ function ScheduleTab({
   }, [isCnb, availableDepts])
 
   // Shifts available for the selected dept (from Setup tab assignments)
-  const activeDept = availableDepts.find(d => d.id === filterDeptId) ?? null
+  const activeDept = visibleDepts.find(d => d.id === filterDeptId) ?? null
   const availableShiftsForDept = useMemo(() => {
     if (!activeDept || activeDept.shift_ids.length === 0) return shifts
     return shifts.filter(s => activeDept.shift_ids.includes(s.id))
@@ -404,11 +427,14 @@ function ScheduleTab({
     if (!isCnb) {
       list = list.filter(e => mgrDeptIds.includes(e.department_id ?? -1))
     }
+    if (filterCompanyId) {
+      list = list.filter(e => e.company_id === filterCompanyId)
+    }
     if (filterDeptId) {
       list = list.filter(e => e.department_id === filterDeptId)
     }
     return list
-  }, [employees, isCnb, mgrDeptIds, filterDeptId])
+  }, [employees, isCnb, mgrDeptIds, filterCompanyId, filterDeptId])
 
   // Plans map: employee_id → date_str → ShiftPlan[] sorted by start_time
   const planMap = useMemo(() => {
@@ -458,42 +484,73 @@ function ScheduleTab({
 
   return (
     <div style={{ paddingBottom: 80 }}>
-      {/* Dept filter */}
-      {availableDepts.length > 1 && (
-        <div style={{ padding: '10px 16px 0' }}>
-          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 6 }}>
-            {isCnb && (
+      {/* Company + Dept filter rows */}
+      <div style={{ padding: '8px 16px 0', display: 'flex', flexDirection: 'column', gap: 6 }}>
+        {/* Company row */}
+        {companies.length > 1 && (
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 2 }}>
+            <button
+              onClick={() => setFilterCompanyId(null)}
+              style={{
+                flexShrink: 0, height: 28, borderRadius: 20, border: 'none', cursor: 'pointer',
+                padding: '0 12px',
+                background: filterCompanyId === null ? HNH.navy : HNH.cream2,
+                color: filterCompanyId === null ? '#fff' : HNH.ink2,
+                fontSize: 11.5, fontWeight: 600, whiteSpace: 'nowrap',
+              }}
+            >
+              Tất cả công ty
+            </button>
+            {companies.map(c => (
               <button
-                onClick={() => setFilterDeptId(null)}
+                key={c.id}
+                onClick={() => setFilterCompanyId(c.id)}
                 style={{
-                  flexShrink: 0, height: 32, borderRadius: 20, border: 'none', cursor: 'pointer',
-                  padding: '0 14px',
-                  background: filterDeptId === null ? HNH.red : HNH.cream2,
-                  color: filterDeptId === null ? '#fff' : HNH.ink2,
-                  fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap',
+                  flexShrink: 0, height: 28, borderRadius: 20, border: 'none', cursor: 'pointer',
+                  padding: '0 12px', whiteSpace: 'nowrap',
+                  background: filterCompanyId === c.id ? HNH.navy : HNH.cream2,
+                  color: filterCompanyId === c.id ? '#fff' : HNH.ink2,
+                  fontSize: 11.5, fontWeight: 600,
                 }}
               >
-                Tất cả
+                {c.name}
               </button>
-            )}
-            {availableDepts.map(d => (
+            ))}
+          </div>
+        )}
+        {/* Dept row */}
+        {visibleDepts.length > 1 && (
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
+            <button
+              onClick={() => setFilterDeptId(null)}
+              style={{
+                flexShrink: 0, height: 28, borderRadius: 20, border: 'none', cursor: 'pointer',
+                padding: '0 12px',
+                background: filterDeptId === null ? HNH.red : HNH.cream2,
+                color: filterDeptId === null ? '#fff' : HNH.ink2,
+                fontSize: 11.5, fontWeight: 600, whiteSpace: 'nowrap',
+              }}
+            >
+              Tất cả phòng
+            </button>
+            {visibleDepts.map(d => (
               <button
                 key={d.id}
                 onClick={() => setFilterDeptId(d.id)}
                 style={{
-                  flexShrink: 0, height: 32, borderRadius: 20, border: 'none', cursor: 'pointer',
-                  padding: '0 14px', whiteSpace: 'nowrap',
-                  background: filterDeptId === d.id ? HNH.navy : HNH.cream2,
+                  flexShrink: 0, height: 28, borderRadius: 20, border: 'none', cursor: 'pointer',
+                  padding: '0 12px', whiteSpace: 'nowrap',
+                  background: filterDeptId === d.id ? HNH.red : HNH.cream2,
                   color: filterDeptId === d.id ? '#fff' : HNH.ink2,
-                  fontSize: 12, fontWeight: 600,
+                  fontSize: 11.5, fontWeight: 600,
                 }}
               >
                 {d.name}
               </button>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Date range label */}
       <div style={{ padding: '6px 16px 8px', fontSize: 11.5, color: HNH.ink3, fontWeight: 600 }}>
@@ -566,19 +623,33 @@ function ScheduleTab({
                     background: ri % 2 === 0 ? '#fff' : '#fafaf8',
                     borderBottom: `1px solid ${HNH.line}`,
                     borderRight: `1px solid ${HNH.line}`,
-                    padding: '6px 8px',
+                    padding: '5px 8px',
                     verticalAlign: 'middle',
                   }}>
+                    {/* Tên — large bold */}
                     <div style={{
-                      fontSize: 12, fontWeight: 600, color: HNH.ink,
+                      fontSize: 13, fontWeight: 700, color: HNH.ink,
                       overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      maxWidth: 80,
+                      maxWidth: 82,
                     }}>
-                      {emp.name}
+                      {emp.first_name || emp.name.split(' ').slice(-1)[0]}
                     </div>
-                    <div style={{ fontSize: 10, color: HNH.ink3, marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {emp.badge_id || emp.department_name || '—'}
-                    </div>
+                    {/* Họ đệm — small */}
+                    {(emp.last_name || emp.name.split(' ').length > 1) && (
+                      <div style={{
+                        fontSize: 10, color: HNH.ink3, fontWeight: 500,
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        maxWidth: 82,
+                      }}>
+                        {emp.last_name || emp.name.split(' ').slice(0, -1).join(' ')}
+                      </div>
+                    )}
+                    {/* Mã NV — smallest */}
+                    {emp.badge_id && (
+                      <div style={{ fontSize: 9.5, color: HNH.ink4, fontWeight: 600, letterSpacing: 0.2, whiteSpace: 'nowrap' }}>
+                        {emp.badge_id}
+                      </div>
+                    )}
                   </td>
 
                   {/* Date cells */}
@@ -674,6 +745,7 @@ export function ShiftManagementPage() {
   const [shifts, setShifts] = useState<Shift[]>([])
   const [depts, setDepts] = useState<Dept[]>([])
   const [employees, setEmployees] = useState<Emp[]>([])
+  const [companies, setCompanies] = useState<Company[]>([])
   const [plans, setPlans] = useState<ShiftPlan[]>([])
   const [loading, setLoading] = useState(true)
   const [toast, setToast] = useState<string | null>(null)
@@ -697,11 +769,12 @@ export function ShiftManagementPage() {
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
-      const [scopeRes, shiftsRes, deptsRes, empsRes] = await Promise.allSettled([
+      const [scopeRes, shiftsRes, deptsRes, empsRes, companiesRes] = await Promise.allSettled([
         api.get<{ scope: Scope; department_ids: number[] }>('/api/employee/shift-mgmt/scope/'),
         api.get<Shift[]>('/api/employee/shift-mgmt/shifts/'),
         api.get<Dept[]>('/api/employee/shift-mgmt/dept-shifts/'),
         api.get<Emp[]>('/api/employee/shift-mgmt/employees/'),
+        api.get<Company[]>('/api/employee/companies/'),
       ])
 
       if (scopeRes.status === 'fulfilled') {
@@ -711,6 +784,7 @@ export function ShiftManagementPage() {
       if (shiftsRes.status === 'fulfilled') setShifts(shiftsRes.value)
       if (deptsRes.status === 'fulfilled') setDepts(deptsRes.value)
       if (empsRes.status === 'fulfilled') setEmployees(empsRes.value)
+      if (companiesRes.status === 'fulfilled') setCompanies(companiesRes.value)
 
       await loadPlans()
     } catch (e) {
@@ -856,6 +930,7 @@ export function ShiftManagementPage() {
           shifts={shifts}
           depts={depts}
           employees={employees}
+          companies={companies}
           plans={plans}
           userScope={userScope}
           mgrDeptIds={mgrDeptIds}

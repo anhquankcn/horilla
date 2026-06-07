@@ -159,7 +159,7 @@ class ShiftMgmtDeptShiftView(APIView):
         if not scope:
             return Response([])
 
-        depts = Department.objects.prefetch_related("active_shifts__shift").all()
+        depts = Department.objects.prefetch_related("active_shifts__shift", "company_id").all()
         if scope == "manager":
             mgr_ids = _manager_dept_ids(request)
             depts = depts.filter(id__in=mgr_ids)
@@ -168,6 +168,7 @@ class ShiftMgmtDeptShiftView(APIView):
             {
                 "id": d.id,
                 "name": d.department,
+                "company_ids": list(d.company_id.values_list("id", flat=True)),
                 "shift_ids": list(d.active_shifts.values_list("shift_id", flat=True)),
             }
             for d in depts
@@ -208,9 +209,11 @@ class ShiftMgmtEmployeesView(APIView):
             return Response([])
 
         dept_id = request.query_params.get("department_id")
+        company_id = request.query_params.get("company_id")
         qs = Employee.objects.filter(is_active=True).select_related(
             "employee_work_info__shift_id",
             "employee_work_info__department_id",
+            "employee_work_info__company_id",
         )
 
         if scope == "manager":
@@ -219,12 +222,15 @@ class ShiftMgmtEmployeesView(APIView):
 
         if dept_id:
             qs = qs.filter(employee_work_info__department_id=dept_id)
+        if company_id:
+            qs = qs.filter(employee_work_info__company_id=company_id)
 
         result = []
         for emp in qs.order_by("employee_first_name", "employee_last_name"):
             wi = getattr(emp, "employee_work_info", None)
             dept = wi.department_id if wi else None
             shift = wi.shift_id if wi else None
+            company = wi.company_id if wi else None
             avatar_url = None
             if emp.employee_profile:
                 try:
@@ -234,9 +240,13 @@ class ShiftMgmtEmployeesView(APIView):
             result.append({
                 "id": emp.id,
                 "name": emp.get_full_name(),
+                "first_name": emp.employee_first_name or "",
+                "last_name": emp.employee_last_name or "",
                 "badge_id": emp.badge_id or "",
                 "department_id": dept.id if dept else None,
                 "department_name": dept.department if dept else "",
+                "company_id": company.id if company else None,
+                "company_name": company.company if company else "",
                 "shift_id": shift.id if shift else None,
                 "shift_name": shift.employee_shift if shift else "",
                 "avatar": avatar_url,
