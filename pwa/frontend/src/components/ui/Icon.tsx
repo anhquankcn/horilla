@@ -20,6 +20,7 @@ export function Icon({ name, size = 18, color = HNH.ink, stroke: sw = 1.8 }: Ico
     case 'chev-r': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="m9 6 6 6-6 6" {...p}/></svg>
     case 'chev-l': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="m15 6-6 6 6 6" {...p}/></svg>
     case 'chev-d': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" {...p}/></svg>
+    case 'chev-u': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="m18 15-6-6-6 6" {...p}/></svg>
     case 'cal': return <svg width={size} height={size} viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2" {...p}/><path d="M3.5 10h17M8 3v4M16 3v4" {...p}/></svg>
     case 'arrow-up': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M12 19V5M6 11l6-6 6 6" {...p}/></svg>
     case 'arrow-r': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6" {...p}/></svg>

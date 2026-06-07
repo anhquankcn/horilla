@@ -1680,3 +1680,56 @@ class EmployeeShiftPlan(models.Model):
 
     def __str__(self):
         return f"{self.employee} | {self.date} → {self.shift.employee_shift}"
+
+
+class ShiftChangeRequest(models.Model):
+    """Shift assignment request from employee (needs manager approval) or direct plan."""
+
+    STATUS_CHOICES = [
+        ("pending", "Chờ duyệt"),
+        ("approved", "Đã duyệt"),
+        ("rejected", "Từ chối"),
+    ]
+
+    employee = models.ForeignKey(
+        "employee.Employee",
+        on_delete=models.CASCADE,
+        related_name="shift_change_requests",
+        verbose_name="Nhân viên",
+    )
+    shift = models.ForeignKey(
+        "base.EmployeeShift",
+        on_delete=models.PROTECT,
+        related_name="change_requests",
+        verbose_name="Ca làm việc",
+    )
+    date = models.DateField(verbose_name="Ngày")
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default="pending", verbose_name="Trạng thái"
+    )
+    requested_by = models.ForeignKey(
+        "employee.Employee",
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="submitted_shift_requests",
+        verbose_name="Người đề xuất",
+    )
+    approved_by = models.ForeignKey(
+        "employee.Employee",
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="processed_shift_requests",
+        verbose_name="Người duyệt",
+    )
+    note = models.CharField(max_length=300, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        db_table = "attendance_shiftchangerequest"
+        verbose_name = "Shift Change Request"
+        verbose_name_plural = "Shift Change Requests"
+
+    def __str__(self):
+        return f"{self.employee} | {self.date} → {self.shift.employee_shift} [{self.status}]"

@@ -493,6 +493,7 @@ export function OrgChartPage() {
               <>
                 <button onClick={expandAll} style={btnStyle}>Mở rộng</button>
                 <button onClick={collapseAll} style={btnStyle}>Thu gọn</button>
+                <button onClick={fetchTree} style={{ ...btnStyle, background: HNH.red, color: '#fff', borderColor: HNH.red }}>Cập nhật</button>
               </>
             )}
           </div>

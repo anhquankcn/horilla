@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
@@ -9,6 +9,22 @@ import { api } from '../lib/api'
 interface HRMConfigData {
   geo_approval_required: boolean
   is_hr: boolean
+}
+
+interface ShiftInfo {
+  id: number
+  employee_shift: string
+  department_ids: number[]
+}
+
+interface Department {
+  id: number
+  department: string
+}
+
+interface ShiftCategoriesData {
+  shifts: ShiftInfo[]
+  departments: Department[]
 }
 
 function SectionTitle({ title }: { title: string }) {
@@ -98,6 +114,296 @@ function SettingRow({ icon, label, detail, tone, last, onClick, trailing }: {
   )
 }
 
+// ── Shift Categories Modal ─────────────────────────────────────────────────────
+
+interface ShiftModalProps {
+  departments: Department[]
+  onClose: () => void
+  onSaved: () => void
+  editing: ShiftInfo | null
+}
+
+function ShiftModal({ departments, onClose, onSaved, editing }: ShiftModalProps) {
+  const { toast: showToast } = useToast()
+  const [name, setName] = useState(editing?.employee_shift ?? '')
+  const [selectedDepts, setSelectedDepts] = useState<number[]>(editing?.department_ids ?? [])
+  const [saving, setSaving] = useState(false)
+
+  const toggleDept = (id: number) => {
+    setSelectedDepts(prev => prev.includes(id) ? prev.filter(d => d !== id) : [...prev, id])
+  }
+
+  const handleSave = async () => {
+    if (!name.trim()) { showToast('Vui lòng nhập tên ca'); return }
+    setSaving(true)
+    try {
+      if (editing) {
+        await api.post('/api/employee/shift-categories/', {
+          action: 'update_shift', shift_id: editing.id, name: name.trim(), department_ids: selectedDepts,
+        })
+      } else {
+        await api.post('/api/employee/shift-categories/', {
+          action: 'create_shift', name: name.trim(), department_ids: selectedDepts,
+        })
+      }
+      showToast(editing ? 'Đã cập nhật ca' : 'Đã thêm ca mới')
+      onSaved()
+    } catch (e: any) {
+      showToast(e?.message ?? 'Lỗi khi lưu ca')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 9999,
+      background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end',
+    }} onClick={onClose}>
+      <div
+        style={{
+          background: '#fff', borderRadius: '20px 20px 0 0',
+          width: '100%', maxHeight: '85vh', overflowY: 'auto',
+          padding: '24px 20px 40px',
+        }}
+        onClick={e => e.stopPropagation()}
+      >
+        <div style={{ fontWeight: 700, fontSize: 17, color: HNH.ink, marginBottom: 18 }}>
+          {editing ? 'Sửa ca làm việc' : 'Thêm ca làm việc'}
+        </div>
+
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: HNH.ink3, marginBottom: 6 }}>Tên ca</div>
+          <input
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="Ví dụ: Ca hành chính 8h-17h"
+            style={{
+              width: '100%', padding: '10px 12px', borderRadius: 12,
+              border: `1.5px solid ${HNH.line}`, fontSize: 14, color: HNH.ink,
+              outline: 'none', boxSizing: 'border-box',
+            }}
+          />
+        </div>
+
+        <div style={{ marginBottom: 20 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: HNH.ink3, marginBottom: 8 }}>
+            Phòng ban được dùng ca này
+          </div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {departments.map(d => {
+              const active = selectedDepts.includes(d.id)
+              return (
+                <button
+                  key={d.id}
+                  onClick={() => toggleDept(d.id)}
+                  style={{
+                    padding: '6px 12px', borderRadius: 20,
+                    border: `1.5px solid ${active ? HNH.red : HNH.line}`,
+                    background: active ? HNH.red50 : '#fff',
+                    color: active ? HNH.red : HNH.ink2,
+                    fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+                  }}
+                >
+                  {d.department}
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1, padding: '12px 0', borderRadius: 12,
+              border: `1.5px solid ${HNH.line}`, background: '#fff',
+              fontSize: 14, fontWeight: 600, color: HNH.ink2, cursor: 'pointer',
+            }}
+          >
+            Huỷ
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            style={{
+              flex: 2, padding: '12px 0', borderRadius: 12,
+              border: 'none', background: HNH.red,
+              fontSize: 14, fontWeight: 700, color: '#fff',
+              cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
+            }}
+          >
+            {saving ? 'Đang lưu...' : (editing ? 'Cập nhật' : 'Thêm ca')}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Shift Categories Section ───────────────────────────────────────────────────
+
+function ShiftCategoriesSection() {
+  const { toast: showToast } = useToast()
+  const [data, setData] = useState<ShiftCategoriesData | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [expanded, setExpanded] = useState(false)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editing, setEditing] = useState<ShiftInfo | null>(null)
+  const [deleting, setDeleting] = useState<number | null>(null)
+
+  const loadData = useCallback(async () => {
+    if (!expanded) return
+    setLoading(true)
+    try {
+      const res = await api.get<ShiftCategoriesData>('/api/employee/shift-categories/')
+      setData(res)
+    } catch {
+      showToast('Không thể tải danh sách ca')
+    } finally {
+      setLoading(false)
+    }
+  }, [expanded, showToast])
+
+  useEffect(() => { loadData() }, [loadData])
+
+  const handleDelete = async (shiftId: number) => {
+    if (!confirm('Xoá ca này? Thao tác không thể hoàn tác.')) return
+    setDeleting(shiftId)
+    try {
+      await api.post('/api/employee/shift-categories/', { action: 'delete_shift', shift_id: shiftId })
+      showToast('Đã xoá ca')
+      loadData()
+    } catch (e: any) {
+      showToast(e?.message ?? 'Lỗi khi xoá ca')
+    } finally {
+      setDeleting(null)
+    }
+  }
+
+  const deptMap = Object.fromEntries((data?.departments ?? []).map(d => [d.id, d.department]))
+
+  return (
+    <>
+      <SettingCard>
+        <SettingRow
+          icon="clock"
+          label="Quản lý Danh mục Ca"
+          detail={data ? `${data.shifts.length} ca đang hoạt động` : 'Thêm, sửa, xoá ca làm việc và phân quyền phòng ban'}
+          tone="red"
+          last={!expanded}
+          onClick={() => setExpanded(e => !e)}
+          trailing={
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              <Icon name={expanded ? 'chev-u' : 'chev-d'} size={16} color={HNH.ink4} stroke={2} />
+            </div>
+          }
+        />
+
+        {expanded && (
+          <div style={{ borderTop: `1px solid ${HNH.line}` }}>
+            {/* Add button */}
+            <div style={{ padding: '10px 14px', display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => { setEditing(null); setModalOpen(true) }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  padding: '7px 14px', borderRadius: 10,
+                  border: 'none', background: HNH.red, color: '#fff',
+                  fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                }}
+              >
+                <Icon name="plus" size={14} color="#fff" stroke={2.5} />
+                Thêm ca
+              </button>
+            </div>
+
+            {loading && (
+              <div style={{ padding: '20px 0', display: 'flex', justifyContent: 'center' }}>
+                <div style={{ width: 22, height: 22, border: `3px solid ${HNH.line}`, borderTopColor: HNH.red, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+              </div>
+            )}
+
+            {!loading && data && data.shifts.length === 0 && (
+              <div style={{ padding: '16px 14px', fontSize: 13, color: HNH.ink3, textAlign: 'center' }}>
+                Chưa có ca nào. Bấm "Thêm ca" để tạo mới.
+              </div>
+            )}
+
+            {!loading && data && data.shifts.map((shift, idx) => (
+              <div
+                key={shift.id}
+                style={{
+                  padding: '10px 14px',
+                  borderTop: idx === 0 ? 'none' : `1px solid ${HNH.line}`,
+                  display: 'flex', alignItems: 'flex-start', gap: 10,
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: HNH.ink }}>{shift.employee_shift}</div>
+                  {shift.department_ids.length > 0 ? (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 5 }}>
+                      {shift.department_ids.map(dId => (
+                        <span
+                          key={dId}
+                          style={{
+                            fontSize: 11, padding: '2px 8px', borderRadius: 10,
+                            background: HNH.navy50, color: HNH.navy, fontWeight: 600,
+                          }}
+                        >
+                          {deptMap[dId] ?? `PB#${dId}`}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ fontSize: 11.5, color: HNH.ink4, marginTop: 3 }}>Chưa phân quyền phòng ban</div>
+                  )}
+                </div>
+                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  <button
+                    onClick={() => { setEditing(shift); setModalOpen(true) }}
+                    style={{
+                      padding: '5px 10px', borderRadius: 8,
+                      border: `1.5px solid ${HNH.line}`, background: '#fff',
+                      fontSize: 12, fontWeight: 600, color: HNH.ink2, cursor: 'pointer',
+                    }}
+                  >
+                    Sửa
+                  </button>
+                  <button
+                    onClick={() => handleDelete(shift.id)}
+                    disabled={deleting === shift.id}
+                    style={{
+                      padding: '5px 10px', borderRadius: 8,
+                      border: `1.5px solid ${HNH.red}20`, background: HNH.red50,
+                      fontSize: 12, fontWeight: 600, color: HNH.red,
+                      cursor: deleting === shift.id ? 'not-allowed' : 'pointer',
+                      opacity: deleting === shift.id ? 0.6 : 1,
+                    }}
+                  >
+                    Xoá
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </SettingCard>
+
+      {modalOpen && (
+        <ShiftModal
+          departments={data?.departments ?? []}
+          editing={editing}
+          onClose={() => setModalOpen(false)}
+          onSaved={() => { setModalOpen(false); loadData() }}
+        />
+      )}
+    </>
+  )
+}
+
+// ── Main Page ──────────────────────────────────────────────────────────────────
+
 export function AttendanceSettingsPage() {
   const navigate = useNavigate()
   const { toast: showToast } = useToast()
@@ -178,6 +484,9 @@ export function AttendanceSettingsPage() {
             }
           />
         </SettingCard>
+
+        <SectionTitle title="Danh mục Ca làm việc" />
+        <ShiftCategoriesSection />
 
         <SectionTitle title="Thông tin" />
         <SettingCard>

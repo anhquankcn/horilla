@@ -12,7 +12,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from attendance.models import EmployeeShiftPlan
+from attendance.models import EmployeeShiftPlan, ShiftChangeRequest
 from base.models import Department, DepartmentShift, EmployeeShift
 from employee.models import Employee
 
@@ -364,3 +364,392 @@ class ShiftMgmtPlanView(APIView):
         if count == 0:
             return Response({"error": "Không tìm thấy hoặc không có quyền"}, status=404)
         return Response({"deleted": count})
+
+
+class ShiftCRUDView(APIView):
+    """CRUD for EmployeeShift definitions (C&B/superuser only) + dept-shift assignment."""
+
+    permission_classes = [IsAuthenticated]
+
+    def _is_hr(self, request):
+        if request.user.is_superuser:
+            return True
+        return _get_scope(request) == "cnb"
+
+    def get(self, request):
+        if not self._is_hr(request):
+            return Response({"error": "Không có quyền"}, status=403)
+        shifts = EmployeeShift.objects.prefetch_related(
+            "department_assignments__department"
+        ).all().order_by("employee_shift")
+        result = []
+        for s in shifts:
+            result.append({
+                "id": s.id,
+                "name": s.employee_shift,
+                "weekly_full_time": s.weekly_full_time,
+                "department_ids": list(s.department_assignments.values_list("department_id", flat=True)),
+                "department_names": list(s.department_assignments.values_list("department__department", flat=True)),
+            })
+        depts = list(Department.objects.values("id", "department").order_by("department"))
+        return Response({"shifts": result, "departments": depts})
+
+    def post(self, request):
+        if not self._is_hr(request):
+            return Response({"error": "Không có quyền"}, status=403)
+        action = request.data.get("action", "create_shift")
+
+        if action == "create_shift":
+            name = request.data.get("name", "").strip()
+            if not name:
+                return Response({"error": "Tên ca không được để trống"}, status=400)
+            if EmployeeShift.objects.filter(employee_shift=name).exists():
+                return Response({"error": "Ca này đã tồn tại"}, status=400)
+            shift = EmployeeShift.objects.create(
+                employee_shift=name,
+                weekly_full_time=float(request.data.get("weekly_full_time") or 40),
+            )
+            return Response({"ok": True, "id": shift.id, "name": shift.employee_shift}, status=201)
+
+        if action == "update_shift":
+            shift_id = request.data.get("shift_id")
+            try:
+                shift = EmployeeShift.objects.get(id=shift_id)
+            except EmployeeShift.DoesNotExist:
+                return Response({"error": "Không tìm thấy ca"}, status=404)
+            if "name" in request.data:
+                shift.employee_shift = request.data["name"].strip()
+            if "weekly_full_time" in request.data:
+                shift.weekly_full_time = float(request.data["weekly_full_time"] or 40)
+            shift.save()
+            return Response({"ok": True})
+
+        if action == "delete_shift":
+            shift_id = request.data.get("shift_id")
+            try:
+                shift = EmployeeShift.objects.get(id=shift_id)
+                shift.delete()
+                return Response({"ok": True})
+            except EmployeeShift.DoesNotExist:
+                return Response({"error": "Không tìm thấy ca"}, status=404)
+            except Exception as e:
+                return Response({"error": f"Không thể xóa: {e}"}, status=400)
+
+        if action == "assign_dept":
+            dept_id = request.data.get("department_id")
+            shift_id = request.data.get("shift_id")
+            obj, created = DepartmentShift.objects.get_or_create(
+                department_id=dept_id, shift_id=shift_id
+            )
+            return Response({"ok": True, "created": created})
+
+        if action == "remove_dept":
+            dept_id = request.data.get("department_id")
+            shift_id = request.data.get("shift_id")
+            DepartmentShift.objects.filter(department_id=dept_id, shift_id=shift_id).delete()
+            return Response({"ok": True})
+
+        return Response({"error": "action không hợp lệ"}, status=400)
+
+
+class ShiftPlannerView(APIView):
+    """
+    Monthly shift planner grid for employee self-assign + manager direct assign.
+
+    GET  ?month=YYYY-MM&dept_id=N
+    POST {employee_id, shift_id, date, copy_scope: 1day|this_week|next_week|this_month}
+    PATCH {action: approve|reject, request_id, copy_scope?}
+    DELETE {plan_id?, request_id?}
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def _get_emp(self, request):
+        try:
+            return request.user.employee_get
+        except Exception:
+            return None
+
+    def _is_hr(self, request):
+        return request.user.is_superuser or _get_scope(request) == "cnb"
+
+    def _is_manager_of(self, mgr_emp, emp_id):
+        return Employee.objects.filter(
+            id=emp_id,
+            employee_work_info__reporting_manager_id=mgr_emp,
+        ).exists()
+
+    def _plan_dates(self, base_date, copy_scope):
+        if copy_scope == "this_week":
+            monday = base_date - timedelta(days=base_date.weekday())
+            return [monday + timedelta(days=i) for i in range(7)]
+        if copy_scope == "next_week":
+            days_ahead = 7 - base_date.weekday()
+            monday = base_date + timedelta(days=days_ahead)
+            return [monday + timedelta(days=i) for i in range(7)]
+        if copy_scope == "this_month":
+            last = calendar.monthrange(base_date.year, base_date.month)[1]
+            return [date(base_date.year, base_date.month, d) for d in range(1, last + 1)]
+        return [base_date]
+
+    def _emp_row(self, emp, request):
+        wi = getattr(emp, "employee_work_info", None)
+        dept = getattr(wi, "department_id", None) if wi else None
+        avatar_url = None
+        if emp.employee_profile:
+            try:
+                avatar_url = request.build_absolute_uri(emp.employee_profile.url)
+            except Exception:
+                pass
+        return {
+            "id": emp.id,
+            "name": emp.get_full_name(),
+            "badge_id": emp.badge_id or "",
+            "department_id": dept.id if dept else None,
+            "department_name": dept.department if dept else "",
+            "avatar": avatar_url,
+        }
+
+    def get(self, request):
+        me = self._get_emp(request)
+        if not me:
+            return Response({"error": "No employee"}, status=400)
+
+        month_str = request.query_params.get("month", "")
+        dept_id = request.query_params.get("dept_id", "")
+        try:
+            if month_str:
+                dt = datetime.strptime(month_str, "%Y-%m")
+                year, month_num = dt.year, dt.month
+            else:
+                today = date.today()
+                year, month_num = today.year, today.month
+        except ValueError:
+            return Response({"error": "month phải có dạng YYYY-MM"}, status=400)
+
+        last_day = calendar.monthrange(year, month_num)[1]
+        from_date = date(year, month_num, 1)
+        to_date = date(year, month_num, last_day)
+
+        is_hr = self._is_hr(request)
+        managed_ids = list(
+            Employee.objects.filter(
+                employee_work_info__reporting_manager_id=me, is_active=True
+            ).values_list("id", flat=True)
+        )
+        is_manager = len(managed_ids) > 0
+
+        if is_hr:
+            base_qs = Employee.objects.filter(is_active=True)
+            if dept_id:
+                base_qs = base_qs.filter(employee_work_info__department_id=dept_id)
+        elif is_manager:
+            base_qs = Employee.objects.filter(id__in=managed_ids)
+            if dept_id:
+                base_qs = base_qs.filter(employee_work_info__department_id=dept_id)
+        else:
+            base_qs = Employee.objects.filter(id=me.id)
+
+        emp_qs = base_qs.select_related(
+            "employee_work_info__department_id",
+            "employee_work_info__shift_id",
+        ).order_by("employee_first_name", "employee_last_name")
+
+        employees = [self._emp_row(e, request) for e in emp_qs]
+        emp_ids = [e["id"] for e in employees]
+
+        plans = EmployeeShiftPlan.objects.filter(
+            employee_id__in=emp_ids, date__gte=from_date, date__lte=to_date
+        ).select_related("shift")
+        plan_map = {}
+        for p in plans:
+            key = f"{p.employee_id}_{p.date}"
+            plan_map.setdefault(key, []).append({
+                "plan_id": p.id, "shift_id": p.shift_id,
+                "shift_name": p.shift.employee_shift, "type": "plan",
+            })
+
+        reqs = ShiftChangeRequest.objects.filter(
+            employee_id__in=emp_ids, date__gte=from_date, date__lte=to_date,
+        ).select_related("shift", "requested_by")
+        req_map = {}
+        for r in reqs:
+            key = f"{r.employee_id}_{r.date}"
+            req_map.setdefault(key, []).append({
+                "request_id": r.id, "shift_id": r.shift_id,
+                "shift_name": r.shift.employee_shift, "type": "request",
+                "status": r.status,
+            })
+
+        pending_reqs = [
+            {
+                "request_id": r.id,
+                "employee_id": r.employee_id,
+                "employee_name": r.employee.get_full_name() if r.employee else "",
+                "shift_id": r.shift_id,
+                "shift_name": r.shift.employee_shift,
+                "date": str(r.date),
+                "status": r.status,
+                "requested_by": r.requested_by.get_full_name() if r.requested_by else "",
+            }
+            for r in reqs if r.status == "pending"
+        ]
+
+        dates = [str(date(year, month_num, d)) for d in range(1, last_day + 1)]
+
+        dept_ids_set = {e["department_id"] for e in employees if e["department_id"]}
+        depts = list(Department.objects.filter(id__in=dept_ids_set).values("id", "department").order_by("department"))
+
+        if is_hr or is_manager:
+            all_depts = list(Department.objects.values("id", "department").order_by("department"))
+        else:
+            all_depts = depts
+
+        dept_shifts = {}
+        for ds in DepartmentShift.objects.select_related("shift"):
+            dept_shifts.setdefault(str(ds.department_id), []).append(
+                {"id": ds.shift_id, "name": ds.shift.employee_shift}
+            )
+
+        all_shifts = [{"id": s.id, "name": s.employee_shift}
+                      for s in EmployeeShift.objects.order_by("employee_shift")]
+
+        return Response({
+            "year": year,
+            "month": month_num,
+            "dates": dates,
+            "employees": employees,
+            "plans": plan_map,
+            "requests": req_map,
+            "pending_requests": pending_reqs,
+            "is_manager": is_manager or is_hr,
+            "is_hr": is_hr,
+            "departments": all_depts,
+            "all_shifts": all_shifts,
+            "dept_shifts": dept_shifts,
+        })
+
+    def post(self, request):
+        me = self._get_emp(request)
+        if not me:
+            return Response({"error": "No employee"}, status=400)
+
+        emp_id = request.data.get("employee_id")
+        shift_id = request.data.get("shift_id")
+        date_str = request.data.get("date", "")
+        copy_scope = request.data.get("copy_scope", "1day")
+
+        if not emp_id or not shift_id or not date_str:
+            return Response({"error": "Thiếu employee_id, shift_id hoặc date"}, status=400)
+        try:
+            base_date = datetime.strptime(date_str, "%Y-%m-%d").date()
+        except ValueError:
+            return Response({"error": "Định dạng ngày không hợp lệ"}, status=400)
+
+        emp_id = int(emp_id)
+        is_manager = self._is_manager_of(me, emp_id)
+        is_hr = self._is_hr(request)
+        is_self = (me.id == emp_id)
+
+        if not is_manager and not is_hr and not is_self:
+            return Response({"error": "Không có quyền phân ca"}, status=403)
+
+        dates = self._plan_dates(base_date, copy_scope)
+        created_plans = 0
+        created_reqs = 0
+
+        for d in dates:
+            if is_manager or is_hr:
+                existing = EmployeeShiftPlan.objects.filter(employee_id=emp_id, date=d)
+                if existing.count() >= 3 or existing.filter(shift_id=shift_id).exists():
+                    continue
+                EmployeeShiftPlan.objects.create(
+                    employee_id=emp_id, shift_id=shift_id, date=d, created_by=me
+                )
+                created_plans += 1
+            else:
+                if ShiftChangeRequest.objects.filter(
+                    employee_id=emp_id, shift_id=shift_id, date=d, status="pending"
+                ).exists():
+                    continue
+                ShiftChangeRequest.objects.create(
+                    employee_id=emp_id, shift_id=shift_id, date=d,
+                    status="pending", requested_by=me,
+                )
+                created_reqs += 1
+
+        return Response({
+            "ok": True,
+            "plans_created": created_plans,
+            "requests_created": created_reqs,
+        }, status=201)
+
+    def patch(self, request):
+        me = self._get_emp(request)
+        if not me:
+            return Response({"error": "No employee"}, status=400)
+
+        action = request.data.get("action")
+        request_id = request.data.get("request_id")
+        copy_scope = request.data.get("copy_scope", "1day")
+
+        if action not in ("approve", "reject"):
+            return Response({"error": "action phải là approve hoặc reject"}, status=400)
+        if not request_id:
+            return Response({"error": "Thiếu request_id"}, status=400)
+
+        try:
+            req = ShiftChangeRequest.objects.select_related("employee", "shift").get(
+                id=request_id, status="pending"
+            )
+        except ShiftChangeRequest.DoesNotExist:
+            return Response({"error": "Không tìm thấy yêu cầu chờ duyệt"}, status=404)
+
+        if not self._is_manager_of(me, req.employee_id) and not self._is_hr(request):
+            return Response({"error": "Không có quyền duyệt"}, status=403)
+
+        dates = self._plan_dates(req.date, copy_scope)
+        req.status = "approved" if action == "approve" else "rejected"
+        req.approved_by = me
+        req.save()
+
+        if action == "approve":
+            for d in dates:
+                existing = EmployeeShiftPlan.objects.filter(employee_id=req.employee_id, date=d)
+                if existing.count() < 3 and not existing.filter(shift_id=req.shift_id).exists():
+                    EmployeeShiftPlan.objects.create(
+                        employee_id=req.employee_id, shift_id=req.shift_id, date=d, created_by=me
+                    )
+                if d != req.date:
+                    ShiftChangeRequest.objects.filter(
+                        employee_id=req.employee_id, shift_id=req.shift_id,
+                        date=d, status="pending",
+                    ).update(status="approved", approved_by=me)
+
+        return Response({"ok": True, "status": req.status})
+
+    def delete(self, request):
+        me = self._get_emp(request)
+        if not me:
+            return Response({"error": "No employee"}, status=400)
+
+        plan_id = request.data.get("plan_id")
+        request_id = request.data.get("request_id")
+        is_hr = self._is_hr(request)
+
+        if plan_id:
+            qs = EmployeeShiftPlan.objects.filter(id=plan_id)
+            if not is_hr:
+                mgr_ids = _manager_dept_ids(request)
+                qs = qs.filter(employee__employee_work_info__department_id__in=mgr_ids)
+            count, _ = qs.delete()
+            return Response({"deleted": count})
+
+        if request_id:
+            qs = ShiftChangeRequest.objects.filter(id=request_id)
+            if not is_hr:
+                qs = qs.filter(requested_by=me)
+            count, _ = qs.delete()
+            return Response({"deleted": count})
+
+        return Response({"error": "Cần plan_id hoặc request_id"}, status=400)
