@@ -5,6 +5,7 @@ import { Badge } from '../components/ui/Badge'
 import { TopBar } from '../components/layout/TopBar'
 import { useApi } from '../lib/useApi'
 import { api } from '../lib/api'
+import { EmployeeSearchSelect } from '../components/ui/EmployeeSearchSelect'
 
 interface TeamEmployee {
   id: number
@@ -209,20 +210,18 @@ function CreateProposalModal({ employees, onClose, onCreated }: {
         )}
 
         <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, marginBottom: 6 }}>NHÂN VIÊN</div>
-        <select
-          value={empId ?? ''}
-          onChange={e => setEmpId(Number(e.target.value) || null)}
-          style={{
-            width: '100%', border: `1px solid ${HNH.line}`, borderRadius: 12, padding: '10px 12px',
-            fontSize: 14, color: HNH.ink, fontFamily: 'inherit', background: '#fff',
-            marginBottom: 14, outline: 'none', boxSizing: 'border-box',
-          }}
-        >
-          <option value="">Chọn nhân viên...</option>
-          {employees.map(e => (
-            <option key={e.id} value={e.id}>{e.name}{e.department ? ` — ${e.department}` : ''}</option>
-          ))}
-        </select>
+        <div style={{ marginBottom: 14 }}>
+          <EmployeeSearchSelect
+            employees={employees.map(e => ({
+              id: e.id,
+              name: e.name,
+              sub: [e.badge_id, e.department].filter(Boolean).join(' · '),
+            }))}
+            value={empId}
+            onChange={id => setEmpId(id)}
+            placeholder="Nhập tên hoặc mã NV..."
+          />
+        </div>
 
         <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, marginBottom: 6 }}>SỐ NGÀY BÙ</div>
         <input

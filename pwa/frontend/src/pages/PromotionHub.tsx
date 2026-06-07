@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect } from 'react'
 import { api } from '../lib/api'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
+import { EmployeeSearchSelect } from '../components/ui/EmployeeSearchSelect'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -368,13 +369,14 @@ function NineBoxTab({ canManage }: { canManage: boolean }) {
           <div style={{ background: HNH.white, borderRadius: '16px 16px 0 0', width: '100%', padding: 20, maxHeight: '85vh', overflowY: 'auto' }}>
             <div style={{ fontWeight: 700, fontSize: 16, color: HNH.ink, marginBottom: 16 }}>Đánh giá 9-Box</div>
             <label style={{ fontSize: 12, color: HNH.ink2, fontWeight: 600 }}>Nhân viên *</label>
-            <select value={form.employee_id} onChange={e => setForm(f => ({ ...f, employee_id: e.target.value }))}
-              style={{ width: '100%', padding: '9px 10px', borderRadius: 8, border: `1px solid ${HNH.line}`, fontSize: 13, marginBottom: 12, marginTop: 4, background: HNH.white }}>
-              <option value="">Chọn nhân viên...</option>
-              {employees.map(e => (
-                <option key={e.id} value={e.id}>{e.employee_last_name} {e.employee_first_name}</option>
-              ))}
-            </select>
+            <div style={{ marginTop: 4, marginBottom: 12 }}>
+              <EmployeeSearchSelect
+                employees={employees.map(e => ({ id: e.id, name: `${e.employee_last_name} ${e.employee_first_name}`.trim() }))}
+                value={Number(form.employee_id) || null}
+                onChange={id => setForm(f => ({ ...f, employee_id: String(id ?? '') }))}
+                placeholder="Nhập tên nhân viên..."
+              />
+            </div>
             <label style={{ fontSize: 12, color: HNH.ink2, fontWeight: 600 }}>Kỳ đánh giá *</label>
             <input value={form.period} onChange={e => setForm(f => ({ ...f, period: e.target.value }))}
               placeholder="VD: 2025-H1, 2025-Q2"
@@ -553,11 +555,14 @@ function NominationsTab({ canManage }: { canManage: boolean }) {
           <div style={{ background: HNH.white, borderRadius: '16px 16px 0 0', width: '100%', padding: 20, maxHeight: '85vh', overflowY: 'auto' }}>
             <div style={{ fontWeight: 700, fontSize: 16, color: HNH.ink, marginBottom: 16 }}>Tạo hồ sơ đề xuất</div>
             <label style={{ fontSize: 12, color: HNH.ink2, fontWeight: 600 }}>Nhân viên *</label>
-            <select value={form.employee_id} onChange={e => setForm(f => ({ ...f, employee_id: e.target.value }))}
-              style={{ width: '100%', padding: '9px 10px', borderRadius: 8, border: `1px solid ${HNH.line}`, fontSize: 13, marginBottom: 12, marginTop: 4, background: HNH.white }}>
-              <option value="">Chọn nhân viên...</option>
-              {employees.map(e => <option key={e.id} value={e.id}>{e.employee_last_name} {e.employee_first_name}</option>)}
-            </select>
+            <div style={{ marginTop: 4, marginBottom: 12 }}>
+              <EmployeeSearchSelect
+                employees={employees.map(e => ({ id: e.id, name: `${e.employee_last_name} ${e.employee_first_name}`.trim() }))}
+                value={Number(form.employee_id) || null}
+                onChange={id => setForm(f => ({ ...f, employee_id: String(id ?? '') }))}
+                placeholder="Nhập tên nhân viên..."
+              />
+            </div>
             <label style={{ fontSize: 12, color: HNH.ink2, fontWeight: 600 }}>Chức vụ đề xuất</label>
             <select value={form.proposed_job_position_id} onChange={e => setForm(f => ({ ...f, proposed_job_position_id: e.target.value }))}
               style={{ width: '100%', padding: '9px 10px', borderRadius: 8, border: `1px solid ${HNH.line}`, fontSize: 13, marginBottom: 12, marginTop: 4, background: HNH.white }}>
@@ -662,21 +667,29 @@ function NominationsTab({ canManage }: { canManage: boolean }) {
             <div style={{ fontSize: 13, color: HNH.ink2, marginBottom: 16 }}>{showSubmit.employee_name}</div>
             <div style={{ fontWeight: 600, fontSize: 13, color: HNH.ink, marginBottom: 8 }}>Chuỗi phê duyệt</div>
             {steps.map((s, i) => (
-              <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-                <div style={{ width: 22, height: 22, borderRadius: '50%', background: HNH.red, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{i + 1}</div>
-                <select value={s.approver_id} onChange={e => setSteps(prev => prev.map((x, j) => j === i ? { ...x, approver_id: e.target.value } : x))}
-                  style={{ flex: 2, padding: '8px 8px', borderRadius: 8, border: `1px solid ${HNH.line}`, fontSize: 12, background: HNH.white }}>
-                  <option value="">Chọn người duyệt...</option>
-                  {employees.map(e => <option key={e.id} value={e.id}>{e.employee_last_name} {e.employee_first_name}</option>)}
-                </select>
-                <select value={s.role} onChange={e => setSteps(prev => prev.map((x, j) => j === i ? { ...x, role: e.target.value } : x))}
-                  style={{ flex: 1, padding: '8px 8px', borderRadius: 8, border: `1px solid ${HNH.line}`, fontSize: 12, background: HNH.white }}>
-                  {[{ v: 'manager', l: 'Quản lý' }, { v: 'hr', l: 'Nhân sự' }, { v: 'bgd', l: 'BGĐ' }, { v: 'other', l: 'Khác' }].map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
-                </select>
-                {steps.length > 1 && (
-                  <button onClick={() => setSteps(prev => prev.filter((_, j) => j !== i))}
-                    style={{ background: 'none', border: 'none', color: HNH.red, fontSize: 18, cursor: 'pointer', padding: '0 4px' }}>×</button>
-                )}
+              <div key={i} style={{ marginBottom: 8 }}>
+                <div className="flex items-center gap-2" style={{ marginBottom: 4 }}>
+                  <div style={{ width: 22, height: 22, borderRadius: '50%', background: HNH.red, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{i + 1}</div>
+                  <div style={{ flex: 1, fontSize: 11, fontWeight: 700, color: HNH.ink3 }}>NGƯỜI DUYỆT</div>
+                  {steps.length > 1 && (
+                    <button onClick={() => setSteps(prev => prev.filter((_, j) => j !== i))}
+                      style={{ background: 'none', border: 'none', color: HNH.red, fontSize: 18, cursor: 'pointer', padding: '0 4px' }}>×</button>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <div style={{ flex: 2 }}>
+                    <EmployeeSearchSelect
+                      employees={employees.map(e => ({ id: e.id, name: `${e.employee_last_name} ${e.employee_first_name}`.trim() }))}
+                      value={Number(s.approver_id) || null}
+                      onChange={id => setSteps(prev => prev.map((x, j) => j === i ? { ...x, approver_id: String(id ?? '') } : x))}
+                      placeholder="Tìm người duyệt..."
+                    />
+                  </div>
+                  <select value={s.role} onChange={e => setSteps(prev => prev.map((x, j) => j === i ? { ...x, role: e.target.value } : x))}
+                    style={{ flex: 1, padding: '8px 8px', borderRadius: 8, border: `1px solid ${HNH.line}`, fontSize: 12, background: HNH.white }}>
+                    {[{ v: 'manager', l: 'Quản lý' }, { v: 'hr', l: 'Nhân sự' }, { v: 'bgd', l: 'BGĐ' }, { v: 'other', l: 'Khác' }].map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
+                  </select>
+                </div>
               </div>
             ))}
             <button onClick={() => setSteps(prev => [...prev, { approver_id: '', role: 'hr' }])}
