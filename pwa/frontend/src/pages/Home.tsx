@@ -70,6 +70,7 @@ interface CalendarDay {
   worked_hours: string | null
   leave_name: string | null
   leave_status: string | null
+  shift_plan: { name: string; start: string | null; end: string | null } | null
 }
 
 interface MonthCalendarData {
@@ -720,22 +721,36 @@ function MonthCalendar({ compact }: { compact?: boolean }) {
           {cells.map((day, i) => {
             if (!day) return <div key={`e${i}`} />
             const isToday = day.date === today
+            const isFuture = day.color_status === 'future'
             const statusColor = CAL_STATUS_COLORS[day.color_status]
             const isWeekend = day.weekday >= 5
+            const hasPlan = isFuture && !!day.shift_plan
+
+            // Background and border for future days
+            let cellBg: string
+            let cellBorder: string
+            if (isToday) {
+              cellBg = 'transparent'
+              cellBorder = `1.5px solid ${HNH.navy}`
+            } else if (isFuture) {
+              cellBg = hasPlan ? '#ffffff' : '#f1f5f9'
+              cellBorder = hasPlan ? `1px solid #bfdbfe` : `1px solid ${HNH.line}`
+            } else {
+              cellBg = statusColor ? statusColor + '1a' : isWeekend ? '#fafafa' : 'transparent'
+              cellBorder = statusColor ? `1px solid ${statusColor}35` : `1px solid ${HNH.line}`
+            }
 
             return (
               <div key={day.date} style={{
                 borderRadius: compact ? 5 : 6,
-                background: statusColor ? statusColor + '1a' : isWeekend ? '#fafafa' : 'transparent',
-                border: isToday
-                  ? `1.5px solid ${HNH.navy}`
-                  : statusColor ? `1px solid ${statusColor}35` : `1px solid ${HNH.line}`,
+                background: cellBg,
+                border: cellBorder,
                 padding: compact ? '3px 2px' : '4px 2px',
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
                 minHeight: compact ? 54 : 62,
                 position: 'relative', overflow: 'hidden',
               }}>
-                {statusColor && (
+                {!isFuture && statusColor && (
                   <div style={{
                     position: 'absolute', top: 3, right: 3,
                     width: 4, height: 4, borderRadius: '50%', background: statusColor,
@@ -748,35 +763,60 @@ function MonthCalendar({ compact }: { compact?: boolean }) {
                   color: isToday ? HNH.navy : isWeekend ? HNH.red : HNH.ink,
                 }}>{day.day}</div>
 
-                {/* Worked hours */}
-                {day.worked_hours && (
-                  <div style={{
-                    fontSize: compact ? 9 : 10, fontWeight: 700, lineHeight: 1.2,
-                    color: statusColor ?? HNH.ink2, marginTop: 1,
-                  }}>{day.worked_hours}</div>
+                {/* Future day with shift plan */}
+                {hasPlan && day.shift_plan && (
+                  <>
+                    <div style={{
+                      fontSize: compact ? 7 : 7.5, fontWeight: 700, lineHeight: 1.2, marginTop: 2,
+                      color: '#2563eb', textAlign: 'center', maxWidth: '100%',
+                      overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
+                      padding: '0 1px',
+                    }}>
+                      {day.shift_plan.name.length > 8 ? day.shift_plan.name.slice(0, 7) + '…' : day.shift_plan.name}
+                    </div>
+                    {(day.shift_plan.start || day.shift_plan.end) && (
+                      <div style={{ fontSize: compact ? 6.5 : 7, color: '#60a5fa', lineHeight: 1.2, marginTop: 1, textAlign: 'center' }}>
+                        {day.shift_plan.start ? day.shift_plan.start.replace(':', 'h') : '?'}
+                        {day.shift_plan.end ? `→${day.shift_plan.end.replace(':', 'h')}` : ''}
+                      </div>
+                    )}
+                  </>
                 )}
 
-                {/* Leave label (if no attendance) */}
-                {!day.worked_hours && day.leave_name && (
-                  <div style={{
-                    fontSize: 7, fontWeight: 600, lineHeight: 1.2, marginTop: 2,
-                    color: statusColor ?? '#8b5cf6', textAlign: 'center',
-                    overflow: 'hidden', maxWidth: '100%',
-                  }}>
-                    {day.leave_name.length > 9 ? day.leave_name.slice(0, 8) + '…' : day.leave_name}
-                  </div>
-                )}
+                {/* Past day content */}
+                {!isFuture && (
+                  <>
+                    {/* Worked hours */}
+                    {day.worked_hours && (
+                      <div style={{
+                        fontSize: compact ? 9 : 10, fontWeight: 700, lineHeight: 1.2,
+                        color: statusColor ?? HNH.ink2, marginTop: 1,
+                      }}>{day.worked_hours}</div>
+                    )}
 
-                {/* First in / last out times */}
-                {day.first_in && (
-                  <div style={{ fontSize: compact ? 7 : 7.5, color: HNH.ink3, lineHeight: 1.15, marginTop: 'auto' }}>
-                    {day.first_in}
-                  </div>
-                )}
-                {day.last_out && (
-                  <div style={{ fontSize: compact ? 7 : 7.5, color: HNH.ink3, lineHeight: 1.15 }}>
-                    {day.last_out}
-                  </div>
+                    {/* Leave label (if no attendance) */}
+                    {!day.worked_hours && day.leave_name && (
+                      <div style={{
+                        fontSize: 7, fontWeight: 600, lineHeight: 1.2, marginTop: 2,
+                        color: statusColor ?? '#8b5cf6', textAlign: 'center',
+                        overflow: 'hidden', maxWidth: '100%',
+                      }}>
+                        {day.leave_name.length > 9 ? day.leave_name.slice(0, 8) + '…' : day.leave_name}
+                      </div>
+                    )}
+
+                    {/* First in / last out times */}
+                    {day.first_in && (
+                      <div style={{ fontSize: compact ? 7 : 7.5, color: HNH.ink3, lineHeight: 1.15, marginTop: 'auto' }}>
+                        {day.first_in}
+                      </div>
+                    )}
+                    {day.last_out && (
+                      <div style={{ fontSize: compact ? 7 : 7.5, color: HNH.ink3, lineHeight: 1.15 }}>
+                        {day.last_out}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             )

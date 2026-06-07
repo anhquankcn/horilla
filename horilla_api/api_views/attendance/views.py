@@ -2424,6 +2424,42 @@ class MyMonthCalendarView(APIView):
                     holiday_dates.add(d.isoformat())
                 d += timedelta(days=1)
 
+        # Shift plans for future days
+        shift_plan_map = {}
+        try:
+            from attendance.models import EmployeeShiftPlan
+            from collections import defaultdict
+            future_start = today + timedelta(days=1)
+            if future_start <= end:
+                _DAY_NAMES = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+                plans = list(EmployeeShiftPlan.objects.filter(
+                    employee_id=employee,
+                    date__range=[max(start, future_start), end],
+                ).select_related("shift_id"))
+                plan_shift_ids = {p.shift_id_id for p in plans}
+                sched_by_shift = defaultdict(dict)
+                for sched in EmployeeShiftSchedule.objects.filter(
+                    shift_id__in=plan_shift_ids
+                ).select_related("day"):
+                    dn = sched.day.day if sched.day else None
+                    if dn and dn in _DAY_NAMES:
+                        idx = _DAY_NAMES.index(dn)
+                        sched_by_shift[sched.shift_id_id][idx] = (
+                            sched.start_time.strftime("%H:%M") if sched.start_time else None,
+                            sched.end_time.strftime("%H:%M") if sched.end_time else None,
+                        )
+                for plan in plans:
+                    d_iso = plan.date.isoformat()
+                    wday = plan.date.weekday()
+                    st, et = sched_by_shift[plan.shift_id_id].get(wday, (None, None))
+                    shift_plan_map[d_iso] = {
+                        "name": plan.shift_id.employee_shift if plan.shift_id else "",
+                        "start": st,
+                        "end": et,
+                    }
+        except Exception:
+            pass
+
         days = []
         for day_num in range(1, last_day + 1):
             d = date(year, month, day_num)
@@ -2484,6 +2520,7 @@ class MyMonthCalendarView(APIView):
                 "worked_hours": worked_str,
                 "leave_name": leave["name"] if leave else None,
                 "leave_status": leave["status"] if leave else None,
+                "shift_plan": shift_plan_map.get(d_iso) if is_future else None,
             })
 
         return Response({
