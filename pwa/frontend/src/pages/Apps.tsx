@@ -48,7 +48,7 @@ const features: AppFeature[] = [
   { slug: 'attendance-activity', icon: 'clock', label: 'HĐ Chấm công', desc: 'Tổng hợp hoạt động chấm công',                         path: '/attendance-activity',       tone: 'navy', group: 'attendance' },
   { slug: 'monthly-att',         icon: 'grid',  label: 'CC Tháng',      desc: 'Bảng chấm công từng ngày cho toàn bộ nhân viên',       path: '/attendance-monthly-detail', tone: 'navy', group: 'attendance' },
   { slug: 'shift-management',    icon: 'clock', label: 'Quản lý Ca',    desc: 'Phân ca nhân viên, cấu hình ca theo phòng ban',        path: '/shift-management',          tone: 'red',  group: 'attendance' },
-  { slug: 'shift-planner',      icon: 'cal',   label: 'Phân Ca NV',    desc: 'Lưới phân ca tháng theo phòng ban, quản lý, phê duyệt', path: '/shift-planner',             tone: 'red',  group: 'attendance' },
+  { slug: 'shift-planner',      icon: 'cal',   label: 'Phân Ca NV',    desc: 'Lưới phân ca tháng theo phòng ban, quản lý, phê duyệt', path: '/shift-planner',             tone: 'red',  group: 'attendance', always: true },
   { slug: 'hrm-wds-labelday',    icon: 'cal',   label: 'Gán lịch bận',  desc: 'Tag Công tác / Sự kiện / Nghỉ ốm theo tuần',          path: '/labelday',                  tone: 'gold', group: 'attendance' },
   { slug: 'hrm-att-setting',     icon: 'gear',  label: 'Cài đặt CC',   desc: 'Cấu hình Chấm công, Geofence',                         path: '/attendance-settings',       tone: 'navy', group: 'attendance' },
 
