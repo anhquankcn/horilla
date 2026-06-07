@@ -2364,11 +2364,11 @@ class MyAppsView(APIView):
         all_slugs = self._all_slugs()
         user = request.user
         if user.is_superuser:
-            return Response({"allowed": all_slugs, "is_admin": True})
+            return Response({"allowed": all_slugs, "is_admin": True, "is_staff": True})
 
         groups = user.groups.all()
         if not groups.exists():
-            return Response({"allowed": all_slugs, "is_admin": False})
+            return Response({"allowed": all_slugs, "is_admin": False, "is_staff": user.is_staff})
 
         vis_map = {
             vis.group_id: vis.allowed_apps
@@ -2379,7 +2379,7 @@ class MyAppsView(APIView):
         group_ids = set(groups.values_list("id", flat=True))
         groups_without_config = group_ids - set(vis_map.keys())
         if groups_without_config:
-            return Response({"allowed": all_slugs, "is_admin": False})
+            return Response({"allowed": all_slugs, "is_admin": False, "is_staff": user.is_staff})
 
         base_slugs = self._base_slugs()
         allowed = set(base_slugs)
@@ -2387,9 +2387,9 @@ class MyAppsView(APIView):
             allowed.update(apps)
 
         if not allowed:
-            return Response({"allowed": all_slugs, "is_admin": False})
+            return Response({"allowed": all_slugs, "is_admin": False, "is_staff": user.is_staff})
 
-        return Response({"allowed": sorted(allowed), "is_admin": False})
+        return Response({"allowed": sorted(allowed), "is_admin": False, "is_staff": user.is_staff})
 
 
 class MyNavTabsView(APIView):

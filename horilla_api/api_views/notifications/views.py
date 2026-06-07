@@ -268,12 +268,14 @@ class AnnouncementCreateView(APIView):
 
         send_as_system = bool(request.data.get("send_as_system", False))
 
+        pinned = bool(request.data.get("pinned", False))
         ann = Announcement.objects.create(
             sender=request.user,
             title=title,
             body=body,
             target_type=target_type,
             send_as_system=send_as_system,
+            pinned=pinned,
             target_department=(
                 Department.objects.filter(id=dept_id).first()
                 if dept_id

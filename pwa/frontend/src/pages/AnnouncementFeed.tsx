@@ -28,6 +28,11 @@ interface FeedResponse {
   results: FeedItem[]
 }
 
+interface Department {
+  id: number
+  department: string
+}
+
 /* ── Helpers ── */
 function relTime(ts: string): string {
   const diff = Date.now() - new Date(ts).getTime()
@@ -195,6 +200,200 @@ function DetailModal({ item, onClose }: { item: FeedItem; onClose: () => void })
   )
 }
 
+/* ── Compose Modal ── */
+function ComposeModal({
+  onClose,
+  onSent,
+}: {
+  onClose: () => void
+  onSent: () => void
+}) {
+  const { toast } = useToast()
+  const [title, setTitle] = useState('')
+  const [body, setBody] = useState('')
+  const [targetType, setTargetType] = useState<'company' | 'department'>('company')
+  const [deptId, setDeptId] = useState<number | ''>('')
+  const [pinned, setPinned] = useState(false)
+  const [sending, setSending] = useState(false)
+  const [departments, setDepartments] = useState<Department[]>([])
+
+  useEffect(() => {
+    api.get<{ departments: Department[] }>('/api/notifications/announcements/targets/')
+      .then(d => setDepartments(d.departments ?? []))
+      .catch(() => {})
+  }, [])
+
+  const canSend = title.trim().length > 0 && body.trim().length > 0 &&
+    (targetType === 'company' || (targetType === 'department' && deptId !== ''))
+
+  const handleSend = async () => {
+    if (!canSend || sending) return
+    setSending(true)
+    try {
+      const payload: Record<string, unknown> = {
+        title: title.trim(),
+        body: body.trim(),
+        target_type: targetType,
+        pinned,
+      }
+      if (targetType === 'department' && deptId !== '') {
+        payload.department_id = deptId
+      }
+      await api.post('/api/notifications/announcements/', payload)
+      toast('Đã gửi tin nội bộ')
+      onSent()
+      onClose()
+    } catch {
+      toast('Không thể gửi tin. Vui lòng thử lại.')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%', borderRadius: 12, border: `1.5px solid ${HNH.line}`,
+    padding: '10px 12px', fontSize: 14, color: HNH.ink,
+    background: '#fff', outline: 'none', boxSizing: 'border-box',
+    fontFamily: 'inherit',
+  }
+
+  return (
+    <div
+      className="fixed inset-0 flex items-end justify-center"
+      style={{ zIndex: 110, background: 'rgba(0,0,0,0.5)' }}
+      onClick={onClose}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: '#fff', borderRadius: '24px 24px 0 0', width: '100%',
+          maxWidth: 600, maxHeight: '92vh', display: 'flex', flexDirection: 'column',
+        }}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between" style={{ padding: '18px 20px 14px' }}>
+          <div style={{ fontSize: 17, fontWeight: 800, color: HNH.ink }}>Tạo tin nội bộ</div>
+          <button onClick={onClose} className="border-none cursor-pointer bg-transparent" style={{ padding: 4 }}>
+            <Icon name="x" size={20} color={HNH.ink3} stroke={2} />
+          </button>
+        </div>
+
+        {/* Form */}
+        <div style={{ padding: '0 20px 8px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 14 }}>
+
+          {/* Title */}
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: HNH.ink3, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+              Tiêu đề *
+            </div>
+            <input
+              style={inputStyle}
+              placeholder="Tiêu đề thông báo..."
+              maxLength={200}
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+            />
+          </div>
+
+          {/* Body */}
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: HNH.ink3, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+              Nội dung *
+            </div>
+            <textarea
+              style={{ ...inputStyle, minHeight: 120, resize: 'vertical' }}
+              placeholder="Nhập nội dung thông báo..."
+              value={body}
+              onChange={e => setBody(e.target.value)}
+            />
+          </div>
+
+          {/* Target type */}
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: HNH.ink3, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+              Gửi đến
+            </div>
+            <div className="flex gap-2">
+              {(['company', 'department'] as const).map(t => (
+                <button
+                  key={t}
+                  onClick={() => setTargetType(t)}
+                  className="flex items-center gap-1.5 border-none cursor-pointer"
+                  style={{
+                    padding: '7px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600,
+                    background: targetType === t ? HNH.red : HNH.cream2,
+                    color: targetType === t ? '#fff' : HNH.ink2,
+                    border: targetType === t ? `1.5px solid ${HNH.red}` : `1.5px solid ${HNH.line}`,
+                  }}
+                >
+                  {t === 'company' ? 'Toàn công ty' : 'Phòng ban'}
+                </button>
+              ))}
+            </div>
+
+            {targetType === 'department' && (
+              <select
+                style={{ ...inputStyle, marginTop: 10, appearance: 'none' }}
+                value={deptId}
+                onChange={e => setDeptId(e.target.value === '' ? '' : Number(e.target.value))}
+              >
+                <option value="">-- Chọn phòng ban --</option>
+                {departments.map(d => (
+                  <option key={d.id} value={d.id}>{d.department}</option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Pinned toggle */}
+          <button
+            onClick={() => setPinned(p => !p)}
+            className="flex items-center gap-3 border-none cursor-pointer text-left"
+            style={{
+              background: pinned ? HNH.red50 : HNH.cream2,
+              borderRadius: 12, padding: '10px 14px',
+              border: `1.5px solid ${pinned ? HNH.red + '60' : HNH.line}`,
+            }}
+          >
+            <div style={{
+              width: 20, height: 20, borderRadius: 6, border: `2px solid ${pinned ? HNH.red : HNH.ink3}`,
+              background: pinned ? HNH.red : 'transparent', flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              {pinned && <Icon name="check" size={12} color="#fff" stroke={3} />}
+            </div>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: pinned ? HNH.red : HNH.ink }}>
+                Ghim thông báo
+              </div>
+              <div style={{ fontSize: 11.5, color: HNH.ink3, marginTop: 1 }}>
+                Hiển thị nổi bật trên đầu feed
+              </div>
+            </div>
+          </button>
+        </div>
+
+        {/* Send button */}
+        <div style={{ padding: '12px 20px 32px' }}>
+          <button
+            onClick={handleSend}
+            disabled={!canSend || sending}
+            className="flex items-center justify-center gap-2 w-full border-none cursor-pointer"
+            style={{
+              height: 50, borderRadius: 16, fontSize: 15, fontWeight: 800,
+              background: canSend && !sending ? `linear-gradient(135deg, ${HNH.red} 0%, #8b1520 100%)` : HNH.line,
+              color: canSend && !sending ? '#fff' : HNH.ink3,
+            }}
+          >
+            <Icon name="send" size={16} color={canSend && !sending ? '#fff' : HNH.ink3} stroke={2.2} />
+            {sending ? 'Đang gửi...' : 'Gửi thông báo'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 /* ── Main Page ── */
 export function AnnouncementFeedPage() {
   const navigate = useNavigate()
@@ -205,6 +404,14 @@ export function AnnouncementFeedPage() {
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(false)
   const [detail, setDetail] = useState<FeedItem | null>(null)
+  const [isStaff, setIsStaff] = useState(false)
+  const [composeOpen, setComposeOpen] = useState(false)
+
+  useEffect(() => {
+    api.get<{ is_staff?: boolean }>('/api/employee/my-apps/')
+      .then(d => setIsStaff(d.is_staff ?? false))
+      .catch(() => {})
+  }, [])
 
   const loadFeed = useCallback(async (p: number, replace: boolean) => {
     if (p === 1) setLoading(true); else setLoadingMore(true)
@@ -255,7 +462,7 @@ export function AnnouncementFeedPage() {
       <TopBar title="Tin nội bộ" onBack={() => navigate(-1)} />
 
       <PullToRefresh onRefresh={async () => loadFeed(1, true)}>
-        <div style={{ padding: '12px 16px 32px', maxWidth: 600, margin: '0 auto' }}>
+        <div style={{ padding: '12px 16px 100px', maxWidth: 600, margin: '0 auto' }}>
 
           {loading && (
             <div style={{ textAlign: 'center', padding: 60, color: HNH.ink3 }}>
@@ -338,8 +545,31 @@ export function AnnouncementFeedPage() {
         </div>
       </PullToRefresh>
 
+      {/* Staff-only FAB */}
+      {isStaff && (
+        <button
+          onClick={() => setComposeOpen(true)}
+          className="flex items-center justify-center border-none cursor-pointer"
+          style={{
+            position: 'fixed', bottom: 88, right: 20, zIndex: 50,
+            width: 52, height: 52, borderRadius: '50%',
+            background: `linear-gradient(135deg, ${HNH.red} 0%, #8b1520 100%)`,
+            boxShadow: `0 4px 16px ${HNH.red}55`,
+          }}
+        >
+          <Icon name="plus" size={24} color="#fff" stroke={2.5} />
+        </button>
+      )}
+
       {detail && (
         <DetailModal item={detail} onClose={() => setDetail(null)} />
+      )}
+
+      {composeOpen && (
+        <ComposeModal
+          onClose={() => setComposeOpen(false)}
+          onSent={() => loadFeed(1, true)}
+        />
       )}
     </div>
   )
