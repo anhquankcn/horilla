@@ -812,10 +812,73 @@ export function HomePage() {
   const { data: notifSummary, refresh: rNotif } = useApi<NotifSummary>('/api/notifications/summary/')
   const { data: payrollData, refresh: rPay } = useApi<PayrollEntry[]>('/api/payroll/my-monthly-payroll/')
   const { toast: showToast } = useToast()
+
+  // KC session state
+  const [kcValid, setKcValid] = useState<boolean | null>(null)
+  const [kcChecking, setKcChecking] = useState(false)
+  const [avatarMenuOpen, setAvatarMenuOpen] = useState(false)
+  const [pushPermission, setPushPermission] = useState<NotificationPermission>(
+    () => ('Notification' in window ? Notification.permission : 'default')
+  )
+
+  const checkKcSession = useCallback(async () => {
+    setKcChecking(true)
+    try {
+      const res = await fetch('/bff/auth/kc-session', { credentials: 'include' })
+      const data = await res.json() as { valid: boolean }
+      setKcValid(data.valid)
+    } catch {
+      setKcValid(false)
+    } finally {
+      setKcChecking(false)
+    }
+  }, [])
+
+  const refreshKcSession = useCallback(async () => {
+    setKcChecking(true)
+    setAvatarMenuOpen(false)
+    try {
+      const res = await fetch('/bff/auth/kc-refresh', { method: 'POST', credentials: 'include' })
+      const data = await res.json() as { ok: boolean }
+      if (data.ok) {
+        setKcValid(true)
+        showToast('Đã kết nối lại KC session ✓')
+      } else {
+        setKcValid(false)
+        showToast('Không thể kết nối — hãy đăng nhập lại')
+      }
+    } catch {
+      setKcValid(false)
+      showToast('Lỗi kết nối KC SSO')
+    } finally {
+      setKcChecking(false)
+    }
+  }, [showToast])
+
+  const enablePushNotif = useCallback(async () => {
+    setAvatarMenuOpen(false)
+    if (!('Notification' in window)) {
+      showToast('Trình duyệt không hỗ trợ thông báo đẩy')
+      return
+    }
+    if (Notification.permission === 'denied') {
+      showToast('Thông báo bị chặn — vào Cài đặt trình duyệt để bật lại')
+      return
+    }
+    const perm = await Notification.requestPermission()
+    setPushPermission(perm)
+    if (perm === 'granted') showToast('Đã bật thông báo đẩy ✓')
+    else showToast('Chưa cấp quyền thông báo')
+  }, [showToast])
+
+  useEffect(() => { checkKcSession() }, [checkKcSession])
+
   const refreshAll = useCallback(async () => {
     rTasks(); rAtt(); rLeave(); rNotif(); rPay()
   }, [rTasks, rAtt, rLeave, rNotif, rPay])
+
   const clearCacheAndReload = useCallback(async () => {
+    setAvatarMenuOpen(false)
     showToast('Đang xóa cache...')
     await new Promise(r => setTimeout(r, 400))
     try {
@@ -824,9 +887,10 @@ export function HomePage() {
         await Promise.all(names.map(n => caches.delete(n)))
       }
     } catch { /* ignore */ }
-    showToast('Đã xóa cache — đang tải lại ứng dụng...')
+    showToast('Đã xóa cache — đang tải lại...')
     setTimeout(() => window.location.reload(), 1600)
   }, [showToast])
+
   const isTablet = useTablet()
   const isSmall = useSmallPhone()
   const px = isTablet ? 28 : isSmall ? 14 : 20
@@ -872,16 +936,132 @@ export function HomePage() {
   return (
     <PullToRefresh onRefresh={refreshAll}>
     <div style={{ padding: '6px 0 14px' }}>
+      {/* Avatar action sheet */}
+      {avatarMenuOpen && (
+        <div
+          style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.42)', display: 'flex', alignItems: 'flex-end' }}
+          onClick={() => setAvatarMenuOpen(false)}
+        >
+          <div
+            style={{ background: '#fff', borderRadius: '22px 22px 0 0', width: '100%', padding: '20px 18px 48px' }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Profile header */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18, paddingBottom: 16, borderBottom: `1px solid ${HNH.line}` }}>
+              <div style={{ position: 'relative', flexShrink: 0 }}>
+                <Avatar src={employee?.employee_profile} initials={initials} bg={HNH.red} size={52} />
+                <div style={{
+                  position: 'absolute', bottom: -2, right: -2,
+                  width: 16, height: 16, borderRadius: '50%',
+                  background: kcValid === null ? HNH.ink4 : kcValid ? '#16a34a' : '#ef4444',
+                  border: '2px solid #fff',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 5.5, fontWeight: 900, color: '#fff', letterSpacing: -0.5,
+                }}>KC</div>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: HNH.ink }}>{employee?.full_name ?? displayName}</div>
+                <div style={{ fontSize: 12, color: HNH.ink3, marginTop: 1 }}>{employee?.email ?? ''}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 5 }}>
+                  <div style={{ width: 7, height: 7, borderRadius: '50%', background: kcChecking ? HNH.ink4 : kcValid ? '#16a34a' : '#ef4444' }} />
+                  <span style={{ fontSize: 11, fontWeight: 600, color: kcChecking ? HNH.ink3 : kcValid ? '#16a34a' : '#ef4444' }}>
+                    Keycloak SSO — {kcChecking ? 'Đang kiểm tra...' : kcValid ? 'Online' : 'Offline'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Action rows */}
+            {([
+              {
+                icon: 'link', iconBg: '#eff6ff', iconColor: '#2563eb',
+                label: 'Kết nối Keycloak SSO',
+                desc: 'Làm mới session từ HNH SSO',
+                badge: kcChecking ? '...' : kcValid ? 'Online' : 'Offline',
+                badgeBg: kcValid ? '#f0fdf4' : '#fef2f2',
+                badgeColor: kcValid ? '#16a34a' : '#ef4444',
+                action: refreshKcSession,
+              },
+              {
+                icon: 'bell', iconBg: '#f0fdf4', iconColor: '#16a34a',
+                label: 'Thông báo đẩy',
+                desc: pushPermission === 'granted' ? 'Đang bật' : pushPermission === 'denied' ? 'Bị chặn — mở Cài đặt' : 'Bấm để bật',
+                badge: pushPermission === 'granted' ? 'Bật' : 'Tắt',
+                badgeBg: pushPermission === 'granted' ? '#f0fdf4' : HNH.cream,
+                badgeColor: pushPermission === 'granted' ? '#16a34a' : HNH.ink3,
+                action: enablePushNotif,
+              },
+              {
+                icon: 'refresh', iconBg: '#fff7ed', iconColor: '#ea580c',
+                label: 'Xóa Cache & Tải lại',
+                desc: 'Xóa dữ liệu tạm và reload app',
+                badge: null, badgeBg: '', badgeColor: '',
+                action: clearCacheAndReload,
+              },
+            ] as const).map((row, idx) => (
+              <button
+                key={idx}
+                onClick={() => row.action()}
+                style={{
+                  width: '100%', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 13,
+                  background: 'none', border: 'none', cursor: 'pointer', borderRadius: 14, textAlign: 'left',
+                  marginBottom: 2,
+                }}
+              >
+                <div style={{ width: 38, height: 38, borderRadius: 11, background: row.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Icon name={row.icon} size={18} color={row.iconColor} stroke={1.9} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: HNH.ink }}>{row.label}</div>
+                  <div style={{ fontSize: 12, color: HNH.ink3, marginTop: 1 }}>{row.desc}</div>
+                </div>
+                {row.badge && (
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 20, background: row.badgeBg, color: row.badgeColor, flexShrink: 0 }}>
+                    {row.badge}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Greeting header */}
       <div className="flex items-center gap-2" style={{ padding: `6px ${px}px ${isSmall ? 10 : 14}px` }}>
-        <button
-          onClick={clearCacheAndReload}
-          className="border-none bg-transparent p-0 shrink-0"
-          style={{ cursor: 'pointer', borderRadius: '50%' }}
-          title="Xóa cache & tải lại"
-        >
-          <Avatar initials={initials} bg={HNH.red} size={isSmall ? 36 : 42} />
-        </button>
+        {/* Avatar with KC badge */}
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+          <button
+            onClick={() => setAvatarMenuOpen(true)}
+            className="border-none bg-transparent p-0"
+            style={{ cursor: 'pointer', borderRadius: '50%', display: 'block' }}
+          >
+            <Avatar
+              src={employee?.employee_profile}
+              initials={initials}
+              bg={HNH.red}
+              size={isSmall ? 36 : 42}
+            />
+          </button>
+          {/* KC session badge */}
+          <div
+            onClick={e => { e.stopPropagation(); checkKcSession() }}
+            style={{
+              position: 'absolute', bottom: -3, right: -3,
+              width: isSmall ? 14 : 16, height: isSmall ? 14 : 16,
+              borderRadius: '50%',
+              background: kcChecking ? HNH.ink4 : kcValid === null ? HNH.ink4 : kcValid ? '#16a34a' : '#ef4444',
+              border: '2px solid #fff',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 5, fontWeight: 900, color: '#fff', letterSpacing: -0.5,
+              cursor: 'pointer',
+              boxShadow: '0 1px 4px rgba(0,0,0,0.2)',
+              animation: kcChecking ? 'spin 1s linear infinite' : 'none',
+            }}
+            title={kcValid ? 'KC: Online' : 'KC: Offline — bấm để kiểm tra lại'}
+          >
+            {kcChecking ? '' : 'KC'}
+          </div>
+        </div>
         <div className="flex-1">
           <div style={{ fontSize: isSmall ? 10.5 : 11.5, color: HNH.ink3, fontWeight: 600, letterSpacing: 0.4 }}>{dateStr}</div>
           <div style={{ fontSize: isSmall ? 15 : 18, fontWeight: 700, color: HNH.ink, letterSpacing: -0.2 }}>{displayName}</div>

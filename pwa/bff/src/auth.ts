@@ -134,6 +134,76 @@ export async function authRoutes(app: FastifyInstance) {
     );
   });
 
+  // /bff/auth/kc-session — check if KC tokens exist in session (no KC round-trip)
+  app.get("/bff/auth/kc-session", async (req, reply) => {
+    const sessionId = req.cookies[COOKIE_NAME];
+    if (!sessionId) return reply.send({ valid: false });
+    const session = getSession(sessionId);
+    const hasToken = !!(session?.kcAccessToken);
+    // Quick userinfo ping to confirm token is still accepted by KC
+    if (hasToken && session?.kcAccessToken) {
+      try {
+        const r = await fetch(`${env.KC_BASE}/protocol/openid-connect/userinfo`, {
+          headers: { Authorization: `Bearer ${session.kcAccessToken}` },
+        });
+        return reply.send({ valid: r.statusCode === 200 });
+      } catch {
+        return reply.send({ valid: false });
+      }
+    }
+    return reply.send({ valid: false });
+  });
+
+  // /bff/auth/kc-refresh — refresh KC tokens using stored refresh_token
+  app.post("/bff/auth/kc-refresh", async (req, reply) => {
+    const sessionId = req.cookies[COOKIE_NAME];
+    if (!sessionId) return reply.status(401).send({ ok: false, error: "no_session" });
+    const session = getSession(sessionId);
+    if (!session?.kcRefreshToken) return reply.status(401).send({ ok: false, error: "no_refresh_token" });
+
+    try {
+      const tokenRes = await fetch(`${env.KC_BASE}/protocol/openid-connect/token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          client_id: env.KC_CLIENT_ID,
+          refresh_token: session.kcRefreshToken,
+        }).toString(),
+      });
+
+      if (tokenRes.statusCode !== 200) {
+        app.log.warn({ status: tokenRes.statusCode }, "KC refresh token failed");
+        return reply.status(401).send({ ok: false, error: "refresh_failed" });
+      }
+
+      const kcTokens = (await tokenRes.body.json()) as {
+        access_token: string;
+        refresh_token?: string;
+        id_token?: string;
+      };
+      session.kcAccessToken = kcTokens.access_token;
+      if (kcTokens.refresh_token) session.kcRefreshToken = kcTokens.refresh_token;
+      if (kcTokens.id_token) session.kcIdToken = kcTokens.id_token;
+
+      // Re-exchange for a fresh Horilla JWT
+      const horillaRes = await fetch(`${env.HORILLA_API}/api/auth/oidc-login/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ access_token: kcTokens.access_token }),
+      });
+      if (horillaRes.statusCode === 200) {
+        const horillaData = (await horillaRes.body.json()) as { access: string };
+        session.horillaJwt = horillaData.access;
+      }
+
+      return reply.send({ ok: true });
+    } catch (err) {
+      app.log.error(err, "KC refresh error");
+      return reply.status(500).send({ ok: false, error: "server_error" });
+    }
+  });
+
   // /bff/auth/me — return current user info (frontend polls this)
   app.get("/bff/auth/me", async (req, reply) => {
     const sessionId = req.cookies[COOKIE_NAME];
