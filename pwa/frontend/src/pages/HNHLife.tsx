@@ -36,11 +36,11 @@ const toneColor: Record<Tone, string> = {
 }
 
 const FEATURES: Feature[] = [
-  { slug: 'announcements',       icon: 'bell',   label: 'Tin nội bộ',       desc: 'Thông báo BGĐ, quy định, sự kiện',        path: '/announcements',       tone: 'red'     },
   { slug: 'attendance',          icon: 'clock',  label: 'Chấm công',        desc: 'Check-in, lịch sử, GPS',                  path: '/attendance',          tone: 'navy'    },
   { slug: 'leave',               icon: 'leaf',   label: 'Nghỉ phép',        desc: 'Số dư, lịch sử, gửi đơn',                 path: '/leave',               tone: 'success' },
   { slug: 'proposals',           icon: 'send',   label: 'Đề xuất',          desc: 'Nghỉ phép, đổi ca, ngày công',             path: '/proposals',           tone: 'success' },
   { slug: 'approvals',           icon: 'check',  label: 'Phê duyệt',        desc: 'Duyệt đề xuất nhân viên',                  path: '/approvals',           tone: 'gold'    },
+  { slug: 'announcements',       icon: 'bell',   label: 'Tin nội bộ',       desc: 'Thông báo BGĐ, quy định, sự kiện',        path: '/announcements',       tone: 'red'     },
   { slug: 'payslip',             icon: 'doc',    label: 'Phiếu lương',      desc: 'Chi tiết lương hàng tháng',                 path: '/payslip',             tone: 'gold'    },
   { slug: 'work-schedule',       icon: 'cal',    label: 'Lịch làm việc',    desc: 'Ca làm, giờ vào ra theo tuần',              path: '/work-schedule',       tone: 'navy'    },
   { slug: 'monthly-attendance',  icon: 'cal',    label: 'Công tháng',       desc: 'Lịch công HR xác nhận',                    path: '/attendance/monthly',  tone: 'navy'    },
@@ -204,6 +204,7 @@ export function HNHLifePage() {
   const [mode, setMode] = useState<ViewMode>('launcher')
   const [allowedApps, setAllowedApps] = useState<Set<string> | null>(null)
   const [feedItems, setFeedItems] = useState<FeedItem[]>([])
+  const [feedLoaded, setFeedLoaded] = useState(false)
 
   useEffect(() => {
     api.get<{ allowed: string[] }>('/api/employee/my-apps/')
@@ -212,7 +213,8 @@ export function HNHLifePage() {
 
     api.get<{ results: FeedItem[] }>('/api/notifications/announcements/feed/?page_size=3')
       .then(data => setFeedItems(data.results ?? []))
-      .catch(() => setFeedItems([]))
+      .catch(() => {})
+      .finally(() => setFeedLoaded(true))
   }, [])
 
   const visible = allowedApps
@@ -268,7 +270,20 @@ export function HNHLifePage() {
 
       <div style={{ padding: '16px 16px 100px' }}>
         {/* Tin nội bộ preview */}
-        {feedItems.length > 0 && (
+        {!feedLoaded && (
+          <div style={{ marginBottom: 20 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 10 }}>
+              📢 Tin nội bộ
+            </div>
+            {[0, 1].map(i => (
+              <div key={i} style={{
+                height: 72, borderRadius: 14, background: HNH.line,
+                marginBottom: 8, opacity: 0.5,
+              }} />
+            ))}
+          </div>
+        )}
+        {feedLoaded && feedItems.length > 0 && (
           <div style={{ marginBottom: 20 }}>
             <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, textTransform: 'uppercase', letterSpacing: 0.4 }}>
