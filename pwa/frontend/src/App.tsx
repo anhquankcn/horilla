@@ -30,6 +30,7 @@ import { AttendanceProposalPage } from './pages/AttendanceProposal'
 import { AssetProposalPage } from './pages/AssetProposal'
 import { CalendarPage } from './pages/Calendar'
 import { AnnouncementHubPage } from './pages/AnnouncementHub'
+import { AnnouncementFeedPage } from './pages/AnnouncementFeed'
 import { ProjectsPage } from './pages/Projects'
 import { DashboardPage } from './pages/Dashboard'
 import { EmployeeProfilePage } from './pages/EmployeeProfile'
@@ -88,6 +89,7 @@ export function App() {
         <Route path="/payslip" element={<PayslipPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/calendar" element={<CalendarPage />} />
+        <Route path="/announcements" element={<AnnouncementFeedPage />} />
         <Route path="/announcement-hub" element={<AnnouncementHubPage />} />
         <Route path="/projects" element={<ProjectsPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />

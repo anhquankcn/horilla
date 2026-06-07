@@ -52,6 +52,7 @@ class Announcement(models.Model):
         related_name="notification_announcements",
     )
     send_as_system = models.BooleanField(default=False)
+    pinned = models.BooleanField(default=False, verbose_name="Ghim")
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -82,6 +83,26 @@ class AnnouncementRecipient(models.Model):
 
     def __str__(self):
         return f"{self.user} ← {self.announcement.title}"
+
+
+class AnnouncementLike(models.Model):
+    announcement = models.ForeignKey(
+        Announcement,
+        on_delete=models.CASCADE,
+        related_name="likes",
+    )
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "notifications_announcementlike"
+        unique_together = [("announcement", "user")]
+
+    def __str__(self):
+        return f"{self.user} ♥ {self.announcement.title}"
 
 
 class AnnouncementFeedback(models.Model):

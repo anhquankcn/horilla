@@ -17,7 +17,9 @@ urlpatterns = [
     path("announcements/", views.AnnouncementCreateView.as_view()),
     path("announcements/history/", views.AnnouncementHistoryView.as_view()),
     path("announcements/received/", views.AnnouncementReceivedView.as_view()),
+    path("announcements/feed/", views.AnnouncementFeedView.as_view()),
+    path("announcements/targets/", views.AnnouncementTargetsView.as_view()),
     path("announcements/<int:pk>/", views.AnnouncementDetailView.as_view()),
     path("announcements/<int:pk>/feedback/", views.AnnouncementFeedbackView.as_view()),
-    path("announcements/targets/", views.AnnouncementTargetsView.as_view()),
+    path("announcements/<int:pk>/like/", views.AnnouncementLikeView.as_view()),
 ]

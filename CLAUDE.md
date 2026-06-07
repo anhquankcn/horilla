@@ -182,6 +182,42 @@ python manage.py runserver 0.0.0.0:8000
 - Khi thêm module mới vào `SIDEBARS` trong `horilla_apps.py`, cần reload server
 - Logo công ty upload qua **Admin > Base > Companies** (field `icon`), lưu tại `media/base/`
 
+## HNH Life — Announcement Feed
+
+Feature nội bộ thêm vào tab HNH Life. Thiết kế approved 2026-06-07.
+
+### Models (notifications/models.py)
+- `Announcement`: thêm `pinned = models.BooleanField(default=False)` — **migration chưa chạy**
+- `AnnouncementLike`: model mới (announcement FK, user FK, created_at, unique_together) — **chưa tạo**
+
+### API endpoints mới (horilla_api/)
+| Endpoint | View | Mô tả |
+|----------|------|--------|
+| `GET /api/notifications/announcements/feed/` | `AnnouncementFeedView` | Feed toàn công ty, pinned first, phân trang 20/page |
+| `POST /api/notifications/announcements/{pk}/like/` | `AnnouncementLikeView` | Toggle like, trả `{liked, count}` |
+
+**Lưu ý quan trọng**: `AnnouncementFeedView` PHẢI dùng `annotate()` cho `like_count`, `my_like`, `read_count` — không được gọi `_serialize_announcement()` trong loop (N+1 queries).
+
+Feed query qua `AnnouncementRecipient.filter(user=request.user)` — không query `Announcement` trực tiếp.
+
+### Frontend pages (pwa/frontend/src/)
+| File | Trạng thái | Mô tả |
+|------|-----------|--------|
+| `pages/AnnouncementHub.tsx` | ✅ Đã có | HR tool: Tạo/Gửi/Lịch sử — tại `/announcement-hub` |
+| `pages/AnnouncementFeed.tsx` | ❌ Chưa có | Employee feed: pinned + like — sẽ tại `/announcements` |
+| `pages/HNHLife.tsx` | ✅ Có, cần sửa | Thêm "Tin nội bộ" preview section (fetch feed?page_size=3) |
+
+### URLs (horilla_api/api_urls/notifications/urls.py)
+Thêm static paths TRƯỚC `announcements/<int:pk>/`:
+```python
+path("announcements/feed/", views.AnnouncementFeedView.as_view()),
+path("announcements/<int:pk>/like/", views.AnnouncementLikeView.as_view()),
+```
+
+### Quyền hạn
+- Chỉ `is_staff` mới được set `pinned=True` (strip silently nếu không phải staff)
+- Mọi user đã auth đều có thể tạo announcement hiện tại (tech debt, chấp nhận cho MVP)
+
 ## Skill routing
 
 When the user's request matches an available skill, ALWAYS invoke it using the Skill

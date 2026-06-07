@@ -1,6 +1,9 @@
 import logging
 
 from django.conf import settings
+from django.contrib.auth import get_user_model
+from django.db.models import Count, Exists, OuterRef, Q
+from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
@@ -13,6 +16,7 @@ from employee.models import Employee, EmployeeWorkInformation
 from notifications.models import (
     Announcement,
     AnnouncementFeedback,
+    AnnouncementLike,
     AnnouncementRecipient,
     PushSubscription,
 )
@@ -175,7 +179,7 @@ def _resolve_recipients(target_type, data):
     return []
 
 
-def _serialize_announcement(ann, include_feedback=False):
+def _serialize_announcement(ann, include_feedback=False, *, like_count=None, my_like=None):
     if ann.send_as_system:
         sender_display = "HRM System"
     elif hasattr(ann.sender, "employee_get"):
@@ -187,6 +191,7 @@ def _serialize_announcement(ann, include_feedback=False):
         "id": ann.id,
         "title": ann.title,
         "body": ann.body,
+        "pinned": ann.pinned,
         "target_type": ann.target_type,
         "target_label": ann.get_target_type_display(),
         "target_department": (
@@ -201,6 +206,8 @@ def _serialize_announcement(ann, include_feedback=False):
         "recipient_count": ann.recipients.count(),
         "read_count": ann.recipients.filter(read=True).count(),
         "feedback_count": ann.feedbacks.count(),
+        "like_count": like_count if like_count is not None else ann.likes.count(),
+        "my_like": bool(my_like) if my_like is not None else False,
     }
     if include_feedback:
         result["feedbacks"] = [
@@ -418,6 +425,87 @@ class AnnouncementFeedbackView(APIView):
             },
             status=201 if created else 200,
         )
+
+
+class AnnouncementFeedView(APIView):
+    """Company-wide feed for the current user. Pinned first, then chronological."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        page_size = min(int(request.query_params.get("page_size", 20)), 50)
+        page = max(int(request.query_params.get("page", 1)), 1)
+        offset = (page - 1) * page_size
+
+        qs = (
+            AnnouncementRecipient.objects.filter(user=request.user)
+            .select_related(
+                "announcement",
+                "announcement__sender",
+                "announcement__target_department",
+                "announcement__target_company",
+            )
+            .annotate(
+                ann_like_count=Count("announcement__likes"),
+                ann_my_like=Exists(
+                    AnnouncementLike.objects.filter(
+                        announcement=OuterRef("announcement_id"),
+                        user=request.user,
+                    )
+                ),
+            )
+            .order_by("-announcement__pinned", "-announcement__created_at")
+        )
+
+        total = qs.count()
+        recs = qs[offset : offset + page_size]
+
+        items = []
+        for r in recs:
+            ann = r.announcement
+            items.append(
+                {
+                    **_serialize_announcement(
+                        ann,
+                        like_count=r.ann_like_count,
+                        my_like=r.ann_my_like,
+                    ),
+                    "read": r.read,
+                    "read_at": r.read_at.isoformat() if r.read_at else None,
+                }
+            )
+
+        return Response(
+            {
+                "count": total,
+                "page": page,
+                "page_size": page_size,
+                "results": items,
+            }
+        )
+
+
+class AnnouncementLikeView(APIView):
+    """Toggle like on an announcement. Returns {liked, count}."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        ann = Announcement.objects.filter(pk=pk).first()
+        if not ann:
+            return Response({"error": "Not found"}, status=404)
+
+        if not ann.recipients.filter(user=request.user).exists():
+            return Response({"error": "Forbidden"}, status=403)
+
+        obj, created = AnnouncementLike.objects.get_or_create(
+            announcement=ann, user=request.user
+        )
+        if not created:
+            obj.delete()
+
+        like_count = ann.likes.count()
+        return Response({"liked": created, "count": like_count})
 
 
 class AnnouncementTargetsView(APIView):
