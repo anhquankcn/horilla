@@ -439,8 +439,8 @@ function ApproveModal({ request, allShifts, onClose, onDone }: ApproveModalProps
 // ── Grid View ─────────────────────────────────────────────────────────────────
 
 const CELL_W = 56
-const NAME_W = 100
-const ROW_H = 46
+const NAME_W = 120
+const ROW_H = 52
 
 interface GridViewProps {
   data: PlannerData
@@ -493,14 +493,22 @@ function GridView({ data, days, onCellClick, today }: GridViewProps) {
             {/* Name column — sticky */}
             <div style={{
               width: NAME_W, flexShrink: 0, padding: '0 8px',
-              display: 'flex', flexDirection: 'column', justifyContent: 'center',
+              display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 1,
               height: ROW_H, borderRight: `1px solid ${HNH.line}`,
               position: 'sticky', left: 0, background: '#fff', zIndex: 1,
             }}>
-              <div style={{ fontSize: 12, fontWeight: 700, color: HNH.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {/* Tên (first name) — prominent */}
+              <div style={{ fontSize: 13, fontWeight: 700, color: HNH.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {emp.name.split(' ').slice(-1)[0]}
               </div>
-              <div style={{ fontSize: 10, color: HNH.ink4, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {/* Họ đệm — small */}
+              {emp.name.split(' ').length > 1 && (
+                <div style={{ fontSize: 10, color: HNH.ink3, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {emp.name.split(' ').slice(0, -1).join(' ')}
+                </div>
+              )}
+              {/* Mã NV — smallest */}
+              <div style={{ fontSize: 9.5, color: HNH.ink4, fontWeight: 600, letterSpacing: 0.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {emp.badge_id}
               </div>
             </div>
