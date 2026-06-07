@@ -284,6 +284,7 @@ urlpatterns = [
     path("shift-mgmt/plan/", smv.ShiftMgmtPlanView.as_view(), name="api-shift-mgmt-plan"),
     path("shift-categories/", smv.ShiftCRUDView.as_view(), name="api-shift-categories"),
     path("shift-planner/", smv.ShiftPlannerView.as_view(), name="api-shift-planner"),
+    path("attendance-config/", smv.AttendanceConfigView.as_view(), name="api-attendance-config"),
     # ── Keycloak Account Management ──
     path("kc-options/", kav.KcOptionsView.as_view(), name="api-kc-options"),
     path("<int:pk>/kc-account/", kav.KcAccountView.as_view(), name="api-kc-account"),

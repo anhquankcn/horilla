@@ -12,9 +12,15 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from attendance.models import EmployeeShiftPlan, ShiftChangeRequest
-from base.models import Department, DepartmentShift, EmployeeShift, EmployeeShiftSchedule
+from attendance.models import AttendanceValidationCondition, EmployeeShiftPlan, ShiftChangeRequest
+from base.models import Department, DepartmentShift, EmployeeShift, EmployeeShiftSchedule, HRMConfig
 from employee.models import Employee
+
+try:
+    from attendance.models import GraceTime
+    _HAS_GRACE_TIME = True
+except ImportError:
+    _HAS_GRACE_TIME = False
 
 
 # ── helpers ──────────────────────────────────────────────────────────────────
@@ -790,3 +796,161 @@ class ShiftPlannerView(APIView):
             return Response({"deleted": count})
 
         return Response({"error": "Cần plan_id hoặc request_id"}, status=400)
+
+
+# ── AttendanceConfigView ──────────────────────────────────────────────────────
+
+_LATE_EARLY_KEYS = {
+    "late_come_enabled": bool,
+    "early_out_enabled": bool,
+    "late_early_deduct_leave": bool,
+}
+
+
+def _grace_time_data(g) -> dict:
+    secs = g.allowed_time_in_secs or 0
+    return {
+        "id": g.id,
+        "allowed_time": g.allowed_time,
+        "allowed_min": round(secs / 60),
+        "clock_in": g.allowed_clock_in,
+        "clock_out": g.allowed_clock_out,
+        "is_default": g.is_default,
+    }
+
+
+def _validation_condition_data(vc) -> dict:
+    return {
+        "id": vc.id,
+        "validation_at_work": vc.validation_at_work,
+        "minimum_overtime_to_approve": vc.minimum_overtime_to_approve or "",
+        "overtime_cutoff": vc.overtime_cutoff or "",
+        "auto_approve_ot": vc.auto_approve_ot,
+    }
+
+
+class AttendanceConfigView(APIView):
+    """
+    GET  /api/employee/attendance-config/
+         → validation_condition, grace_times, late_early_config
+
+    PATCH section='validation' → update AttendanceValidationCondition (singleton)
+    PATCH section='late_early' → update HRMConfig late-early keys
+
+    POST  section='grace_time', action=create|update|delete|set_default → GraceTime CRUD
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def _is_hr(self, request) -> bool:
+        return request.user.is_superuser or request.user.has_perm("attendance.change_attendance")
+
+    # ── GET ──────────────────────────────────────────────────────────────────
+
+    def get(self, request):
+        if not self._is_hr(request):
+            return Response({"error": "Không có quyền"}, status=403)
+
+        vc_qs = AttendanceValidationCondition.objects.first()
+        validation_condition = _validation_condition_data(vc_qs) if vc_qs else None
+
+        grace_times = []
+        if _HAS_GRACE_TIME:
+            grace_times = [_grace_time_data(g) for g in GraceTime.objects.order_by("-is_default", "allowed_time")]
+
+        late_early_config = {
+            k: HRMConfig.get_value(k, True if k in ("late_come_enabled", "early_out_enabled") else False)
+            for k in _LATE_EARLY_KEYS
+        }
+
+        return Response({
+            "validation_condition": validation_condition,
+            "grace_times": grace_times,
+            "late_early_config": late_early_config,
+        })
+
+    # ── PATCH ─────────────────────────────────────────────────────────────────
+
+    def patch(self, request):
+        if not self._is_hr(request):
+            return Response({"error": "Không có quyền"}, status=403)
+
+        section = request.data.get("section")
+
+        if section == "validation":
+            vc, _ = AttendanceValidationCondition.objects.get_or_create(pk=1)
+            if "validation_at_work" in request.data:
+                vc.validation_at_work = request.data["validation_at_work"]
+            if "minimum_overtime_to_approve" in request.data:
+                vc.minimum_overtime_to_approve = request.data["minimum_overtime_to_approve"] or None
+            if "overtime_cutoff" in request.data:
+                vc.overtime_cutoff = request.data["overtime_cutoff"] or None
+            if "auto_approve_ot" in request.data:
+                vc.auto_approve_ot = bool(request.data["auto_approve_ot"])
+            vc.save()
+            return Response(_validation_condition_data(vc))
+
+        if section == "late_early":
+            for key, cast in _LATE_EARLY_KEYS.items():
+                if key in request.data:
+                    HRMConfig.set_value(key, cast(request.data[key]))
+            return Response({"ok": True})
+
+        return Response({"error": "section không hợp lệ"}, status=400)
+
+    # ── POST (GraceTime CRUD) ─────────────────────────────────────────────────
+
+    def post(self, request):
+        if not self._is_hr(request):
+            return Response({"error": "Không có quyền"}, status=403)
+        if not _HAS_GRACE_TIME:
+            return Response({"error": "GraceTime không khả dụng"}, status=400)
+
+        action = request.data.get("action")
+
+        if action == "create_grace":
+            mins = int(request.data.get("allowed_min", 0))
+            secs = mins * 60
+            h, m, s = secs // 3600, (secs % 3600) // 60, secs % 60
+            g = GraceTime.objects.create(
+                allowed_time=f"{h:02d}:{m:02d}:{s:02d}",
+                allowed_time_in_secs=secs,
+                allowed_clock_in=bool(request.data.get("clock_in", True)),
+                allowed_clock_out=bool(request.data.get("clock_out", False)),
+                is_default=False,
+            )
+            return Response(_grace_time_data(g), status=201)
+
+        if action == "update_grace":
+            gid = request.data.get("grace_id")
+            try:
+                g = GraceTime.objects.get(id=gid)
+            except GraceTime.DoesNotExist:
+                return Response({"error": "Không tìm thấy grace time"}, status=404)
+            if "allowed_min" in request.data:
+                mins = int(request.data["allowed_min"])
+                secs = mins * 60
+                h, m, s = secs // 3600, (secs % 3600) // 60, secs % 60
+                g.allowed_time = f"{h:02d}:{m:02d}:{s:02d}"
+                g.allowed_time_in_secs = secs
+            if "clock_in" in request.data:
+                g.allowed_clock_in = bool(request.data["clock_in"])
+            if "clock_out" in request.data:
+                g.allowed_clock_out = bool(request.data["clock_out"])
+            g.save()
+            return Response(_grace_time_data(g))
+
+        if action == "delete_grace":
+            gid = request.data.get("grace_id")
+            count, _ = GraceTime.objects.filter(id=gid, is_default=False).delete()
+            if count == 0:
+                return Response({"error": "Không thể xoá grace time mặc định hoặc không tồn tại"}, status=400)
+            return Response({"ok": True})
+
+        if action == "set_default_grace":
+            gid = request.data.get("grace_id")
+            GraceTime.objects.update(is_default=False)
+            GraceTime.objects.filter(id=gid).update(is_default=True)
+            return Response({"ok": True})
+
+        return Response({"error": "action không hợp lệ"}, status=400)

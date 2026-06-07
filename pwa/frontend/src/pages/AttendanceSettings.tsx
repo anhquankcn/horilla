@@ -609,6 +609,372 @@ function ShiftCategoriesSection() {
   )
 }
 
+// ── Attendance Config Types ───────────────────────────────────────────────────
+
+interface ValidationCondition {
+  id: number
+  validation_at_work: string
+  minimum_overtime_to_approve: string
+  overtime_cutoff: string
+  auto_approve_ot: boolean
+}
+
+interface GraceTimeItem {
+  id: number
+  allowed_time: string
+  allowed_min: number
+  clock_in: boolean
+  clock_out: boolean
+  is_default: boolean
+}
+
+interface LateEarlyConfig {
+  late_come_enabled: boolean
+  early_out_enabled: boolean
+  late_early_deduct_leave: boolean
+}
+
+interface AttendanceConfigData {
+  validation_condition: ValidationCondition | null
+  grace_times: GraceTimeItem[]
+  late_early_config: LateEarlyConfig
+}
+
+// ── Điều kiện xác nhận công ───────────────────────────────────────────────────
+
+function ValidationConditionSection() {
+  const { toast: showToast } = useToast()
+  const [expanded, setExpanded] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState({ validation_at_work: '', minimum_overtime_to_approve: '', overtime_cutoff: '', auto_approve_ot: false })
+
+  const load = useCallback(async () => {
+    if (!expanded) return
+    setLoading(true)
+    try {
+      const res = await api.get<AttendanceConfigData>('/api/employee/attendance-config/')
+      const vc = res.validation_condition
+      if (vc) setForm({ validation_at_work: vc.validation_at_work, minimum_overtime_to_approve: vc.minimum_overtime_to_approve, overtime_cutoff: vc.overtime_cutoff, auto_approve_ot: vc.auto_approve_ot })
+    } catch { showToast('Không thể tải cấu hình') }
+    finally { setLoading(false) }
+  }, [expanded, showToast])
+
+  useEffect(() => { load() }, [load])
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await api.patch('/api/employee/attendance-config/', { section: 'validation', ...form })
+      showToast('Đã lưu')
+      load()
+    } catch { showToast('Lỗi khi lưu') }
+    finally { setSaving(false) }
+  }
+
+  const field = (label: string, key: keyof typeof form, placeholder: string, hint: string) => (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: HNH.ink3, marginBottom: 4 }}>{label}</div>
+      <input
+        value={form[key] as string}
+        onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
+        placeholder={placeholder}
+        style={{ width: '100%', padding: '9px 12px', borderRadius: 10, border: `1.5px solid ${HNH.line}`, fontSize: 14, color: HNH.ink, outline: 'none', boxSizing: 'border-box' }}
+      />
+      <div style={{ fontSize: 11, color: HNH.ink4, marginTop: 3 }}>{hint}</div>
+    </div>
+  )
+
+  return (
+    <SettingCard>
+      <SettingRow
+        icon="check" label="Điều kiện xác nhận công" tone="navy"
+        detail="Ngưỡng giờ làm tự duyệt, OT tối thiểu, OT cutoff"
+        last={!expanded}
+        onClick={() => setExpanded(e => !e)}
+        trailing={<Icon name={expanded ? 'chev-u' : 'chev-d'} size={16} color={HNH.ink4} stroke={2} />}
+      />
+      {expanded && (
+        <div style={{ padding: '4px 14px 16px', borderTop: `1px solid ${HNH.line}` }}>
+          {loading ? (
+            <div style={{ padding: '16px 0', display: 'flex', justifyContent: 'center' }}>
+              <div style={{ width: 22, height: 22, border: `3px solid ${HNH.line}`, borderTopColor: HNH.navy, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+            </div>
+          ) : (
+            <>
+              <div style={{ marginTop: 12 }}>
+                {field('Giờ làm tự động duyệt (HH:MM)', 'validation_at_work', 'VD: 09:00', 'Chấm công đủ X giờ → tự động duyệt hợp lệ')}
+                {field('OT tối thiểu để duyệt (HH:MM)', 'minimum_overtime_to_approve', 'VD: 00:30', 'Tăng ca ít hơn mức này sẽ không được tính OT')}
+                {field('OT tối đa (cutoff) (HH:MM)', 'overtime_cutoff', 'VD: 02:00', 'Cắt OT vượt quá giới hạn này trong một ca')}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14, padding: '10px 12px', background: HNH.cream, borderRadius: 10 }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: HNH.ink }}>Tự động duyệt OT</div>
+                  <div style={{ fontSize: 11.5, color: HNH.ink3 }}>OT đủ điều kiện sẽ tự duyệt, không cần HR</div>
+                </div>
+                <Toggle value={form.auto_approve_ot} onChange={v => setForm(f => ({ ...f, auto_approve_ot: v }))} />
+              </div>
+              <button onClick={handleSave} disabled={saving} style={{ width: '100%', padding: '11px 0', borderRadius: 11, border: 'none', background: HNH.navy, color: '#fff', fontSize: 14, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+                {saving ? 'Đang lưu...' : 'Lưu cấu hình'}
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </SettingCard>
+  )
+}
+
+// ── Quản lý Grace Time ────────────────────────────────────────────────────────
+
+interface GraceTimeModalProps {
+  editing: GraceTimeItem | null
+  onClose: () => void
+  onSaved: () => void
+}
+
+function GraceTimeModal({ editing, onClose, onSaved }: GraceTimeModalProps) {
+  const { toast: showToast } = useToast()
+  const [mins, setMins] = useState(editing?.allowed_min ?? 15)
+  const [clockIn, setClockIn] = useState(editing?.clock_in ?? true)
+  const [clockOut, setClockOut] = useState(editing?.clock_out ?? false)
+  const [saving, setSaving] = useState(false)
+
+  const handleSave = async () => {
+    if (mins <= 0) { showToast('Số phút phải > 0'); return }
+    setSaving(true)
+    try {
+      if (editing) {
+        await api.post('/api/employee/attendance-config/', { section: 'grace_time', action: 'update_grace', grace_id: editing.id, allowed_min: mins, clock_in: clockIn, clock_out: clockOut })
+      } else {
+        await api.post('/api/employee/attendance-config/', { section: 'grace_time', action: 'create_grace', allowed_min: mins, clock_in: clockIn, clock_out: clockOut })
+      }
+      showToast(editing ? 'Đã cập nhật' : 'Đã thêm grace time')
+      onSaved()
+    } catch (e: any) { showToast(e?.message ?? 'Lỗi') }
+    finally { setSaving(false) }
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'flex-end' }} onClick={onClose}>
+      <div style={{ background: '#fff', borderRadius: '20px 20px 0 0', width: '100%', maxHeight: '80vh', overflowY: 'auto', padding: '24px 20px 40px' }} onClick={e => e.stopPropagation()}>
+        <div style={{ fontWeight: 700, fontSize: 17, color: HNH.ink, marginBottom: 18 }}>
+          {editing ? 'Sửa Grace Time' : 'Thêm Grace Time'}
+        </div>
+
+        <div style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: HNH.ink3, marginBottom: 6 }}>Số phút dung sai (±)</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <button onClick={() => setMins(m => Math.max(1, m - 5))} style={{ width: 36, height: 36, borderRadius: 10, border: `1.5px solid ${HNH.line}`, background: '#fff', fontSize: 18, cursor: 'pointer' }}>−</button>
+            <div style={{ flex: 1, textAlign: 'center', fontSize: 22, fontWeight: 800, color: HNH.ink }}>{mins} phút</div>
+            <button onClick={() => setMins(m => m + 5)} style={{ width: 36, height: 36, borderRadius: 10, border: `1.5px solid ${HNH.line}`, background: '#fff', fontSize: 18, cursor: 'pointer' }}>+</button>
+          </div>
+          <input type="range" min={1} max={120} value={mins} onChange={e => setMins(Number(e.target.value))} style={{ width: '100%', marginTop: 8 }} />
+        </div>
+
+        <div style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: HNH.cream, borderRadius: 10 }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: HNH.ink }}>Tính đi trễ (Clock-in)</div>
+              <div style={{ fontSize: 11.5, color: HNH.ink3 }}>Đến muộn hơn {mins}' → đánh dấu đi trễ</div>
+            </div>
+            <Toggle value={clockIn} onChange={setClockIn} />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: HNH.cream, borderRadius: 10 }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: HNH.ink }}>Tính về sớm (Clock-out)</div>
+              <div style={{ fontSize: 11.5, color: HNH.ink3 }}>Ra về sớm hơn {mins}' → đánh dấu về sớm</div>
+            </div>
+            <Toggle value={clockOut} onChange={setClockOut} />
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: '12px 0', borderRadius: 12, border: `1.5px solid ${HNH.line}`, background: '#fff', fontSize: 14, fontWeight: 600, color: HNH.ink2, cursor: 'pointer' }}>Huỷ</button>
+          <button onClick={handleSave} disabled={saving} style={{ flex: 2, padding: '12px 0', borderRadius: 12, border: 'none', background: HNH.red, fontSize: 14, fontWeight: 700, color: '#fff', cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+            {saving ? 'Đang lưu...' : (editing ? 'Cập nhật' : 'Thêm')}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function GraceTimeSection() {
+  const { toast: showToast } = useToast()
+  const [expanded, setExpanded] = useState(false)
+  const [items, setItems] = useState<GraceTimeItem[]>([])
+  const [loading, setLoading] = useState(false)
+  const [modalOpen, setModalOpen] = useState(false)
+  const [editing, setEditing] = useState<GraceTimeItem | null>(null)
+  const [deleting, setDeleting] = useState<number | null>(null)
+  const [settingDefault, setSettingDefault] = useState<number | null>(null)
+
+  const load = useCallback(async () => {
+    if (!expanded) return
+    setLoading(true)
+    try {
+      const res = await api.get<AttendanceConfigData>('/api/employee/attendance-config/')
+      setItems(res.grace_times)
+    } catch { showToast('Không thể tải grace time') }
+    finally { setLoading(false) }
+  }, [expanded, showToast])
+
+  useEffect(() => { load() }, [load])
+
+  const handleDelete = async (id: number) => {
+    if (!confirm('Xoá grace time này?')) return
+    setDeleting(id)
+    try {
+      await api.post('/api/employee/attendance-config/', { section: 'grace_time', action: 'delete_grace', grace_id: id })
+      showToast('Đã xoá')
+      load()
+    } catch (e: any) { showToast(e?.message ?? 'Không thể xoá') }
+    finally { setDeleting(null) }
+  }
+
+  const handleSetDefault = async (id: number) => {
+    setSettingDefault(id)
+    try {
+      await api.post('/api/employee/attendance-config/', { section: 'grace_time', action: 'set_default_grace', grace_id: id })
+      showToast('Đã đặt mặc định')
+      load()
+    } catch { showToast('Lỗi') }
+    finally { setSettingDefault(null) }
+  }
+
+  return (
+    <>
+      <SettingCard>
+        <SettingRow
+          icon="clock" label="Grace Time" tone="warn"
+          detail={items.length > 0 ? `${items.length} khoảng dung sai đang cấu hình` : 'Khoảng ±phút cho phép khi chấm công'}
+          last={!expanded}
+          onClick={() => setExpanded(e => !e)}
+          trailing={<Icon name={expanded ? 'chev-u' : 'chev-d'} size={16} color={HNH.ink4} stroke={2} />}
+        />
+        {expanded && (
+          <div style={{ borderTop: `1px solid ${HNH.line}` }}>
+            <div style={{ padding: '10px 14px', display: 'flex', justifyContent: 'flex-end' }}>
+              <button onClick={() => { setEditing(null); setModalOpen(true) }} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '7px 14px', borderRadius: 10, border: 'none', background: HNH.warn, color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                <Icon name="plus" size={14} color="#fff" stroke={2.5} />
+                Thêm
+              </button>
+            </div>
+            {loading && <div style={{ padding: '16px 0', display: 'flex', justifyContent: 'center' }}><div style={{ width: 22, height: 22, border: `3px solid ${HNH.line}`, borderTopColor: HNH.warn, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} /></div>}
+            {!loading && items.length === 0 && <div style={{ padding: '12px 14px', fontSize: 13, color: HNH.ink3, textAlign: 'center' }}>Chưa có grace time nào</div>}
+            {!loading && items.map((g, idx) => (
+              <div key={g.id} style={{ padding: '10px 14px', borderTop: idx === 0 ? 'none' : `1px solid ${HNH.line}`, display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ fontSize: 16, fontWeight: 800, color: HNH.warn }}>±{g.allowed_min}'</span>
+                    {g.is_default && <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 8, background: HNH.success50, color: HNH.success }}>Mặc định</span>}
+                  </div>
+                  <div style={{ display: 'flex', gap: 6, marginTop: 4, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 8, background: g.clock_in ? '#ecfdf5' : HNH.cream, color: g.clock_in ? HNH.success : HNH.ink4, fontWeight: 600 }}>
+                      {g.clock_in ? '✓' : '✗'} Đi trễ
+                    </span>
+                    <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 8, background: g.clock_out ? '#ecfdf5' : HNH.cream, color: g.clock_out ? HNH.success : HNH.ink4, fontWeight: 600 }}>
+                      {g.clock_out ? '✓' : '✗'} Về sớm
+                    </span>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 5, flexShrink: 0 }}>
+                  {!g.is_default && (
+                    <button onClick={() => handleSetDefault(g.id)} disabled={settingDefault === g.id} style={{ padding: '4px 10px', borderRadius: 7, border: `1.5px solid ${HNH.success}`, background: HNH.success50, fontSize: 11, fontWeight: 600, color: HNH.success, cursor: 'pointer' }}>
+                      {settingDefault === g.id ? '...' : 'Mặc định'}
+                    </button>
+                  )}
+                  <div style={{ display: 'flex', gap: 5 }}>
+                    <button onClick={() => { setEditing(g); setModalOpen(true) }} style={{ padding: '4px 10px', borderRadius: 7, border: `1.5px solid ${HNH.line}`, background: '#fff', fontSize: 11, fontWeight: 600, color: HNH.ink2, cursor: 'pointer' }}>Sửa</button>
+                    <button onClick={() => handleDelete(g.id)} disabled={deleting === g.id || g.is_default} style={{ padding: '4px 10px', borderRadius: 7, border: `1.5px solid ${HNH.red}30`, background: HNH.red50, fontSize: 11, fontWeight: 600, color: HNH.red, cursor: (deleting === g.id || g.is_default) ? 'not-allowed' : 'pointer', opacity: g.is_default ? 0.4 : 1 }}>Xoá</button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </SettingCard>
+      {modalOpen && <GraceTimeModal editing={editing} onClose={() => setModalOpen(false)} onSaved={() => { setModalOpen(false); load() }} />}
+    </>
+  )
+}
+
+// ── Đi trễ / Về sớm ──────────────────────────────────────────────────────────
+
+function LateEarlySection() {
+  const { toast: showToast } = useToast()
+  const [expanded, setExpanded] = useState(false)
+  const [config, setConfig] = useState<LateEarlyConfig>({ late_come_enabled: true, early_out_enabled: true, late_early_deduct_leave: false })
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    if (!expanded) return
+    setLoading(true)
+    try {
+      const res = await api.get<AttendanceConfigData>('/api/employee/attendance-config/')
+      setConfig(res.late_early_config)
+    } catch { showToast('Không thể tải cấu hình') }
+    finally { setLoading(false) }
+  }, [expanded, showToast])
+
+  useEffect(() => { load() }, [load])
+
+  const patch = async (key: keyof LateEarlyConfig, value: boolean) => {
+    setSaving(key)
+    try {
+      await api.patch('/api/employee/attendance-config/', { section: 'late_early', [key]: value })
+      setConfig(c => ({ ...c, [key]: value }))
+      showToast('Đã lưu')
+    } catch { showToast('Lỗi khi lưu') }
+    finally { setSaving(null) }
+  }
+
+  const configRows: { key: keyof LateEarlyConfig; label: string; detail: string; tone: 'red' | 'warn' | 'success' }[] = [
+    { key: 'late_come_enabled', label: 'Theo dõi đi trễ', detail: 'Ghi nhận khi nhân viên clock-in sau giờ ca bắt đầu', tone: 'warn' },
+    { key: 'early_out_enabled', label: 'Theo dõi về sớm', detail: 'Ghi nhận khi nhân viên clock-out trước giờ ca kết thúc', tone: 'warn' },
+    { key: 'late_early_deduct_leave', label: 'Trừ phép theo giờ', detail: 'Đi trễ / về sớm → tự động trừ số giờ tương ứng vào số dư phép', tone: 'red' },
+  ]
+
+  return (
+    <SettingCard>
+      <SettingRow
+        icon="clock" label="Đi trễ / Về sớm" tone="red"
+        detail="Cấu hình theo dõi và chính sách đi trễ/về sớm"
+        last={!expanded}
+        onClick={() => setExpanded(e => !e)}
+        trailing={<Icon name={expanded ? 'chev-u' : 'chev-d'} size={16} color={HNH.ink4} stroke={2} />}
+      />
+      {expanded && (
+        <div style={{ borderTop: `1px solid ${HNH.line}` }}>
+          {loading ? (
+            <div style={{ padding: '16px 0', display: 'flex', justifyContent: 'center' }}><div style={{ width: 22, height: 22, border: `3px solid ${HNH.line}`, borderTopColor: HNH.red, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} /></div>
+          ) : (
+            configRows.map((row, idx) => (
+              <div key={row.key} style={{ padding: '12px 14px', borderTop: idx === 0 ? 'none' : `1px solid ${HNH.line}`, display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: HNH.ink }}>{row.label}</div>
+                  <div style={{ fontSize: 11.5, color: HNH.ink3, marginTop: 2 }}>{row.detail}</div>
+                </div>
+                <Toggle value={config[row.key]} onChange={v => patch(row.key, v)} disabled={saving === row.key} />
+              </div>
+            ))
+          )}
+          {!loading && (
+            <div style={{ padding: '10px 14px', borderTop: `1px solid ${HNH.line}`, background: HNH.cream }}>
+              <div style={{ fontSize: 11.5, color: HNH.ink3, lineHeight: 1.5 }}>
+                <strong>Lưu ý:</strong> Ngưỡng phút dung sai được cấu hình per-ca qua <strong>Grace Time</strong> ở trên.
+                Mặc định hệ thống so sánh giờ clock-in/out với giờ bắt đầu/kết thúc ca chính xác.
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </SettingCard>
+  )
+}
+
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
 export function AttendanceSettingsPage() {
@@ -694,6 +1060,15 @@ export function AttendanceSettingsPage() {
 
         <SectionTitle title="Danh mục Ca làm việc" />
         <ShiftCategoriesSection />
+
+        <SectionTitle title="Điều kiện xác nhận công" />
+        <ValidationConditionSection />
+
+        <SectionTitle title="Grace Time" />
+        <GraceTimeSection />
+
+        <SectionTitle title="Đi trễ / Về sớm" />
+        <LateEarlySection />
 
         <SectionTitle title="Thông tin" />
         <SettingCard>
