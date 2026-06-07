@@ -564,10 +564,10 @@ class ShiftPlannerView(APIView):
         plan_map = {}
         for p in plans:
             key = f"{p.employee_id}_{p.date}"
-            plan_map.setdefault(key, []).append({
+            plan_map[key] = {
                 "plan_id": p.id, "shift_id": p.shift_id,
-                "shift_name": p.shift.employee_shift, "type": "plan",
-            })
+                "shift_name": p.shift.employee_shift,
+            }
 
         reqs = ShiftChangeRequest.objects.filter(
             employee_id__in=emp_ids, date__gte=from_date, date__lte=to_date,
@@ -575,22 +575,22 @@ class ShiftPlannerView(APIView):
         req_map = {}
         for r in reqs:
             key = f"{r.employee_id}_{r.date}"
-            req_map.setdefault(key, []).append({
+            req_map[key] = {
                 "request_id": r.id, "shift_id": r.shift_id,
-                "shift_name": r.shift.employee_shift, "type": "request",
+                "shift_name": r.shift.employee_shift,
                 "status": r.status,
-            })
+                "requested_by_id": r.requested_by_id,
+            }
 
         pending_reqs = [
             {
-                "request_id": r.id,
+                "id": r.id,
                 "employee_id": r.employee_id,
                 "employee_name": r.employee.get_full_name() if r.employee else "",
                 "shift_id": r.shift_id,
                 "shift_name": r.shift.employee_shift,
                 "date": str(r.date),
-                "status": r.status,
-                "requested_by": r.requested_by.get_full_name() if r.requested_by else "",
+                "note": r.note or "",
             }
             for r in reqs if r.status == "pending"
         ]
@@ -605,11 +605,9 @@ class ShiftPlannerView(APIView):
         else:
             all_depts = depts
 
-        dept_shifts = {}
-        for ds in DepartmentShift.objects.select_related("shift"):
-            dept_shifts.setdefault(str(ds.department_id), []).append(
-                {"id": ds.shift_id, "name": ds.shift.employee_shift}
-            )
+        dept_shifts: dict = {}
+        for ds in DepartmentShift.objects.all():
+            dept_shifts.setdefault(ds.department_id, []).append(ds.shift_id)
 
         all_shifts = [{"id": s.id, "name": s.employee_shift}
                       for s in EmployeeShift.objects.order_by("employee_shift")]
@@ -617,7 +615,7 @@ class ShiftPlannerView(APIView):
         return Response({
             "year": year,
             "month": month_num,
-            "dates": dates,
+            "days": dates,
             "employees": employees,
             "plans": plan_map,
             "requests": req_map,
