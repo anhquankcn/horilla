@@ -2435,8 +2435,8 @@ class MyMonthCalendarView(APIView):
                 plans = list(EmployeeShiftPlan.objects.filter(
                     employee_id=employee,
                     date__range=[max(start, future_start), end],
-                ).select_related("shift_id"))
-                plan_shift_ids = {p.shift_id_id for p in plans}
+                ).select_related("shift"))
+                plan_shift_ids = {p.shift_id for p in plans}
                 sched_by_shift = defaultdict(dict)
                 for sched in EmployeeShiftSchedule.objects.filter(
                     shift_id__in=plan_shift_ids
@@ -2451,9 +2451,9 @@ class MyMonthCalendarView(APIView):
                 for plan in plans:
                     d_iso = plan.date.isoformat()
                     wday = plan.date.weekday()
-                    st, et = sched_by_shift[plan.shift_id_id].get(wday, (None, None))
+                    st, et = sched_by_shift[plan.shift_id].get(wday, (None, None))
                     shift_plan_map[d_iso] = {
-                        "name": plan.shift_id.employee_shift if plan.shift_id else "",
+                        "name": plan.shift.employee_shift if plan.shift_id else "",
                         "start": st,
                         "end": et,
                     }
