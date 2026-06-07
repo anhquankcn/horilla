@@ -13,7 +13,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from attendance.models import EmployeeShiftPlan, ShiftChangeRequest
-from base.models import Department, DepartmentShift, EmployeeShift
+from base.models import Department, DepartmentShift, EmployeeShift, EmployeeShiftSchedule
 from employee.models import Employee
 
 
@@ -380,16 +380,55 @@ class ShiftCRUDView(APIView):
         if not self._is_hr(request):
             return Response({"error": "Không có quyền"}, status=403)
         shifts = EmployeeShift.objects.prefetch_related(
-            "department_assignments__department"
-        ).all().order_by("employee_shift")
+            "department_assignments__department",
+        ).select_related("grace_time_id").order_by("employee_shift")
+
+        schedule_qs = EmployeeShiftSchedule.objects.select_related("day", "shift_id")
+        schedule_map: dict = {}
+        for sch in schedule_qs:
+            schedule_map.setdefault(sch.shift_id_id, []).append(sch)
+
         result = []
         for s in shifts:
+            schedules_raw = schedule_map.get(s.id, [])
+            schedule_data = []
+            for sch in schedules_raw:
+                start = sch.start_time
+                end = sch.end_time
+                blocks = None
+                if start and end:
+                    start_dt = datetime.combine(datetime.today(), start)
+                    end_dt = datetime.combine(datetime.today(), end)
+                    if end_dt <= start_dt:
+                        end_dt += timedelta(days=1)
+                    blocks = int((end_dt - start_dt).total_seconds() / 900)
+                schedule_data.append({
+                    "day": sch.day.day if sch.day else "",
+                    "start_time": start.strftime("%H:%M") if start else None,
+                    "end_time": end.strftime("%H:%M") if end else None,
+                    "blocks": blocks,
+                    "minimum_working_hour": sch.minimum_working_hour,
+                    "is_night_shift": sch.is_night_shift,
+                })
+
+            grace = s.grace_time_id
+            grace_data = None
+            if grace:
+                grace_data = {
+                    "allowed_time": grace.allowed_time,
+                    "allowed_min": round(grace.allowed_time_in_secs / 60),
+                    "clock_in": grace.allowed_clock_in,
+                    "clock_out": grace.allowed_clock_out,
+                }
+
             result.append({
                 "id": s.id,
                 "name": s.employee_shift,
                 "weekly_full_time": s.weekly_full_time,
                 "department_ids": list(s.department_assignments.values_list("department_id", flat=True)),
                 "department_names": list(s.department_assignments.values_list("department__department", flat=True)),
+                "schedules": schedule_data,
+                "grace_time": grace_data,
             })
         depts = list(Department.objects.values("id", "department").order_by("department"))
         return Response({"shifts": result, "departments": depts})

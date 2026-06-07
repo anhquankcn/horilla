@@ -6,15 +6,37 @@ import { TopBar } from '../components/layout/TopBar'
 import { useToast } from '../components/ui/Toast'
 import { api } from '../lib/api'
 
+// ── Types ─────────────────────────────────────────────────────────────────────
+
 interface HRMConfigData {
   geo_approval_required: boolean
   is_hr: boolean
 }
 
+interface ShiftSchedule {
+  day: string
+  start_time: string | null
+  end_time: string | null
+  blocks: number | null
+  minimum_working_hour: string
+  is_night_shift: boolean
+}
+
+interface GraceTime {
+  allowed_time: string
+  allowed_min: number
+  clock_in: boolean
+  clock_out: boolean
+}
+
 interface ShiftInfo {
   id: number
-  employee_shift: string
+  name: string
+  weekly_full_time: string
   department_ids: number[]
+  department_names: string[]
+  schedules: ShiftSchedule[]
+  grace_time: GraceTime | null
 }
 
 interface Department {
@@ -26,6 +48,28 @@ interface ShiftCategoriesData {
   shifts: ShiftInfo[]
   departments: Department[]
 }
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const DAY_ORDER = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
+const DAY_VI: Record<string, string> = {
+  monday: 'T2', tuesday: 'T3', wednesday: 'T4',
+  thursday: 'T5', friday: 'T6', saturday: 'T7', sunday: 'CN',
+}
+
+function groupSchedules(schedules: ShiftSchedule[]) {
+  const sorted = [...schedules].sort((a, b) => DAY_ORDER.indexOf(a.day) - DAY_ORDER.indexOf(b.day))
+  const groups: { key: string; days: string[]; schedule: ShiftSchedule }[] = []
+  for (const sch of sorted) {
+    const key = `${sch.start_time}-${sch.end_time}-${sch.blocks}-${sch.minimum_working_hour}-${sch.is_night_shift}`
+    const existing = groups.find(g => g.key === key)
+    if (existing) existing.days.push(sch.day)
+    else groups.push({ key, days: [sch.day], schedule: sch })
+  }
+  return groups
+}
+
+// ── Base UI Components ────────────────────────────────────────────────────────
 
 function SectionTitle({ title }: { title: string }) {
   return (
@@ -73,40 +117,26 @@ function Toggle({ value, onChange, disabled }: { value: boolean; onChange: (v: b
 }
 
 function SettingRow({ icon, label, detail, tone, last, onClick, trailing }: {
-  icon: string
-  label: string
-  detail?: string
+  icon: string; label: string; detail?: string
   tone?: 'ink' | 'red' | 'success' | 'warn' | 'navy'
-  last?: boolean
-  onClick?: () => void
-  trailing?: React.ReactNode
+  last?: boolean; onClick?: () => void; trailing?: React.ReactNode
 }) {
   const t = tone ?? 'ink'
   const iconColor = t === 'red' ? HNH.red : t === 'success' ? HNH.success : t === 'warn' ? HNH.warn : t === 'navy' ? HNH.navy : HNH.ink2
   const iconBg = t === 'red' ? HNH.red50 : t === 'success' ? HNH.success50 : t === 'warn' ? HNH.warn50 : t === 'navy' ? HNH.navy50 : HNH.cream
-
   return (
     <button
-      onClick={onClick}
-      disabled={!onClick}
+      onClick={onClick} disabled={!onClick}
       className={`flex items-center gap-3 w-full text-left border-none ${onClick ? 'cursor-pointer' : ''}`}
-      style={{
-        padding: '12px 14px',
-        borderBottom: last ? 'none' : `1px solid ${HNH.line}`,
-        background: 'transparent',
-      }}
+      style={{ padding: '12px 14px', borderBottom: last ? 'none' : `1px solid ${HNH.line}`, background: 'transparent' }}
     >
-      <div
-        className="flex items-center justify-center shrink-0"
-        style={{ width: 32, height: 32, borderRadius: 10, background: iconBg }}
-      >
+      <div className="flex items-center justify-center shrink-0"
+        style={{ width: 32, height: 32, borderRadius: 10, background: iconBg }}>
         <Icon name={icon} size={15} color={iconColor} stroke={1.9} />
       </div>
       <div className="flex-1 min-w-0">
         <div style={{ fontSize: 14, fontWeight: 600, color: t === 'red' ? HNH.red : HNH.ink }}>{label}</div>
-        {detail && (
-          <div style={{ fontSize: 11.5, color: HNH.ink3, fontWeight: 500, marginTop: 1 }}>{detail}</div>
-        )}
+        {detail && <div style={{ fontSize: 11.5, color: HNH.ink3, fontWeight: 500, marginTop: 1 }}>{detail}</div>}
       </div>
       {trailing}
       {onClick && !trailing && <Icon name="chev-r" size={16} color={HNH.ink4} stroke={2} />}
@@ -114,7 +144,241 @@ function SettingRow({ icon, label, detail, tone, last, onClick, trailing }: {
   )
 }
 
-// ── Shift Categories Modal ─────────────────────────────────────────────────────
+// ── Shift Detail Card ─────────────────────────────────────────────────────────
+
+function InfoChip({ label, value, color }: { label: string; value: string; color?: string }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+      <span style={{ fontSize: 9.5, fontWeight: 600, color: HNH.ink4, letterSpacing: 0.4, textTransform: 'uppercase' }}>{label}</span>
+      <span style={{ fontSize: 13, fontWeight: 700, color: color ?? HNH.ink }}>{value}</span>
+    </div>
+  )
+}
+
+function Pill({ text, active }: { text: string; active: boolean }) {
+  return (
+    <span style={{
+      padding: '2px 8px', borderRadius: 8, fontSize: 11, fontWeight: 600,
+      background: active ? HNH.success50 : HNH.cream,
+      color: active ? HNH.success : HNH.ink4,
+      border: `1px solid ${active ? HNH.success : HNH.line}`,
+    }}>{text}</span>
+  )
+}
+
+function ShiftDetailCard({ shift, onEdit, onDelete, deleting }: {
+  shift: ShiftInfo
+  onEdit: () => void
+  onDelete: () => void
+  deleting: boolean
+}) {
+  const [expanded, setExpanded] = useState(false)
+  const groups = groupSchedules(shift.schedules)
+  const repSched = groups[0]?.schedule ?? null
+
+  return (
+    <div style={{ borderBottom: `1px solid ${HNH.line}` }}>
+      {/* Header row — always visible */}
+      <button
+        onClick={() => setExpanded(e => !e)}
+        style={{
+          width: '100%', border: 'none', background: 'none', cursor: 'pointer',
+          padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left',
+        }}
+      >
+        {/* Mã ca badge */}
+        <div style={{
+          flexShrink: 0, minWidth: 34, height: 34, borderRadius: 10,
+          background: HNH.red50, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+        }}>
+          <span style={{ fontSize: 8.5, color: HNH.red, fontWeight: 700, lineHeight: 1 }}>CA</span>
+          <span style={{ fontSize: 11, color: HNH.red, fontWeight: 800, lineHeight: 1 }}>#{shift.id}</span>
+        </div>
+
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: HNH.ink }}>{shift.name}</div>
+          {repSched && repSched.start_time && repSched.end_time ? (
+            <div style={{ fontSize: 11.5, color: HNH.ink3, marginTop: 2 }}>
+              {repSched.start_time} → {repSched.end_time}
+              {repSched.blocks ? ` · ${repSched.blocks} block×15'` : ''}
+              {repSched.is_night_shift ? ' · 🌙 Ca đêm' : ''}
+            </div>
+          ) : (
+            <div style={{ fontSize: 11.5, color: HNH.ink4, marginTop: 2 }}>Chưa cấu hình lịch</div>
+          )}
+        </div>
+
+        <Icon name={expanded ? 'chev-u' : 'chev-d'} size={16} color={HNH.ink4} stroke={2} />
+      </button>
+
+      {/* Expanded detail */}
+      {expanded && (
+        <div style={{ padding: '0 14px 14px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+
+          {/* Schedule groups */}
+          {groups.length > 0 ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {groups.map((g, idx) => (
+                <div key={idx} style={{
+                  background: HNH.cream, borderRadius: 12, padding: '10px 12px',
+                }}>
+                  {/* Day pills */}
+                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginBottom: 8 }}>
+                    {g.days.map(d => (
+                      <span key={d} style={{
+                        fontSize: 11, fontWeight: 700, color: HNH.navy,
+                        background: HNH.navy50, padding: '2px 7px', borderRadius: 6,
+                      }}>
+                        {DAY_VI[d] ?? d}
+                      </span>
+                    ))}
+                    {g.schedule.is_night_shift && (
+                      <span style={{
+                        fontSize: 11, fontWeight: 700, color: '#6366f1',
+                        background: '#eef2ff', padding: '2px 7px', borderRadius: 6,
+                      }}>Ca đêm</span>
+                    )}
+                  </div>
+
+                  {/* Time info grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 8 }}>
+                    <InfoChip label="Bắt đầu" value={g.schedule.start_time ?? '—'} color={HNH.success} />
+                    <InfoChip label="Block ×15'" value={g.schedule.blocks != null ? `${g.schedule.blocks} block` : '—'} color={HNH.navy} />
+                    <InfoChip label="Kết thúc" value={g.schedule.end_time ?? '—'} color={HNH.red} />
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, borderTop: `1px solid ${HNH.line}`, paddingTop: 8 }}>
+                    <Icon name="clock" size={13} color={HNH.ink3} stroke={1.8} />
+                    <span style={{ fontSize: 12, color: HNH.ink3 }}>Giờ làm tối thiểu tính công:</span>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: HNH.ink }}>{g.schedule.minimum_working_hour || '—'}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ fontSize: 12, color: HNH.ink4, padding: '6px 0' }}>
+              Chưa có lịch làm việc — vào Admin để cấu hình EmployeeShiftSchedule
+            </div>
+          )}
+
+          {/* Grace time / clock validation */}
+          <div style={{ background: HNH.cream, borderRadius: 12, padding: '10px 12px' }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, marginBottom: 8, letterSpacing: 0.4, textTransform: 'uppercase' }}>
+              Khoảng thời gian hợp lệ
+            </div>
+            {shift.grace_time ? (
+              <>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 8 }}>
+                  <InfoChip
+                    label="Chấm hợp lệ (±phút)"
+                    value={`±${shift.grace_time.allowed_min} phút`}
+                    color={HNH.warn}
+                  />
+                  <InfoChip
+                    label="Thời gian grace"
+                    value={shift.grace_time.allowed_time}
+                    color={HNH.ink2}
+                  />
+                </div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ fontSize: 11.5, color: HNH.ink3 }}>Tính đi trễ:</span>
+                    <Pill text={shift.grace_time.clock_in ? 'Có' : 'Không'} active={shift.grace_time.clock_in} />
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <span style={{ fontSize: 11.5, color: HNH.ink3 }}>Tính về sớm:</span>
+                    <Pill text={shift.grace_time.clock_out ? 'Có' : 'Không'} active={shift.grace_time.clock_out} />
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize: 12, color: HNH.ink4 }}>
+                Chưa gắn Grace Time — chấm công dựa trên giờ ca chính xác
+              </div>
+            )}
+          </div>
+
+          {/* Summary chips: validity / late / leave */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <div style={{
+              background: '#fff', border: `1px solid ${HNH.line}`, borderRadius: 10,
+              padding: '7px 10px', display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 90,
+            }}>
+              <span style={{ fontSize: 10, color: HNH.ink4, fontWeight: 600 }}>TÍNH CÔNG</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: HNH.success }}>
+                {repSched ? `≥ ${repSched.minimum_working_hour}` : '—'}
+              </span>
+              <span style={{ fontSize: 10, color: HNH.ink3 }}>mới hợp lệ</span>
+            </div>
+            <div style={{
+              background: '#fff', border: `1px solid ${HNH.line}`, borderRadius: 10,
+              padding: '7px 10px', display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 90,
+            }}>
+              <span style={{ fontSize: 10, color: HNH.ink4, fontWeight: 600 }}>ĐI TRỄ / VỀ SỚM</span>
+              <Pill
+                text={shift.grace_time?.clock_in || shift.grace_time?.clock_out ? 'Bật' : 'Tắt'}
+                active={!!(shift.grace_time?.clock_in || shift.grace_time?.clock_out)}
+              />
+              <span style={{ fontSize: 10, color: HNH.ink3 }}>theo grace time</span>
+            </div>
+            <div style={{
+              background: '#fff', border: `1px solid ${HNH.line}`, borderRadius: 10,
+              padding: '7px 10px', display: 'flex', flexDirection: 'column', gap: 2, flex: 1, minWidth: 90,
+            }}>
+              <span style={{ fontSize: 10, color: HNH.ink4, fontWeight: 600 }}>TUẦN LÀM</span>
+              <span style={{ fontSize: 12, fontWeight: 700, color: HNH.navy }}>{shift.weekly_full_time || '—'}</span>
+              <span style={{ fontSize: 10, color: HNH.ink3 }}>giờ/tuần chuẩn</span>
+            </div>
+          </div>
+
+          {/* Department badges */}
+          {shift.department_names.length > 0 && (
+            <div>
+              <div style={{ fontSize: 11, color: HNH.ink4, fontWeight: 600, marginBottom: 5 }}>PHÒNG BAN SỬ DỤNG</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                {shift.department_names.map(name => (
+                  <span key={name} style={{
+                    fontSize: 11.5, padding: '3px 9px', borderRadius: 10,
+                    background: HNH.navy50, color: HNH.navy, fontWeight: 600,
+                  }}>{name}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Actions */}
+          <div style={{ display: 'flex', gap: 8, borderTop: `1px solid ${HNH.line}`, paddingTop: 10 }}>
+            <button
+              onClick={onEdit}
+              style={{
+                flex: 1, padding: '8px 0', borderRadius: 10,
+                border: `1.5px solid ${HNH.line}`, background: '#fff',
+                fontSize: 13, fontWeight: 600, color: HNH.ink2, cursor: 'pointer',
+              }}
+            >
+              Sửa
+            </button>
+            <button
+              onClick={onDelete}
+              disabled={deleting}
+              style={{
+                flex: 1, padding: '8px 0', borderRadius: 10,
+                border: `1.5px solid ${HNH.red}20`, background: HNH.red50,
+                fontSize: 13, fontWeight: 600, color: HNH.red,
+                cursor: deleting ? 'not-allowed' : 'pointer', opacity: deleting ? 0.6 : 1,
+              }}
+            >
+              Xoá
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Shift Edit Modal ──────────────────────────────────────────────────────────
 
 interface ShiftModalProps {
   departments: Department[]
@@ -125,13 +389,12 @@ interface ShiftModalProps {
 
 function ShiftModal({ departments, onClose, onSaved, editing }: ShiftModalProps) {
   const { toast: showToast } = useToast()
-  const [name, setName] = useState(editing?.employee_shift ?? '')
+  const [name, setName] = useState(editing?.name ?? '')
   const [selectedDepts, setSelectedDepts] = useState<number[]>(editing?.department_ids ?? [])
   const [saving, setSaving] = useState(false)
 
-  const toggleDept = (id: number) => {
+  const toggleDept = (id: number) =>
     setSelectedDepts(prev => prev.includes(id) ? prev.filter(d => d !== id) : [...prev, id])
-  }
 
   const handleSave = async () => {
     if (!name.trim()) { showToast('Vui lòng nhập tên ca'); return }
@@ -162,21 +425,29 @@ function ShiftModal({ departments, onClose, onSaved, editing }: ShiftModalProps)
     }} onClick={onClose}>
       <div
         style={{
-          background: '#fff', borderRadius: '20px 20px 0 0',
-          width: '100%', maxHeight: '85vh', overflowY: 'auto',
-          padding: '24px 20px 40px',
+          background: '#fff', borderRadius: '20px 20px 0 0', width: '100%',
+          maxHeight: '85vh', overflowY: 'auto', padding: '24px 20px 40px',
         }}
         onClick={e => e.stopPropagation()}
       >
-        <div style={{ fontWeight: 700, fontSize: 17, color: HNH.ink, marginBottom: 18 }}>
-          {editing ? 'Sửa ca làm việc' : 'Thêm ca làm việc'}
+        <div style={{ fontWeight: 700, fontSize: 17, color: HNH.ink, marginBottom: 6 }}>
+          {editing ? `Sửa ca — #${editing.id}` : 'Thêm ca làm việc'}
         </div>
+        {editing && (
+          <div style={{ fontSize: 12, color: HNH.ink3, marginBottom: 14 }}>
+            Để cấu hình giờ bắt đầu/kết thúc và grace time, vào Admin → Base → Employee Shift
+          </div>
+        )}
+        {!editing && (
+          <div style={{ fontSize: 12, color: HNH.ink3, marginBottom: 14 }}>
+            Sau khi tạo, vào Admin → Base → Employee Shift để cấu hình lịch và grace time
+          </div>
+        )}
 
         <div style={{ marginBottom: 14 }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: HNH.ink3, marginBottom: 6 }}>Tên ca</div>
           <input
-            value={name}
-            onChange={e => setName(e.target.value)}
+            value={name} onChange={e => setName(e.target.value)}
             placeholder="Ví dụ: Ca hành chính 8h-17h"
             style={{
               width: '100%', padding: '10px 12px', borderRadius: 12,
@@ -194,17 +465,13 @@ function ShiftModal({ departments, onClose, onSaved, editing }: ShiftModalProps)
             {departments.map(d => {
               const active = selectedDepts.includes(d.id)
               return (
-                <button
-                  key={d.id}
-                  onClick={() => toggleDept(d.id)}
-                  style={{
-                    padding: '6px 12px', borderRadius: 20,
-                    border: `1.5px solid ${active ? HNH.red : HNH.line}`,
-                    background: active ? HNH.red50 : '#fff',
-                    color: active ? HNH.red : HNH.ink2,
-                    fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
-                  }}
-                >
+                <button key={d.id} onClick={() => toggleDept(d.id)} style={{
+                  padding: '6px 12px', borderRadius: 20,
+                  border: `1.5px solid ${active ? HNH.red : HNH.line}`,
+                  background: active ? HNH.red50 : '#fff',
+                  color: active ? HNH.red : HNH.ink2,
+                  fontSize: 12.5, fontWeight: 600, cursor: 'pointer',
+                }}>
                   {d.department}
                 </button>
               )
@@ -213,26 +480,17 @@ function ShiftModal({ departments, onClose, onSaved, editing }: ShiftModalProps)
         </div>
 
         <div style={{ display: 'flex', gap: 10 }}>
-          <button
-            onClick={onClose}
-            style={{
-              flex: 1, padding: '12px 0', borderRadius: 12,
-              border: `1.5px solid ${HNH.line}`, background: '#fff',
-              fontSize: 14, fontWeight: 600, color: HNH.ink2, cursor: 'pointer',
-            }}
-          >
-            Huỷ
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            style={{
-              flex: 2, padding: '12px 0', borderRadius: 12,
-              border: 'none', background: HNH.red,
-              fontSize: 14, fontWeight: 700, color: '#fff',
-              cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
-            }}
-          >
+          <button onClick={onClose} style={{
+            flex: 1, padding: '12px 0', borderRadius: 12,
+            border: `1.5px solid ${HNH.line}`, background: '#fff',
+            fontSize: 14, fontWeight: 600, color: HNH.ink2, cursor: 'pointer',
+          }}>Huỷ</button>
+          <button onClick={handleSave} disabled={saving} style={{
+            flex: 2, padding: '12px 0', borderRadius: 12,
+            border: 'none', background: HNH.red,
+            fontSize: 14, fontWeight: 700, color: '#fff',
+            cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
+          }}>
             {saving ? 'Đang lưu...' : (editing ? 'Cập nhật' : 'Thêm ca')}
           </button>
         </div>
@@ -281,22 +539,18 @@ function ShiftCategoriesSection() {
     }
   }
 
-  const deptMap = Object.fromEntries((data?.departments ?? []).map(d => [d.id, d.department]))
-
   return (
     <>
       <SettingCard>
         <SettingRow
           icon="clock"
           label="Quản lý Danh mục Ca"
-          detail={data ? `${data.shifts.length} ca đang hoạt động` : 'Thêm, sửa, xoá ca làm việc và phân quyền phòng ban'}
+          detail={data ? `${data.shifts.length} ca đang hoạt động` : 'Xem chi tiết và phân quyền phòng ban sử dụng ca'}
           tone="red"
           last={!expanded}
           onClick={() => setExpanded(e => !e)}
           trailing={
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              <Icon name={expanded ? 'chev-u' : 'chev-d'} size={16} color={HNH.ink4} stroke={2} />
-            </div>
+            <Icon name={expanded ? 'chev-u' : 'chev-d'} size={16} color={HNH.ink4} stroke={2} />
           }
         />
 
@@ -330,61 +584,14 @@ function ShiftCategoriesSection() {
               </div>
             )}
 
-            {!loading && data && data.shifts.map((shift, idx) => (
-              <div
+            {!loading && data && data.shifts.map(shift => (
+              <ShiftDetailCard
                 key={shift.id}
-                style={{
-                  padding: '10px 14px',
-                  borderTop: idx === 0 ? 'none' : `1px solid ${HNH.line}`,
-                  display: 'flex', alignItems: 'flex-start', gap: 10,
-                }}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: HNH.ink }}>{shift.employee_shift}</div>
-                  {shift.department_ids.length > 0 ? (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 5 }}>
-                      {shift.department_ids.map(dId => (
-                        <span
-                          key={dId}
-                          style={{
-                            fontSize: 11, padding: '2px 8px', borderRadius: 10,
-                            background: HNH.navy50, color: HNH.navy, fontWeight: 600,
-                          }}
-                        >
-                          {deptMap[dId] ?? `PB#${dId}`}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <div style={{ fontSize: 11.5, color: HNH.ink4, marginTop: 3 }}>Chưa phân quyền phòng ban</div>
-                  )}
-                </div>
-                <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-                  <button
-                    onClick={() => { setEditing(shift); setModalOpen(true) }}
-                    style={{
-                      padding: '5px 10px', borderRadius: 8,
-                      border: `1.5px solid ${HNH.line}`, background: '#fff',
-                      fontSize: 12, fontWeight: 600, color: HNH.ink2, cursor: 'pointer',
-                    }}
-                  >
-                    Sửa
-                  </button>
-                  <button
-                    onClick={() => handleDelete(shift.id)}
-                    disabled={deleting === shift.id}
-                    style={{
-                      padding: '5px 10px', borderRadius: 8,
-                      border: `1.5px solid ${HNH.red}20`, background: HNH.red50,
-                      fontSize: 12, fontWeight: 600, color: HNH.red,
-                      cursor: deleting === shift.id ? 'not-allowed' : 'pointer',
-                      opacity: deleting === shift.id ? 0.6 : 1,
-                    }}
-                  >
-                    Xoá
-                  </button>
-                </div>
-              </div>
+                shift={shift}
+                onEdit={() => { setEditing(shift); setModalOpen(true) }}
+                onDelete={() => handleDelete(shift.id)}
+                deleting={deleting === shift.id}
+              />
             ))}
           </div>
         )}
@@ -446,7 +653,7 @@ export function AttendanceSettingsPage() {
     return (
       <div style={{ background: HNH.cream, minHeight: '100%' }}>
         <TopBar title="Cài đặt Chấm công" onBack={() => navigate(-1)} />
-        <div className="flex flex-col items-center justify-center gap-3" style={{ paddingTop: 80, padding: '80px 32px 0' }}>
+        <div className="flex flex-col items-center justify-center gap-3" style={{ padding: '80px 32px 0' }}>
           <Icon name="shield" size={40} color={HNH.ink4} stroke={1.5} />
           <div style={{ fontSize: 14, color: HNH.ink3, fontWeight: 600, textAlign: 'center' }}>
             Bạn không có quyền truy cập trang cài đặt này
@@ -490,12 +697,7 @@ export function AttendanceSettingsPage() {
 
         <SectionTitle title="Thông tin" />
         <SettingCard>
-          <SettingRow
-            icon="info"
-            label="Module"
-            detail="HRM · Chấm công (hrm-att-setting)"
-            last
-          />
+          <SettingRow icon="info" label="Module" detail="HRM · Chấm công (hrm-att-setting)" last />
         </SettingCard>
 
       </div>
