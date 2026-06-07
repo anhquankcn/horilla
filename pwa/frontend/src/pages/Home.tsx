@@ -860,6 +860,10 @@ export function HomePage() {
   const [pushPermission, setPushPermission] = useState<NotificationPermission>(
     () => ('Notification' in window ? Notification.permission : 'default')
   )
+  // Avatar menu checkbox selections
+  const [chkKc, setChkKc] = useState(false)
+  const [chkPush, setChkPush] = useState(false)
+  const [chkCache, setChkCache] = useState(false)
 
   const checkKcSession = useCallback(async () => {
     setKcChecking(true)
@@ -876,7 +880,6 @@ export function HomePage() {
 
   const refreshKcSession = useCallback(async () => {
     setKcChecking(true)
-    setAvatarMenuOpen(false)
     try {
       const res = await fetch('/bff/auth/kc-refresh', { method: 'POST', credentials: 'include' })
       const data = await res.json() as { ok: boolean }
@@ -896,7 +899,6 @@ export function HomePage() {
   }, [showToast])
 
   const enablePushNotif = useCallback(async () => {
-    setAvatarMenuOpen(false)
     if (!('Notification' in window)) {
       showToast('Trình duyệt không hỗ trợ thông báo đẩy')
       return
@@ -917,8 +919,12 @@ export function HomePage() {
     rTasks(); rAtt(); rLeave(); rNotif(); rPay()
   }, [rTasks, rAtt, rLeave, rNotif, rPay])
 
+  const openAvatarMenu = useCallback(() => {
+    setChkKc(false); setChkPush(false); setChkCache(false)
+    setAvatarMenuOpen(true)
+  }, [])
+
   const clearCacheAndReload = useCallback(async () => {
-    setAvatarMenuOpen(false)
     showToast('Đang xóa cache...')
     await new Promise(r => setTimeout(r, 400))
     try {
@@ -930,6 +936,13 @@ export function HomePage() {
     showToast('Đã xóa cache — đang tải lại...')
     setTimeout(() => window.location.reload(), 1600)
   }, [showToast])
+
+  const handleAvatarConfirm = useCallback(async () => {
+    setAvatarMenuOpen(false)
+    if (chkKc) await refreshKcSession()
+    if (chkPush) await enablePushNotif()
+    if (chkCache) await clearCacheAndReload()
+  }, [chkKc, chkPush, chkCache, refreshKcSession, enablePushNotif, clearCacheAndReload])
 
   const isTablet = useTablet()
   const isSmall = useSmallPhone()
@@ -976,93 +989,155 @@ export function HomePage() {
   return (
     <PullToRefresh onRefresh={refreshAll}>
     <div style={{ padding: '6px 0 14px' }}>
-      {/* Avatar action sheet */}
+      {/* Avatar dropdown — slides from top-left */}
       {avatarMenuOpen && (
         <div
-          style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.42)', display: 'flex', alignItems: 'flex-end' }}
+          style={{ position: 'fixed', inset: 0, zIndex: 9999 }}
           onClick={() => setAvatarMenuOpen(false)}
         >
           <div
-            style={{ background: '#fff', borderRadius: '22px 22px 0 0', width: '100%', padding: '20px 18px 48px' }}
+            style={{
+              position: 'absolute', top: 64, left: 16,
+              width: 308,
+              background: '#fff',
+              borderRadius: 18,
+              boxShadow: '0 8px 32px rgba(15,20,40,0.18)',
+              border: `1px solid ${HNH.line}`,
+              overflow: 'hidden',
+              animation: 'slideDown 0.22s cubic-bezier(0.16,1,0.3,1)',
+            }}
             onClick={e => e.stopPropagation()}
           >
             {/* Profile header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 18, paddingBottom: 16, borderBottom: `1px solid ${HNH.line}` }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 16px 14px', borderBottom: `1px solid ${HNH.line}` }}>
               <div style={{ position: 'relative', flexShrink: 0 }}>
-                <Avatar src={employee?.employee_profile} initials={initials} bg={HNH.red} size={52} />
+                <Avatar src={employee?.employee_profile} initials={initials} bg={HNH.red} size={44} />
                 <div style={{
                   position: 'absolute', bottom: -2, right: -2,
-                  width: 16, height: 16, borderRadius: '50%',
+                  width: 14, height: 14, borderRadius: '50%',
                   background: kcValid === null ? HNH.ink4 : kcValid ? '#16a34a' : '#ef4444',
                   border: '2px solid #fff',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 5.5, fontWeight: 900, color: '#fff', letterSpacing: -0.5,
+                  fontSize: 5, fontWeight: 900, color: '#fff',
                 }}>KC</div>
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: HNH.ink }}>{employee?.full_name ?? displayName}</div>
-                <div style={{ fontSize: 12, color: HNH.ink3, marginTop: 1 }}>{employee?.email ?? ''}</div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 5 }}>
-                  <div style={{ width: 7, height: 7, borderRadius: '50%', background: kcChecking ? HNH.ink4 : kcValid ? '#16a34a' : '#ef4444' }} />
-                  <span style={{ fontSize: 11, fontWeight: 600, color: kcChecking ? HNH.ink3 : kcValid ? '#16a34a' : '#ef4444' }}>
-                    Keycloak SSO — {kcChecking ? 'Đang kiểm tra...' : kcValid ? 'Online' : 'Offline'}
+                <div style={{ fontSize: 14, fontWeight: 700, color: HNH.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {employee?.full_name ?? displayName}
+                </div>
+                <div style={{ fontSize: 11, color: HNH.ink3, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {employee?.email ?? ''}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: kcChecking ? HNH.ink4 : kcValid ? '#16a34a' : '#ef4444', flexShrink: 0 }} />
+                  <span style={{ fontSize: 10.5, fontWeight: 600, color: kcChecking ? HNH.ink3 : kcValid ? '#16a34a' : '#ef4444' }}>
+                    KC SSO — {kcChecking ? 'Đang kiểm tra...' : kcValid ? 'Online' : 'Offline'}
                   </span>
                 </div>
               </div>
             </div>
 
-            {/* Action rows */}
-            {([
-              {
-                icon: 'link', iconBg: '#eff6ff', iconColor: '#2563eb',
-                label: 'Kết nối Keycloak SSO',
-                desc: 'Làm mới session từ HNH SSO',
-                badge: kcChecking ? '...' : kcValid ? 'Online' : 'Offline',
-                badgeBg: kcValid ? '#f0fdf4' : '#fef2f2',
-                badgeColor: kcValid ? '#16a34a' : '#ef4444',
-                action: refreshKcSession,
-              },
-              {
-                icon: 'bell', iconBg: '#f0fdf4', iconColor: '#16a34a',
-                label: 'Thông báo đẩy',
-                desc: pushPermission === 'granted' ? 'Đang bật' : pushPermission === 'denied' ? 'Bị chặn — mở Cài đặt' : 'Bấm để bật',
-                badge: pushPermission === 'granted' ? 'Bật' : 'Tắt',
-                badgeBg: pushPermission === 'granted' ? '#f0fdf4' : HNH.cream,
-                badgeColor: pushPermission === 'granted' ? '#16a34a' : HNH.ink3,
-                action: enablePushNotif,
-              },
-              {
-                icon: 'refresh', iconBg: '#fff7ed', iconColor: '#ea580c',
-                label: 'Xóa Cache & Tải lại',
-                desc: 'Xóa dữ liệu tạm và reload app',
-                badge: null, badgeBg: '', badgeColor: '',
-                action: clearCacheAndReload,
-              },
-            ] as const).map((row, idx) => (
+            {/* 3 Checkbox actions */}
+            <div style={{ padding: '8px 12px 4px' }}>
+              {([
+                {
+                  key: 'kc', checked: chkKc, onChange: setChkKc,
+                  icon: 'link', iconBg: '#eff6ff', iconColor: '#2563eb',
+                  label: 'Kết nối Keycloak SSO',
+                  desc: kcChecking ? 'Đang kiểm tra...' : kcValid ? 'Online — Làm mới session' : 'Offline — Kết nối lại',
+                  badgeText: kcValid ? 'Online' : 'Offline',
+                  badgeBg: kcValid ? '#f0fdf4' : '#fef2f2',
+                  badgeColor: kcValid ? '#16a34a' : '#ef4444',
+                },
+                {
+                  key: 'push', checked: chkPush, onChange: setChkPush,
+                  icon: 'bell', iconBg: '#f0fdf4', iconColor: '#16a34a',
+                  label: 'Thông báo đẩy',
+                  desc: pushPermission === 'granted' ? 'Đang bật' : pushPermission === 'denied' ? 'Bị chặn — mở Cài đặt' : 'Chưa bật',
+                  badgeText: pushPermission === 'granted' ? 'Bật' : 'Tắt',
+                  badgeBg: pushPermission === 'granted' ? '#f0fdf4' : HNH.cream,
+                  badgeColor: pushPermission === 'granted' ? '#16a34a' : HNH.ink3,
+                },
+                {
+                  key: 'cache', checked: chkCache, onChange: setChkCache,
+                  icon: 'refresh', iconBg: '#fff7ed', iconColor: '#ea580c',
+                  label: 'Xóa Cache & Tải lại',
+                  desc: 'Xóa dữ liệu tạm, reload app',
+                  badgeText: null, badgeBg: '', badgeColor: '',
+                },
+              ] as const).map(row => (
+                <button
+                  key={row.key}
+                  onClick={() => row.onChange(!row.checked)}
+                  style={{
+                    width: '100%', padding: '9px 4px', display: 'flex', alignItems: 'center', gap: 11,
+                    background: row.checked ? '#f8faff' : 'none',
+                    border: row.checked ? `1.5px solid #bfdbfe` : '1.5px solid transparent',
+                    cursor: 'pointer', borderRadius: 12, textAlign: 'left', marginBottom: 4,
+                    transition: 'all 0.15s',
+                  }}
+                >
+                  {/* Checkbox indicator */}
+                  <div style={{
+                    width: 20, height: 20, borderRadius: 6, flexShrink: 0,
+                    border: row.checked ? 'none' : `1.5px solid ${HNH.ink4}`,
+                    background: row.checked ? HNH.navy : 'transparent',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  }}>
+                    {row.checked && (
+                      <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
+                        <polyline points="2,6 5,9 10,3" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    )}
+                  </div>
+                  {/* Icon */}
+                  <div style={{ width: 34, height: 34, borderRadius: 10, background: row.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Icon name={row.icon} size={16} color={row.iconColor} stroke={1.9} />
+                  </div>
+                  {/* Text */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: HNH.ink }}>{row.label}</div>
+                    <div style={{ fontSize: 11, color: HNH.ink3, marginTop: 1 }}>{row.desc}</div>
+                  </div>
+                  {/* Status badge */}
+                  {row.badgeText && (
+                    <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 20, background: row.badgeBg, color: row.badgeColor, flexShrink: 0 }}>
+                      {row.badgeText}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Confirm button */}
+            <div style={{ padding: '4px 16px 10px' }}>
               <button
-                key={idx}
-                onClick={() => row.action()}
+                onClick={handleAvatarConfirm}
                 style={{
-                  width: '100%', padding: '12px 14px', display: 'flex', alignItems: 'center', gap: 13,
-                  background: 'none', border: 'none', cursor: 'pointer', borderRadius: 14, textAlign: 'left',
-                  marginBottom: 2,
+                  width: '100%', padding: '11px 0', borderRadius: 13,
+                  background: (chkKc || chkPush || chkCache) ? HNH.navy : HNH.cream,
+                  color: (chkKc || chkPush || chkCache) ? '#fff' : HNH.ink3,
+                  border: 'none', cursor: 'pointer',
+                  fontSize: 14, fontWeight: 700,
+                  transition: 'all 0.15s',
                 }}
               >
-                <div style={{ width: 38, height: 38, borderRadius: 11, background: row.iconBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <Icon name={row.icon} size={18} color={row.iconColor} stroke={1.9} />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, color: HNH.ink }}>{row.label}</div>
-                  <div style={{ fontSize: 12, color: HNH.ink3, marginTop: 1 }}>{row.desc}</div>
-                </div>
-                {row.badge && (
-                  <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 20, background: row.badgeBg, color: row.badgeColor, flexShrink: 0 }}>
-                    {row.badge}
-                  </span>
-                )}
+                Đồng ý{(chkKc || chkPush || chkCache) ? ` (${[chkKc, chkPush, chkCache].filter(Boolean).length})` : ''}
               </button>
-            ))}
+            </div>
+
+            {/* Version + build info */}
+            <div style={{ padding: '0 16px 14px', borderTop: `1px solid ${HNH.line}`, paddingTop: 10 }}>
+              <div style={{ fontSize: 10, color: HNH.ink4, fontWeight: 500 }}>
+                HNH HRM PWA · v{__APP_VERSION__}
+              </div>
+              <div style={{ fontSize: 9.5, color: HNH.ink4, marginTop: 2 }}>
+                Build: {new Date(__BUILD_TIME__).toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </div>
+            </div>
           </div>
+
+          <style>{`@keyframes slideDown { from { opacity:0; transform:translateY(-12px) } to { opacity:1; transform:translateY(0) } }`}</style>
         </div>
       )}
 
@@ -1071,7 +1146,7 @@ export function HomePage() {
         {/* Avatar with KC badge */}
         <div style={{ position: 'relative', flexShrink: 0 }}>
           <button
-            onClick={() => setAvatarMenuOpen(true)}
+            onClick={openAvatarMenu}
             className="border-none bg-transparent p-0"
             style={{ cursor: 'pointer', borderRadius: '50%', display: 'block' }}
           >

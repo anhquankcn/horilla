@@ -21,6 +21,8 @@ interface Department {
 interface EmpRow {
   id: number
   name: string
+  first_name: string
+  last_name: string
   avatar: string | null
   badge_id: string
   department_id: number
@@ -497,14 +499,14 @@ function GridView({ data, days, onCellClick, today }: GridViewProps) {
               height: ROW_H, borderRight: `1px solid ${HNH.line}`,
               position: 'sticky', left: 0, background: '#fff', zIndex: 1,
             }}>
-              {/* Tên (first name) — prominent */}
+              {/* Tên — prominent */}
               <div style={{ fontSize: 13, fontWeight: 700, color: HNH.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {emp.name.split(' ').slice(-1)[0]}
+                {emp.first_name || emp.name.split(' ').slice(-1)[0]}
               </div>
               {/* Họ đệm — small */}
-              {emp.name.split(' ').length > 1 && (
+              {(emp.last_name || emp.name.split(' ').length > 1) && (
                 <div style={{ fontSize: 10, color: HNH.ink3, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {emp.name.split(' ').slice(0, -1).join(' ')}
+                  {emp.last_name || emp.name.split(' ').slice(0, -1).join(' ')}
                 </div>
               )}
               {/* Mã NV — smallest */}

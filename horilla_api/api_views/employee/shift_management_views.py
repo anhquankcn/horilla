@@ -631,6 +631,8 @@ class ShiftPlannerView(APIView):
         return {
             "id": emp.id,
             "name": emp.get_full_name(),
+            "first_name": emp.employee_first_name or "",
+            "last_name": emp.employee_last_name or "",
             "badge_id": emp.badge_id or "",
             "department_id": dept.id if dept else None,
             "department_name": dept.department if dept else "",
