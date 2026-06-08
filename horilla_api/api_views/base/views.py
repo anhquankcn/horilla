@@ -2069,6 +2069,7 @@ class MyPreferencesView(APIView):
         if emp is None:
             return Response({"error": "Không tìm thấy Employee"}, status=404)
         if "pwa_auto_clock_out" in request.data:
-            emp.pwa_auto_clock_out = bool(request.data["pwa_auto_clock_out"])
-            emp.save(update_fields=["pwa_auto_clock_out"])
+            val = bool(request.data["pwa_auto_clock_out"])
+            Employee.objects.filter(pk=emp.pk).update(pwa_auto_clock_out=val)
+            emp.pwa_auto_clock_out = val
         return Response({"pwa_auto_clock_out": emp.pwa_auto_clock_out})
