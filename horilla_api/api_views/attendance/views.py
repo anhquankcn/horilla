@@ -2094,12 +2094,31 @@ class MonthlyAttendanceDetailView(APIView):
             except Exception:
                 pass
 
+            company_id = None
+            company_name = ""
+            department_id = None
+            try:
+                wi = emp.employee_work_info
+                if wi:
+                    if wi.company_id:
+                        company_id = wi.company_id.id
+                        company_name = wi.company_id.company
+                    if wi.department_id:
+                        department_id = wi.department_id.id
+            except Exception:
+                pass
+
             employees_data.append({
                 "id": emp.id,
                 "name": emp.get_full_name(),
+                "first_name": emp.employee_first_name or "",
+                "last_name": emp.employee_last_name or "",
                 "badge_id": emp.badge_id or "",
                 "avatar": avatar,
                 "department": dept_name,
+                "department_id": department_id,
+                "company_id": company_id,
+                "company_name": company_name,
                 "days": days_data,
             })
 

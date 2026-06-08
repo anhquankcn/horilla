@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { HNH } from '../lib/theme'
@@ -24,9 +24,14 @@ interface DayHeader {
 interface EmployeeRow {
   id: number
   name: string
+  first_name: string
+  last_name: string
   badge_id: string
   avatar: string | null
   department: string
+  department_id: number | null
+  company_id: number | null
+  company_name: string
   days: Record<string, DayCell>
 }
 
@@ -38,10 +43,8 @@ interface MonthlyData {
   employees: EmployeeRow[]
 }
 
-interface Dept {
-  id: number
-  department: string
-}
+interface Dept  { id: number; name: string }
+interface Company { id: number; name: string }
 
 interface CellDetailState {
   emp: EmployeeRow
@@ -62,9 +65,9 @@ const STATUS_CFG: Record<string, { bg: string; border: string; text: string; lab
 }
 
 const LEGEND_KEYS: DayStatus[] = ['present', 'late', 'leave', 'unpaid', 'absent']
-const NAME_COL_W = 176
+const NAME_COL_W = 124
 const SUMM_COL_W = 80
-const DAY_COL_W  = 68
+const DAY_COL_W  = 64
 
 function monthStr(y: number, m: number) {
   return `${y}-${String(m).padStart(2, '0')}`
@@ -82,6 +85,29 @@ function fmtSecs(s: number) {
   return m > 0 ? `${h}h${String(m).padStart(2,'0')}` : `${h}h`
 }
 
+// ── Group rows by department ──────────────────────────────────────────────────
+type RowItem =
+  | { type: 'dept'; dept: string }
+  | { type: 'emp'; emp: EmployeeRow; ri: number }
+
+function buildGroupedRows(rows: EmployeeRow[]): RowItem[] {
+  const byDept: Record<string, EmployeeRow[]> = {}
+  for (const e of rows) {
+    const key = e.department || 'Không có phòng ban'
+    if (!byDept[key]) byDept[key] = []
+    byDept[key].push(e)
+  }
+  const result: RowItem[] = []
+  let ri = 0
+  for (const [dept, emps] of Object.entries(byDept).sort(([a], [b]) => a.localeCompare(b, 'vi'))) {
+    result.push({ type: 'dept', dept })
+    for (const emp of emps) {
+      result.push({ type: 'emp', emp, ri: ri++ })
+    }
+  }
+  return result
+}
+
 export function MonthlyAttendanceDetailPage() {
   const navigate = useNavigate()
   const now = new Date()
@@ -89,49 +115,69 @@ export function MonthlyAttendanceDetailPage() {
   const todayMonth = now.getMonth() + 1
   const todayYear  = now.getFullYear()
 
-  const [year, setYear]     = useState(now.getFullYear())
-  const [month, setMonth]   = useState(now.getMonth() + 1)
-  const [deptId, setDeptId] = useState('')
-  const [search, setSearch] = useState('')
-  const [data, setData]     = useState<MonthlyData | null>(null)
+  const [year, setYear]       = useState(now.getFullYear())
+  const [month, setMonth]     = useState(now.getMonth() + 1)
+  const [companyId, setCompanyId] = useState<number | null>(null)
+  const [deptId, setDeptId]   = useState<number | null>(null)
+  const [search, setSearch]   = useState('')
+  const [groupByDept, setGroupByDept] = useState(false)
+  const [data, setData]       = useState<MonthlyData | null>(null)
   const [loading, setLoading] = useState(false)
-  const [depts, setDepts]   = useState<Dept[]>([])
+  const [depts, setDepts]     = useState<Dept[]>([])
+  const [companies, setCompanies] = useState<Company[]>([])
   const [cellDetail, setCellDetail] = useState<CellDetailState | null>(null)
 
   useEffect(() => {
-    api.get('/api/employee/departments/')
-      .then((d: unknown) => {
-        const arr = Array.isArray(d) ? d : (d as { results?: Dept[] }).results ?? []
-        setDepts(arr)
-      })
-      .catch(() => {})
+    Promise.allSettled([
+      api.get<{ id: number; name: string }[]>('/api/employee/departments/'),
+      api.get<{ id: number; name: string }[]>('/api/employee/companies/'),
+    ]).then(([deptsRes, compsRes]) => {
+      if (deptsRes.status === 'fulfilled') {
+        const arr = Array.isArray(deptsRes.value) ? deptsRes.value : []
+        setDepts(arr.map(d => ({ id: d.id, name: (d as any).department ?? d.name })))
+      }
+      if (compsRes.status === 'fulfilled') {
+        const arr = Array.isArray(compsRes.value) ? compsRes.value : []
+        setCompanies(arr.map(c => ({ id: c.id, name: (c as any).company ?? c.name })))
+      }
+    })
   }, [])
+
+  // Reset dept when company changes
+  useEffect(() => { setDeptId(null) }, [companyId])
 
   const fetchData = useCallback(() => {
     setLoading(true)
     const p = new URLSearchParams({ month: monthStr(year, month) })
-    if (deptId) p.set('department_id', deptId)
+    if (companyId) p.set('company_id', String(companyId))
+    if (deptId) p.set('department_id', String(deptId))
     api.get<MonthlyData>(`/api/attendance/monthly-detail/?${p}`)
       .then(d => setData(d))
       .catch(() => setData(null))
       .finally(() => setLoading(false))
-  }, [year, month, deptId])
+  }, [year, month, companyId, deptId])
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  const rows = data?.employees.filter(e =>
-    !search || e.name.toLowerCase().includes(search.toLowerCase()) ||
-    (e.badge_id && e.badge_id.toLowerCase().includes(search.toLowerCase()))
-  ) ?? []
+  const rows = useMemo(() =>
+    (data?.employees ?? []).filter(e =>
+      !search ||
+      e.name.toLowerCase().includes(search.toLowerCase()) ||
+      (e.badge_id && e.badge_id.toLowerCase().includes(search.toLowerCase()))
+    ),
+  [data, search])
+
+  const rowItems = useMemo<RowItem[]>(() => {
+    if (!groupByDept) return rows.map((emp, ri) => ({ type: 'emp' as const, emp, ri }))
+    return buildGroupedRows(rows)
+  }, [rows, groupByDept])
 
   const goMonth = (delta: number) => {
     const { year: ny, month: nm } = shiftMonth(year, month, delta)
     setYear(ny); setMonth(nm)
   }
 
-  const stats = LEGEND_KEYS.reduce((acc, k) => {
-    acc[k] = 0; return acc
-  }, {} as Record<string, number>)
+  const stats = LEGEND_KEYS.reduce((acc, k) => { acc[k] = 0; return acc }, {} as Record<string, number>)
   rows.forEach(e => Object.values(e.days).forEach(cell => {
     if (cell.status in stats) stats[cell.status]++
   }))
@@ -171,16 +217,6 @@ export function MonthlyAttendanceDetailPage() {
           <button onClick={() => goMonth(1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: HNH.ink2, fontSize: 18, lineHeight: 1, padding: '0 2px' }}>›</button>
         </div>
 
-        {/* Dept filter */}
-        <select
-          value={deptId}
-          onChange={e => setDeptId(e.target.value)}
-          style={{ fontSize: 12, border: `1px solid ${HNH.line}`, borderRadius: 8, padding: '5px 8px', color: HNH.ink, background: '#fff' }}
-        >
-          <option value="">Tất cả phòng ban</option>
-          {depts.map(d => <option key={d.id} value={d.id}>{d.department}</option>)}
-        </select>
-
         {/* Search */}
         <input
           placeholder="Tên / mã NV..."
@@ -188,6 +224,95 @@ export function MonthlyAttendanceDetailPage() {
           onChange={e => setSearch(e.target.value)}
           style={{ fontSize: 12, border: `1px solid ${HNH.line}`, borderRadius: 8, padding: '5px 10px', width: 128, color: HNH.ink }}
         />
+      </div>
+
+      {/* ── Company pills ── */}
+      {companies.length > 1 && (
+        <div style={{
+          background: '#fff', borderBottom: `1px solid ${HNH.line}`,
+          padding: '6px 16px', display: 'flex', gap: 6, overflowX: 'auto',
+        }}>
+          <button
+            onClick={() => setCompanyId(null)}
+            style={{
+              flexShrink: 0, height: 28, borderRadius: 20, border: 'none', cursor: 'pointer',
+              padding: '0 12px',
+              background: companyId === null ? HNH.navy : HNH.cream2,
+              color: companyId === null ? '#fff' : HNH.ink2,
+              fontSize: 11.5, fontWeight: 600, whiteSpace: 'nowrap',
+            }}
+          >
+            Tất cả công ty
+          </button>
+          {companies.map(c => (
+            <button
+              key={c.id}
+              onClick={() => setCompanyId(c.id)}
+              style={{
+                flexShrink: 0, height: 28, borderRadius: 20, border: 'none', cursor: 'pointer',
+                padding: '0 12px', whiteSpace: 'nowrap',
+                background: companyId === c.id ? HNH.navy : HNH.cream2,
+                color: companyId === c.id ? '#fff' : HNH.ink2,
+                fontSize: 11.5, fontWeight: 600,
+              }}
+            >
+              {c.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ── Dept pills + Group toggle ── */}
+      <div style={{
+        background: '#fff', borderBottom: `1px solid ${HNH.line}`,
+        padding: '6px 16px', display: 'flex', gap: 6, overflowX: 'auto', alignItems: 'center',
+      }}>
+        <button
+          onClick={() => setDeptId(null)}
+          style={{
+            flexShrink: 0, height: 28, borderRadius: 20, border: 'none', cursor: 'pointer',
+            padding: '0 12px',
+            background: deptId === null ? HNH.red : HNH.cream2,
+            color: deptId === null ? '#fff' : HNH.ink2,
+            fontSize: 11.5, fontWeight: 600, whiteSpace: 'nowrap',
+          }}
+        >
+          Tất cả phòng
+        </button>
+        {depts.map(d => (
+          <button
+            key={d.id}
+            onClick={() => setDeptId(d.id)}
+            style={{
+              flexShrink: 0, height: 28, borderRadius: 20, border: 'none', cursor: 'pointer',
+              padding: '0 12px', whiteSpace: 'nowrap',
+              background: deptId === d.id ? HNH.red : HNH.cream2,
+              color: deptId === d.id ? '#fff' : HNH.ink2,
+              fontSize: 11.5, fontWeight: 600,
+            }}
+          >
+            {d.name}
+          </button>
+        ))}
+
+        {/* Spacer */}
+        <div style={{ flex: 1, minWidth: 8 }} />
+
+        {/* Group by dept toggle */}
+        <button
+          onClick={() => setGroupByDept(v => !v)}
+          style={{
+            flexShrink: 0, height: 28, borderRadius: 20, border: 'none', cursor: 'pointer',
+            padding: '0 12px', whiteSpace: 'nowrap',
+            background: groupByDept ? HNH.gold + '33' : HNH.cream2,
+            color: groupByDept ? '#a87908' : HNH.ink3,
+            fontSize: 11.5, fontWeight: 700,
+            display: 'flex', alignItems: 'center', gap: 5,
+          }}
+        >
+          <span style={{ fontSize: 13 }}>⊞</span>
+          Nhóm PB
+        </button>
       </div>
 
       {/* ── Legend + stats ── */}
@@ -263,22 +388,26 @@ export function MonthlyAttendanceDetailPage() {
                   <div>WD · WH</div>
                   <div style={{ color: '#fbbf24', fontSize: 9 }}>OT</div>
                 </th>
-                {/* Day headers */}
+                {/* Day headers — weekday + dd/MM */}
                 {data.days.map(dh => {
                   const isToday = isCurrentMonth && dh.day === todayDay
+                  const ddMM = `${String(dh.day).padStart(2,'0')}/${String(month).padStart(2,'0')}`
                   return (
                     <th key={dh.day} style={{
                       position: 'sticky', top: 0, zIndex: 20,
                       background: isToday ? '#1e40af' : dh.is_weekend ? '#1e2d4e' : HNH.navy,
                       width: DAY_COL_W, minWidth: DAY_COL_W,
-                      padding: '5px 2px', textAlign: 'center',
-                      fontSize: 11,
+                      padding: '4px 2px', textAlign: 'center',
                       color: dh.is_weekend ? '#4b6182' : '#a8bde0',
                       borderRight: '1px solid rgba(255,255,255,0.06)',
                       borderBottom: isToday ? '2px solid #60a5fa' : '1px solid rgba(255,255,255,0.08)',
                     }}>
-                      <div style={{ fontSize: 13, fontWeight: 700, color: isToday ? '#93c5fd' : dh.is_weekend ? '#4b6182' : '#e0eaf8' }}>{dh.day}</div>
-                      <div style={{ fontSize: 9, letterSpacing: 0.3 }}>{dh.weekday}</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: isToday ? '#93c5fd' : dh.is_weekend ? '#4b6182' : '#e0eaf8' }}>
+                        {dh.weekday}
+                      </div>
+                      <div style={{ fontSize: 9, letterSpacing: 0.2, color: isToday ? '#93c5fd' : dh.is_weekend ? '#3d5070' : '#7a99c4' }}>
+                        {ddMM}
+                      </div>
                     </th>
                   )
                 })}
@@ -287,10 +416,32 @@ export function MonthlyAttendanceDetailPage() {
 
             {/* ── Body ── */}
             <tbody>
-              {rows.map((emp, ri) => {
+              {rowItems.map((item, idx) => {
+                // Department separator row
+                if (item.type === 'dept') {
+                  return (
+                    <tr key={`dept-${item.dept}`}>
+                      <td
+                        colSpan={2 + data.days.length}
+                        style={{
+                          position: 'sticky', left: 0,
+                          background: HNH.navy + '18',
+                          padding: '5px 12px',
+                          fontSize: 11, fontWeight: 700, color: HNH.navy,
+                          borderBottom: `1px solid ${HNH.navy}22`,
+                          letterSpacing: 0.3,
+                        }}
+                      >
+                        {item.dept}
+                      </td>
+                    </tr>
+                  )
+                }
+
+                // Employee row
+                const { emp, ri } = item
                 const rowBg = ri % 2 === 0 ? '#ffffff' : '#f8fafc'
 
-                // Compute summary stats
                 let wd = 0, whSec = 0, otSec = 0
                 Object.values(emp.days).forEach(cell => {
                   if (cell.status === 'present' || cell.status === 'late') {
@@ -302,25 +453,40 @@ export function MonthlyAttendanceDetailPage() {
 
                 return (
                   <tr key={emp.id}>
-                    {/* Name cell */}
+                    {/* Name cell — like ShiftManagement */}
                     <td style={{
                       position: 'sticky', left: 0, zIndex: 10,
                       background: rowBg,
-                      padding: '5px 10px',
+                      padding: '5px 8px',
                       borderRight: '1px solid #e2e8f0',
                       borderBottom: '1px solid #f1f5f9',
                       overflow: 'hidden',
+                      verticalAlign: 'middle',
                     }}>
+                      {/* Tên — bold */}
                       <div style={{
-                        fontSize: 12, fontWeight: 600, color: HNH.ink,
-                        whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                        fontSize: 13, fontWeight: 700, color: HNH.ink,
+                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        maxWidth: NAME_COL_W - 16,
                       }}>
-                        {emp.name}
+                        {emp.first_name || emp.name.split(' ').slice(-1)[0]}
                       </div>
-                      <div style={{ fontSize: 10, color: HNH.ink3, marginTop: 1, display: 'flex', gap: 6 }}>
-                        {emp.badge_id && <span style={{ fontWeight: 600, color: HNH.navy }}>{emp.badge_id}</span>}
-                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{emp.department}</span>
-                      </div>
+                      {/* Họ đệm — small */}
+                      {(emp.last_name || emp.name.split(' ').length > 1) && (
+                        <div style={{
+                          fontSize: 10, color: HNH.ink3, fontWeight: 500,
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          maxWidth: NAME_COL_W - 16,
+                        }}>
+                          {emp.last_name || emp.name.split(' ').slice(0, -1).join(' ')}
+                        </div>
+                      )}
+                      {/* Mã NV — smallest */}
+                      {emp.badge_id && (
+                        <div style={{ fontSize: 9.5, color: HNH.navy, fontWeight: 600, letterSpacing: 0.2, whiteSpace: 'nowrap' }}>
+                          {emp.badge_id}
+                        </div>
+                      )}
                     </td>
 
                     {/* Summary cell */}
@@ -459,10 +625,8 @@ function CellDetailModal({
         }}
         onClick={e => e.stopPropagation()}
       >
-        {/* Handle */}
         <div style={{ width: 36, height: 4, background: '#e2e8f0', borderRadius: 2, margin: '0 auto 16px' }} />
 
-        {/* Header */}
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
           <div style={{
             width: 42, height: 42, borderRadius: 10,
@@ -489,34 +653,19 @@ function CellDetailModal({
           </div>
         </div>
 
-        {/* Detail rows */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {(st === 'present' || st === 'late') && (
             <>
               <DetailRow icon="🕐" label="Giờ vào" value={cell.check_in ?? '—'} />
               <DetailRow icon="🕔" label="Giờ ra" value={cell.check_out ?? '—'} />
-              <DetailRow
-                icon="⏱️"
-                label="Giờ làm việc"
-                value={fmtSecs(cell.at_work_second ?? 0)}
-                valueColor={HNH.success}
-              />
+              <DetailRow icon="⏱️" label="Giờ làm việc" value={fmtSecs(cell.at_work_second ?? 0)} valueColor={HNH.success} />
               {(cell.overtime_second ?? 0) > 0 && (
-                <DetailRow
-                  icon="🔥"
-                  label="Giờ tăng ca"
-                  value={fmtSecs(cell.overtime_second ?? 0)}
-                  valueColor="#d97706"
-                />
+                <DetailRow icon="🔥" label="Giờ tăng ca" value={fmtSecs(cell.overtime_second ?? 0)} valueColor="#d97706" />
               )}
             </>
           )}
           {(st === 'leave' || st === 'unpaid') && (
-            <DetailRow
-              icon="📋"
-              label="Loại nghỉ"
-              value={cell.leave_name || (st === 'leave' ? 'Nghỉ phép có lương' : 'Nghỉ không lương')}
-            />
+            <DetailRow icon="📋" label="Loại nghỉ" value={cell.leave_name || (st === 'leave' ? 'Nghỉ phép có lương' : 'Nghỉ không lương')} />
           )}
           {st === 'absent' && (
             <div style={{
