@@ -6,6 +6,7 @@ import { HNH } from '../../lib/theme'
 import { Icon } from '../ui/Icon'
 import { useTablet } from '../../lib/useTablet'
 import { useNotificationPolling } from '../../lib/useNotificationPolling'
+import { useAutoClockOut } from '../../lib/useAutoClockOut'
 import { WelcomeWizard } from '../WelcomeWizard'
 import { PWAInstallBanner } from '../PWAInstallBanner'
 
@@ -20,6 +21,7 @@ function switchToDesktop() {
 export function AppShell() {
   const isTablet = useTablet()
   useNotificationPolling()
+  useAutoClockOut()
 
   const [skyBg, setSkyBg] = useState<string>(
     () => localStorage.getItem(SKY_BG_KEY) ?? HNH.navy

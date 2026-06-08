@@ -81,4 +81,5 @@ urlpatterns = [
     path("company-dashboard/", CompanyAttendanceDashboardView.as_view(), name="api-company-dashboard"),
     path("monthly-detail/", MonthlyAttendanceDetailView.as_view(), name="api-monthly-attendance-detail"),
     path("my-month-calendar/", MyMonthCalendarView.as_view(), name="api-my-month-calendar"),
+    path("auto-clockout-schedule/", AutoClockoutScheduleView.as_view(), name="api-auto-clockout-schedule"),
 ]

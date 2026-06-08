@@ -298,7 +298,7 @@ export function SettingsPage() {
             icon="clock"
             label="Tự động clock out khi hết ca"
             detail={autoClockOut
-              ? 'Bật — hệ thống tự clock out sau khi hết giờ ca + grace time'
+              ? 'Bật — hệ thống lấy GPS, clock out tự động + báo quản lý nếu ngoài VP'
               : 'Tắt — bạn tự chủ động clock out thủ công'}
             tone={autoClockOut ? 'success' : 'warn'}
             last

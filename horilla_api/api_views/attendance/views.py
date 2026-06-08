@@ -341,11 +341,36 @@ class ClockOutAPIView(APIView):
                 if attendance:
                     attendance.attendance_validated = False
                     attendance.save(update_fields=["attendance_validated"])
+            if not inside:
+                ClockOutAPIView._notify_manager_outside_geofence(employee, distance_m, request.user)
             if not inside and not geo_approval:
                 return True
             return inside
         except Exception:
             return None
+
+    @staticmethod
+    def _notify_manager_outside_geofence(employee, distance_m, sender_user):
+        """Notify reporting manager when employee clocks out outside geofence."""
+        try:
+            from notifications.signals import notify
+            work_info = getattr(employee, "employee_work_info", None)
+            if not work_info or not work_info.reporting_manager_id:
+                return
+            manager_user = work_info.reporting_manager_id.employee_user_id
+            today = date.today().strftime("%d/%m/%Y")
+            verb = (
+                f"{employee.employee_first_name} {employee.employee_last_name} "
+                f"clock out ngoài khu vực văn phòng ({distance_m:.0f}m) lúc {today}"
+            )
+            notify.send(
+                sender_user,
+                recipient=manager_user,
+                verb=verb,
+                icon="location-outline",
+            )
+        except Exception as e:
+            logger.warning("Failed to notify manager for geofence: %s", e)
 
 
 class OfficesAPIView(APIView):
@@ -393,6 +418,59 @@ class OfficesAPIView(APIView):
             })
 
         return Response(result, status=200)
+
+
+class AutoClockoutScheduleView(APIView):
+    """Returns the employee's auto clock-out time for today + geofence config for PWA timer."""
+
+    permission_classes = [IsAuthenticated]
+
+    WEEKDAY_NAMES = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+
+    def get(self, request):
+        try:
+            employee = request.user.employee_get
+        except Exception:
+            return Response({"is_clocked_in": False, "auto_clock_out_enabled": False, "clock_out_at": None, "geofence": None})
+
+        is_clocked_in = _is_clocked_in(employee)
+        auto_enabled = getattr(employee, "pwa_auto_clock_out", True)
+
+        result = {
+            "is_clocked_in": is_clocked_in,
+            "auto_clock_out_enabled": auto_enabled,
+            "clock_out_at": None,
+            "geofence": None,
+        }
+
+        if auto_enabled and is_clocked_in:
+            today_name = self.WEEKDAY_NAMES[date.today().weekday()]
+            work_info = getattr(employee, "employee_work_info", None)
+            if work_info and work_info.shift_id:
+                schedule = EmployeeShiftSchedule.objects.filter(
+                    shift_id=work_info.shift_id,
+                    day__day=today_name,
+                    is_auto_punch_out_enabled=True,
+                ).first()
+                if schedule and schedule.auto_punch_out_time:
+                    result["clock_out_at"] = schedule.auto_punch_out_time.strftime("%H:%M")
+
+        try:
+            from geofencing.models import GeoFencing
+            company = employee.get_company()
+            geofence = GeoFencing.objects.get(company_id=company)
+            if geofence.start:
+                clat = getattr(geofence.company_id, "latitude", None)
+                clng = getattr(geofence.company_id, "longitude", None)
+                result["geofence"] = {
+                    "lat": float(clat or geofence.latitude),
+                    "lng": float(clng or geofence.longitude),
+                    "radius": geofence.radius_in_meters,
+                }
+        except Exception:
+            pass
+
+        return Response(result)
 
 
 class AttendanceView(APIView):
