@@ -2040,3 +2040,35 @@ class HRMConfigView(APIView):
     def _default(key):
         defaults = {"geo_approval_required": True}
         return defaults.get(key)
+
+
+# ── Per-user PWA preferences ───────────────────────────────────────────────────
+
+class MyPreferencesView(APIView):
+    """
+    GET  /api/base/my-preferences/  — trả về preferences của user hiện tại
+    PATCH /api/base/my-preferences/ — cập nhật một hoặc nhiều preferences
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def _get_employee(self, request):
+        try:
+            return Employee.objects.get(employee_user_id=request.user)
+        except Employee.DoesNotExist:
+            return None
+
+    def get(self, request):
+        emp = self._get_employee(request)
+        if emp is None:
+            return Response({"pwa_auto_clock_out": True})
+        return Response({"pwa_auto_clock_out": emp.pwa_auto_clock_out})
+
+    def patch(self, request):
+        emp = self._get_employee(request)
+        if emp is None:
+            return Response({"error": "Không tìm thấy Employee"}, status=404)
+        if "pwa_auto_clock_out" in request.data:
+            emp.pwa_auto_clock_out = bool(request.data["pwa_auto_clock_out"])
+            emp.save(update_fields=["pwa_auto_clock_out"])
+        return Response({"pwa_auto_clock_out": emp.pwa_auto_clock_out})

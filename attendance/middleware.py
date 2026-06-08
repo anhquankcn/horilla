@@ -46,6 +46,8 @@ class AttendanceMiddleware(MiddlewareMixin):
             ).order_by("-created_at")
 
             for activity in activities:
+                if not getattr(activity.employee_id, "pwa_auto_clock_out", True):
+                    continue
                 attendance = Attendance.objects.filter(
                     employee_id=activity.employee_id,
                     attendance_clock_out=None,

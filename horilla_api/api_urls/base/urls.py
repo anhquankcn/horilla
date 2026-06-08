@@ -280,4 +280,5 @@ urlpatterns = [
     path("approval-history/", views.ApprovalHistoryView.as_view(), name="api-approval-history"),
     path("weather/", views.WeatherProxyView.as_view(), name="api-weather-proxy"),
     path("hrm-config/", views.HRMConfigView.as_view(), name="api-hrm-config"),
+    path("my-preferences/", views.MyPreferencesView.as_view(), name="api-my-preferences"),
 ]

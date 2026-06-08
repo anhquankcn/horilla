@@ -106,6 +106,11 @@ class Employee(models.Model):
     emergency_contact_name = models.CharField(max_length=20, null=True, blank=True)
     emergency_contact_relation = models.CharField(max_length=20, null=True, blank=True)
     is_active = models.BooleanField(default=True)
+    pwa_auto_clock_out = models.BooleanField(
+        default=True,
+        verbose_name=_("Tự động clock out khi hết ca"),
+        help_text=_("Nếu tắt, hệ thống sẽ không tự động clock out nhân viên này khi hết ca."),
+    )
     additional_info = models.JSONField(null=True, blank=True)
     is_from_onboarding = models.BooleanField(
         default=False, null=True, blank=True, editable=False

@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { TopBar } from '../components/layout/TopBar'
 import { useToast } from '../components/ui/Toast'
 import { subscribeToPush, unsubscribeFromPush, isPushSubscribed } from '../lib/push'
+import { api } from '../lib/api'
 
 /* ── Helpers ── */
 type PushState = 'on' | 'off' | 'denied' | 'unsupported' | 'loading'
@@ -101,6 +102,27 @@ function SettingRow({ icon, label, detail, tone, last, onClick, trailing }: {
   )
 }
 
+function Toggle({ value, onChange, disabled }: { value: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); !disabled && onChange(!value) }}
+      style={{
+        width: 44, height: 26, borderRadius: 13, border: 'none',
+        background: value ? HNH.success : HNH.ink4,
+        position: 'relative', transition: 'background 0.2s',
+        cursor: disabled ? 'not-allowed' : 'pointer', flexShrink: 0,
+        opacity: disabled ? 0.5 : 1,
+      }}
+    >
+      <div style={{
+        position: 'absolute', top: 3, width: 20, height: 20, borderRadius: '50%',
+        background: '#fff', transition: 'left 0.2s',
+        left: value ? 21 : 3, boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
+      }} />
+    </button>
+  )
+}
+
 function StatusDot({ tone }: { tone: 'success' | 'red' | 'warn' }) {
   const color = tone === 'success' ? HNH.success : tone === 'red' ? HNH.red : HNH.warn
   return (
@@ -118,6 +140,15 @@ export function SettingsPage() {
   const [clearing, setClearing] = useState(false)
   const { toast: showToast } = useToast()
   const [swStatus, setSwStatus] = useState<'active' | 'waiting' | 'none'>('none')
+  const [autoClockOut, setAutoClockOut] = useState(true)
+  const [autoClockOutSaving, setAutoClockOutSaving] = useState(false)
+
+  const loadPreferences = useCallback(async () => {
+    try {
+      const data = await api.get<{ pwa_auto_clock_out: boolean }>('/api/base/my-preferences/')
+      setAutoClockOut(data.pwa_auto_clock_out)
+    } catch { /* giữ default true */ }
+  }, [])
 
   useEffect(() => {
     estimateStorage().then(setStorageUsed)
@@ -133,7 +164,8 @@ export function SettingsPage() {
         if (reg?.active) setSwStatus(reg.waiting ? 'waiting' : 'active')
       })
     }
-  }, [])
+    loadPreferences()
+  }, [loadPreferences])
 
   const togglePush = async () => {
     if (pushState === 'unsupported' || pushState === 'denied' || pushState === 'loading') return
@@ -198,6 +230,19 @@ export function SettingsPage() {
     }
   }
 
+  const toggleAutoClockOut = async (val: boolean) => {
+    setAutoClockOutSaving(true)
+    try {
+      await api.patch('/api/base/my-preferences/', { pwa_auto_clock_out: val })
+      setAutoClockOut(val)
+      showToast(val ? 'Đã bật tự động clock out' : 'Đã tắt tự động clock out')
+    } catch {
+      showToast('Lỗi khi lưu cài đặt')
+    } finally {
+      setAutoClockOutSaving(false)
+    }
+  }
+
   const handleLogout = () => {
     window.location.href = '/bff/auth/logout'
   }
@@ -248,7 +293,22 @@ export function SettingsPage() {
             label="Giao diện Desktop"
             detail="Mở Horilla HRM trên trình duyệt"
             onClick={() => { window.location.href = '/' }}
+          />
+          <SettingRow
+            icon="clock"
+            label="Tự động clock out khi hết ca"
+            detail={autoClockOut
+              ? 'Bật — hệ thống tự clock out sau khi hết giờ ca + grace time'
+              : 'Tắt — bạn tự chủ động clock out thủ công'}
+            tone={autoClockOut ? 'success' : 'warn'}
             last
+            trailing={
+              <Toggle
+                value={autoClockOut}
+                onChange={toggleAutoClockOut}
+                disabled={autoClockOutSaving}
+              />
+            }
           />
         </SettingCard>
 
