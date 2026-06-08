@@ -416,7 +416,7 @@ export function MonthlyAttendanceDetailPage() {
 
             {/* ── Body ── */}
             <tbody>
-              {rowItems.map((item, idx) => {
+              {rowItems.map((item) => {
                 // Department separator row
                 if (item.type === 'dept') {
                   return (
