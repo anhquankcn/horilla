@@ -66,6 +66,7 @@ const features: AppFeature[] = [
   { slug: 'helpdesk',          icon: 'help',   label: 'Hỗ trợ IT',     desc: 'Gửi yêu cầu hỗ trợ, theo dõi tiến độ',   path: '/helpdesk',          tone: 'navy',  group: 'support', always: true },
   { slug: 'helpdesk',          icon: 'help',   label: 'YC Hỗ trợ',     desc: 'Xem và xử lý tất cả yêu cầu hỗ trợ',    path: '/helpdesk?tab=all',  tone: 'red',   group: 'support' },
   { slug: 'announcement-hub',  icon: 'send',   label: 'Hub Thông Báo', desc: 'Tạo & quản lý thông báo nội bộ',          path: '/announcement-hub',  tone: 'red',   group: 'support' },
+  { slug: 'announcements',     icon: 'bell',   label: 'Tin nội bộ',    desc: 'Bản tin, thông báo BGĐ, quy định, sự kiện', path: '/announcements',   tone: 'red',   group: 'support', always: true },
   { slug: 'notifications',     icon: 'bell',   label: 'Thông báo',     desc: 'Xem thông báo hệ thống',                  path: '/notifications',     tone: 'navy',  group: 'support', always: true },
   { slug: 'assets',            icon: 'doc',    label: 'Tài sản',       desc: 'Quản lý tài sản, cấp phát, yêu cầu',     path: '/assets',            tone: 'navy',  group: 'support' },
   { slug: 'tasks',             icon: 'check',  label: 'Công việc',     desc: 'Tasks, deadline, phân công',              path: '/tasks',             tone: 'red',   group: 'support', always: true },

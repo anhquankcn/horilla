@@ -64,30 +64,43 @@ const GROUP_COLORS = [HNH.navy, '#7c3aed', HNH.success, '#0891b2', '#c2410c', HN
 function groupColor(id: number) { return GROUP_COLORS[id % GROUP_COLORS.length] }
 
 const APP_FEATURES = [
-  { slug: 'attendance', label: 'Chấm công', icon: 'clock', section: 'hrm' },
-  { slug: 'proposals', label: 'Đề xuất', icon: 'send', section: 'hrm' },
-  { slug: 'approvals', label: 'Phê duyệt', icon: 'check', section: 'hrm' },
-  { slug: 'payslip', label: 'Phiếu lương', icon: 'doc', section: 'hrm' },
-  { slug: 'notifications', label: 'Thông báo', icon: 'bell', section: 'hrm' },
-  { slug: 'employees', label: 'Nhân sự', icon: 'users', section: 'hrm' },
-  { slug: 'roles', label: 'Vai trò & Quyền', icon: 'shield', section: 'hrm' },
-  { slug: 'groups', label: 'Nhóm Quyền', icon: 'folder', section: 'hrm' },
-  { slug: 'attendance-activity', label: 'HĐ Chấm công', icon: 'clock', section: 'hrm' },
-  { slug: 'announcement-hub', label: 'Hub Thông Báo', icon: 'send', section: 'hrm' },
-  { slug: 'tasks', label: 'Công việc', icon: 'check', section: 'eoffice' },
-  { slug: 'projects', label: 'Dự án', icon: 'folder', section: 'eoffice' },
-  { slug: 'dashboard', label: 'Dashboard', icon: 'grid', section: 'hrm' },
-  { slug: 'unified-calendar', label: 'Lịch tổng hợp', icon: 'cal', section: 'eoffice' },
-  { slug: 'assets', label: 'Tài sản', icon: 'doc', section: 'hrm' },
-  { slug: 'reports', label: 'Báo cáo', icon: 'grid', section: 'hrm' },
-  { slug: 'payroll-mgmt', label: 'Bảng lương', icon: 'doc', section: 'hrm' },
-  { slug: 'documents', label: 'Tài liệu', icon: 'folder', section: 'hrm' },
-  { slug: 'onboarding', label: 'On/Offboarding', icon: 'star', section: 'hrm' },
-  { slug: 'journey', label: 'Hành trình NV', icon: 'layers', section: 'hrm' },
-  { slug: 'pms', label: 'Hiệu suất', icon: 'target', section: 'hrm' },
-  { slug: 'training', label: 'Đào tạo', icon: 'book', section: 'hrm' },
-  { slug: 'org-chart', label: 'Cây tổ chức', icon: 'sitemap', section: 'hrm' },
-  { slug: 'promotion-hub', label: 'Hub Thăng Tiến', icon: 'trophy', section: 'hrm' },
+  // ── Sử dụng (self-service) ──────────────────────────────────────────────
+  { slug: 'attendance',         label: 'Chấm công',        icon: 'clock',   section: 'hrm' },
+  { slug: 'proposals',          label: 'Đề xuất',          icon: 'send',    section: 'hrm' },
+  { slug: 'approvals',          label: 'Phê duyệt',        icon: 'check',   section: 'hrm' },
+  { slug: 'payslip',            label: 'Phiếu lương',      icon: 'doc',     section: 'hrm' },
+  { slug: 'notifications',      label: 'Thông báo',        icon: 'bell',    section: 'hrm' },
+  { slug: 'announcements',      label: 'Tin nội bộ',       icon: 'bell',    section: 'hrm' },
+  { slug: 'documents',          label: 'Tài liệu',         icon: 'folder',  section: 'hrm' },
+  // ── Quản lý chấm công ───────────────────────────────────────────────────
+  { slug: 'attendance-activity',label: 'HĐ Chấm công',     icon: 'clock',   section: 'hrm' },
+  { slug: 'monthly-att',        label: 'CC Tháng',         icon: 'grid',    section: 'hrm' },
+  { slug: 'shift-management',   label: 'Quản lý Ca',       icon: 'clock',   section: 'hrm' },
+  { slug: 'shift-planner',      label: 'Phân Ca NV',       icon: 'cal',     section: 'hrm' },
+  { slug: 'hrm-wds-labelday',   label: 'Gán lịch bận',     icon: 'cal',     section: 'hrm' },
+  { slug: 'hrm-att-setting',    label: 'Cài đặt CC',       icon: 'gear',    section: 'hrm' },
+  // ── Quản lý nghỉ phép ───────────────────────────────────────────────────
+  { slug: 'leave-management',   label: 'Quản lý Phép',     icon: 'leaf',    section: 'hrm' },
+  // ── Nhân sự ─────────────────────────────────────────────────────────────
+  { slug: 'employees',          label: 'Nhân sự',          icon: 'users',   section: 'hrm' },
+  { slug: 'roles',              label: 'Vai trò & Quyền',  icon: 'shield',  section: 'hrm' },
+  { slug: 'groups',             label: 'Nhóm Quyền',       icon: 'folder',  section: 'hrm' },
+  { slug: 'onboarding',         label: 'On/Offboarding',   icon: 'star',    section: 'hrm' },
+  { slug: 'promotion-hub',      label: 'Hub Thăng Tiến',   icon: 'trophy',  section: 'hrm' },
+  { slug: 'journey',            label: 'Hành trình NV',    icon: 'layers',  section: 'hrm' },
+  // ── Báo cáo / Dashboard ─────────────────────────────────────────────────
+  { slug: 'dashboard',          label: 'Dashboard',        icon: 'grid',    section: 'hrm' },
+  { slug: 'assets',             label: 'Tài sản',          icon: 'doc',     section: 'hrm' },
+  { slug: 'reports',            label: 'Báo cáo',          icon: 'grid',    section: 'hrm' },
+  { slug: 'payroll-mgmt',       label: 'Bảng lương',       icon: 'doc',     section: 'hrm' },
+  { slug: 'announcement-hub',   label: 'Hub Thông Báo',    icon: 'send',    section: 'hrm' },
+  { slug: 'pms',                label: 'Hiệu suất',        icon: 'target',  section: 'hrm' },
+  { slug: 'training',           label: 'Đào tạo',          icon: 'book',    section: 'hrm' },
+  { slug: 'org-chart',          label: 'Cây tổ chức',      icon: 'sitemap', section: 'hrm' },
+  // ── eOffice ─────────────────────────────────────────────────────────────
+  { slug: 'tasks',              label: 'Công việc',        icon: 'check',   section: 'eoffice' },
+  { slug: 'projects',           label: 'Dự án',            icon: 'folder',  section: 'eoffice' },
+  { slug: 'unified-calendar',   label: 'Lịch tổng hợp',   icon: 'cal',     section: 'eoffice' },
 ]
 
 /* ── Group Card ── */
