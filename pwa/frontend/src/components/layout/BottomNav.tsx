@@ -4,7 +4,7 @@ import { HNH } from '../../lib/theme'
 import { api } from '../../lib/api'
 
 // home | life | [apps] | [ruby] | tasks | me  — apps+ruby are twin elevated centre buttons
-// ruby → https://arkon.hnhtravel.work/pwa | tasks → http://task.hnhtravel.work/pwa (external)
+// ruby → https://arkon.hnhtravel.work/pwa | tasks → https://task.hnhtravel.work/pwa (external)
 const ALL_TABS = [
   { id: 'home',   label: 'Trang chủ', path: '/' },
   { id: 'life',   label: 'HNH Life',  path: '/life' },
@@ -175,7 +175,7 @@ export function BottomNav() {
             <button
               key={t.id}
               className="flex-1 flex flex-col items-center gap-1 py-1 bg-transparent border-none cursor-pointer"
-              onClick={() => { window.location.href = 'http://task.hnhtravel.work/pwa' }}
+              onClick={() => { window.location.href = 'https://task.hnhtravel.work/pwa' }}
             >
               <TabIcon name={t.id} active={isActive} />
               <span style={{ fontSize: 9.5, fontWeight: isActive ? 700 : 500, color: isActive ? HNH.red : HNH.ink3, letterSpacing: -0.1 }}>

@@ -90,7 +90,7 @@ export function SideNav({ skyBg }: { skyBg?: string }) {
             key={t.id}
             onClick={() => {
               if (t.id === 'ruby') window.location.href = 'https://arkon.hnhtravel.work/pwa'
-              else if (t.id === 'tasks') window.location.href = 'http://task.hnhtravel.work/pwa'
+              else if (t.id === 'tasks') window.location.href = 'https://task.hnhtravel.work/pwa'
               else navigate(t.path)
             }}
             className="flex flex-col items-center gap-1 border-none cursor-pointer w-full"
