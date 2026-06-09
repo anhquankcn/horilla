@@ -2073,3 +2073,148 @@ class MyPreferencesView(APIView):
             Employee.objects.filter(pk=emp.pk).update(pwa_auto_clock_out=val)
             emp.pwa_auto_clock_out = val
         return Response({"pwa_auto_clock_out": emp.pwa_auto_clock_out})
+
+
+# ── Open API / Service Accounts ──────────────────────────────────────────────
+
+SERVICE_ACCOUNT_GROUP = "API Service Accounts"
+
+
+def _is_api_admin(user):
+    """True nếu user là superuser hoặc thuộc nhóm 'Admin Hệ thống'."""
+    if user.is_superuser:
+        return True
+    return user.groups.filter(name="Admin Hệ thống").exists()
+
+
+def _get_service_group():
+    from django.contrib.auth.models import Group
+    group, _ = Group.objects.get_or_create(name=SERVICE_ACCOUNT_GROUP)
+    return group
+
+
+class ServiceAccountView(APIView):
+    """
+    GET  /api/base/service-accounts/  — danh sách service accounts
+    POST /api/base/service-accounts/  — tạo mới, trả về token 1 lần
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not _is_api_admin(request.user):
+            return Response({"detail": "Forbidden"}, status=403)
+
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        group = _get_service_group()
+        users = User.objects.filter(groups=group).order_by("username")
+        return Response([
+            {
+                "id": u.pk,
+                "username": u.username,
+                "description": u.first_name,
+                "is_active": u.is_active,
+                "date_joined": u.date_joined.isoformat(),
+            }
+            for u in users
+        ])
+
+    def post(self, request):
+        if not _is_api_admin(request.user):
+            return Response({"detail": "Forbidden"}, status=403)
+
+        import secrets
+        from django.contrib.auth import get_user_model
+        from rest_framework_simplejwt.tokens import RefreshToken
+        User = get_user_model()
+
+        name = request.data.get("name", "").strip()
+        description = request.data.get("description", "").strip()
+        if not name:
+            return Response({"detail": "name is required."}, status=400)
+
+        slug = "svc_" + "".join(c.lower() if c.isalnum() else "_" for c in name)
+        if User.objects.filter(username=slug).exists():
+            slug = f"{slug}_{secrets.token_hex(3)}"
+
+        user = User.objects.create_user(
+            username=slug,
+            password=secrets.token_urlsafe(24),
+            first_name=(description or name)[:150],
+            is_staff=False,
+            is_active=True,
+        )
+        _get_service_group().users.add(user)
+
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            "id": user.pk,
+            "username": user.username,
+            "description": user.first_name,
+            "is_active": True,
+            "date_joined": user.date_joined.isoformat(),
+            "access_token": str(refresh.access_token),
+            "token_note": "Token có hiệu lực 30 ngày. Lưu lại ngay — sẽ không hiển thị lại.",
+        }, status=201)
+
+
+class ServiceAccountDetailView(APIView):
+    """
+    PATCH  /api/base/service-accounts/<pk>/  — bật/tắt
+    DELETE /api/base/service-accounts/<pk>/  — vô hiệu hoá (soft)
+    POST   /api/base/service-accounts/<pk>/rotate-token/  — cấp token mới
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def _get_account(self, pk):
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+        try:
+            return User.objects.filter(groups__name=SERVICE_ACCOUNT_GROUP).get(pk=pk)
+        except User.DoesNotExist:
+            return None
+
+    def patch(self, request, pk):
+        if not _is_api_admin(request.user):
+            return Response({"detail": "Forbidden"}, status=403)
+        user = self._get_account(pk)
+        if user is None:
+            return Response({"detail": "Not found."}, status=404)
+        if "is_active" in request.data:
+            user.is_active = bool(request.data["is_active"])
+            user.save(update_fields=["is_active"])
+        return Response({"id": user.pk, "username": user.username, "is_active": user.is_active})
+
+    def delete(self, request, pk):
+        if not _is_api_admin(request.user):
+            return Response({"detail": "Forbidden"}, status=403)
+        user = self._get_account(pk)
+        if user is None:
+            return Response({"detail": "Not found."}, status=404)
+        user.is_active = False
+        user.save(update_fields=["is_active"])
+        return Response(status=204)
+
+
+class ServiceAccountRotateTokenView(APIView):
+    """POST /api/base/service-accounts/<pk>/rotate-token/ — cấp token mới."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        if not _is_api_admin(request.user):
+            return Response({"detail": "Forbidden"}, status=403)
+        from django.contrib.auth import get_user_model
+        from rest_framework_simplejwt.tokens import RefreshToken
+        User = get_user_model()
+        try:
+            user = User.objects.filter(groups__name=SERVICE_ACCOUNT_GROUP).get(pk=pk, is_active=True)
+        except User.DoesNotExist:
+            return Response({"detail": "Not found or inactive."}, status=404)
+        refresh = RefreshToken.for_user(user)
+        return Response({
+            "access_token": str(refresh.access_token),
+            "token_note": "Token mới đã tạo. Token cũ vẫn hiệu lực cho đến khi hết hạn (30 ngày).",
+        })

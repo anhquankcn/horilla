@@ -73,6 +73,7 @@ const features: AppFeature[] = [
   { slug: 'projects',          icon: 'folder', label: 'Dự án',         desc: 'Quản lý dự án, tiến độ',                  path: '/projects',          tone: 'gold',  group: 'support', always: true },
   { slug: 'unified-calendar',  icon: 'cal',    label: 'Lịch tổng hợp',desc: 'Nghỉ phép, deadline, tour, dự án',        path: '/unified-calendar',  tone: 'gold',  group: 'support', always: true },
   { slug: 'hrm-app-setting',   icon: 'gear',   label: 'Cài đặt App',  desc: 'Thông báo đẩy, bộ nhớ cache, tài khoản', path: '/settings',          tone: 'navy',  group: 'support', always: true },
+  { slug: 'open-api',          icon: 'globe',  label: 'Open API',     desc: 'Quản lý tài khoản API cho hệ thống bên ngoài', path: '/open-api',       tone: 'navy',  group: 'support' },
 
   // ── Báo cáo / Dashboard ──
   { slug: 'dashboard', icon: 'grid',   label: 'Dashboard',    desc: 'Tổng quan công ty, nhân sự, chấm công',    path: '/dashboard',            tone: 'navy', group: 'reports' },
