@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { HNH } from '../lib/theme'
 import { LogoMark } from '../components/ui/Logo'
 
-const ARKON_URL = 'https://arkon.hnhtravel.work'
+const ARKON_URL = 'https://arkon.hnhtravel.work/pwa'
 
 export function RubyPage() {
   const [loading, setLoading] = useState(true)

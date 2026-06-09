@@ -88,7 +88,7 @@ export function SideNav({ skyBg }: { skyBg?: string }) {
         return (
           <button
             key={t.id}
-            onClick={() => navigate(t.path)}
+            onClick={() => t.id === 'ruby' ? (window.location.href = 'https://arkon.hnhtravel.work/pwa') : navigate(t.path)}
             className="flex flex-col items-center gap-1 border-none cursor-pointer w-full"
             style={{
               background: isActive ? 'rgba(255,255,255,0.12)' : 'transparent',
