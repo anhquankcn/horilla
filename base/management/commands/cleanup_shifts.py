@@ -27,7 +27,7 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **options):
-        from attendance.models import Attendance, AttendanceOverTime, EmployeeShiftPlan
+        from attendance.models import Attendance, WorkRecords, EmployeeShiftPlan
         from base.models import EmployeeShift, EmployeeShiftSchedule, ShiftRequest
         from employee.models import EmployeeWorkInformation
 
@@ -66,7 +66,7 @@ class Command(BaseCommand):
 
         # 3. Thống kê ảnh hưởng
         att_count      = Attendance.objects.filter(shift_id__in=old_shifts).count()
-        ot_count       = AttendanceOverTime.objects.filter(shift_id__in=old_shifts).count()
+        ot_count       = WorkRecords.objects.filter(shift_id__in=old_shifts).count()
         workinfo_count = EmployeeWorkInformation.objects.filter(shift_id__in=old_shifts).count()
         plan_count     = EmployeeShiftPlan.objects.filter(shift__in=old_shifts).count()
         req_count      = ShiftRequest.objects.filter(shift_id__in=old_shifts).count()
@@ -75,7 +75,7 @@ class Command(BaseCommand):
 
         self.stdout.write("Bản ghi sẽ bị ảnh hưởng:")
         self.stdout.write(f"  Attendance (chấm công)          : {att_count} → gắn vào {self.MIGRATE_TO}")
-        self.stdout.write(f"  AttendanceOverTime (OT)         : {ot_count} → gắn vào {self.MIGRATE_TO}")
+        self.stdout.write(f"  WorkRecords                     : {ot_count} → gắn vào {self.MIGRATE_TO}")
         self.stdout.write(f"  EmployeeWorkInfo (ca mặc định)  : {workinfo_count} → gắn vào {self.MIGRATE_TO}")
         self.stdout.write(f"  EmployeeShiftPlan (kế hoạch ca) : {plan_count} → gắn vào {self.MIGRATE_TO}")
         self.stdout.write(f"  ShiftRequest.shift_id           : {req_count} → gắn vào {self.MIGRATE_TO}")
@@ -97,8 +97,8 @@ class Command(BaseCommand):
             Attendance.objects.filter(shift_id__in=old_shifts).update(shift_id=hch26)
             self.stdout.write(f"  ✓ {att_count} Attendance → {self.MIGRATE_TO}")
 
-            AttendanceOverTime.objects.filter(shift_id__in=old_shifts).update(shift_id=hch26)
-            self.stdout.write(f"  ✓ {ot_count} AttendanceOverTime → {self.MIGRATE_TO}")
+            WorkRecords.objects.filter(shift_id__in=old_shifts).update(shift_id=hch26)
+            self.stdout.write(f"  ✓ {ot_count} WorkRecords → {self.MIGRATE_TO}")
 
             EmployeeWorkInformation.objects.filter(shift_id__in=old_shifts).update(shift_id=hch26)
             self.stdout.write(f"  ✓ {workinfo_count} EmployeeWorkInfo → {self.MIGRATE_TO}")
