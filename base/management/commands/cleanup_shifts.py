@@ -29,7 +29,7 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         from attendance.models import Attendance, AttendanceOverTime, EmployeeShiftPlan
         from base.models import EmployeeShift, EmployeeShiftSchedule, ShiftRequest
-        from employee.models import EmployeeWorkInfo
+        from employee.models import EmployeeWorkInformation
 
         execute = options["execute"]
         dry = not execute
@@ -67,7 +67,7 @@ class Command(BaseCommand):
         # 3. Thống kê ảnh hưởng
         att_count      = Attendance.objects.filter(shift_id__in=old_shifts).count()
         ot_count       = AttendanceOverTime.objects.filter(shift_id__in=old_shifts).count()
-        workinfo_count = EmployeeWorkInfo.objects.filter(shift_id__in=old_shifts).count()
+        workinfo_count = EmployeeWorkInformation.objects.filter(shift_id__in=old_shifts).count()
         plan_count     = EmployeeShiftPlan.objects.filter(shift__in=old_shifts).count()
         req_count      = ShiftRequest.objects.filter(shift_id__in=old_shifts).count()
         req_prev_count = ShiftRequest.objects.filter(previous_shift_id__in=old_shifts).count()
@@ -100,7 +100,7 @@ class Command(BaseCommand):
             AttendanceOverTime.objects.filter(shift_id__in=old_shifts).update(shift_id=hch26)
             self.stdout.write(f"  ✓ {ot_count} AttendanceOverTime → {self.MIGRATE_TO}")
 
-            EmployeeWorkInfo.objects.filter(shift_id__in=old_shifts).update(shift_id=hch26)
+            EmployeeWorkInformation.objects.filter(shift_id__in=old_shifts).update(shift_id=hch26)
             self.stdout.write(f"  ✓ {workinfo_count} EmployeeWorkInfo → {self.MIGRATE_TO}")
 
             EmployeeShiftPlan.objects.filter(shift__in=old_shifts).update(shift=hch26)
