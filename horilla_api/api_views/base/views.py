@@ -2145,7 +2145,7 @@ class ServiceAccountView(APIView):
             is_staff=False,
             is_active=True,
         )
-        _get_service_group().users.add(user)
+        user.groups.add(_get_service_group())
 
         refresh = RefreshToken.for_user(user)
         return Response({
