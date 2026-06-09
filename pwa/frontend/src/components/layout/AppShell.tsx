@@ -44,10 +44,16 @@ export function AppShell() {
     >
       <WelcomeWizard />
 
-      {/* Topbar */}
+      {/* Topbar — extends into status-bar / notch area */}
       <div
         className="flex items-center justify-between shrink-0"
-        style={{ padding: '6px 16px', background: skyBg }}
+        style={{
+          paddingTop: 'calc(6px + env(safe-area-inset-top, 0px))',
+          paddingBottom: 6,
+          paddingLeft: 16,
+          paddingRight: 16,
+          background: skyBg,
+        }}
       >
         <span style={{ fontSize: 11, fontWeight: 600, color: 'rgba(255,255,255,0.7)' }}>
           HNH Travel · {isTablet ? 'Tablet' : 'Mobile'}

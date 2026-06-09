@@ -9,15 +9,24 @@ interface TopBarProps {
 
 export function TopBar({ title, sub, onBack, trailing }: TopBarProps) {
   return (
-    <div className="flex items-center gap-3" style={{ padding: '8px 20px 10px' }}>
+    <div
+      className="flex items-center gap-3"
+      style={{
+        padding: '10px 20px 10px',
+        position: 'sticky',
+        top: 0,
+        zIndex: 20,
+        background: HNH.cream,
+      }}
+    >
       {onBack && (
         <button
           onClick={onBack}
           className="flex items-center justify-center border-none cursor-pointer shrink-0"
           style={{
-            width: 38, height: 38, borderRadius: 12,
+            width: 44, height: 44, borderRadius: 14,
             background: '#fff',
-            boxShadow: '0 1px 2px rgba(15,20,40,0.06)',
+            boxShadow: '0 1px 4px rgba(15,20,40,0.09)',
           }}
         >
           <svg width="9" height="16" viewBox="0 0 9 16">

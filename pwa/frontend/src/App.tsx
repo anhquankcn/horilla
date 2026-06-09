@@ -58,6 +58,7 @@ import { HNHLifePage } from './pages/HNHLife'
 import { TaskBoardPage } from './pages/TaskBoard'
 import { DayDetailPage } from './pages/DayDetail'
 import { LabelDayWebViewPage } from './pages/LabelDayWebView'
+import { OpenAPIPage } from './pages/OpenAPI'
 
 export function App() {
   return (
@@ -120,6 +121,7 @@ export function App() {
         <Route path="/labelday" element={<LabelDayWebViewPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/attendance-settings" element={<AttendanceSettingsPage />} />
+        <Route path="/open-api" element={<OpenAPIPage />} />
       </Route>
 
       <Route path="/leave/new" element={<ProtectedRoute><LeaveNewPage /></ProtectedRoute>} />

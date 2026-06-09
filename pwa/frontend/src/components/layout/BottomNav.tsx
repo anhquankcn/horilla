@@ -126,13 +126,14 @@ export function BottomNav() {
 
   return (
     <nav
-      className="sticky bottom-0 z-30 flex justify-around safe-bottom"
+      className="sticky bottom-0 z-30 flex justify-around"
       style={{
         background: 'rgba(255,255,255,0.92)',
         backdropFilter: 'blur(20px) saturate(180%)',
         WebkitBackdropFilter: 'blur(20px) saturate(180%)',
         borderTop: `1px solid ${HNH.line}`,
-        padding: '8px 6px 22px',
+        padding: '8px 6px',
+        paddingBottom: 'max(20px, env(safe-area-inset-bottom, 20px))',
       }}
     >
       {tabs.map(t => {
