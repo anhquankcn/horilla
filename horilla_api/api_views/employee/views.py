@@ -1274,17 +1274,104 @@ class EmployeeDirectoryView(APIView):
 
 
 class DepartmentListView(APIView):
-    """List departments for filter chips."""
+    """List departments — includes manager_id (first reporting manager found in dept)."""
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         from base.models import Department
+        from django.db.models import OuterRef, Subquery
 
-        depts = Department.objects.filter(is_active=True).order_by("department")
-        return Response(
-            [{"id": d.pk, "name": d.department} for d in depts]
+        manager_subq = EmployeeWorkInformation.objects.filter(
+            department_id=OuterRef("pk"),
+            reporting_manager_id__isnull=False,
+        ).values("reporting_manager_id_id")[:1]
+
+        depts = (
+            Department.objects.filter(is_active=True)
+            .annotate(manager_id=Subquery(manager_subq))
+            .order_by("department")
         )
+        return Response(
+            [{"id": d.pk, "name": d.department, "manager_id": d.manager_id} for d in depts]
+        )
+
+
+class EmployeeByEmailView(APIView):
+    """Lookup an active employee by email — Arkon M2M integration."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from django.conf import settings as conf
+
+        email = request.query_params.get("email", "").strip()
+        if not email:
+            return Response({"detail": "email query param required."}, status=400)
+
+        try:
+            emp = Employee.objects.select_related(
+                "employee_work_info",
+                "employee_work_info__department_id",
+                "employee_work_info__job_position_id",
+                "employee_work_info__job_role_id",
+            ).get(email=email, is_active=True)
+        except Employee.DoesNotExist:
+            return Response({"detail": "Not found."}, status=404)
+
+        wi = getattr(emp, "employee_work_info", None)
+        return Response({
+            "id": emp.pk,
+            "badge_id": emp.badge_id,
+            "first_name": emp.employee_first_name,
+            "last_name": emp.employee_last_name or "",
+            "email": emp.email,
+            "phone": emp.phone,
+            "profile": (conf.MEDIA_URL + str(emp.employee_profile)) if emp.employee_profile else None,
+            "gender": emp.gender,
+            "department": wi.department_id.department if wi and wi.department_id else None,
+            "department_id": wi.department_id_id if wi and wi.department_id else None,
+            "job_position": wi.job_position_id.job_position if wi and wi.job_position_id else None,
+            "job_role": wi.job_role_id.job_role if wi and wi.job_role_id else None,
+            "reporting_manager_id": wi.reporting_manager_id_id if wi and wi.reporting_manager_id_id else None,
+        })
+
+
+class EmployeePublicInfoView(APIView):
+    """Public profile info for a specific employee — Arkon M2M integration."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        from django.conf import settings as conf
+
+        try:
+            emp = Employee.objects.select_related(
+                "employee_work_info",
+                "employee_work_info__department_id",
+                "employee_work_info__job_position_id",
+                "employee_work_info__job_role_id",
+            ).get(pk=pk, is_active=True)
+        except Employee.DoesNotExist:
+            return Response({"detail": "Not found."}, status=404)
+
+        wi = getattr(emp, "employee_work_info", None)
+        return Response({
+            "id": emp.pk,
+            "badge_id": emp.badge_id,
+            "first_name": emp.employee_first_name,
+            "last_name": emp.employee_last_name or "",
+            "email": emp.email,
+            "phone": emp.phone,
+            "profile": (conf.MEDIA_URL + str(emp.employee_profile)) if emp.employee_profile else None,
+            "gender": emp.gender,
+            "department": wi.department_id.department if wi and wi.department_id else None,
+            "department_id": wi.department_id_id if wi and wi.department_id else None,
+            "job_position": wi.job_position_id.job_position if wi and wi.job_position_id else None,
+            "job_role": wi.job_role_id.job_role if wi and wi.job_role_id else None,
+            "date_joining": wi.date_joining.isoformat() if wi and wi.date_joining else None,
+            "reporting_manager_id": wi.reporting_manager_id_id if wi and wi.reporting_manager_id_id else None,
+        })
 
 
 class CompanyListView(APIView):

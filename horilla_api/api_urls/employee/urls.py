@@ -131,6 +131,11 @@ urlpatterns = [
         name="api-employee-directory",
     ),
     path(
+        "employees/by-email/",
+        views.EmployeeByEmailView.as_view(),
+        name="api-employee-by-email",
+    ),
+    path(
         "departments/",
         views.DepartmentListView.as_view(),
         name="api-department-list",
@@ -220,6 +225,11 @@ urlpatterns = [
         "dashboard/",
         views.DashboardView.as_view(),
         name="api-dashboard",
+    ),
+    path(
+        "<int:pk>/public-info/",
+        views.EmployeePublicInfoView.as_view(),
+        name="api-employee-public-info",
     ),
     path(
         "<int:pk>/profile/",
