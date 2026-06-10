@@ -59,6 +59,11 @@ import { TaskBoardPage } from './pages/TaskBoard'
 import { DayDetailPage } from './pages/DayDetail'
 import { LabelDayWebViewPage } from './pages/LabelDayWebView'
 import { OpenAPIPage } from './pages/OpenAPI'
+import { ExpenseListPage } from './pages/ExpenseList'
+import { ExpenseSubmitPage } from './pages/ExpenseSubmit'
+import { ExpenseApprovalsPage } from './pages/ExpenseApprovals'
+import { ExpenseAdminPage } from './pages/ExpenseAdmin'
+import { ExpenseBatchesPage } from './pages/ExpenseBatches'
 
 export function App() {
   return (
@@ -122,6 +127,11 @@ export function App() {
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/attendance-settings" element={<AttendanceSettingsPage />} />
         <Route path="/open-api" element={<OpenAPIPage />} />
+        <Route path="/expenses" element={<ExpenseListPage />} />
+        <Route path="/expenses/submit" element={<ExpenseSubmitPage />} />
+        <Route path="/expenses/approvals" element={<ExpenseApprovalsPage />} />
+        <Route path="/expenses/admin" element={<ExpenseAdminPage />} />
+        <Route path="/expenses/batches" element={<ExpenseBatchesPage />} />
       </Route>
 
       <Route path="/leave/new" element={<ProtectedRoute><LeaveNewPage /></ProtectedRoute>} />

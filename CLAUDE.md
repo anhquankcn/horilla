@@ -218,6 +218,101 @@ path("announcements/<int:pk>/like/", views.AnnouncementLikeView.as_view()),
 - Chỉ `is_staff` mới được set `pinned=True` (strip silently nếu không phải staff)
 - Mọi user đã auth đều có thể tạo announcement hiện tại (tech debt, chấp nhận cho MVP)
 
+## Coding Playbook — Team AI
+
+### Đội hình & Vai trò
+
+| Thành viên | CLI | Vai trò | Chuyên môn |
+|-----------|-----|---------|-----------|
+| **Claude** (Lead) | `claude` | Dev Lead — phân việc, fix bug, coding khó, tổng hợp | Full-stack, kiến trúc, deploy |
+| **GH Copilot** | `gh copilot` | Frontend developer | React/TSX, PWA pages, CSS, UI components |
+| **Codex** | `codex` | Backend developer | Django views, models, migrations, API endpoints |
+| **Gemini** | `gemini -p` | Code reviewer — review cùng Claude | Review logic, security, performance, best practices |
+
+### Quy trình làm việc
+
+```
+1. Nhận yêu cầu từ anh (Product Owner)
+2. Claude phân tích → chia task frontend/backend
+3. Giao việc:
+   - Frontend → GH Copilot (React pages, components, CSS)
+   - Backend  → Codex (Django views, models, API)
+   - Khó/cross-cutting → Claude tự làm
+4. Thu code → Claude tổng hợp, resolve conflicts
+5. Review → Gemini + Claude review song song
+6. Claude fix issues từ review
+7. Commit → Push → Deploy
+```
+
+### Nguyên tắc giao việc
+
+**GH Copilot (Frontend):**
+- Tạo/sửa React pages trong `pwa/frontend/src/pages/`
+- UI components trong `pwa/frontend/src/components/`
+- CSS/styling theo theme HNH (`lib/theme.ts`)
+- PHẢI tuân thủ: HNH color palette, mobile-first, safe-area aware
+
+**Codex (Backend):**
+- Django models, views, serializers
+- API endpoints trong `horilla_api/`
+- Migrations — PHẢI test trước khi deploy
+- Management commands
+- PHẢI tuân thủ: annotate() thay vì N+1 queries, IsAuthenticated permission
+
+**Claude (Lead — tự xử lý):**
+- Cross-cutting changes (frontend + backend cùng feature)
+- Fix bugs phức tạp, debug production
+- Deploy, migration trên staging
+- Tổng hợp code từ nhiều nguồn, resolve conflicts
+- Kiến trúc mới, refactor lớn
+- Viết CLAUDE.md, documentation
+
+**Gemini (Reviewer):**
+- Review mọi diff trước khi commit
+- Kiểm tra: logic bugs, security (XSS, SQL injection), performance (N+1), code style
+- Claude đọc feedback Gemini → quyết định fix hay skip
+
+### Cách gọi CLI
+
+```bash
+# Giao frontend cho GH Copilot
+gh copilot -- "Tạo page ExpenseRequest.tsx theo design: ..."
+
+# Giao backend cho Codex
+codex "Tạo ExpenseRequestView trong horilla_api: ..."
+
+# Review với Gemini (non-interactive)
+gemini -p "Review diff sau, tìm bugs và suggest improvements: $(git diff --staged)"
+
+# Review file cụ thể
+gemini -p "Review file này về security và performance: $(cat path/to/file.py)"
+```
+
+### Quy tắc Review
+
+1. **Mọi code từ Copilot/Codex phải qua review** trước khi commit
+2. Gemini review → Claude đọc findings → fix nếu cần
+3. Claude tự review code của mình (không cần Gemini cho trivial changes)
+4. **Blockers cần anh quyết định**: thay đổi DB schema, xóa feature, thay đổi auth flow
+
+### Commit Convention
+
+```
+feat(scope): mô tả ngắn          ← feature mới
+fix(scope): mô tả ngắn           ← sửa bug
+refactor(scope): mô tả ngắn      ← refactor không đổi behavior
+docs: mô tả ngắn                 ← documentation
+
+scope = pwa | api | payroll | attendance | employee | ...
+```
+
+### Khi nào KHÔNG giao việc
+
+- Sửa 1-2 dòng code → Claude tự làm, nhanh hơn
+- Fix bug production khẩn cấp → Claude tự làm ngay
+- Thay đổi liên quan secrets/auth/deploy → Claude tự làm
+- Conflict resolution → Claude tự làm
+
 ## Skill routing
 
 When the user's request matches an available skill, ALWAYS invoke it using the Skill

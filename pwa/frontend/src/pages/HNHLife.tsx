@@ -50,6 +50,7 @@ const FEATURES: Feature[] = [
   { slug: 'tasks',               icon: 'check',  label: 'Công việc',        desc: 'Tasks, deadline, phân công',                path: '/task-board',          tone: 'red'     },
   { slug: 'projects',            icon: 'folder', label: 'Dự án',            desc: 'Quản lý dự án, tiến độ',                   path: '/projects',            tone: 'gold'    },
   { slug: 'unified-calendar',    icon: 'cal',    label: 'Lịch tổng hợp',   desc: 'Nghỉ phép, deadline, tour, dự án',          path: '/unified-calendar',    tone: 'gold'    },
+  { slug: 'expenses',            icon: 'doc',    label: 'Chi phí',          desc: 'Yêu cầu thanh toán chi phí tự mua',        path: '/expenses',            tone: 'gold'    },
 ]
 
 function relTime(ts: string): string {

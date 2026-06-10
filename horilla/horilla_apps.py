@@ -27,6 +27,7 @@ INSTALLED_APPS.append("report")
 INSTALLED_APPS.append("whatsapp")
 INSTALLED_APPS.append("tourism")
 INSTALLED_APPS.append("eoffice")
+INSTALLED_APPS.append("expenses")
 
 if settings.env("AWS_ACCESS_KEY_ID", default=None) and "storages" not in INSTALLED_APPS:
     INSTALLED_APPS.append("storages")
