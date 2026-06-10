@@ -64,10 +64,7 @@ import { ExpenseSubmitPage } from './pages/ExpenseSubmit'
 import { ExpenseApprovalsPage } from './pages/ExpenseApprovals'
 import { ExpenseAdminPage } from './pages/ExpenseAdmin'
 import { ExpenseBatchesPage } from './pages/ExpenseBatches'
-// import { ServiceAccountsPage } from './pages/ServiceAccounts'
-function ServiceAccountsPage() {
-  return <div style={{ padding: 40, textAlign: 'center' }}><h2>M2M Service Accounts</h2><p>Page loaded OK</p></div>
-}
+import { ServiceAccountsPage } from './pages/ServiceAccounts'
 
 export function App() {
   return (
