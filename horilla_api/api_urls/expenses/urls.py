@@ -3,6 +3,7 @@ from django.urls import path
 from horilla_api.api_views.expenses import views
 
 urlpatterns = [
+    path("my-role/", views.ExpenseRoleView.as_view()),
     # Employee
     path("requests/", views.ExpenseSubmitView.as_view()),
     path("requests/my/", views.ExpenseMyListView.as_view()),

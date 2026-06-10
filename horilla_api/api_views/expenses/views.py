@@ -71,6 +71,44 @@ def _serialize_expense(exp, include_employee=True):
     return data
 
 
+# --- Role check ---
+
+class ExpenseRoleView(APIView):
+    """GET: Check user's expense roles + pending counts."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        emp = _get_employee(request.user)
+        is_hc = _is_hc_user(request.user)
+
+        is_manager = False
+        pending_approvals = 0
+        if emp:
+            subordinates = Employee.objects.filter(
+                employee_work_info__reporting_manager_id=emp
+            ).values_list("id", flat=True)
+            if subordinates:
+                is_manager = True
+                pending_approvals = ExpenseRequest.objects.filter(
+                    employee_id__in=subordinates,
+                    status="pending",
+                    is_active=True,
+                ).count()
+
+        pending_hc = 0
+        if is_hc:
+            pending_hc = ExpenseRequest.objects.filter(
+                status="manager_approved", is_active=True
+            ).count()
+
+        return Response({
+            "is_manager": is_manager,
+            "is_hc": is_hc,
+            "pending_approvals": pending_approvals,
+            "pending_hc": pending_hc,
+        })
+
+
 # --- Employee endpoints ---
 
 class ExpenseSubmitView(APIView):

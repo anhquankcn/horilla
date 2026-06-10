@@ -273,6 +273,13 @@ export function ExpenseListPage() {
   const [totalAmount, setTotalAmount] = useState(0)
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Expense | null>(null)
+  const [role, setRole] = useState<{ is_manager: boolean; is_hc: boolean; pending_approvals: number; pending_hc: number } | null>(null)
+
+  useEffect(() => {
+    api.get<{ is_manager: boolean; is_hc: boolean; pending_approvals: number; pending_hc: number }>('/api/expenses/my-role/')
+      .then(setRole)
+      .catch(() => {})
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -303,6 +310,58 @@ export function ExpenseListPage() {
   return (
     <div style={{ flex: 1 }}>
       <TopBar title="Chi phí của tôi" />
+
+      {/* Role navigation cards */}
+      {role && (role.is_manager || role.is_hc) && (
+        <div className="flex gap-2" style={{ padding: '8px 16px 4px' }}>
+          {role.is_manager && (
+            <button
+              onClick={() => navigate('/expenses/approvals')}
+              className="flex items-center gap-2"
+              style={{
+                flex: 1, padding: '10px 14px', borderRadius: 12,
+                border: `1px solid ${HNH.gold}`, background: HNH.goldSoft,
+                cursor: 'pointer', fontSize: 13, fontWeight: 700, color: '#a87908',
+              }}
+            >
+              <Icon name="check" size={16} color="#a87908" />
+              Duyệt chi phí
+              {role.pending_approvals > 0 && (
+                <span style={{
+                  marginLeft: 'auto', minWidth: 20, height: 20, borderRadius: 10,
+                  background: HNH.red, color: '#fff', fontSize: 11, fontWeight: 700,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px',
+                }}>
+                  {role.pending_approvals}
+                </span>
+              )}
+            </button>
+          )}
+          {role.is_hc && (
+            <button
+              onClick={() => navigate('/expenses/admin')}
+              className="flex items-center gap-2"
+              style={{
+                flex: 1, padding: '10px 14px', borderRadius: 12,
+                border: `1px solid ${HNH.navy}`, background: HNH.navy50,
+                cursor: 'pointer', fontSize: 13, fontWeight: 700, color: HNH.navy,
+              }}
+            >
+              <Icon name="file-text" size={16} color={HNH.navy} />
+              Quản lý HC
+              {role.pending_hc > 0 && (
+                <span style={{
+                  marginLeft: 'auto', minWidth: 20, height: 20, borderRadius: 10,
+                  background: HNH.red, color: '#fff', fontSize: 11, fontWeight: 700,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 6px',
+                }}>
+                  {role.pending_hc}
+                </span>
+              )}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Month picker + total */}
       <div style={{
