@@ -160,7 +160,7 @@ export function BottomNav({ announcementsUnread = 0 }: { announcementsUnread?: n
             <button
               key={t.id}
               className="flex-1 flex flex-col items-center gap-1 p-1 bg-transparent border-none cursor-pointer"
-              onClick={() => { window.location.href = 'https://arkon.hnhtravel.work/pwa' }}
+              onClick={() => navigate('/ruby')}
             >
               <RubyIcon active={isActive} />
               <span style={{ fontSize: 9.5, fontWeight: isActive ? 700 : 600, color: isActive ? HNH.red : HNH.ink2, letterSpacing: -0.1 }}>

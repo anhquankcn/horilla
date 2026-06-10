@@ -23,6 +23,8 @@ services:
       BFF_ORIGIN: https://qlns.hnhtravel.work
       PWA_PATH: /pwa/
       COOKIE_SECRET: ${BFF_COOKIE_SECRET}
+      ARKON_BFF_URL: ${ARKON_BFF_URL:-https://arkonbff.hnhtravel.work}
+      ARKON_SERVICE_TOKEN: ${ARKON_SERVICE_TOKEN}
     restart: always
     depends_on:
       - web

@@ -12,4 +12,6 @@ export const env = {
   BFF_ORIGIN: process.env.BFF_ORIGIN ?? "http://localhost:5173",
   PWA_PATH: process.env.PWA_PATH ?? "/",
   COOKIE_SECRET: process.env.COOKIE_SECRET ?? "dev-secret-change-in-production-please",
+  ARKON_BFF_URL: process.env.ARKON_BFF_URL ?? "https://arkonbff.hnhtravel.work",
+  ARKON_SERVICE_TOKEN: process.env.ARKON_SERVICE_TOKEN ?? "",
 } as const;

@@ -64,4 +64,49 @@ export async function proxyRoutes(app: FastifyInstance) {
       .header("content-type", responseContentType)
       .send(Buffer.from(body));
   });
+
+  // Arkon embed SSO handoff — get one-time ticket URL
+  app.get("/bff/arkon/embed-url", async (req, reply) => {
+    const sessionId = req.cookies[COOKIE_NAME];
+    if (!sessionId) return reply.status(401).send({ error: "Not authenticated" });
+    const session = getSession(sessionId);
+    if (!session?.horillaJwt) return reply.status(401).send({ error: "Not authenticated" });
+
+    if (!env.ARKON_SERVICE_TOKEN) {
+      return reply.status(500).send({ error: "ARKON_SERVICE_TOKEN not configured" });
+    }
+
+    // Get current user info from Horilla
+    const meRes = await fetch(`${env.HORILLA_API}/api/employee/me/`, {
+      headers: { Authorization: `Bearer ${session.horillaJwt}` },
+    });
+    if (meRes.statusCode !== 200) {
+      return reply.status(401).send({ error: "Cannot fetch user info" });
+    }
+    const me = await meRes.body.json() as { email?: string; employee_first_name?: string; employee_last_name?: string };
+    const email = me.email;
+    if (!email) return reply.status(400).send({ error: "User has no email" });
+    const name = [me.employee_first_name, me.employee_last_name].filter(Boolean).join(" ") || email;
+
+    const to = (req.query as any).to || "/pwa";
+
+    // Request embed session from Arkon BFF (M2M)
+    const arkonRes = await fetch(`${env.ARKON_BFF_URL}/api/m2m/embed/session`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Arkon-Service-Token": env.ARKON_SERVICE_TOKEN,
+      },
+      body: JSON.stringify({ email, name, to }),
+    });
+
+    if (arkonRes.statusCode !== 200) {
+      const text = await arkonRes.body.text();
+      app.log.error(`Arkon embed session failed: ${arkonRes.statusCode} ${text}`);
+      return reply.status(502).send({ error: "Arkon embed session failed" });
+    }
+
+    const data = await arkonRes.body.json() as { url: string; ticket: string; expires_in: number };
+    return reply.send({ url: data.url, expires_in: data.expires_in });
+  });
 }
