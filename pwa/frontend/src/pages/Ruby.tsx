@@ -10,7 +10,7 @@ export function RubyPage() {
 
   useEffect(() => {
     let cancelled = false
-    api.get<{ url: string }>('/bff/arkon/embed-url?to=/pwa')
+    api.get<{ url: string }>('/arkon/embed-url?to=/pwa')
       .then(data => {
         if (!cancelled) setIframeUrl(data.url)
       })
