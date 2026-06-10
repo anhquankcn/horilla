@@ -31,7 +31,7 @@ export function EmbedPage({ system, title, icon, color, to = '/pwa' }: EmbedPage
   }, [system, to])
 
   return (
-    <div className="flex flex-col" style={{ position: 'absolute', inset: 0, overflow: 'hidden' }}>
+    <>
       {(loading || !iframeUrl) && !error && (
         <div className="flex flex-col items-center justify-center" style={{ flex: 1, gap: 16, padding: 40 }}>
           <div style={{
@@ -77,13 +77,17 @@ export function EmbedPage({ system, title, icon, color, to = '/pwa' }: EmbedPage
           src={iframeUrl}
           onLoad={() => setLoading(false)}
           style={{
-            flex: 1, width: '100%', border: 'none',
+            flex: 1,
+            width: '100%',
+            height: 0,
+            minHeight: 0,
+            border: 'none',
             display: loading ? 'none' : 'block',
           }}
           allow="clipboard-write; fullscreen; microphone"
           title={title}
         />
       )}
-    </div>
+    </>
   )
 }
