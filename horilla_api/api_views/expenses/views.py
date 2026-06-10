@@ -68,6 +68,14 @@ def _serialize_expense(exp, include_employee=True):
         wi = getattr(exp.employee, "employee_work_info", None)
         if wi and wi.department_id:
             data["employee"]["department"] = str(wi.department_id)
+        mgr = wi.reporting_manager_id if wi else None
+        if mgr:
+            data["approver"] = {
+                "id": mgr.id,
+                "name": mgr.get_full_name() if hasattr(mgr, "get_full_name") else str(mgr),
+            }
+        else:
+            data["approver"] = None
     return data
 
 
