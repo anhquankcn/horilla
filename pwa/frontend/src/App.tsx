@@ -58,12 +58,16 @@ import { HNHLifePage } from './pages/HNHLife'
 import { TaskBoardPage } from './pages/TaskBoard'
 import { DayDetailPage } from './pages/DayDetail'
 import { LabelDayWebViewPage } from './pages/LabelDayWebView'
-import { OpenAPIPage } from './pages/OpenAPI'
+// OpenAPI page removed — replaced by M2M ServiceAccounts
 import { ExpenseListPage } from './pages/ExpenseList'
 import { ExpenseSubmitPage } from './pages/ExpenseSubmit'
 import { ExpenseApprovalsPage } from './pages/ExpenseApprovals'
 import { ExpenseAdminPage } from './pages/ExpenseAdmin'
 import { ExpenseBatchesPage } from './pages/ExpenseBatches'
+// import { ServiceAccountsPage } from './pages/ServiceAccounts'
+function ServiceAccountsPage() {
+  return <div style={{ padding: 40, textAlign: 'center' }}><h2>M2M Service Accounts</h2><p>Page loaded OK</p></div>
+}
 
 export function App() {
   return (
@@ -126,7 +130,8 @@ export function App() {
         <Route path="/labelday" element={<LabelDayWebViewPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/attendance-settings" element={<AttendanceSettingsPage />} />
-        <Route path="/open-api" element={<OpenAPIPage />} />
+        {/* open-api removed — replaced by /m2m ServiceAccounts */}
+        <Route path="/m2m" element={<ServiceAccountsPage />} />
         <Route path="/expenses" element={<ExpenseListPage />} />
         <Route path="/expenses/submit" element={<ExpenseSubmitPage />} />
         <Route path="/expenses/approvals" element={<ExpenseApprovalsPage />} />
