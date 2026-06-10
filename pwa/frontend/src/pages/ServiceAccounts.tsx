@@ -259,20 +259,32 @@ export function ServiceAccountsPage() {
   const [accounts, setAccounts] = useState<Account[]>([])
   const [scopes, setScopes] = useState<Scope[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [newToken, setNewToken] = useState<string | null>(null)
   const [selected, setSelected] = useState<Account | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
+    setError(null)
     try {
-      const [accData, scopeData] = await Promise.all([
-        api.get<{ results: Account[] }>('/api/m2m/accounts/'),
-        api.get<{ scopes: Scope[] }>('/api/m2m/scopes/'),
+      const [accRes, scopeRes] = await Promise.all([
+        fetch('/bff/api/m2m/accounts/', { credentials: 'include' }),
+        fetch('/bff/api/m2m/scopes/', { credentials: 'include' }),
       ])
+      if (!accRes.ok || !scopeRes.ok) {
+        const t1 = await accRes.text().catch(() => '')
+        const t2 = await scopeRes.text().catch(() => '')
+        setError(`accounts: ${accRes.status} ${t1.slice(0,200)} | scopes: ${scopeRes.status} ${t2.slice(0,200)}`)
+        return
+      }
+      const accData = await accRes.json()
+      const scopeData = await scopeRes.json()
       setAccounts(accData.results)
       setScopes(scopeData.scopes)
-    } catch { /* ignore */ }
+    } catch (e: any) {
+      setError(`Fetch lỗi: ${e.message || 'unknown'}`)
+    }
     setLoading(false)
   }, [])
 
@@ -309,7 +321,16 @@ export function ServiceAccountsPage() {
             </button>
           )}
 
-          {loading && accounts.length === 0 && (
+          {error && (
+            <div style={{ padding: '14px', borderRadius: 12, background: HNH.red50, border: `1px solid ${HNH.red}40`, marginBottom: 16 }}>
+              <p style={{ fontSize: 13, color: HNH.red, margin: 0, wordBreak: 'break-all' }}>{error}</p>
+              <button onClick={load} style={{ marginTop: 8, padding: '6px 16px', borderRadius: 8, border: 'none', background: HNH.red, color: '#fff', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                Thử lại
+              </button>
+            </div>
+          )}
+
+          {loading && accounts.length === 0 && !error && (
             <p style={{ textAlign: 'center', color: HNH.ink3, fontSize: 13, padding: 40 }}>Đang tải...</p>
           )}
 
