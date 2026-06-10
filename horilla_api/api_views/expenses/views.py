@@ -202,14 +202,22 @@ class ExpenseEditView(APIView):
             except (TypeError, ValueError):
                 return Response({"error": "Số tiền không hợp lệ"}, status=400)
         if "date_incurred" in request.data:
-            exp.date_incurred = request.data["date_incurred"]
+            from datetime import date as _date
+            try:
+                exp.date_incurred = _date.fromisoformat(request.data["date_incurred"])
+            except (ValueError, TypeError):
+                return Response({"error": "Ngày không hợp lệ"}, status=400)
         if "category" in request.data:
             if request.data["category"] in dict(ExpenseRequest.CATEGORY_CHOICES):
                 exp.category = request.data["category"]
         if "receipt" in request.FILES:
             exp.receipt = request.FILES["receipt"]
 
-        exp.save()
+        try:
+            exp.save()
+        except Exception:
+            logger.exception("Expense PATCH save failed pk=%s", pk)
+            return Response({"error": "Lỗi lưu yêu cầu"}, status=500)
         return Response(_serialize_expense(exp, include_employee=False))
 
     def delete(self, request, pk):
