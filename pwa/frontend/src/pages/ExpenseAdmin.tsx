@@ -227,7 +227,6 @@ function AdminDetailModal({ item, batches, onClose, onUpdated }: {
 /* ── Page ── */
 export function ExpenseAdminPage() {
   const navigate = useNavigate()
-  const toast = useToast()
   const [items, setItems] = useState<Expense[]>([])
   const [batches, setBatches] = useState<Batch[]>([])
   const [loading, setLoading] = useState(true)
