@@ -104,6 +104,7 @@ const APP_FEATURES = [
   // ── Hành chính ───────────────────────────────────────────────────────────
   { slug: 'expenses-admin',     label: 'Chi phí HC',       icon: 'doc',     section: 'hrm' },
   // ── Hệ thống ────────────────────────────────────────────────────────────
+  { slug: 'service-accounts',   label: 'Service Account',  icon: 'shield',  section: 'hrm' },
   { slug: 'open-api',           label: 'Open API',         icon: 'globe',   section: 'hrm' },
 ]
 

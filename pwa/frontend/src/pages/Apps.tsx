@@ -6,7 +6,7 @@ import { TopBar } from '../components/layout/TopBar'
 import { useTablet } from '../lib/useTablet'
 import { api } from '../lib/api'
 
-type ModuleGroup = 'hr' | 'attendance' | 'leave' | 'payroll' | 'admin' | 'support' | 'reports'
+type ModuleGroup = 'hr' | 'attendance' | 'leave' | 'payroll' | 'admin' | 'system' | 'support' | 'reports'
 
 interface AppFeature {
   slug: string
@@ -25,11 +25,12 @@ const MODULE_META: Record<ModuleGroup, { label: string; icon: string; color: str
   leave:      { label: 'Nghỉ phép',           icon: 'leaf',   color: HNH.success, bg: HNH.success50 },
   payroll:    { label: 'Lương',               icon: 'doc',    color: '#a87908',   bg: '#faf1d6' },
   admin:      { label: 'Hành chính',          icon: 'file-text', color: HNH.gold, bg: '#faf1d6' },
+  system:     { label: 'Quản trị Hệ thống',  icon: 'gear',   color: HNH.ink,     bg: '#eef0f4' },
   support:    { label: 'Hỗ trợ',             icon: 'help',   color: '#6b7280',   bg: '#f3f4f6' },
   reports:    { label: 'Báo cáo / Dashboard', icon: 'grid',   color: '#7c3aed',   bg: '#f5f3ff' },
 }
 
-const MODULE_ORDER: ModuleGroup[] = ['hr', 'attendance', 'leave', 'payroll', 'admin', 'support', 'reports']
+const MODULE_ORDER: ModuleGroup[] = ['hr', 'attendance', 'leave', 'payroll', 'admin', 'system', 'support', 'reports']
 
 const features: AppFeature[] = [
   // ── Nhân sự ──
@@ -77,7 +78,9 @@ const features: AppFeature[] = [
   { slug: 'projects',          icon: 'folder', label: 'Dự án',         desc: 'Quản lý dự án, tiến độ',                  path: '/projects',          tone: 'gold',  group: 'support', always: true },
   { slug: 'unified-calendar',  icon: 'cal',    label: 'Lịch tổng hợp',desc: 'Nghỉ phép, deadline, tour, dự án',        path: '/unified-calendar',  tone: 'gold',  group: 'support', always: true },
   { slug: 'hrm-app-setting',   icon: 'gear',   label: 'Cài đặt App',  desc: 'Thông báo đẩy, bộ nhớ cache, tài khoản', path: '/settings',          tone: 'navy',  group: 'support', always: true },
-  { slug: 'open-api',          icon: 'globe',  label: 'Open API',     desc: 'Quản lý tài khoản API cho hệ thống bên ngoài', path: '/open-api',       tone: 'navy',  group: 'support' },
+  // ── Quản trị Hệ thống ──
+  { slug: 'service-accounts',  icon: 'shield', label: 'Service Account', desc: 'Quản lý M2M token, scope, IP cho hệ thống ngoài', path: '/service-accounts', tone: 'navy', group: 'system' },
+  { slug: 'open-api',          icon: 'globe',  label: 'Open API',     desc: 'Quản lý tài khoản API cho hệ thống bên ngoài', path: '/open-api',       tone: 'navy',  group: 'system' },
 
   // ── Báo cáo / Dashboard ──
   { slug: 'dashboard', icon: 'grid',   label: 'Dashboard',    desc: 'Tổng quan công ty, nhân sự, chấm công',    path: '/dashboard',            tone: 'navy', group: 'reports' },

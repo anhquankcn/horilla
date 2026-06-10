@@ -408,6 +408,66 @@ class AppFeature(models.Model):
         return f"{self.label} ({self.slug})"
 
 
+class M2MServiceAccount(models.Model):
+    """Machine-to-machine service account for external system integration (HNH Core).
+
+    Token format: hnh_sa_<43 chars>. Stored as SHA256 hash.
+    Auth header: X-HNH-Service-Token: hnh_sa_...
+    Three-layer security: Network (Tailscale IP) → Token → Scope.
+    """
+
+    STATUS_CHOICES = [("active", "Active"), ("revoked", "Revoked")]
+
+    name = models.CharField(max_length=100, verbose_name=_("Tên hệ thống"))
+    slug = models.SlugField(max_length=60, unique=True, verbose_name=_("Slug"))
+    description = models.TextField(blank=True, verbose_name=_("Mô tả"))
+    token_hash = models.CharField(max_length=64, unique=True, db_index=True)
+    token_prefix = models.CharField(max_length=16, blank=True)
+    scopes = models.JSONField(
+        default=list, blank=True,
+        verbose_name=_("Scopes"),
+        help_text='JSON list, vd ["employee:read","attendance:read"]. "*" = full.',
+    )
+    allowed_cidrs = models.JSONField(
+        default=list, blank=True,
+        verbose_name=_("Allowed CIDRs"),
+        help_text="Trống = dùng global trusted CIDRs. Mỗi item là CIDR, vd 100.64.0.0/10",
+    )
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="active")
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_rotated_at = models.DateTimeField(null=True, blank=True)
+    last_used_at = models.DateTimeField(null=True, blank=True)
+    last_used_ip = models.GenericIPAddressField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = _("M2M Service Account")
+        verbose_name_plural = _("M2M Service Accounts")
+        db_table = "base_m2m_service_account"
+
+    def __str__(self):
+        return f"{self.name} ({self.slug})"
+
+    def has_scope(self, required: str) -> bool:
+        if "*" in self.scopes:
+            return True
+        resource = required.split(":")[0]
+        if f"{resource}:*" in self.scopes:
+            return True
+        return required in self.scopes
+
+    @staticmethod
+    def generate_token():
+        import secrets
+        raw = "hnh_sa_" + secrets.token_urlsafe(32)
+        return raw
+
+    @staticmethod
+    def hash_token(raw: str) -> str:
+        import hashlib
+        return hashlib.sha256(raw.encode()).hexdigest()
+
+
 class HRMConfig(models.Model):
     """Key-value store for company-level HRM feature configuration (singleton-style)."""
 
