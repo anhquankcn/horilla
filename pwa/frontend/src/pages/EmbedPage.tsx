@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 
@@ -14,6 +14,21 @@ export function EmbedPage({ system, title, icon, color, to = '/pwa' }: EmbedPage
   const [iframeUrl, setIframeUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [frameH, setFrameH] = useState(0)
+
+  useEffect(() => {
+    const measure = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect()
+        setFrameH(rect.height)
+      }
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    const t = setTimeout(measure, 100)
+    return () => { window.removeEventListener('resize', measure); clearTimeout(t) }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -31,9 +46,9 @@ export function EmbedPage({ system, title, icon, color, to = '/pwa' }: EmbedPage
   }, [system, to])
 
   return (
-    <>
+    <div ref={containerRef} style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
       {(loading || !iframeUrl) && !error && (
-        <div className="flex flex-col items-center justify-center" style={{ flex: 1, gap: 16, padding: 40 }}>
+        <div className="flex flex-col items-center justify-center" style={{ height: '100%', gap: 16, padding: 40 }}>
           <div style={{
             width: 60, height: 60, borderRadius: 18,
             background: `linear-gradient(135deg, ${color} 0%, ${color}cc 100%)`,
@@ -55,7 +70,7 @@ export function EmbedPage({ system, title, icon, color, to = '/pwa' }: EmbedPage
       )}
 
       {error && (
-        <div className="flex flex-col items-center justify-center" style={{ flex: 1, gap: 12, padding: 40 }}>
+        <div className="flex flex-col items-center justify-center" style={{ height: '100%', gap: 12, padding: 40 }}>
           <div style={{ fontSize: 14, fontWeight: 600, color: HNH.red, textAlign: 'center' }}>{error}</div>
           <p style={{ fontSize: 12, color: HNH.ink3, textAlign: 'center' }}>
             Kiểm tra cấu hình tại Quản trị HT → Tích hợp → {title}
@@ -77,10 +92,11 @@ export function EmbedPage({ system, title, icon, color, to = '/pwa' }: EmbedPage
           src={iframeUrl}
           onLoad={() => setLoading(false)}
           style={{
-            flex: 1,
+            position: 'absolute',
+            top: 0,
+            left: 0,
             width: '100%',
-            height: 0,
-            minHeight: 0,
+            height: frameH > 0 ? frameH : '100%',
             border: 'none',
             display: loading ? 'none' : 'block',
           }}
@@ -88,6 +104,6 @@ export function EmbedPage({ system, title, icon, color, to = '/pwa' }: EmbedPage
           title={title}
         />
       )}
-    </>
+    </div>
   )
 }
