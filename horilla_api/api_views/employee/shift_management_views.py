@@ -142,6 +142,12 @@ class ShiftMgmtShiftsView(APIView):
                         "start_time": str(sch.start_time)[:5] if sch.start_time else None,
                         "end_time": str(sch.end_time)[:5] if sch.end_time else None,
                         "is_night_shift": sch.is_night_shift,
+                        "is_auto_punch_in_enabled": sch.is_auto_punch_in_enabled,
+                        "auto_punch_in_time": str(sch.auto_punch_in_time)[:5] if sch.auto_punch_in_time else None,
+                        "is_auto_punch_out_enabled": sch.is_auto_punch_out_enabled,
+                        "auto_punch_out_time": str(sch.auto_punch_out_time)[:5] if sch.auto_punch_out_time else None,
+                        "require_gps_on_auto_clockin": sch.require_gps_on_auto_clockin,
+                        "require_gps_on_auto_clockout": sch.require_gps_on_auto_clockout,
                     }
                     for sch in schedules
                 ],
@@ -164,29 +170,51 @@ class ShiftMgmtDeptShiftView(APIView):
             mgr_ids = _manager_dept_ids(request)
             depts = depts.filter(id__in=mgr_ids)
 
-        result = [
-            {
+        result = []
+        for d in depts:
+            shifts_info = []
+            for ds in d.active_shifts.all():
+                shifts_info.append({
+                    "shift_id": ds.shift_id,
+                    "auto_assign": ds.auto_assign,
+                    "is_primary": ds.is_primary,
+                })
+            result.append({
                 "id": d.id,
                 "name": d.department,
                 "company_ids": list(d.company_id.values_list("id", flat=True)),
-                "shift_ids": list(d.active_shifts.values_list("shift_id", flat=True)),
-            }
-            for d in depts
-        ]
+                "shift_ids": [s["shift_id"] for s in shifts_info],
+                "shifts_detail": shifts_info,
+            })
         return Response(result)
 
     def post(self, request):
-        """Assign shift to department. Body: {department_id, shift_id}"""
+        """Assign shift to department. Body: {department_id, shift_id, auto_assign?}"""
         if _get_scope(request) != "cnb":
             return Response({"error": "Không có quyền"}, status=403)
         dept_id = request.data.get("department_id")
         shift_id = request.data.get("shift_id")
+        auto_assign = request.data.get("auto_assign", False)
         if not dept_id or not shift_id:
             return Response({"error": "Thiếu department_id hoặc shift_id"}, status=400)
         obj, created = DepartmentShift.objects.get_or_create(
-            department_id=dept_id, shift_id=shift_id
+            department_id=dept_id, shift_id=shift_id,
+            defaults={"auto_assign": auto_assign},
         )
-        return Response({"created": created, "id": obj.id})
+        if not created and obj.auto_assign != auto_assign:
+            obj.auto_assign = auto_assign
+            obj.save(update_fields=["auto_assign"])
+
+        # Auto-assign: nếu bật, gán ca cho tất cả NV trong phòng chưa có ca này
+        if auto_assign:
+            from employee.models import EmployeeWorkInformation
+            employees = EmployeeWorkInformation.objects.filter(
+                department_id=dept_id,
+                employee_id__is_active=True,
+            ).exclude(shift_id=shift_id)
+            updated = employees.update(shift_id=shift_id)
+
+        return Response({"created": created, "id": obj.id, "auto_assigned": updated if auto_assign else 0})
 
     def delete(self, request):
         """Remove shift from department. Body: {department_id, shift_id}"""

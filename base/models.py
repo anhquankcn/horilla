@@ -543,6 +543,11 @@ class DepartmentShift(models.Model):
         verbose_name=_("Ca làm việc"),
     )
     is_primary = models.BooleanField(default=False, verbose_name=_("Ca chính"))
+    auto_assign = models.BooleanField(
+        default=False,
+        verbose_name=_("Tự gán ca cho NV"),
+        help_text=_("Khi bật, nhân viên thuộc phòng ban này sẽ tự động được gán ca này."),
+    )
 
     class Meta:
         unique_together = [("department", "shift")]
@@ -1121,6 +1126,27 @@ class EmployeeShiftSchedule(HorillaModel):
         help_text=_(
             "Time at which the horilla will automatically check out the employee attendance if they forget."
         ),
+    )
+    is_auto_punch_in_enabled = models.BooleanField(
+        default=False,
+        verbose_name=_("Tự động Clock In"),
+        help_text=_("Tự động chấm công vào ca theo giờ bắt đầu."),
+    )
+    auto_punch_in_time = models.TimeField(
+        null=True,
+        blank=True,
+        verbose_name=_("Giờ tự động Clock In"),
+        help_text=_("Giờ hệ thống tự động Clock In. Để trống = dùng start_time của ca."),
+    )
+    require_gps_on_auto_clockin = models.BooleanField(
+        default=False,
+        verbose_name=_("Lấy GPS khi auto Clock In"),
+        help_text=_("Tự động lấy vị trí GPS khi hệ thống auto Clock In."),
+    )
+    require_gps_on_auto_clockout = models.BooleanField(
+        default=False,
+        verbose_name=_("Lấy GPS khi auto Clock Out"),
+        help_text=_("Tự động lấy vị trí GPS khi hệ thống auto Clock Out."),
     )
 
     company_id = models.ManyToManyField(Company, blank=True, verbose_name=_("Company"))

@@ -12,7 +12,18 @@ interface Shift {
   name: string
   weekly_full_time: string
   department_ids: number[]
-  schedules: { day: string; start_time: string | null; end_time: string | null; is_night_shift: boolean }[]
+  schedules: {
+    day: string
+    start_time: string | null
+    end_time: string | null
+    is_night_shift: boolean
+    is_auto_punch_in_enabled: boolean
+    auto_punch_in_time: string | null
+    is_auto_punch_out_enabled: boolean
+    auto_punch_out_time: string | null
+    require_gps_on_auto_clockin: boolean
+    require_gps_on_auto_clockout: boolean
+  }[]
 }
 
 interface Company {
@@ -203,6 +214,59 @@ function ShiftCard({ shift, depts, isCnb, onToggleDept }: {
 
           {!isCnb && assigned.length === 0 && (
             <div style={{ fontSize: 12, color: HNH.ink3 }}>Ca này chưa được gán cho phòng nào.</div>
+          )}
+
+          {/* Cấu hình tự động */}
+          {shift.schedules.length > 0 && (
+            <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${HNH.line}` }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: HNH.ink3, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>
+                Cấu hình tự động
+              </div>
+              {shift.schedules.filter(s => s.start_time).slice(0, 1).map(sch => (
+                <div key={sch.day} className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span style={{ fontSize: 12, color: HNH.ink2 }}>Tự động Clock In</span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+                      background: sch.is_auto_punch_in_enabled ? HNH.success50 : HNH.cream2,
+                      color: sch.is_auto_punch_in_enabled ? HNH.success : HNH.ink3,
+                    }}>
+                      {sch.is_auto_punch_in_enabled ? `ON · ${sch.auto_punch_in_time || sch.start_time}` : 'OFF'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span style={{ fontSize: 12, color: HNH.ink2 }}>Tự động Clock Out</span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+                      background: sch.is_auto_punch_out_enabled ? HNH.success50 : HNH.cream2,
+                      color: sch.is_auto_punch_out_enabled ? HNH.success : HNH.ink3,
+                    }}>
+                      {sch.is_auto_punch_out_enabled ? `ON · ${sch.auto_punch_out_time || sch.end_time}` : 'OFF'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span style={{ fontSize: 12, color: HNH.ink2 }}>GPS khi auto Clock In</span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+                      background: sch.require_gps_on_auto_clockin ? HNH.gold + '20' : HNH.cream2,
+                      color: sch.require_gps_on_auto_clockin ? '#a87908' : HNH.ink3,
+                    }}>
+                      {sch.require_gps_on_auto_clockin ? 'BẮT BUỘC' : 'OFF'}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span style={{ fontSize: 12, color: HNH.ink2 }}>GPS khi auto Clock Out</span>
+                    <span style={{
+                      fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+                      background: sch.require_gps_on_auto_clockout ? HNH.gold + '20' : HNH.cream2,
+                      color: sch.require_gps_on_auto_clockout ? '#a87908' : HNH.ink3,
+                    }}>
+                      {sch.require_gps_on_auto_clockout ? 'BẮT BUỘC' : 'OFF'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
       )}
