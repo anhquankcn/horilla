@@ -65,6 +65,7 @@ import { ExpenseApprovalsPage } from './pages/ExpenseApprovals'
 import { ExpenseAdminPage } from './pages/ExpenseAdmin'
 import { ExpenseBatchesPage } from './pages/ExpenseBatches'
 import { ServiceAccountsPage } from './pages/ServiceAccounts'
+import { EOfficePage } from './pages/EOffice'
 
 export function App() {
   return (
@@ -129,6 +130,7 @@ export function App() {
         <Route path="/attendance-settings" element={<AttendanceSettingsPage />} />
         {/* open-api removed — replaced by /m2m ServiceAccounts */}
         <Route path="/m2m" element={<ServiceAccountsPage />} />
+        <Route path="/eoffice" element={<EOfficePage />} />
         <Route path="/expenses" element={<ExpenseListPage />} />
         <Route path="/expenses/submit" element={<ExpenseSubmitPage />} />
         <Route path="/expenses/approvals" element={<ExpenseApprovalsPage />} />

@@ -65,33 +65,52 @@ export async function proxyRoutes(app: FastifyInstance) {
       .send(Buffer.from(body));
   });
 
-  // Arkon embed SSO handoff — get one-time ticket URL
-  // Reads Arkon config from IntegrationConfig DB (tab Tích hợp), fallback to env
-  app.get("/bff/arkon/embed-url", async (req, reply) => {
+  // Generic SSO handoff embed — works for ANY system in IntegrationConfig
+  // Pattern: read token+base_url from DB → call {base_url}/api/m2m/embed/session
+  // Usage: GET /bff/embed/{system}/url?to=/pwa
+  //   system = arkon | eoffice | 1stopshop | iam | appvmb
+  app.get("/bff/embed/:system/url", async (req, reply) => {
     const sessionId = req.cookies[COOKIE_NAME];
     if (!sessionId) return reply.status(401).send({ error: "Not authenticated" });
     const session = getSession(sessionId);
     if (!session?.horillaJwt) return reply.status(401).send({ error: "Not authenticated" });
 
-    // 1. Get Arkon config from DB (via Django internal endpoint)
-    let arkonToken = env.ARKON_SERVICE_TOKEN;
-    let arkonUrl = env.ARKON_BFF_URL;
+    const system = (req.params as any).system as string;
+
+    // Token header name per system (default X-{System}-Service-Token)
+    const TOKEN_HEADERS: Record<string, string> = {
+      arkon: "X-Arkon-Service-Token",
+      eoffice: "X-EOffice-Service-Token",
+      "1stopshop": "X-1SS-Service-Token",
+      iam: "X-IAM-Service-Token",
+      appvmb: "X-AppVMB-Service-Token",
+    };
+
+    // 1. Get config from IntegrationConfig DB
+    let sysToken = "";
+    let sysUrl = "";
+
+    // Fallback to env for Arkon (backward compat)
+    if (system === "arkon") {
+      sysToken = env.ARKON_SERVICE_TOKEN;
+      sysUrl = env.ARKON_BFF_URL;
+    }
 
     try {
-      const cfgRes = await fetch(`${env.HORILLA_API}/api/m2m/integrations/arkon/internal/`, {
+      const cfgRes = await fetch(`${env.HORILLA_API}/api/m2m/integrations/${system}/internal/`, {
         headers: { Authorization: `Bearer ${session.horillaJwt}` },
       });
       if (cfgRes.statusCode === 200) {
         const cfg = await cfgRes.body.json() as { token: string; base_url: string; enabled: boolean };
-        if (cfg.token) arkonToken = cfg.token;
-        if (cfg.base_url) arkonUrl = cfg.base_url;
+        if (cfg.token) sysToken = cfg.token;
+        if (cfg.base_url) sysUrl = cfg.base_url;
       }
     } catch {
-      // fallback to env vars
+      // fallback
     }
 
-    if (!arkonToken) {
-      return reply.status(500).send({ error: "Arkon chưa được cấu hình token (tab Tích hợp)" });
+    if (!sysToken || !sysUrl) {
+      return reply.status(500).send({ error: `${system} chưa được cấu hình token/URL (Quản trị HT → Tích hợp)` });
     }
 
     // 2. Get current user info
@@ -107,24 +126,31 @@ export async function proxyRoutes(app: FastifyInstance) {
     const name = [me.employee_first_name, me.employee_last_name].filter(Boolean).join(" ") || email;
 
     const to = (req.query as any).to || "/pwa";
+    const headerName = TOKEN_HEADERS[system] || `X-${system}-Service-Token`;
 
-    // 3. Request embed session from Arkon
-    const arkonRes = await fetch(`${arkonUrl}/api/m2m/embed/session`, {
+    // 3. Request embed session
+    const embedRes = await fetch(`${sysUrl}/api/m2m/embed/session`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Arkon-Service-Token": arkonToken,
+        [headerName]: sysToken,
       },
       body: JSON.stringify({ email, name, to }),
     });
 
-    if (arkonRes.statusCode !== 200) {
-      const text = await arkonRes.body.text();
-      app.log.error(`Arkon embed session failed: ${arkonRes.statusCode} ${text}`);
-      return reply.status(502).send({ error: "Arkon embed session failed" });
+    if (embedRes.statusCode !== 200) {
+      const text = await embedRes.body.text();
+      app.log.error(`${system} embed session failed: ${embedRes.statusCode} ${text}`);
+      return reply.status(502).send({ error: `${system} embed session failed` });
     }
 
-    const data = await arkonRes.body.json() as { url: string; ticket: string; expires_in: number };
-    return reply.send({ url: data.url, expires_in: data.expires_in });
+    const data = await embedRes.body.json() as { url: string; ticket: string; expires_in: number };
+    return reply.send({ url: data.url, expires_in: data.expires_in, system });
+  });
+
+  // Backward compat: /bff/arkon/embed-url → redirect to generic
+  app.get("/bff/arkon/embed-url", async (req, reply) => {
+    const to = (req.query as any).to || "/pwa";
+    return reply.redirect(`/bff/embed/arkon/url?to=${encodeURIComponent(to)}`);
   });
 }

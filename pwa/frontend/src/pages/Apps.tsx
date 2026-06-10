@@ -74,6 +74,7 @@ const features: AppFeature[] = [
   { slug: 'announcements',     icon: 'bell',   label: 'Tin nội bộ',    desc: 'Bản tin, thông báo BGĐ, quy định, sự kiện', path: '/announcements',   tone: 'red',   group: 'support', always: true },
   { slug: 'notifications',     icon: 'bell',   label: 'Thông báo',     desc: 'Xem thông báo hệ thống',                  path: '/notifications',     tone: 'navy',  group: 'support', always: true },
   { slug: 'assets',            icon: 'doc',    label: 'Tài sản',       desc: 'Quản lý tài sản, cấp phát, yêu cầu',     path: '/assets',            tone: 'navy',  group: 'support' },
+  { slug: 'eoffice',           icon: 'file-text', label: 'eOffice',    desc: 'Quản lý công việc, phê duyệt, văn phòng điện tử', path: '/eoffice', tone: 'navy', group: 'support' },
   { slug: 'tasks',             icon: 'check',  label: 'Công việc',     desc: 'Tasks, deadline, phân công',              path: '/tasks',             tone: 'red',   group: 'support', always: true },
   { slug: 'projects',          icon: 'folder', label: 'Dự án',         desc: 'Quản lý dự án, tiến độ',                  path: '/projects',          tone: 'gold',  group: 'support', always: true },
   { slug: 'unified-calendar',  icon: 'cal',    label: 'Lịch tổng hợp',desc: 'Nghỉ phép, deadline, tour, dự án',        path: '/unified-calendar',  tone: 'gold',  group: 'support', always: true },
