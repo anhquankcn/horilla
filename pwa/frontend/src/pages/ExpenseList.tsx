@@ -5,7 +5,7 @@ import { Icon } from '../components/ui/Icon'
 import { TopBar } from '../components/layout/TopBar'
 import { PullToRefresh } from '../components/ui/PullToRefresh'
 import { useToast } from '../components/ui/Toast'
-import { api, apiFetch } from '../lib/api'
+import { api } from '../lib/api'
 
 interface Expense {
   id: number
