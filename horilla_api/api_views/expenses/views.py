@@ -156,6 +156,8 @@ class ExpenseMyListView(APIView):
         status_filter = request.query_params.get("status")
         if status_filter:
             qs = qs.filter(status=status_filter)
+        else:
+            qs = qs.exclude(status="cancelled")
         category_filter = request.query_params.get("category")
         if category_filter:
             qs = qs.filter(category=category_filter)

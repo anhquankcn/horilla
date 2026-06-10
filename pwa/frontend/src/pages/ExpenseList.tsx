@@ -267,6 +267,7 @@ export function ExpenseListPage() {
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth() + 1)
+  const [statusFilter, setStatusFilter] = useState('')
   const [catFilter, setCatFilter] = useState('')
   const [items, setItems] = useState<Expense[]>([])
   const [totalAmount, setTotalAmount] = useState(0)
@@ -277,6 +278,7 @@ export function ExpenseListPage() {
     setLoading(true)
     const { from, to } = monthRange(year, month)
     let url = `/api/expenses/requests/my/?date_from=${from}&date_to=${to}`
+    if (statusFilter) url += `&status=${statusFilter}`
     if (catFilter) url += `&category=${catFilter}`
     try {
       const data = await api.get<{ results: Expense[]; total_amount: number }>(url)
@@ -284,7 +286,7 @@ export function ExpenseListPage() {
       setTotalAmount(data.total_amount)
     } catch { /* ignore */ }
     setLoading(false)
-  }, [year, month, catFilter])
+  }, [year, month, statusFilter, catFilter])
 
   useEffect(() => { load() }, [load])
 
@@ -335,17 +337,42 @@ export function ExpenseListPage() {
         </div>
       </div>
 
+      {/* Status filter */}
+      <div className="flex gap-2 overflow-x-auto" style={{ padding: '4px 16px 4px' }}>
+        {[
+          { key: '', label: 'Tất cả' },
+          { key: 'pending', label: 'Chờ duyệt' },
+          { key: 'manager_approved', label: 'Đã duyệt' },
+          { key: 'hc_approved', label: 'HC xác nhận' },
+          { key: 'rejected', label: 'Từ chối' },
+          { key: 'cancelled', label: 'Đã hủy' },
+        ].map(f => (
+          <button
+            key={f.key}
+            onClick={() => setStatusFilter(f.key)}
+            style={{
+              padding: '5px 12px', borderRadius: 20, border: 'none', cursor: 'pointer',
+              fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap',
+              background: statusFilter === f.key ? HNH.navy : HNH.cream2,
+              color: statusFilter === f.key ? '#fff' : HNH.ink2,
+            }}
+          >
+            {f.label}
+          </button>
+        ))}
+      </div>
+
       {/* Category filter */}
-      <div className="flex gap-2 overflow-x-auto" style={{ padding: '4px 16px 8px' }}>
+      <div className="flex gap-2 overflow-x-auto" style={{ padding: '2px 16px 8px' }}>
         {CATEGORIES.map(c => (
           <button
             key={c.key}
             onClick={() => setCatFilter(c.key)}
             style={{
-              padding: '5px 12px', borderRadius: 20, border: 'none', cursor: 'pointer',
-              fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap',
-              background: catFilter === c.key ? HNH.red : HNH.cream2,
-              color: catFilter === c.key ? '#fff' : HNH.ink2,
+              padding: '4px 10px', borderRadius: 16, border: `1px solid ${catFilter === c.key ? HNH.gold : HNH.line}`,
+              cursor: 'pointer', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap',
+              background: catFilter === c.key ? HNH.goldSoft : '#fff',
+              color: catFilter === c.key ? '#a87908' : HNH.ink3,
             }}
           >
             {c.label}

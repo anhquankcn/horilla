@@ -8,6 +8,56 @@ import { apiFetch } from '../lib/api'
 
 const MAX_SIZE = 2 * 1024 * 1024 // 2MB
 
+const DIGITS = ['không','một','hai','ba','bốn','năm','sáu','bảy','tám','chín']
+
+function readGroup(h: number, t: number, u: number, showZeroHundred: boolean): string {
+  const parts: string[] = []
+  if (h > 0) { parts.push(DIGITS[h], 'trăm') }
+  else if (showZeroHundred) { parts.push('không', 'trăm') }
+
+  if (t > 1) { parts.push(DIGITS[t], 'mươi') }
+  else if (t === 1) { parts.push('mười') }
+  else if (t === 0 && u > 0 && (h > 0 || showZeroHundred)) { parts.push('lẻ') }
+
+  if (u === 1 && t > 1) parts.push('mốt')
+  else if (u === 5 && t > 0) parts.push('lăm')
+  else if (u === 4 && t > 1) parts.push('tư')
+  else if (u > 0) parts.push(DIGITS[u])
+
+  return parts.join(' ')
+}
+
+function amountToWords(n: number): string {
+  if (!n || n <= 0) return ''
+  if (n >= 1e15) return 'Số quá lớn'
+  const units = ['', 'nghìn', 'triệu', 'tỷ', 'nghìn tỷ']
+  const groups: number[] = []
+  let val = Math.floor(n)
+  while (val > 0) { groups.push(val % 1000); val = Math.floor(val / 1000) }
+  const words: string[] = []
+  for (let i = groups.length - 1; i >= 0; i--) {
+    const g = groups[i]
+    if (g === 0 && i > 0) continue
+    const h = Math.floor(g / 100)
+    const t = Math.floor((g % 100) / 10)
+    const u = g % 10
+    const w = readGroup(h, t, u, i < groups.length - 1 && g < 100)
+    if (w) words.push(w + (units[i] ? ' ' + units[i] : ''))
+  }
+  const result = words.join(' ')
+  return result.charAt(0).toUpperCase() + result.slice(1) + ' đồng'
+}
+
+function formatNumber(val: string): string {
+  const num = val.replace(/\D/g, '')
+  if (!num) return ''
+  return parseInt(num).toLocaleString('vi-VN')
+}
+
+function parseNumber(formatted: string): string {
+  return formatted.replace(/\D/g, '')
+}
+
 const CATEGORIES = [
   { value: 'tool',      label: 'Công cụ, dụng cụ',  icon: 'wrench' },
   { value: 'transport',  label: 'Di chuyển, công tác', icon: 'car' },
@@ -76,7 +126,8 @@ export function ExpenseSubmitPage() {
   const [category, setCategory] = useState('')
   const [dateIncurred, setDateIncurred] = useState(new Date().toISOString().slice(0, 10))
   const [description, setDescription] = useState('')
-  const [amount, setAmount] = useState('')
+  const [amountDisplay, setAmountDisplay] = useState('')
+  const [amountRaw, setAmountRaw] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [existingReceipt, setExistingReceipt] = useState<string | null>(null)
   const [compressing, setCompressing] = useState(false)
@@ -93,7 +144,8 @@ export function ExpenseSubmitPage() {
           setCategory(exp.category)
           setDateIncurred(exp.date_incurred)
           setDescription(exp.description)
-          setAmount(String(exp.amount))
+          setAmountRaw(String(exp.amount))
+          setAmountDisplay(formatNumber(String(exp.amount)))
           setExistingReceipt(exp.receipt)
         }
       })
@@ -143,8 +195,8 @@ export function ExpenseSubmitPage() {
     if (!category) errs.category = 'Chọn danh mục'
     if (!dateIncurred) errs.date_incurred = 'Chọn ngày'
     if (!description.trim()) errs.description = 'Nhập mô tả'
-    const amt = parseInt(amount)
-    if (!amount || isNaN(amt) || amt <= 0) errs.amount = 'Nhập số tiền hợp lệ'
+    const amt = parseInt(amountRaw)
+    if (!amountRaw || isNaN(amt) || amt <= 0) errs.amount = 'Nhập số tiền hợp lệ'
     if (!file && !existingReceipt) errs.receipt = 'Đính kèm chứng từ'
     if (Object.keys(errs).length) { setErrors(errs); return }
 
@@ -233,14 +285,23 @@ export function ExpenseSubmitPage() {
           Số tiền (VND) *
         </label>
         <input
-          type="number"
+          type="text"
           inputMode="numeric"
-          placeholder="500000"
-          value={amount}
-          onChange={e => setAmount(e.target.value)}
-          style={{ ...inputStyle(!!errors.amount), marginBottom: 16 }}
+          placeholder="500.000"
+          value={amountDisplay}
+          onChange={e => {
+            const raw = parseNumber(e.target.value)
+            setAmountRaw(raw)
+            setAmountDisplay(formatNumber(raw))
+          }}
+          style={{ ...inputStyle(!!errors.amount), marginBottom: 4, fontSize: 18, fontWeight: 700, letterSpacing: 0.5 }}
         />
-        {errors.amount && <p style={{ color: HNH.red, fontSize: 12, margin: '-8px 0 8px' }}>{errors.amount}</p>}
+        {amountRaw && parseInt(amountRaw) > 0 && (
+          <p style={{ fontSize: 12, color: HNH.success, margin: '0 0 12px', fontStyle: 'italic' }}>
+            {amountToWords(parseInt(amountRaw))}
+          </p>
+        )}
+        {errors.amount && <p style={{ color: HNH.red, fontSize: 12, margin: '0 0 8px' }}>{errors.amount}</p>}
 
         {/* Description */}
         <label style={{ fontSize: 12, fontWeight: 600, color: HNH.ink2, marginBottom: 6, display: 'block' }}>
