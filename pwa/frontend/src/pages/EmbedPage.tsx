@@ -31,7 +31,7 @@ export function EmbedPage({ system, title, icon, color, to = '/pwa' }: EmbedPage
   }, [system, to])
 
   return (
-    <div className="flex flex-col" style={{ height: '100%', minHeight: 0 }}>
+    <div className="flex flex-col" style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
       {(loading || !iframeUrl) && !error && (
         <div className="flex flex-col items-center justify-center" style={{ flex: 1, gap: 16, padding: 40 }}>
           <div style={{
