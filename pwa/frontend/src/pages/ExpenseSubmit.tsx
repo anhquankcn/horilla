@@ -6,12 +6,65 @@ import { TopBar } from '../components/layout/TopBar'
 import { useToast } from '../components/ui/Toast'
 import { apiFetch } from '../lib/api'
 
+const MAX_SIZE = 2 * 1024 * 1024 // 2MB
+
 const CATEGORIES = [
   { value: 'tool',      label: 'Công cụ, dụng cụ',  icon: 'wrench' },
   { value: 'transport',  label: 'Di chuyển, công tác', icon: 'car' },
   { value: 'license',   label: 'License phần mềm',   icon: 'file-text' },
   { value: 'other',     label: 'Khác',               icon: 'package' },
 ]
+
+function compressImage(file: File, maxBytes: number): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const img = new Image()
+    img.onload = () => {
+      let { width, height } = img
+      const MAX_DIM = 1920
+      if (width > MAX_DIM || height > MAX_DIM) {
+        const scale = MAX_DIM / Math.max(width, height)
+        width = Math.round(width * scale)
+        height = Math.round(height * scale)
+      }
+
+      const canvas = document.createElement('canvas')
+      canvas.width = width
+      canvas.height = height
+      const ctx = canvas.getContext('2d')!
+      ctx.drawImage(img, 0, 0, width, height)
+
+      let quality = 0.8
+      const tryCompress = () => {
+        canvas.toBlob(
+          blob => {
+            if (!blob) { reject(new Error('Nén ảnh thất bại')); return }
+            if (blob.size <= maxBytes || quality <= 0.2) {
+              const compressed = new File([blob], file.name.replace(/\.\w+$/, '.jpg'), {
+                type: 'image/jpeg',
+                lastModified: Date.now(),
+              })
+              resolve(compressed)
+            } else {
+              quality -= 0.15
+              tryCompress()
+            }
+          },
+          'image/jpeg',
+          quality,
+        )
+      }
+      tryCompress()
+    }
+    img.onerror = () => reject(new Error('Không đọc được ảnh'))
+    img.src = URL.createObjectURL(file)
+  })
+}
+
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
 
 export function ExpenseSubmitPage() {
   const navigate = useNavigate()
@@ -23,8 +76,48 @@ export function ExpenseSubmitPage() {
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
   const [file, setFile] = useState<File | null>(null)
+  const [compressing, setCompressing] = useState(false)
+  const [compressed, setCompressed] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+
+  const handleFileChange = async (picked: File | null) => {
+    if (!picked) { setFile(null); setCompressed(false); return }
+    setCompressed(false)
+    setErrors(prev => { const { receipt, ...rest } = prev; return rest })
+
+    if (picked.type === 'application/pdf') {
+      if (picked.size > MAX_SIZE) {
+        setErrors(prev => ({ ...prev, receipt: `PDF tối đa 2MB (file này ${formatSize(picked.size)}). Vui lòng nén file trước khi tải lên.` }))
+        setFile(null)
+        return
+      }
+      setFile(picked)
+      return
+    }
+
+    if (picked.type.startsWith('image/')) {
+      if (picked.size <= MAX_SIZE) {
+        setFile(picked)
+        return
+      }
+      setCompressing(true)
+      try {
+        const result = await compressImage(picked, MAX_SIZE)
+        setFile(result)
+        setCompressed(true)
+        toast.toast(`Ảnh đã nén: ${formatSize(picked.size)} → ${formatSize(result.size)}`, 'info')
+      } catch {
+        setErrors(prev => ({ ...prev, receipt: 'Không thể nén ảnh. Vui lòng chọn ảnh nhỏ hơn 2MB.' }))
+        setFile(null)
+      }
+      setCompressing(false)
+      return
+    }
+
+    setErrors(prev => ({ ...prev, receipt: 'Chỉ chấp nhận ảnh hoặc PDF' }))
+    setFile(null)
+  }
 
   const handleSubmit = async () => {
     const errs: Record<string, string> = {}
@@ -140,51 +233,71 @@ export function ExpenseSubmitPage() {
 
         {/* Receipt upload */}
         <label style={{ fontSize: 12, fontWeight: 600, color: HNH.ink2, marginBottom: 6, display: 'block' }}>
-          Chứng từ/Hóa đơn *
+          Chứng từ/Hóa đơn * <span style={{ fontWeight: 400, color: HNH.ink3 }}>(tối đa 2MB, ảnh lớn sẽ tự nén)</span>
         </label>
         <input
           ref={fileRef}
           type="file"
           accept="image/*,.pdf"
-          onChange={e => setFile(e.target.files?.[0] || null)}
+          onChange={e => handleFileChange(e.target.files?.[0] || null)}
           style={{ display: 'none' }}
         />
         <button
           onClick={() => fileRef.current?.click()}
+          disabled={compressing}
           style={{
             width: '100%', padding: '14px', borderRadius: 12,
             border: `1px dashed ${errors.receipt ? HNH.red : HNH.line}`,
-            background: '#fff', cursor: 'pointer',
+            background: '#fff', cursor: compressing ? 'default' : 'pointer',
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
             color: HNH.ink2, fontSize: 13, marginBottom: 8,
           }}
         >
-          <Icon name="camera" size={18} color={HNH.ink3} />
-          {file ? file.name : 'Chụp hoặc chọn ảnh chứng từ'}
+          {compressing ? (
+            <>
+              <span className="animate-spin" style={{ width: 16, height: 16, border: `2px solid ${HNH.ink4}`, borderTopColor: HNH.red, borderRadius: '50%', display: 'inline-block' }} />
+              Đang nén ảnh...
+            </>
+          ) : (
+            <>
+              <Icon name="camera" size={18} color={HNH.ink3} />
+              {file ? file.name : 'Chụp hoặc chọn ảnh chứng từ'}
+            </>
+          )}
         </button>
         {errors.receipt && <p style={{ color: HNH.red, fontSize: 12, margin: '0 0 8px' }}>{errors.receipt}</p>}
 
         {file && (
-          <div style={{ marginBottom: 16, borderRadius: 12, overflow: 'hidden', border: `1px solid ${HNH.line}` }}>
-            {file.type.startsWith('image/') ? (
-              <img src={URL.createObjectURL(file)} alt="preview" style={{ width: '100%', maxHeight: 200, objectFit: 'cover' }} />
-            ) : (
-              <div style={{ padding: 16, textAlign: 'center', color: HNH.ink2, fontSize: 13 }}>
-                <Icon name="file-text" size={24} color={HNH.ink3} />
-                <p style={{ margin: '4px 0 0' }}>{file.name}</p>
+          <div style={{ marginBottom: 16 }}>
+            {compressed && (
+              <div className="flex items-center gap-2" style={{ marginBottom: 6, padding: '6px 10px', borderRadius: 8, background: HNH.success50 }}>
+                <Icon name="check" size={12} color={HNH.success} />
+                <span style={{ fontSize: 11, color: HNH.success, fontWeight: 600 }}>
+                  Đã nén — {formatSize(file.size)}
+                </span>
               </div>
             )}
+            <div style={{ borderRadius: 12, overflow: 'hidden', border: `1px solid ${HNH.line}` }}>
+              {file.type.startsWith('image/') ? (
+                <img src={URL.createObjectURL(file)} alt="preview" style={{ width: '100%', maxHeight: 200, objectFit: 'cover' }} />
+              ) : (
+                <div style={{ padding: 16, textAlign: 'center', color: HNH.ink2, fontSize: 13 }}>
+                  <Icon name="file-text" size={24} color={HNH.ink3} />
+                  <p style={{ margin: '4px 0 0' }}>{file.name} ({formatSize(file.size)})</p>
+                </div>
+              )}
+            </div>
           </div>
         )}
 
         {/* Submit button */}
         <button
           onClick={handleSubmit}
-          disabled={submitting}
+          disabled={submitting || compressing}
           style={{
             width: '100%', padding: '14px', borderRadius: 14,
-            background: submitting ? HNH.ink4 : HNH.red,
-            color: '#fff', border: 'none', cursor: submitting ? 'default' : 'pointer',
+            background: (submitting || compressing) ? HNH.ink4 : HNH.red,
+            color: '#fff', border: 'none', cursor: (submitting || compressing) ? 'default' : 'pointer',
             fontSize: 15, fontWeight: 700,
           }}
         >

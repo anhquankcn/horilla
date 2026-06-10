@@ -117,8 +117,8 @@ class ExpenseSubmitView(APIView):
             errors["amount"] = "Số tiền phải là số nguyên dương"
         if not receipt:
             errors["receipt"] = "Chứng từ bắt buộc"
-        elif receipt.size > 10 * 1024 * 1024:
-            errors["receipt"] = "File tối đa 10MB"
+        elif receipt.size > 2 * 1024 * 1024:
+            errors["receipt"] = "File tối đa 2MB"
         elif not receipt.content_type.startswith(("image/", "application/pdf")):
             errors["receipt"] = "Chỉ chấp nhận ảnh hoặc PDF"
         if errors:
