@@ -42,15 +42,15 @@ export function ExpenseApprovalsPage() {
     setActionId(id)
     try {
       await api.patch(`/api/expenses/requests/${id}/approve/`, { action, note })
-      toast.success(action === 'approve' ? 'Đã phê duyệt' : 'Đã từ chối')
+      toast.toast(action === 'approve' ? 'Đã phê duyệt' : 'Đã từ chối')
       setShowNoteFor(null)
       setNote('')
       load()
     } catch (e: any) {
       try {
         const data = JSON.parse(e.message)
-        toast.error(data.error || 'Có lỗi')
-      } catch { toast.error('Có lỗi xảy ra') }
+        toast.toast(data.error || 'Có lỗi', 'error')
+      } catch { toast.toast('Có lỗi xảy ra', 'error') }
     }
     setActionId(null)
   }

@@ -59,15 +59,15 @@ export function ExpenseAdminPage() {
   useEffect(() => { load() }, [load])
 
   const handleConfirm = async (id: number) => {
-    if (!selectedBatch) { toast.error('Chọn bảng kê trước'); return }
+    if (!selectedBatch) { toast.toast('Chọn bảng kê trước', 'error'); return }
     try {
       await api.patch(`/api/expenses/requests/${id}/hc-confirm/`, { batch_id: parseInt(selectedBatch) })
-      toast.success('Đã xác nhận')
+      toast.toast('Đã xác nhận')
       setConfirmId(null)
       setSelectedBatch('')
       load()
     } catch (e: any) {
-      try { toast.error(JSON.parse(e.message).error || 'Lỗi') } catch { toast.error('Lỗi') }
+      try { toast.toast(JSON.parse(e.message).error || 'Lỗi', 'error') } catch { toast.toast('Lỗi', 'error') }
     }
   }
 

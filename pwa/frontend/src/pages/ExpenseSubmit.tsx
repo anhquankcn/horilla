@@ -47,15 +47,15 @@ export function ExpenseSubmitPage() {
 
     try {
       await apiFetch('/api/expenses/requests/', { method: 'POST', body: form })
-      toast.success('Đã gửi yêu cầu chi phí')
+      toast.toast('Đã gửi yêu cầu chi phí')
       navigate('/expenses')
     } catch (e: any) {
       try {
         const data = JSON.parse(e.message)
         if (data.errors) setErrors(data.errors)
-        else if (data.error) toast.error(data.error)
-        else toast.error('Có lỗi xảy ra')
-      } catch { toast.error('Có lỗi xảy ra') }
+        else if (data.error) toast.toast(data.error, 'error')
+        else toast.toast('Có lỗi xảy ra', 'error')
+      } catch { toast.toast('Có lỗi xảy ra', 'error') }
     }
     setSubmitting(false)
   }

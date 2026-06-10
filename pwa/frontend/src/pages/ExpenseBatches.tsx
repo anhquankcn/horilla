@@ -50,15 +50,15 @@ export function ExpenseBatchesPage() {
   useEffect(() => { load() }, [load])
 
   const handleCreate = async () => {
-    if (!weekStart || !weekEnd) { toast.error('Chọn ngày bắt đầu và kết thúc'); return }
+    if (!weekStart || !weekEnd) { toast.toast('Chọn ngày bắt đầu và kết thúc', 'error'); return }
     setCreating(true)
     try {
       await api.post('/api/expenses/batches/', { week_start: weekStart, week_end: weekEnd, note })
-      toast.success('Đã tạo bảng kê')
+      toast.toast('Đã tạo bảng kê')
       setShowCreate(false)
       setWeekStart(''); setWeekEnd(''); setNote('')
       load()
-    } catch { toast.error('Lỗi tạo bảng kê') }
+    } catch { toast.toast('Lỗi tạo bảng kê', 'error') }
     setCreating(false)
   }
 
@@ -68,7 +68,7 @@ export function ExpenseBatchesPage() {
       const data = await api.get<Batch & { items: BatchItem[] }>(`/api/expenses/batches/${id}/`)
       setExpandedItems(data.items || [])
       setExpandedId(id)
-    } catch { toast.error('Lỗi tải chi tiết') }
+    } catch { toast.toast('Lỗi tải chi tiết', 'error') }
   }
 
   const inputStyle = {
