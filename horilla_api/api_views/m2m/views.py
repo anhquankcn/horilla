@@ -10,7 +10,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from base.models import M2MServiceAccount
+from base.models import IntegrationConfig, M2MServiceAccount
 from employee.models import Employee, EmployeeWorkInformation
 from horilla_api.m2m_auth import M2MAuthentication, require_m2m_scope
 
@@ -307,3 +307,53 @@ class ServiceAccountRotateView(APIView):
             "token_prefix": account.token_prefix,
             "message": "Token mới chỉ hiện 1 lần. Token cũ đã vô hiệu.",
         })
+
+
+# ─── Integration Config (outbound tokens) ────────────────────────────
+
+class IntegrationListView(APIView):
+    """GET: List all integration configs. PATCH by system slug."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not _is_admin(request.user):
+            return Response({"error": "Admin only"}, status=403)
+        configs = IntegrationConfig.objects.all()
+        return Response({"results": [{
+            "id": c.id,
+            "system": c.system,
+            "label": c.label or c.get_system_display(),
+            "token": c.token[:20] + "..." if len(c.token) > 20 else c.token,
+            "token_set": bool(c.token),
+            "scopes": c.scopes,
+            "base_url": c.base_url,
+            "enabled": c.enabled,
+            "notes": c.notes,
+            "updated_at": c.updated_at.isoformat() if c.updated_at else None,
+        } for c in configs]})
+
+
+class IntegrationDetailView(APIView):
+    """PATCH: Update integration config (token, scopes, base_url, enabled, notes)."""
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, system):
+        if not _is_admin(request.user):
+            return Response({"error": "Admin only"}, status=403)
+        try:
+            config = IntegrationConfig.objects.get(system=system)
+        except IntegrationConfig.DoesNotExist:
+            return Response({"error": "Not found"}, status=404)
+
+        if "token" in request.data:
+            config.token = request.data["token"]
+        if "scopes" in request.data:
+            config.scopes = request.data["scopes"]
+        if "base_url" in request.data:
+            config.base_url = request.data["base_url"]
+        if "enabled" in request.data:
+            config.enabled = request.data["enabled"]
+        if "notes" in request.data:
+            config.notes = request.data["notes"]
+        config.save()
+        return Response({"status": "updated"})

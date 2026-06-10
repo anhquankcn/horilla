@@ -19,14 +19,257 @@ interface Account {
 
 interface Scope { code: string; description: string }
 
+interface Integration {
+  id: number
+  system: string
+  label: string
+  token: string
+  token_set: boolean
+  scopes: string[]
+  base_url: string
+  enabled: boolean
+  notes: string
+  updated_at: string | null
+}
+
 const STATUS_STYLE: Record<string, { bg: string; color: string }> = {
   active:  { bg: HNH.success50, color: HNH.success },
   revoked: { bg: HNH.red50,     color: HNH.red },
 }
 
+const SYSTEM_ICONS: Record<string, { icon: string; color: string }> = {
+  arkon:     { icon: 'cpu',    color: HNH.red },
+  eoffice:   { icon: 'file-text', color: HNH.navy },
+  '1stopshop': { icon: 'shopping-bag', color: HNH.gold },
+  iam:       { icon: 'shield', color: '#7c3aed' },
+  appvmb:    { icon: 'smartphone', color: HNH.success },
+}
+
+const SCOPE_TEMPLATES: Record<string, string[]> = {
+  arkon:     ['embed:login', 'employee:read'],
+  eoffice:   ['task:read', 'task:write', 'approval:read'],
+  '1stopshop': ['order:read', 'customer:read'],
+  iam:       ['user:read', 'user:write', 'role:read'],
+  appvmb:    ['notification:send', 'employee:read'],
+}
+
+type Tab = 'accounts' | 'integrations'
+
+function IntegrationsTab({ integrations, onUpdated, onError }: {
+  integrations: Integration[]
+  onUpdated: () => void
+  onError: (msg: string) => void
+}) {
+  const [editing, setEditing] = useState<string | null>(null)
+  const [formToken, setFormToken] = useState('')
+  const [formScopes, setFormScopes] = useState('')
+  const [formUrl, setFormUrl] = useState('')
+  const [formNotes, setFormNotes] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const startEdit = (ig: Integration) => {
+    setEditing(ig.system)
+    setFormToken(ig.token_set ? '' : '')
+    setFormScopes(JSON.stringify(ig.scopes, null, 2))
+    setFormUrl(ig.base_url)
+    setFormNotes(ig.notes)
+  }
+
+  const handleSave = async (system: string) => {
+    let parsedScopes: string[]
+    try {
+      parsedScopes = JSON.parse(formScopes || '[]')
+      if (!Array.isArray(parsedScopes)) throw new Error()
+    } catch {
+      onError('Scopes phải là JSON array, vd: ["embed:login"]')
+      return
+    }
+    setSaving(true)
+    onError('')
+    const body: Record<string, unknown> = { scopes: parsedScopes, base_url: formUrl, notes: formNotes }
+    if (formToken.trim()) body.token = formToken.trim()
+    try {
+      const res = await fetch(`/bff/api/m2m/integrations/${system}/`, {
+        method: 'PATCH', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        onError(d.error || `Lỗi ${res.status}`)
+      } else {
+        setEditing(null)
+        onUpdated()
+      }
+    } catch (e: any) { onError(e.message) }
+    setSaving(false)
+  }
+
+  const handleToggle = async (ig: Integration) => {
+    await fetch(`/bff/api/m2m/integrations/${ig.system}/`, {
+      method: 'PATCH', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ enabled: !ig.enabled }),
+    })
+    onUpdated()
+  }
+
+  const inp = {
+    width: '100%', padding: '10px 12px', borderRadius: 10,
+    border: `1px solid ${HNH.line}`, fontSize: 13,
+    background: '#fff', boxSizing: 'border-box' as const,
+  }
+
+  return (
+    <>
+      {integrations.map(ig => {
+        const meta = SYSTEM_ICONS[ig.system] || { icon: 'globe', color: HNH.ink2 }
+        const isEditing = editing === ig.system
+        const templates = SCOPE_TEMPLATES[ig.system] || []
+
+        return (
+          <div key={ig.system} style={{
+            background: '#fff', borderRadius: 14, padding: 16, marginBottom: 12,
+            border: `1px solid ${ig.enabled ? HNH.success + '40' : HNH.line}`,
+          }}>
+            {/* Header */}
+            <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
+              <div className="flex items-center gap-3">
+                <div style={{
+                  width: 36, height: 36, borderRadius: 10, display: 'flex',
+                  alignItems: 'center', justifyContent: 'center',
+                  background: meta.color + '15',
+                }}>
+                  <Icon name={meta.icon} size={18} color={meta.color} />
+                </div>
+                <div>
+                  <span style={{ fontSize: 14, fontWeight: 700, color: HNH.ink }}>{ig.label}</span>
+                  <code style={{ fontSize: 11, color: HNH.ink3, display: 'block' }}>{ig.system}</code>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button onClick={() => handleToggle(ig)} style={{
+                  padding: '4px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                  fontSize: 11, fontWeight: 700,
+                  background: ig.enabled ? HNH.success50 : HNH.cream2,
+                  color: ig.enabled ? HNH.success : HNH.ink3,
+                }}>
+                  {ig.enabled ? 'ON' : 'OFF'}
+                </button>
+              </div>
+            </div>
+
+            {/* Token status */}
+            <div className="flex items-center gap-2" style={{ marginBottom: 6 }}>
+              <Icon name={ig.token_set ? 'check' : 'x'} size={12} color={ig.token_set ? HNH.success : HNH.red} />
+              <span style={{ fontSize: 12, color: ig.token_set ? HNH.success : HNH.red }}>
+                {ig.token_set ? `Token: ${ig.token}` : 'Chưa nhập token'}
+              </span>
+            </div>
+
+            {/* Scopes display */}
+            {ig.scopes.length > 0 && (
+              <div className="flex flex-wrap gap-1" style={{ marginBottom: 8 }}>
+                {ig.scopes.map(s => (
+                  <code key={s} style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: HNH.navy50, color: HNH.navy }}>{s}</code>
+                ))}
+              </div>
+            )}
+
+            {ig.base_url && (
+              <div style={{ marginBottom: 8 }}>
+                <code style={{ fontSize: 11, color: HNH.ink3 }}>{ig.base_url}</code>
+              </div>
+            )}
+
+            {/* Edit form */}
+            {isEditing ? (
+              <div style={{ marginTop: 10, padding: '12px', borderRadius: 10, background: HNH.cream, border: `1px solid ${HNH.line}` }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: HNH.ink2, display: 'block', marginBottom: 4 }}>
+                  Token {ig.token_set && <span style={{ fontWeight: 400, color: HNH.ink3 }}>(để trống = giữ cũ)</span>}
+                </label>
+                <input
+                  type="password"
+                  value={formToken}
+                  onChange={e => setFormToken(e.target.value)}
+                  placeholder={ig.token_set ? '••••••••' : 'Nhập token từ hệ thống'}
+                  style={{ ...inp, marginBottom: 10 }}
+                />
+
+                <label style={{ fontSize: 12, fontWeight: 600, color: HNH.ink2, display: 'block', marginBottom: 4 }}>
+                  Base URL
+                </label>
+                <input
+                  value={formUrl}
+                  onChange={e => setFormUrl(e.target.value)}
+                  placeholder="http://100.x.x.x:5166"
+                  style={{ ...inp, marginBottom: 10 }}
+                />
+
+                <label style={{ fontSize: 12, fontWeight: 600, color: HNH.ink2, display: 'block', marginBottom: 4 }}>
+                  Scopes (JSON array)
+                </label>
+                <textarea
+                  rows={3}
+                  value={formScopes}
+                  onChange={e => setFormScopes(e.target.value)}
+                  style={{ ...inp, fontFamily: 'monospace', fontSize: 12, marginBottom: 4, resize: 'vertical' }}
+                />
+                {templates.length > 0 && (
+                  <div style={{ marginBottom: 10 }}>
+                    <span style={{ fontSize: 11, color: HNH.ink3 }}>Mẫu: </span>
+                    <button onClick={() => setFormScopes(JSON.stringify(templates, null, 2))}
+                      style={{ fontSize: 11, color: HNH.navy, background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                      {JSON.stringify(templates)}
+                    </button>
+                  </div>
+                )}
+
+                <label style={{ fontSize: 12, fontWeight: 600, color: HNH.ink2, display: 'block', marginBottom: 4 }}>Ghi chú</label>
+                <input value={formNotes} onChange={e => setFormNotes(e.target.value)} style={{ ...inp, marginBottom: 12 }} />
+
+                <div className="flex gap-2">
+                  <button onClick={() => handleSave(ig.system)} disabled={saving} style={{
+                    flex: 1, padding: 10, borderRadius: 10, border: 'none', cursor: 'pointer',
+                    fontSize: 13, fontWeight: 700, color: '#fff', background: saving ? HNH.ink4 : HNH.navy,
+                  }}>
+                    {saving ? 'Đang lưu...' : 'Lưu'}
+                  </button>
+                  <button onClick={() => setEditing(null)} style={{
+                    padding: '10px 16px', borderRadius: 10, border: `1px solid ${HNH.line}`,
+                    background: '#fff', cursor: 'pointer', fontSize: 13, color: HNH.ink2,
+                  }}>
+                    Hủy
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button onClick={() => startEdit(ig)} style={{
+                width: '100%', padding: 10, borderRadius: 10, marginTop: 6,
+                border: `1px solid ${HNH.line}`, background: '#fff', cursor: 'pointer',
+                fontSize: 12, fontWeight: 600, color: HNH.ink2,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              }}>
+                <Icon name="edit" size={14} color={HNH.ink3} />
+                Cấu hình
+              </button>
+            )}
+          </div>
+        )
+      })}
+
+      {integrations.length === 0 && (
+        <p style={{ textAlign: 'center', color: HNH.ink3, fontSize: 13, padding: 20 }}>Đang tải...</p>
+      )}
+    </>
+  )
+}
+
 export function ServiceAccountsPage() {
+  const [tab, setTab] = useState<Tab>('accounts')
   const [accounts, setAccounts] = useState<Account[]>([])
   const [scopes, setScopes] = useState<Scope[]>([])
+  const [integrations, setIntegrations] = useState<Integration[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [mode, setMode] = useState<'list' | 'create' | 'token' | 'detail'>('list')
@@ -45,9 +288,10 @@ export function ServiceAccountsPage() {
     setLoading(true)
     setError('')
     try {
-      const [r1, r2] = await Promise.all([
+      const [r1, r2, r3] = await Promise.all([
         fetch('/bff/api/m2m/accounts/', { credentials: 'include' }),
         fetch('/bff/api/m2m/scopes/', { credentials: 'include' }),
+        fetch('/bff/api/m2m/integrations/', { credentials: 'include' }),
       ])
       if (!r1.ok) { setError(`Accounts: ${r1.status}`); setLoading(false); return }
       if (!r2.ok) { setError(`Scopes: ${r2.status}`); setLoading(false); return }
@@ -55,6 +299,10 @@ export function ServiceAccountsPage() {
       const d2 = await r2.json()
       setAccounts(d1.results || [])
       setScopes(d2.scopes || [])
+      if (r3.ok) {
+        const d3 = await r3.json()
+        setIntegrations(d3.results || [])
+      }
     } catch (e: any) {
       setError(e.message || 'Network error')
     }
@@ -145,15 +393,47 @@ export function ServiceAccountsPage() {
   return (
     <div style={{ flex: 1 }}>
       <TopBar title="Service Accounts (M2M)" />
+
+      {/* Tab bar */}
+      <div className="flex" style={{ borderBottom: `2px solid ${HNH.line}`, margin: '0 16px' }}>
+        {([['accounts', 'Service Accounts'], ['integrations', 'Tích hợp']] as const).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => { setTab(key); setMode('list'); setSelected(null); setError('') }}
+            style={{
+              flex: 1, padding: '10px 0', border: 'none', cursor: 'pointer',
+              fontSize: 13, fontWeight: 700, background: 'transparent',
+              color: tab === key ? HNH.navy : HNH.ink3,
+              borderBottom: tab === key ? `2px solid ${HNH.navy}` : '2px solid transparent',
+              marginBottom: -2,
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <div style={{ padding: '16px 16px 100px' }}>
 
-        {/* Info */}
-        <div style={{ padding: '12px 14px', borderRadius: 12, background: HNH.navy50, marginBottom: 16 }}>
-          <p style={{ fontSize: 12, color: HNH.navy, margin: 0, lineHeight: 1.5 }}>
-            Quản lý kết nối M2M cho hệ thống bên ngoài.
-            Header: <code style={{ background: '#fff', padding: '1px 4px', borderRadius: 4 }}>X-HNH-Service-Token: hnh_sa_...</code>
-          </p>
-        </div>
+        {/* Info (accounts tab) */}
+        {tab === 'accounts' && (
+          <div style={{ padding: '12px 14px', borderRadius: 12, background: HNH.navy50, marginBottom: 16 }}>
+            <p style={{ fontSize: 12, color: HNH.navy, margin: 0, lineHeight: 1.5 }}>
+              Quản lý token inbound — hệ thống ngoài gọi vào HNH Core.
+              Header: <code style={{ background: '#fff', padding: '1px 4px', borderRadius: 4 }}>X-HNH-Service-Token: hnh_sa_...</code>
+            </p>
+          </div>
+        )}
+
+        {/* Info (integrations tab) */}
+        {tab === 'integrations' && (
+          <div style={{ padding: '12px 14px', borderRadius: 12, background: HNH.goldSoft, marginBottom: 16 }}>
+            <p style={{ fontSize: 12, color: '#a87908', margin: 0, lineHeight: 1.5 }}>
+              Cấu hình token outbound — HNH gọi đi hệ thống ngoài.
+              Nhập token + scopes được cấp bởi từng hệ thống.
+            </p>
+          </div>
+        )}
 
         {/* Error */}
         {error && (
@@ -161,6 +441,9 @@ export function ServiceAccountsPage() {
             <p style={{ fontSize: 12, color: HNH.red, margin: 0, wordBreak: 'break-all' }}>{error}</p>
           </div>
         )}
+
+        {/* ═══ ACCOUNTS TAB ═══ */}
+        {tab === 'accounts' && <>
 
         {/* Token display (one-time) */}
         {mode === 'token' && newToken && (
@@ -279,6 +562,13 @@ export function ServiceAccountsPage() {
 
         {!loading && accounts.length === 0 && !error && mode === 'list' && (
           <p style={{ textAlign: 'center', color: HNH.ink3, fontSize: 13, padding: 20 }}>Chưa có service account</p>
+        )}
+
+        </>}
+
+        {/* ═══ INTEGRATIONS TAB ═══ */}
+        {tab === 'integrations' && (
+          <IntegrationsTab integrations={integrations} onUpdated={load} onError={setError} />
         )}
 
         {/* Detail modal */}

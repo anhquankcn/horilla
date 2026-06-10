@@ -14,4 +14,7 @@ urlpatterns = [
     path("accounts/", views.ServiceAccountAdminView.as_view()),
     path("accounts/<int:pk>/", views.ServiceAccountDetailView.as_view()),
     path("accounts/<int:pk>/rotate/", views.ServiceAccountRotateView.as_view()),
+    # Integration configs (outbound)
+    path("integrations/", views.IntegrationListView.as_view()),
+    path("integrations/<str:system>/", views.IntegrationDetailView.as_view()),
 ]

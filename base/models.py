@@ -468,6 +468,42 @@ class M2MServiceAccount(models.Model):
         return hashlib.sha256(raw.encode()).hexdigest()
 
 
+class IntegrationConfig(models.Model):
+    """Outbound integration config — tokens HNH uses to call external systems."""
+
+    SYSTEM_CHOICES = [
+        ("arkon", "Arkon AI"),
+        ("eoffice", "eOffice"),
+        ("1stopshop", "1StopShop"),
+        ("iam", "IAM (Identity)"),
+        ("appvmb", "AppVMB"),
+    ]
+
+    system = models.CharField(
+        max_length=30, choices=SYSTEM_CHOICES, unique=True, verbose_name=_("Hệ thống")
+    )
+    label = models.CharField(max_length=100, blank=True, verbose_name=_("Tên hiển thị"))
+    token = models.TextField(blank=True, verbose_name=_("Service Token"))
+    scopes = models.JSONField(
+        default=list, blank=True,
+        verbose_name=_("Scopes / Quyền"),
+        help_text='JSON list, vd ["embed:login","wiki:read"]',
+    )
+    base_url = models.URLField(blank=True, verbose_name=_("Base URL"))
+    enabled = models.BooleanField(default=False, verbose_name=_("Kích hoạt"))
+    notes = models.TextField(blank=True, verbose_name=_("Ghi chú"))
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["system"]
+        verbose_name = _("Integration Config")
+        verbose_name_plural = _("Integration Configs")
+        db_table = "base_integration_config"
+
+    def __str__(self):
+        return f"{self.get_system_display()} ({'ON' if self.enabled else 'OFF'})"
+
+
 class HRMConfig(models.Model):
     """Key-value store for company-level HRM feature configuration (singleton-style)."""
 
