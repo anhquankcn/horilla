@@ -3,15 +3,14 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { HNH } from '../../lib/theme'
 import { api } from '../../lib/api'
 
-// home | life | [apps] | [ruby] | tasks | me  — apps+ruby are twin elevated centre buttons
-// ruby → https://arkon.hnhtravel.work/pwa | tasks → https://task.hnhtravel.work/pwa (external)
+// home | life | [apps] | [ruby] | eoffice | me
 const ALL_TABS = [
-  { id: 'home',   label: 'Trang chủ', path: '/' },
-  { id: 'life',   label: 'HNH Life',  path: '/life' },
-  { id: 'apps',   label: 'Ứng dụng',  path: '/apps' },
-  { id: 'ruby',   label: 'Ruby AI',   path: '/ruby' },
-  { id: 'tasks',  label: 'Công việc', path: '/task-board' },
-  { id: 'me',     label: 'Cá nhân',   path: '/profile' },
+  { id: 'home',    label: 'Trang chủ', path: '/' },
+  { id: 'life',    label: 'HNH Life',  path: '/life' },
+  { id: 'apps',    label: 'Ứng dụng',  path: '/apps' },
+  { id: 'ruby',    label: 'Ruby AI',   path: '/ruby' },
+  { id: 'eoffice', label: 'eOffice',   path: '/eoffice' },
+  { id: 'me',      label: 'Cá nhân',   path: '/profile' },
 ] as const
 
 type TabId = typeof ALL_TABS[number]['id']
@@ -31,7 +30,7 @@ function TabIcon({ name, active }: { name: string; active: boolean }) {
             fill={active ? HNH.red50 : 'none'} />
         </svg>
       )
-    case 'tasks':
+    case 'eoffice':
       return <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="2" stroke={c} strokeWidth={sw} fill={fill}/><path d="M9 12l2 2 4-4" stroke={c} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round"/></svg>
     case 'me':
       return <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.5" r="3.5" stroke={c} strokeWidth={sw} fill={fill}/><path d="M4.5 20c1.5-3.5 4.5-5 7.5-5s6 1.5 7.5 5" stroke={c} strokeWidth={sw} strokeLinecap="round" fill="none"/></svg>
@@ -170,12 +169,25 @@ export function BottomNav({ announcementsUnread = 0 }: { announcementsUnread?: n
           )
         }
 
-        if (t.id === 'tasks') {
+        if (t.id === 'eoffice') {
+          const goEoffice = async () => {
+            try {
+              const res = await fetch('/bff/embed/eoffice/url?to=/pwa', { credentials: 'include' })
+              if (res.ok) {
+                const data = await res.json()
+                window.location.href = data.url
+              } else {
+                navigate('/eoffice')
+              }
+            } catch {
+              navigate('/eoffice')
+            }
+          }
           return (
             <button
               key={t.id}
               className="flex-1 flex flex-col items-center gap-1 py-1 bg-transparent border-none cursor-pointer"
-              onClick={() => { window.location.href = 'https://task.hnhtravel.work/pwa' }}
+              onClick={goEoffice}
             >
               <TabIcon name={t.id} active={isActive} />
               <span style={{ fontSize: 9.5, fontWeight: isActive ? 700 : 500, color: isActive ? HNH.red : HNH.ink3, letterSpacing: -0.1 }}>
