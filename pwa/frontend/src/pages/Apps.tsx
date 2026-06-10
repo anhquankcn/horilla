@@ -79,7 +79,7 @@ const features: AppFeature[] = [
   { slug: 'unified-calendar',  icon: 'cal',    label: 'Lịch tổng hợp',desc: 'Nghỉ phép, deadline, tour, dự án',        path: '/unified-calendar',  tone: 'gold',  group: 'support', always: true },
   { slug: 'hrm-app-setting',   icon: 'gear',   label: 'Cài đặt App',  desc: 'Thông báo đẩy, bộ nhớ cache, tài khoản', path: '/settings',          tone: 'navy',  group: 'support', always: true },
   // ── Quản trị Hệ thống ──
-  { slug: 'service-accounts',  icon: 'shield', label: 'Service Account', desc: 'Quản lý M2M token, scope, IP cho hệ thống ngoài', path: '/service-accounts', tone: 'navy', group: 'system' },
+  { slug: 'service-accounts',  icon: 'shield', label: 'Service Account', desc: 'Quản lý M2M token, scope, IP cho hệ thống ngoài', path: '/srv-accounts', tone: 'navy', group: 'system' },
   { slug: 'open-api',          icon: 'globe',  label: 'Open API',     desc: 'Quản lý tài khoản API cho hệ thống bên ngoài', path: '/open-api',       tone: 'navy',  group: 'system' },
 
   // ── Báo cáo / Dashboard ──
