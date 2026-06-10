@@ -6,7 +6,7 @@ import { TopBar } from '../components/layout/TopBar'
 import { useTablet } from '../lib/useTablet'
 import { api } from '../lib/api'
 
-type ModuleGroup = 'hr' | 'attendance' | 'leave' | 'payroll' | 'support' | 'reports'
+type ModuleGroup = 'hr' | 'attendance' | 'leave' | 'payroll' | 'admin' | 'support' | 'reports'
 
 interface AppFeature {
   slug: string
@@ -24,11 +24,12 @@ const MODULE_META: Record<ModuleGroup, { label: string; icon: string; color: str
   attendance: { label: 'Chấm Công',           icon: 'clock',  color: HNH.red,     bg: HNH.red50 },
   leave:      { label: 'Nghỉ phép',           icon: 'leaf',   color: HNH.success, bg: HNH.success50 },
   payroll:    { label: 'Lương',               icon: 'doc',    color: '#a87908',   bg: '#faf1d6' },
+  admin:      { label: 'Hành chính',          icon: 'file-text', color: HNH.gold, bg: '#faf1d6' },
   support:    { label: 'Hỗ trợ',             icon: 'help',   color: '#6b7280',   bg: '#f3f4f6' },
   reports:    { label: 'Báo cáo / Dashboard', icon: 'grid',   color: '#7c3aed',   bg: '#f5f3ff' },
 }
 
-const MODULE_ORDER: ModuleGroup[] = ['hr', 'attendance', 'leave', 'payroll', 'support', 'reports']
+const MODULE_ORDER: ModuleGroup[] = ['hr', 'attendance', 'leave', 'payroll', 'admin', 'support', 'reports']
 
 const features: AppFeature[] = [
   // ── Nhân sự ──
@@ -61,6 +62,9 @@ const features: AppFeature[] = [
   // ── Lương ──
   { slug: 'payslip',      icon: 'doc', label: 'Phiếu lương', desc: 'Xem chi tiết lương hàng tháng',    path: '/payslip',      tone: 'navy', group: 'payroll', always: true },
   { slug: 'payroll-mgmt', icon: 'doc', label: 'Bảng lương',  desc: 'Tổng hợp lương tháng, BHXH, thuế', path: '/payroll-mgmt', tone: 'gold', group: 'payroll' },
+
+  // ── Hành chính ──
+  { slug: 'expenses-admin', icon: 'doc', label: 'Chi phí HC', desc: 'Quản lý yêu cầu chi phí, tạo bảng kê', path: '/expenses/admin', tone: 'gold', group: 'admin' },
 
   // ── Hỗ trợ ──
   { slug: 'helpdesk',          icon: 'help',   label: 'Hỗ trợ IT',     desc: 'Gửi yêu cầu hỗ trợ, theo dõi tiến độ',   path: '/helpdesk',          tone: 'navy',  group: 'support', always: true },

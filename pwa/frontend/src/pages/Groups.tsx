@@ -101,6 +101,8 @@ const APP_FEATURES = [
   { slug: 'tasks',              label: 'Công việc',        icon: 'check',   section: 'eoffice' },
   { slug: 'projects',           label: 'Dự án',            icon: 'folder',  section: 'eoffice' },
   { slug: 'unified-calendar',   label: 'Lịch tổng hợp',   icon: 'cal',     section: 'eoffice' },
+  // ── Hành chính ───────────────────────────────────────────────────────────
+  { slug: 'expenses-admin',     label: 'Chi phí HC',       icon: 'doc',     section: 'hrm' },
   // ── Hệ thống ────────────────────────────────────────────────────────────
   { slug: 'open-api',           label: 'Open API',         icon: 'globe',   section: 'hrm' },
 ]
