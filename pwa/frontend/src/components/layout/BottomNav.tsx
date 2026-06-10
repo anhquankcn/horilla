@@ -97,7 +97,7 @@ function RubyIcon({ active }: { active: boolean }) {
 
 const NAV_TABS_KEY = 'hnh_nav_tabs'
 
-export function BottomNav() {
+export function BottomNav({ announcementsUnread = 0 }: { announcementsUnread?: number }) {
   const location = useLocation()
   const navigate = useNavigate()
 
@@ -191,7 +191,26 @@ export function BottomNav() {
             className="flex-1 flex flex-col items-center gap-1 py-1 bg-transparent border-none cursor-pointer"
             onClick={() => navigate(t.path)}
           >
-            <TabIcon name={t.id} active={isActive} />
+            <div className="relative">
+              <TabIcon name={t.id} active={isActive} />
+              {t.id === 'life' && announcementsUnread > 0 && (
+                <span
+                  className="absolute flex items-center justify-center"
+                  style={{
+                    top: -4, right: -8,
+                    minWidth: 16, height: 16, borderRadius: 8,
+                    background: HNH.red,
+                    color: '#fff',
+                    fontSize: 9, fontWeight: 700,
+                    padding: '0 4px',
+                    border: '2px solid #fff',
+                    lineHeight: 1,
+                  }}
+                >
+                  {announcementsUnread > 99 ? '99+' : announcementsUnread}
+                </span>
+              )}
+            </div>
             <span style={{ fontSize: 9.5, fontWeight: isActive ? 700 : 500, color: isActive ? HNH.red : HNH.ink3, letterSpacing: -0.1 }}>
               {t.label}
             </span>

@@ -20,7 +20,7 @@ function switchToDesktop() {
 
 export function AppShell() {
   const isTablet = useTablet()
-  useNotificationPolling()
+  const notifSummary = useNotificationPolling()
   useAutoClockOut()
 
   const [skyBg, setSkyBg] = useState<string>(
@@ -88,7 +88,7 @@ export function AppShell() {
             <Outlet />
           </div>
           <PWAInstallBanner />
-          <BottomNav />
+          <BottomNav announcementsUnread={notifSummary.announcements_unread} />
         </>
       )}
     </div>

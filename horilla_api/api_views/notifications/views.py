@@ -98,7 +98,14 @@ class NotificationSummaryView(APIView):
     def get(self, request):
         unread = request.user.notifications.unread().count()
         total = request.user.notifications.filter(deleted=False).count()
-        return Response({"unread": unread, "total": total})
+        ann_unread = AnnouncementRecipient.objects.filter(
+            user=request.user, read=False
+        ).count()
+        return Response({
+            "unread": unread,
+            "total": total,
+            "announcements_unread": ann_unread,
+        })
 
 
 class VapidPublicKeyView(APIView):

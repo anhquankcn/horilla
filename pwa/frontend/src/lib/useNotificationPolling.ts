@@ -1,13 +1,14 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { api } from './api'
 import { playNotificationSound, warmUpAudio } from './notificationSound'
 
-interface Summary { unread: number; total: number }
+interface Summary { unread: number; total: number; announcements_unread: number }
 
 const POLL_INTERVAL = 15_000
 
 export function useNotificationPolling() {
   const prevUnread = useRef<number | null>(null)
+  const [summary, setSummary] = useState<Summary>({ unread: 0, total: 0, announcements_unread: 0 })
 
   useEffect(() => {
     const handler = () => {
@@ -36,6 +37,7 @@ export function useNotificationPolling() {
           playNotificationSound()
         }
         prevUnread.current = cur
+        setSummary(data)
         // Sync OS app badge
         if (cur === 0) {
           navigator.clearAppBadge?.()
@@ -60,7 +62,6 @@ export function useNotificationPolling() {
     const onSwMessage = (event: MessageEvent) => {
       if (event.data?.type === 'PUSH_RECEIVED') {
         playNotificationSound()
-        // Also refresh count
         check()
       }
     }
@@ -73,4 +74,6 @@ export function useNotificationPolling() {
       navigator.serviceWorker?.removeEventListener('message', onSwMessage)
     }
   }, [])
+
+  return summary
 }
