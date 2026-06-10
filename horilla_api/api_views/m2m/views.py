@@ -11,7 +11,15 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from base.models import IntegrationConfig, M2MServiceAccount
+from rest_framework.pagination import PageNumberPagination
+
 from employee.models import Employee, EmployeeWorkInformation
+
+
+class M2MPagination(PageNumberPagination):
+    page_size = 50
+    page_size_query_param = "page_size"
+    max_page_size = 500
 from horilla_api.m2m_auth import M2MAuthentication, require_m2m_scope
 
 AVAILABLE_SCOPES = [
@@ -71,8 +79,19 @@ class M2MEmployeeListView(APIView):
         if email:
             qs = qs.filter(email=email)
 
+        search = request.query_params.get("search")
+        if search:
+            qs = qs.filter(
+                Q(employee_first_name__icontains=search)
+                | Q(employee_last_name__icontains=search)
+                | Q(email__icontains=search)
+                | Q(badge_id__icontains=search)
+            )
+
+        paginator = M2MPagination()
+        page = paginator.paginate_queryset(qs, request)
         results = []
-        for emp in qs[:200]:
+        for emp in page:
             wi = getattr(emp, "employee_work_info", None)
             results.append({
                 "id": emp.id,
@@ -86,7 +105,7 @@ class M2MEmployeeListView(APIView):
                 "reporting_manager": str(wi.reporting_manager_id) if wi and wi.reporting_manager_id else None,
                 "is_active": emp.is_active,
             })
-        return Response({"count": len(results), "results": results})
+        return paginator.get_paginated_response(results)
 
 
 class M2MEmployeeDetailView(APIView):
