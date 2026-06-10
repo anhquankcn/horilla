@@ -84,7 +84,7 @@ export function AppShell() {
         </div>
       ) : (
         <>
-          <div className="flex-1 overflow-auto flex flex-col" style={{ minHeight: 0 }}>
+          <div className="flex-1 overflow-auto flex flex-col relative" style={{ minHeight: 0 }}>
             <Outlet />
           </div>
           <PWAInstallBanner />
