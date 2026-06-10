@@ -156,11 +156,24 @@ class ExpenseMyListView(APIView):
         status_filter = request.query_params.get("status")
         if status_filter:
             qs = qs.filter(status=status_filter)
+        category_filter = request.query_params.get("category")
+        if category_filter:
+            qs = qs.filter(category=category_filter)
+        date_from = request.query_params.get("date_from")
+        if date_from:
+            qs = qs.filter(date_incurred__gte=date_from)
+        date_to = request.query_params.get("date_to")
+        if date_to:
+            qs = qs.filter(date_incurred__lte=date_to)
+
+        total_amount = qs.aggregate(total=Sum("amount"))["total"] or 0
 
         paginator = ExpensePagination()
         page = paginator.paginate_queryset(qs, request)
         results = [_serialize_expense(e, include_employee=False) for e in page]
-        return paginator.get_paginated_response(results)
+        resp = paginator.get_paginated_response(results)
+        resp.data["total_amount"] = total_amount
+        return resp
 
 
 class ExpenseEditView(APIView):

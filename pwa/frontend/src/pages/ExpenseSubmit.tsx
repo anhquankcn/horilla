@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useState, useRef, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { TopBar } from '../components/layout/TopBar'
@@ -68,6 +68,8 @@ function formatSize(bytes: number): string {
 
 export function ExpenseSubmitPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const editId = searchParams.get('edit')
   const toast = useToast()
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -76,10 +78,27 @@ export function ExpenseSubmitPage() {
   const [description, setDescription] = useState('')
   const [amount, setAmount] = useState('')
   const [file, setFile] = useState<File | null>(null)
+  const [existingReceipt, setExistingReceipt] = useState<string | null>(null)
   const [compressing, setCompressing] = useState(false)
   const [compressed, setCompressed] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+
+  useEffect(() => {
+    if (!editId) return
+    apiFetch<{ results: any[] }>('/api/expenses/requests/my/')
+      .then(data => {
+        const exp = data.results.find((e: any) => e.id === parseInt(editId))
+        if (exp) {
+          setCategory(exp.category)
+          setDateIncurred(exp.date_incurred)
+          setDescription(exp.description)
+          setAmount(String(exp.amount))
+          setExistingReceipt(exp.receipt)
+        }
+      })
+      .catch(() => {})
+  }, [editId])
 
   const handleFileChange = async (picked: File | null) => {
     if (!picked) { setFile(null); setCompressed(false); return }
@@ -126,7 +145,7 @@ export function ExpenseSubmitPage() {
     if (!description.trim()) errs.description = 'Nhập mô tả'
     const amt = parseInt(amount)
     if (!amount || isNaN(amt) || amt <= 0) errs.amount = 'Nhập số tiền hợp lệ'
-    if (!file) errs.receipt = 'Đính kèm chứng từ'
+    if (!file && !existingReceipt) errs.receipt = 'Đính kèm chứng từ'
     if (Object.keys(errs).length) { setErrors(errs); return }
 
     setSubmitting(true)
@@ -136,11 +155,16 @@ export function ExpenseSubmitPage() {
     form.append('category', category)
     form.append('description', description.trim())
     form.append('amount', String(amt))
-    form.append('receipt', file!)
+    if (file) form.append('receipt', file)
 
     try {
-      await apiFetch('/api/expenses/requests/', { method: 'POST', body: form })
-      toast.toast('Đã gửi yêu cầu chi phí')
+      if (editId) {
+        await apiFetch(`/api/expenses/requests/${editId}/`, { method: 'PATCH', body: form })
+        toast.toast('Đã cập nhật yêu cầu')
+      } else {
+        await apiFetch('/api/expenses/requests/', { method: 'POST', body: form })
+        toast.toast('Đã gửi yêu cầu chi phí')
+      }
       navigate('/expenses')
     } catch (e: any) {
       try {
@@ -166,7 +190,7 @@ export function ExpenseSubmitPage() {
 
   return (
     <div style={{ flex: 1 }}>
-      <TopBar title="Tạo yêu cầu chi phí" />
+      <TopBar title={editId ? "Sửa yêu cầu chi phí" : "Tạo yêu cầu chi phí"} />
       <div style={{ padding: '16px 16px 120px' }}>
         {/* Category */}
         <label style={{ fontSize: 12, fontWeight: 600, color: HNH.ink2, marginBottom: 6, display: 'block' }}>
@@ -261,7 +285,7 @@ export function ExpenseSubmitPage() {
           ) : (
             <>
               <Icon name="camera" size={18} color={HNH.ink3} />
-              {file ? file.name : 'Chụp hoặc chọn ảnh chứng từ'}
+              {file ? file.name : existingReceipt ? 'Đổi chứng từ (giữ file cũ nếu bỏ qua)' : 'Chụp hoặc chọn ảnh chứng từ'}
             </>
           )}
         </button>
@@ -301,7 +325,7 @@ export function ExpenseSubmitPage() {
             fontSize: 15, fontWeight: 700,
           }}
         >
-          {submitting ? 'Đang gửi...' : 'Gửi yêu cầu'}
+          {submitting ? 'Đang gửi...' : editId ? 'Lưu thay đổi' : 'Gửi yêu cầu'}
         </button>
       </div>
     </div>
