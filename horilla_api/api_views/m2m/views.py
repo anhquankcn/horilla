@@ -333,6 +333,26 @@ class IntegrationListView(APIView):
         } for c in configs]})
 
 
+class IntegrationInternalView(APIView):
+    """GET: Full config including untruncated token — for BFF internal use."""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, system):
+        try:
+            config = IntegrationConfig.objects.get(system=system)
+        except IntegrationConfig.DoesNotExist:
+            return Response({"error": "Not found"}, status=404)
+        if not config.enabled:
+            return Response({"error": "Integration disabled"}, status=400)
+        return Response({
+            "system": config.system,
+            "token": config.token,
+            "scopes": config.scopes,
+            "base_url": config.base_url,
+            "enabled": config.enabled,
+        })
+
+
 class IntegrationDetailView(APIView):
     """PATCH: Update integration config (token, scopes, base_url, enabled, notes)."""
     permission_classes = [IsAuthenticated]

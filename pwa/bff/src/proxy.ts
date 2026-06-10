@@ -66,17 +66,35 @@ export async function proxyRoutes(app: FastifyInstance) {
   });
 
   // Arkon embed SSO handoff — get one-time ticket URL
+  // Reads Arkon config from IntegrationConfig DB (tab Tích hợp), fallback to env
   app.get("/bff/arkon/embed-url", async (req, reply) => {
     const sessionId = req.cookies[COOKIE_NAME];
     if (!sessionId) return reply.status(401).send({ error: "Not authenticated" });
     const session = getSession(sessionId);
     if (!session?.horillaJwt) return reply.status(401).send({ error: "Not authenticated" });
 
-    if (!env.ARKON_SERVICE_TOKEN) {
-      return reply.status(500).send({ error: "ARKON_SERVICE_TOKEN not configured" });
+    // 1. Get Arkon config from DB (via Django internal endpoint)
+    let arkonToken = env.ARKON_SERVICE_TOKEN;
+    let arkonUrl = env.ARKON_BFF_URL;
+
+    try {
+      const cfgRes = await fetch(`${env.HORILLA_API}/api/m2m/integrations/arkon/internal/`, {
+        headers: { Authorization: `Bearer ${session.horillaJwt}` },
+      });
+      if (cfgRes.statusCode === 200) {
+        const cfg = await cfgRes.body.json() as { token: string; base_url: string; enabled: boolean };
+        if (cfg.token) arkonToken = cfg.token;
+        if (cfg.base_url) arkonUrl = cfg.base_url;
+      }
+    } catch {
+      // fallback to env vars
     }
 
-    // Get current user info from Horilla
+    if (!arkonToken) {
+      return reply.status(500).send({ error: "Arkon chưa được cấu hình token (tab Tích hợp)" });
+    }
+
+    // 2. Get current user info
     const meRes = await fetch(`${env.HORILLA_API}/api/employee/me/`, {
       headers: { Authorization: `Bearer ${session.horillaJwt}` },
     });
@@ -90,12 +108,12 @@ export async function proxyRoutes(app: FastifyInstance) {
 
     const to = (req.query as any).to || "/pwa";
 
-    // Request embed session from Arkon BFF (M2M)
-    const arkonRes = await fetch(`${env.ARKON_BFF_URL}/api/m2m/embed/session`, {
+    // 3. Request embed session from Arkon
+    const arkonRes = await fetch(`${arkonUrl}/api/m2m/embed/session`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-Arkon-Service-Token": env.ARKON_SERVICE_TOKEN,
+        "X-Arkon-Service-Token": arkonToken,
       },
       body: JSON.stringify({ email, name, to }),
     });

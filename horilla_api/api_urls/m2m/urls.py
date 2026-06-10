@@ -17,4 +17,5 @@ urlpatterns = [
     # Integration configs (outbound)
     path("integrations/", views.IntegrationListView.as_view()),
     path("integrations/<str:system>/", views.IntegrationDetailView.as_view()),
+    path("integrations/<str:system>/internal/", views.IntegrationInternalView.as_view()),
 ]
