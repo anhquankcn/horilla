@@ -281,8 +281,5 @@ urlpatterns = [
     path("weather/", views.WeatherProxyView.as_view(), name="api-weather-proxy"),
     path("hrm-config/", views.HRMConfigView.as_view(), name="api-hrm-config"),
     path("my-preferences/", views.MyPreferencesView.as_view(), name="api-my-preferences"),
-    # ── Open API / Service Accounts ──
-    path("service-accounts/", views.ServiceAccountView.as_view(), name="api-service-accounts"),
-    path("service-accounts/<int:pk>/", views.ServiceAccountDetailView.as_view(), name="api-service-account-detail"),
-    path("service-accounts/<int:pk>/rotate-token/", views.ServiceAccountRotateTokenView.as_view(), name="api-service-account-rotate"),
+    # Old Open API service accounts removed — replaced by /api/m2m/accounts/
 ]
