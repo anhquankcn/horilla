@@ -1181,26 +1181,31 @@ class CheckingStatus(APIView):
     @staticmethod
     def _auto_close_yesterday(employee):
         """Auto-close open activities/attendance from previous days at 23:59."""
-        today = date.today()
-        open_acts = AttendanceActivity.objects.filter(
-            employee_id=employee,
-            clock_out__isnull=True,
-            attendance_date__lt=today,
-        )
-        for act in open_acts:
-            act.clock_out = datetime.strptime("23:59:00", "%H:%M:%S").time()
-            close_dt = datetime.combine(act.attendance_date, act.clock_out)
-            act.out_datetime = django_tz.make_aware(close_dt)
-            act.save(update_fields=["clock_out", "out_datetime"])
+        try:
+            today = date.today()
+            close_time = datetime.strptime("23:59:00", "%H:%M:%S").time()
 
-        open_atts = Attendance.objects.filter(
-            employee_id=employee,
-            attendance_clock_out__isnull=True,
-            attendance_date__lt=today,
-        )
-        for att in open_atts:
-            att.attendance_clock_out = datetime.strptime("23:59:00", "%H:%M:%S").time()
-            att.save(update_fields=["attendance_clock_out"])
+            open_acts = AttendanceActivity.objects.filter(
+                employee_id=employee,
+                clock_out__isnull=True,
+                attendance_date__lt=today,
+            )
+            for act in open_acts:
+                close_dt = datetime.combine(act.attendance_date, close_time)
+                AttendanceActivity.objects.filter(pk=act.pk).update(
+                    clock_out=close_time,
+                    clock_out_date=act.attendance_date,
+                    out_datetime=django_tz.make_aware(close_dt),
+                )
+
+            Attendance.objects.filter(
+                employee_id=employee,
+                attendance_clock_out__isnull=True,
+                attendance_date__lt=today,
+            ).update(attendance_clock_out=close_time)
+        except Exception:
+            logger = logging.getLogger(__name__)
+            logger.exception("_auto_close_yesterday failed for %s", employee)
 
     def get(self, request):
         self._auto_close_yesterday(request.user.employee_get)
