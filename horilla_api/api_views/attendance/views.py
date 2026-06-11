@@ -1213,6 +1213,7 @@ class CheckingStatus(APIView):
                 Attendance.objects.filter(pk=att.pk).update(
                     attendance_clock_out=close_time,
                     attendance_worked_hour=worked,
+                    attendance_validated=True,
                 )
         except Exception:
             logger = logging.getLogger(__name__)
