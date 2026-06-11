@@ -13,6 +13,7 @@ interface Shift {
   weekly_full_time: string
   department_ids: number[]
   schedules: {
+    id: number
     day: string
     start_time: string | null
     end_time: string | null
@@ -115,9 +116,10 @@ const GRID_TO = toIso(GRID_DATES[13])
 
 // ── ShiftCard (SetupTab) ───────────────────────────────────────────────────────
 
-function ShiftCard({ shift, depts, isCnb, onToggleDept }: {
+function ShiftCard({ shift, depts, isCnb, onToggleDept, onRefresh }: {
   shift: Shift; depts: Dept[]; isCnb: boolean
-  onToggleDept: (shiftId: number, deptId: number, add: boolean) => void
+  onToggleDept: (shiftId: number, deptId: number, add: boolean, applyFrom?: string) => void
+  onRefresh: () => void
 }) {
   const assigned = depts.filter(d => shift.department_ids.includes(d.id))
   const unassigned = depts.filter(d => !shift.department_ids.includes(d.id))
@@ -216,56 +218,59 @@ function ShiftCard({ shift, depts, isCnb, onToggleDept }: {
             <div style={{ fontSize: 12, color: HNH.ink3 }}>Ca này chưa được gán cho phòng nào.</div>
           )}
 
-          {/* Cấu hình tự động */}
+          {/* Cấu hình tự động — toggles (C&B only) */}
           {shift.schedules.length > 0 && (
             <div style={{ marginTop: 14, paddingTop: 12, borderTop: `1px solid ${HNH.line}` }}>
               <div style={{ fontSize: 10.5, fontWeight: 700, color: HNH.ink3, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 8 }}>
                 Cấu hình tự động
               </div>
-              {shift.schedules.filter(s => s.start_time).slice(0, 1).map(sch => (
-                <div key={sch.day} className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between">
-                    <span style={{ fontSize: 12, color: HNH.ink2 }}>Tự động Clock In</span>
-                    <span style={{
-                      fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
-                      background: sch.is_auto_punch_in_enabled ? HNH.success50 : HNH.cream2,
-                      color: sch.is_auto_punch_in_enabled ? HNH.success : HNH.ink3,
-                    }}>
-                      {sch.is_auto_punch_in_enabled ? `ON · ${sch.auto_punch_in_time || sch.start_time}` : 'OFF'}
-                    </span>
+              {shift.schedules.filter(s => s.start_time).slice(0, 1).map(sch => {
+                const toggle = async (field: string, value: boolean) => {
+                  await fetch(`/bff/api/employee/shift-mgmt/schedule/${sch.id}/auto/`, {
+                    method: 'PATCH', credentials: 'include',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ [field]: value }),
+                  })
+                  onRefresh()
+                }
+                const sw = (label: string, field: string, enabled: boolean, extra?: string) => (
+                  <div className="flex items-center justify-between" key={field}>
+                    <span style={{ fontSize: 12, color: HNH.ink2 }}>{label}</span>
+                    <div className="flex items-center gap-2">
+                      {extra && enabled && <span style={{ fontSize: 10, color: HNH.ink3 }}>{extra}</span>}
+                      {isCnb ? (
+                        <button onClick={() => toggle(field, !enabled)} style={{
+                          width: 40, height: 22, borderRadius: 11, border: 'none', cursor: 'pointer',
+                          background: enabled ? HNH.success : HNH.ink4,
+                          position: 'relative', transition: 'background 0.2s',
+                        }}>
+                          <div style={{
+                            width: 18, height: 18, borderRadius: 9, background: '#fff',
+                            position: 'absolute', top: 2,
+                            left: enabled ? 20 : 2, transition: 'left 0.2s',
+                          }} />
+                        </button>
+                      ) : (
+                        <span style={{
+                          fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
+                          background: enabled ? HNH.success50 : HNH.cream2,
+                          color: enabled ? HNH.success : HNH.ink3,
+                        }}>
+                          {enabled ? 'ON' : 'OFF'}
+                        </span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span style={{ fontSize: 12, color: HNH.ink2 }}>Tự động Clock Out</span>
-                    <span style={{
-                      fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
-                      background: sch.is_auto_punch_out_enabled ? HNH.success50 : HNH.cream2,
-                      color: sch.is_auto_punch_out_enabled ? HNH.success : HNH.ink3,
-                    }}>
-                      {sch.is_auto_punch_out_enabled ? `ON · ${sch.auto_punch_out_time || sch.end_time}` : 'OFF'}
-                    </span>
+                )
+                return (
+                  <div key={sch.id} className="flex flex-col gap-3">
+                    {sw('Tự động Clock In', 'is_auto_punch_in_enabled', sch.is_auto_punch_in_enabled, sch.auto_punch_in_time || sch.start_time || undefined)}
+                    {sw('Tự động Clock Out', 'is_auto_punch_out_enabled', sch.is_auto_punch_out_enabled, sch.auto_punch_out_time || sch.end_time || undefined)}
+                    {sw('GPS khi auto Clock In', 'require_gps_on_auto_clockin', sch.require_gps_on_auto_clockin)}
+                    {sw('GPS khi auto Clock Out', 'require_gps_on_auto_clockout', sch.require_gps_on_auto_clockout)}
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span style={{ fontSize: 12, color: HNH.ink2 }}>GPS khi auto Clock In</span>
-                    <span style={{
-                      fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
-                      background: sch.require_gps_on_auto_clockin ? HNH.gold + '20' : HNH.cream2,
-                      color: sch.require_gps_on_auto_clockin ? '#a87908' : HNH.ink3,
-                    }}>
-                      {sch.require_gps_on_auto_clockin ? 'BẮT BUỘC' : 'OFF'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span style={{ fontSize: 12, color: HNH.ink2 }}>GPS khi auto Clock Out</span>
-                    <span style={{
-                      fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 6,
-                      background: sch.require_gps_on_auto_clockout ? HNH.gold + '20' : HNH.cream2,
-                      color: sch.require_gps_on_auto_clockout ? '#a87908' : HNH.ink3,
-                    }}>
-                      {sch.require_gps_on_auto_clockout ? 'BẮT BUỘC' : 'OFF'}
-                    </span>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           )}
         </div>
@@ -276,9 +281,10 @@ function ShiftCard({ shift, depts, isCnb, onToggleDept }: {
 
 // ── Setup Tab ─────────────────────────────────────────────────────────────────
 
-function SetupTab({ shifts, depts, onToggleDept, isCnb }: {
+function SetupTab({ shifts, depts, onToggleDept, isCnb, onRefresh }: {
   shifts: Shift[]; depts: Dept[]; isCnb: boolean
-  onToggleDept: (shiftId: number, deptId: number, add: boolean) => void
+  onToggleDept: (shiftId: number, deptId: number, add: boolean, applyFrom?: string) => void
+  onRefresh: () => void
 }) {
   return (
     <div style={{ padding: '0 16px 80px' }}>
@@ -295,7 +301,7 @@ function SetupTab({ shifts, depts, onToggleDept, isCnb }: {
         </div>
       )}
       {shifts.map(s => (
-        <ShiftCard key={s.id} shift={s} depts={depts} isCnb={isCnb} onToggleDept={onToggleDept} />
+        <ShiftCard key={s.id} shift={s} depts={depts} isCnb={isCnb} onToggleDept={onToggleDept} onRefresh={onRefresh} />
       ))}
     </div>
   )
@@ -860,36 +866,29 @@ export function ShiftManagementPage() {
 
   useEffect(() => { loadData() }, [loadData])
 
-  const handleToggleDept = useCallback(async (shiftId: number, deptId: number, add: boolean) => {
+  const [addDeptModal, setAddDeptModal] = useState<{ shiftId: number; deptId: number } | null>(null)
+
+  const handleToggleDept = useCallback(async (shiftId: number, deptId: number, add: boolean, applyFrom?: string) => {
     try {
       if (add) {
-        await api.post('/api/employee/shift-mgmt/dept-shifts/', { department_id: deptId, shift_id: shiftId })
+        if (!applyFrom) {
+          setAddDeptModal({ shiftId, deptId })
+          return
+        }
+        await api.post('/api/employee/shift-mgmt/dept-shifts/', {
+          department_id: deptId, shift_id: shiftId,
+          auto_assign: true, apply_from: applyFrom,
+        })
+        setAddDeptModal(null)
       } else {
         await api.delete('/api/employee/shift-mgmt/dept-shifts/', { department_id: deptId, shift_id: shiftId })
       }
-      setShifts(prev => prev.map(s => {
-        if (s.id !== shiftId) return s
-        return {
-          ...s,
-          department_ids: add
-            ? [...s.department_ids, deptId]
-            : s.department_ids.filter(id => id !== deptId),
-        }
-      }))
-      setDepts(prev => prev.map(d => {
-        if (d.id !== deptId) return d
-        return {
-          ...d,
-          shift_ids: add
-            ? [...d.shift_ids, shiftId]
-            : d.shift_ids.filter(id => id !== shiftId),
-        }
-      }))
-      showToast(add ? 'Đã gán ca cho phòng ban' : 'Đã bỏ gán ca')
+      loadData()
+      showToast(add ? 'Đã gán ca cho phòng ban' : 'Đã bỏ gán ca + xóa lịch tương lai')
     } catch {
       showToast('Lỗi: không thể thay đổi')
     }
-  }, [])
+  }, [loadData])
 
   const handleAddPlan = useCallback(async (empId: number, shiftId: number, date: string) => {
     try {
@@ -1008,7 +1007,52 @@ export function ShiftManagementPage() {
           depts={depts}
           isCnb={isCnb}
           onToggleDept={handleToggleDept}
+          onRefresh={loadData}
         />
+      )}
+
+      {/* Modal: chọn áp dụng ca */}
+      {addDeptModal && (
+        <div onClick={() => setAddDeptModal(null)} style={{
+          position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: '#fff', borderRadius: 16, padding: 24, width: 300,
+          }}>
+            <p style={{ fontSize: 15, fontWeight: 700, color: HNH.ink, marginBottom: 4 }}>Gán ca cho phòng ban</p>
+            <p style={{ fontSize: 12, color: HNH.ink3, marginBottom: 16 }}>Tự động áp dụng ca cho nhân viên trong phòng từ:</p>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => handleToggleDept(addDeptModal.shiftId, addDeptModal.deptId, true, 'this_month')}
+                style={{
+                  padding: '12px', borderRadius: 10, border: `1px solid ${HNH.navy}`,
+                  background: HNH.navy50, cursor: 'pointer', fontSize: 13, fontWeight: 700, color: HNH.navy,
+                }}
+              >
+                Tháng này (áp dụng ngay)
+              </button>
+              <button
+                onClick={() => handleToggleDept(addDeptModal.shiftId, addDeptModal.deptId, true, 'next_month')}
+                style={{
+                  padding: '12px', borderRadius: 10, border: `1px solid ${HNH.gold}`,
+                  background: HNH.goldSoft, cursor: 'pointer', fontSize: 13, fontWeight: 700, color: '#a87908',
+                }}
+              >
+                Tháng tiếp theo
+              </button>
+              <button
+                onClick={() => setAddDeptModal(null)}
+                style={{
+                  padding: '10px', borderRadius: 10, border: `1px solid ${HNH.line}`,
+                  background: '#fff', cursor: 'pointer', fontSize: 13, color: HNH.ink3,
+                }}
+              >
+                Hủy
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {toast && (

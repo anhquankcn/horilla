@@ -138,6 +138,7 @@ class ShiftMgmtShiftsView(APIView):
                 "department_ids": dept_ids,
                 "schedules": [
                     {
+                        "id": sch.id,
                         "day": sch.day.day,
                         "start_time": str(sch.start_time)[:5] if sch.start_time else None,
                         "end_time": str(sch.end_time)[:5] if sch.end_time else None,
@@ -205,25 +206,65 @@ class ShiftMgmtDeptShiftView(APIView):
             obj.auto_assign = auto_assign
             obj.save(update_fields=["auto_assign"])
 
-        # Auto-assign: nếu bật, gán ca cho tất cả NV trong phòng chưa có ca này
+        # Auto-assign: gán ca cho NV phòng theo apply_from
+        assigned_count = 0
         if auto_assign:
             from employee.models import EmployeeWorkInformation
-            employees = EmployeeWorkInformation.objects.filter(
-                department_id=dept_id,
-                employee_id__is_active=True,
-            ).exclude(shift_id=shift_id)
-            updated = employees.update(shift_id=shift_id)
+            from attendance.models import EmployeeShiftPlan
+            from datetime import date as _date
+            apply_from = request.data.get("apply_from", "this_month")
+            today = _date.today()
+            if apply_from == "next_month":
+                if today.month == 12:
+                    start = _date(today.year + 1, 1, 1)
+                else:
+                    start = _date(today.year, today.month + 1, 1)
+            else:
+                start = today
 
-        return Response({"created": created, "id": obj.id, "auto_assigned": updated if auto_assign else 0})
+            emp_ids = list(
+                EmployeeWorkInformation.objects.filter(
+                    department_id=dept_id, employee_id__is_active=True
+                ).values_list("employee_id", flat=True)
+            )
+            # Update permanent shift
+            EmployeeWorkInformation.objects.filter(
+                department_id=dept_id, employee_id__is_active=True
+            ).exclude(shift_id=shift_id).update(shift_id=shift_id)
+
+            assigned_count = len(emp_ids)
+
+        return Response({
+            "created": created, "id": obj.id,
+            "auto_assigned": assigned_count,
+        })
 
     def delete(self, request):
-        """Remove shift from department. Body: {department_id, shift_id}"""
+        """Remove shift from department + delete future shift plans for dept employees."""
         if _get_scope(request) != "cnb":
             return Response({"error": "Không có quyền"}, status=403)
         dept_id = request.data.get("department_id")
         shift_id = request.data.get("shift_id")
         DepartmentShift.objects.filter(department_id=dept_id, shift_id=shift_id).delete()
-        return Response({"ok": True})
+
+        from attendance.models import EmployeeShiftPlan
+        from employee.models import EmployeeWorkInformation
+        from datetime import date as _date
+        today = _date.today()
+        dept_emp_ids = list(
+            EmployeeWorkInformation.objects.filter(
+                department_id=dept_id, employee_id__is_active=True
+            ).values_list("employee_id", flat=True)
+        )
+        deleted_count = 0
+        if dept_emp_ids:
+            deleted_count, _ = EmployeeShiftPlan.objects.filter(
+                employee_id__in=dept_emp_ids,
+                shift_id=shift_id,
+                date__gte=today,
+            ).delete()
+
+        return Response({"ok": True, "future_plans_removed": deleted_count})
 
 
 class ShiftMgmtEmployeesView(APIView):
@@ -408,6 +449,54 @@ class ShiftMgmtPlanView(APIView):
         if count == 0:
             return Response({"error": "Không tìm thấy hoặc không có quyền"}, status=404)
         return Response({"deleted": count})
+
+
+class ShiftScheduleAutoView(APIView):
+    """PATCH: Update auto clock-in/out/GPS fields on a shift schedule."""
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, schedule_id):
+        if _get_scope(request) != "cnb":
+            return Response({"error": "Không có quyền"}, status=403)
+        try:
+            sch = EmployeeShiftSchedule.objects.get(pk=schedule_id)
+        except EmployeeShiftSchedule.DoesNotExist:
+            return Response({"error": "Không tìm thấy"}, status=404)
+
+        fields_to_update = []
+        for field in [
+            "is_auto_punch_in_enabled", "is_auto_punch_out_enabled",
+            "require_gps_on_auto_clockin", "require_gps_on_auto_clockout",
+        ]:
+            if field in request.data:
+                setattr(sch, field, request.data[field])
+                fields_to_update.append(field)
+
+        for field in ["auto_punch_in_time", "auto_punch_out_time"]:
+            if field in request.data:
+                val = request.data[field]
+                if val:
+                    try:
+                        h, m = val.split(":")
+                        setattr(sch, field, dtime(int(h), int(m)))
+                    except (ValueError, TypeError):
+                        return Response({"error": f"{field} phải là HH:MM"}, status=400)
+                else:
+                    setattr(sch, field, None)
+                fields_to_update.append(field)
+
+        if fields_to_update:
+            sch.save(update_fields=fields_to_update)
+
+        return Response({
+            "id": sch.id,
+            "is_auto_punch_in_enabled": sch.is_auto_punch_in_enabled,
+            "auto_punch_in_time": str(sch.auto_punch_in_time)[:5] if sch.auto_punch_in_time else None,
+            "is_auto_punch_out_enabled": sch.is_auto_punch_out_enabled,
+            "auto_punch_out_time": str(sch.auto_punch_out_time)[:5] if sch.auto_punch_out_time else None,
+            "require_gps_on_auto_clockin": sch.require_gps_on_auto_clockin,
+            "require_gps_on_auto_clockout": sch.require_gps_on_auto_clockout,
+        })
 
 
 class ShiftCRUDView(APIView):

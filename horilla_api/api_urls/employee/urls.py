@@ -292,6 +292,7 @@ urlpatterns = [
     path("shift-mgmt/dept-shifts/", smv.ShiftMgmtDeptShiftView.as_view(), name="api-shift-mgmt-dept-shifts"),
     path("shift-mgmt/employees/", smv.ShiftMgmtEmployeesView.as_view(), name="api-shift-mgmt-employees"),
     path("shift-mgmt/plan/", smv.ShiftMgmtPlanView.as_view(), name="api-shift-mgmt-plan"),
+    path("shift-mgmt/schedule/<int:schedule_id>/auto/", smv.ShiftScheduleAutoView.as_view(), name="api-shift-schedule-auto"),
     path("shift-categories/", smv.ShiftCRUDView.as_view(), name="api-shift-categories"),
     path("shift-planner/", smv.ShiftPlannerView.as_view(), name="api-shift-planner"),
     path("attendance-config/", smv.AttendanceConfigView.as_view(), name="api-attendance-config"),
