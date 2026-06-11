@@ -1198,11 +1198,22 @@ class CheckingStatus(APIView):
                     out_datetime=django_tz.make_aware(close_dt),
                 )
 
-            Attendance.objects.filter(
+            open_atts = Attendance.objects.filter(
                 employee_id=employee,
                 attendance_clock_out__isnull=True,
                 attendance_date__lt=today,
-            ).update(attendance_clock_out=close_time)
+            )
+            for att in open_atts:
+                clock_in_dt = datetime.combine(att.attendance_date, att.attendance_clock_in)
+                clock_out_dt = datetime.combine(att.attendance_date, close_time)
+                diff = clock_out_dt - clock_in_dt
+                total_sec = max(0, int(diff.total_seconds()))
+                h, m, s = total_sec // 3600, (total_sec % 3600) // 60, total_sec % 60
+                worked = f"{h:02d}:{m:02d}:{s:02d}"
+                Attendance.objects.filter(pk=att.pk).update(
+                    attendance_clock_out=close_time,
+                    attendance_worked_hour=worked,
+                )
         except Exception:
             logger = logging.getLogger(__name__)
             logger.exception("_auto_close_yesterday failed for %s", employee)
