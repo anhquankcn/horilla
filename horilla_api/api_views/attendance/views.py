@@ -1178,7 +1178,33 @@ class CheckingStatus(APIView):
         seconds = seconds % 60
         return f"{hours:02}:{minutes:02}:{seconds:02}"
 
+    @staticmethod
+    def _auto_close_yesterday(employee):
+        """Auto-close open activities/attendance from previous days at 23:59."""
+        today = date.today()
+        open_acts = AttendanceActivity.objects.filter(
+            employee_id=employee,
+            clock_out__isnull=True,
+            attendance_date__lt=today,
+        )
+        for act in open_acts:
+            act.clock_out = datetime.strptime("23:59:00", "%H:%M:%S").time()
+            close_dt = datetime.combine(act.attendance_date, act.clock_out)
+            act.out_datetime = django_tz.make_aware(close_dt)
+            act.save(update_fields=["clock_out", "out_datetime"])
+
+        open_atts = Attendance.objects.filter(
+            employee_id=employee,
+            attendance_clock_out__isnull=True,
+            attendance_date__lt=today,
+        )
+        for att in open_atts:
+            att.attendance_clock_out = datetime.strptime("23:59:00", "%H:%M:%S").time()
+            att.save(update_fields=["attendance_clock_out"])
+
     def get(self, request):
+        self._auto_close_yesterday(request.user.employee_get)
+
         attendance_activity = (
             AttendanceActivity.objects.filter(employee_id=request.user.employee_get)
             .order_by("-id")
