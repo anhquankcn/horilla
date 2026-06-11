@@ -55,6 +55,48 @@ export function EmployeeProfilePage() {
     )
   }
 
+  const [editCodes, setEditCodes] = useState(false)
+  const [codeSaving, setCodeSaving] = useState(false)
+  const [codeForm, setCodeForm] = useState({
+    stt: '', attendance_code: '', employee_code: '', accounting_code: '', master_data_code: '',
+  })
+
+  const openEditCodes = () => {
+    setCodeForm({
+      stt: String(data.personal.stt ?? ''),
+      attendance_code: data.personal.attendance_code ?? '',
+      employee_code: data.personal.employee_code ?? '',
+      accounting_code: data.personal.accounting_code ?? '',
+      master_data_code: data.personal.master_data_code ?? '',
+    })
+    setEditCodes(true)
+  }
+
+  const saveCodes = async () => {
+    setCodeSaving(true)
+    try {
+      await fetch(`/bff/api/employee/employees/${data.personal.id}/`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employee_first_name: data.personal.first_name,
+          employee_last_name: data.personal.last_name,
+          email: data.personal.email,
+          phone: data.personal.phone,
+          gender: data.personal.gender,
+          stt: codeForm.stt ? parseInt(codeForm.stt) : null,
+          attendance_code: codeForm.attendance_code || null,
+          employee_code: codeForm.employee_code || null,
+          accounting_code: codeForm.accounting_code || null,
+          master_data_code: codeForm.master_data_code || null,
+        }),
+      })
+      setEditCodes(false)
+      load()
+    } catch { /* ignore */ }
+    setCodeSaving(false)
+  }
+
   const p = data.personal
   const w = data.work
   const fullName = `${p.first_name} ${p.last_name}`.trim()
@@ -177,18 +219,32 @@ export function EmployeeProfilePage() {
             </a>
           )}
           {data.can_edit_work_info && (
-            <button
-              onClick={() => navigate(`/employees/${p.id}/work-info-edit`)}
-              style={{
-                background: HNH.navy50, border: `1px solid ${HNH.navy}`,
-                borderRadius: 12, padding: '10px 14px',
-                display: 'flex', alignItems: 'center', gap: 6,
-                cursor: 'pointer', flexShrink: 0,
-              }}
-            >
-              <Icon name="edit" size={15} color={HNH.navy} stroke={2} />
-              <span style={{ fontSize: 12.5, fontWeight: 700, color: HNH.navy }}>Sửa</span>
-            </button>
+            <>
+              <button
+                onClick={openEditCodes}
+                style={{
+                  background: HNH.goldSoft, border: `1px solid ${HNH.gold}`,
+                  borderRadius: 12, padding: '10px 14px',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  cursor: 'pointer', flexShrink: 0,
+                }}
+              >
+                <Icon name="hash" size={15} color="#a87908" stroke={2} />
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: '#a87908' }}>Mã</span>
+              </button>
+              <button
+                onClick={() => navigate(`/employees/${p.id}/work-info-edit`)}
+                style={{
+                  background: HNH.navy50, border: `1px solid ${HNH.navy}`,
+                  borderRadius: 12, padding: '10px 14px',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  cursor: 'pointer', flexShrink: 0,
+                }}
+              >
+                <Icon name="edit" size={15} color={HNH.navy} stroke={2} />
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: HNH.navy }}>Sửa</span>
+              </button>
+            </>
           )}
         </div>
 
@@ -204,6 +260,54 @@ export function EmployeeProfilePage() {
           />
         </div>
       </PullToRefresh>
+
+      {/* Modal sửa mã hệ thống */}
+      {editCodes && (
+        <div onClick={() => setEditCodes(false)} style={{
+          position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: '#fff', borderRadius: '20px 20px 0 0', width: '100%',
+            maxWidth: 480, padding: '20px 20px 32px',
+          }}>
+            <div className="flex items-center justify-between" style={{ marginBottom: 16 }}>
+              <span style={{ fontSize: 16, fontWeight: 700, color: HNH.ink }}>Mã hệ thống</span>
+              <button onClick={() => setEditCodes(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
+                <Icon name="x" size={20} color={HNH.ink3} />
+              </button>
+            </div>
+            {[
+              { key: 'stt', label: 'STT (Thứ tự)', type: 'number' },
+              { key: 'attendance_code', label: 'Mã công', type: 'text' },
+              { key: 'employee_code', label: 'Mã Nhân viên HRM', type: 'text' },
+              { key: 'accounting_code', label: 'Mã Kế Toán', type: 'text' },
+              { key: 'master_data_code', label: 'Mã MasterData', type: 'text' },
+            ].map(f => (
+              <div key={f.key} style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, color: HNH.ink2, display: 'block', marginBottom: 4 }}>{f.label}</label>
+                <input
+                  type={f.type}
+                  value={(codeForm as any)[f.key]}
+                  onChange={e => setCodeForm(prev => ({ ...prev, [f.key]: e.target.value }))}
+                  style={{
+                    width: '100%', padding: '10px 12px', borderRadius: 10,
+                    border: `1px solid ${HNH.line}`, fontSize: 13, background: '#fff',
+                    boxSizing: 'border-box',
+                  }}
+                />
+              </div>
+            ))}
+            <button onClick={saveCodes} disabled={codeSaving} style={{
+              width: '100%', padding: '12px', borderRadius: 12, border: 'none',
+              background: codeSaving ? HNH.ink4 : HNH.navy, color: '#fff',
+              fontSize: 14, fontWeight: 700, cursor: codeSaving ? 'default' : 'pointer',
+            }}>
+              {codeSaving ? 'Đang lưu...' : 'Lưu'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
