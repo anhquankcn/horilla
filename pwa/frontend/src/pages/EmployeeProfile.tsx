@@ -43,7 +43,7 @@ export function EmployeeProfilePage() {
     )
   }
 
-  if (!data) {
+  if (!data || !data.personal) {
     return (
       <div style={{ background: HNH.cream, minHeight: '100%' }}>
         <TopBar title="Hồ sơ nhân viên" onBack={() => navigate(-1)} />
@@ -125,12 +125,12 @@ export function EmployeeProfilePage() {
     setCodeSaving(false)
   }
 
-  const p = data.personal
-  const w = data.work
-  const fullName = `${p.first_name} ${p.last_name}`.trim()
+  const p = data.personal ?? {} as any
+  const w = data.work ?? {} as any
+  const fullName = `${p.first_name || ''} ${p.last_name || ''}`.trim()
   const initials = `${p.first_name?.[0] ?? ''}${p.last_name?.[0] ?? ''}`.toUpperCase()
   const tenure = yearsFromDate(w.date_joining)
-  const activeContract = data.contracts.find(c => c.status === 'active')
+  const activeContract = (data.contracts || []).find(c => c.status === 'active')
 
   return (
     <div style={{ background: HNH.cream, minHeight: '100%' }}>
