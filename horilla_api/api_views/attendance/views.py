@@ -1208,7 +1208,10 @@ class CheckingStatus(APIView):
             logger.exception("_auto_close_yesterday failed for %s", employee)
 
     def get(self, request):
-        self._auto_close_yesterday(request.user.employee_get)
+        try:
+            self._auto_close_yesterday(request.user.employee_get)
+        except Exception:
+            pass
 
         attendance_activity = (
             AttendanceActivity.objects.filter(employee_id=request.user.employee_get)
@@ -1216,10 +1219,14 @@ class CheckingStatus(APIView):
             .first()
         )
         duration = None
-        work_seconds = request.user.employee_get.get_forecasted_at_work()[
-            "forecasted_at_work_seconds"
-        ]
-        duration = CheckingStatus._format_seconds(int(work_seconds))
+        try:
+            work_seconds = request.user.employee_get.get_forecasted_at_work()[
+                "forecasted_at_work_seconds"
+            ]
+            duration = CheckingStatus._format_seconds(int(work_seconds))
+        except Exception:
+            duration = "00:00:00"
+
         status = False
         clock_in_time = None
 
@@ -1231,7 +1238,7 @@ class CheckingStatus(APIView):
             .order_by("in_datetime")
             .first()
         )
-        if attendance_activity:
+        if attendance_activity and attendance_activity_first:
             try:
                 clock_in_time = attendance_activity_first.clock_in.strftime("%H:%M")
                 clock_in_iso = None
