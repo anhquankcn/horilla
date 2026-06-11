@@ -263,8 +263,8 @@ class ShiftMgmtDeptShiftView(APIView):
                                 employee_id=emp_id, date=current, shift_id=shift_id
                             ).exists():
                                 plans_to_create.append(EmployeeShiftPlan(
-                                    employee_id_id=emp_id,
-                                    shift_id=shift_obj,
+                                    employee_id=emp_id,
+                                    shift=shift_obj,
                                     date=current,
                                 ))
                     current += timedelta(days=1)
