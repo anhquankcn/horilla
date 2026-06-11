@@ -68,6 +68,21 @@ class Employee(models.Model):
         ("divorced", trans("Divorced")),
     )
     badge_id = models.CharField(max_length=50, null=True, blank=True)
+    stt = models.PositiveIntegerField(
+        null=True, blank=True, verbose_name=_("STT"), help_text=_("Thứ tự hiển thị")
+    )
+    attendance_code = models.CharField(
+        max_length=50, null=True, blank=True, verbose_name=_("Mã công")
+    )
+    employee_code = models.CharField(
+        max_length=50, null=True, blank=True, verbose_name=_("Mã Nhân viên HRM")
+    )
+    accounting_code = models.CharField(
+        max_length=50, null=True, blank=True, verbose_name=_("Mã Kế Toán")
+    )
+    master_data_code = models.CharField(
+        max_length=100, null=True, blank=True, verbose_name=_("Mã MasterData")
+    )
     employee_user_id = models.OneToOneField(
         User,
         on_delete=models.CASCADE,

@@ -122,10 +122,26 @@ export function EmployeeProfilePage() {
             </div>
           </div>
 
+          {/* Status + Codes */}
+          <div className="flex flex-wrap gap-1.5" style={{ marginTop: 8 }}>
+            <span style={{
+              fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6,
+              background: p.is_active ? 'rgba(31,138,91,0.3)' : 'rgba(192,34,43,0.4)',
+              color: '#fff',
+            }}>
+              {p.is_active ? 'Đang làm việc' : 'Đã nghỉ'}
+            </span>
+            {p.stt && <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 6, background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.8)' }}>STT: {p.stt}</span>}
+            {p.attendance_code && <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 6, background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.8)' }}>CC: {p.attendance_code}</span>}
+            {p.employee_code && <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 6, background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.8)' }}>HRM: {p.employee_code}</span>}
+            {p.accounting_code && <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 6, background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.8)' }}>KT: {p.accounting_code}</span>}
+            {p.master_data_code && <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 6, background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.8)' }}>MD: {p.master_data_code}</span>}
+          </div>
+
           {/* Mini stats */}
           <div
             className="relative flex"
-            style={{ marginTop: 16, background: 'rgba(255,255,255,0.1)', borderRadius: 14, padding: '12px 4px' }}
+            style={{ marginTop: 12, background: 'rgba(255,255,255,0.1)', borderRadius: 14, padding: '12px 4px' }}
           >
             {[
               { v: tenure, l: 'thâm niên' },

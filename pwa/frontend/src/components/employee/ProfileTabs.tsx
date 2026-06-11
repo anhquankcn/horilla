@@ -11,6 +11,9 @@ import { api } from '../../lib/api'
 export interface ProfileData {
   personal: {
     id: number; badge_id: string | null
+    stt: number | null; attendance_code: string | null
+    employee_code: string | null; accounting_code: string | null
+    master_data_code: string | null; is_active: boolean
     first_name: string; last_name: string; email: string; phone: string
     gender: string; dob: string | null; marital_status: string
     children: number; address: string; city: string; state: string
