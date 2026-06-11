@@ -232,6 +232,46 @@ class ShiftMgmtDeptShiftView(APIView):
                 department_id=dept_id, employee_id__is_active=True
             ).exclude(shift_id=shift_id).update(shift_id=shift_id)
 
+            # Create EmployeeShiftPlan for remaining days
+            shift_obj = EmployeeShift.objects.filter(pk=shift_id).first()
+            if shift_obj and emp_ids:
+                # Determine end date of month
+                import calendar
+                if apply_from == "next_month":
+                    m = start.month
+                    y = start.year
+                else:
+                    m = today.month
+                    y = today.year
+                last_day = calendar.monthrange(y, m)[1]
+                end_date = _date(y, m, last_day)
+
+                # Get which weekdays this shift covers
+                schedule_days = set(
+                    EmployeeShiftSchedule.objects.filter(
+                        shift_id=shift_obj, start_time__isnull=False
+                    ).values_list("day__day", flat=True)
+                )
+
+                plans_to_create = []
+                current = start
+                while current <= end_date:
+                    weekday = current.strftime("%A").lower()
+                    if weekday in schedule_days:
+                        for emp_id in emp_ids:
+                            if not EmployeeShiftPlan.objects.filter(
+                                employee_id=emp_id, date=current, shift_id=shift_id
+                            ).exists():
+                                plans_to_create.append(EmployeeShiftPlan(
+                                    employee_id_id=emp_id,
+                                    shift_id=shift_obj,
+                                    date=current,
+                                ))
+                    current += timedelta(days=1)
+
+                if plans_to_create:
+                    EmployeeShiftPlan.objects.bulk_create(plans_to_create, ignore_conflicts=True)
+
             assigned_count = len(emp_ids)
 
         return Response({
