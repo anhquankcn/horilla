@@ -55,6 +55,34 @@ export function EmployeeProfilePage() {
     )
   }
 
+  const [toggling, setToggling] = useState(false)
+
+  const toggleActive = async () => {
+    if (!data) return
+    const newStatus = !data.personal.is_active
+    const msg = newStatus
+      ? 'Kích hoạt lại nhân viên này?'
+      : 'Chuyển nhân viên sang Tạm nghỉ/Dừng?\n\nNhân viên sẽ không thể đăng nhập và chấm công.'
+    if (!confirm(msg)) return
+    setToggling(true)
+    try {
+      await fetch(`/bff/api/employee/employees/${data.personal.id}/`, {
+        method: 'PUT', credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employee_first_name: data.personal.first_name,
+          employee_last_name: data.personal.last_name,
+          email: data.personal.email,
+          phone: data.personal.phone,
+          gender: data.personal.gender,
+          is_active: newStatus,
+        }),
+      })
+      load()
+    } catch { /* ignore */ }
+    setToggling(false)
+  }
+
   const [editCodes, setEditCodes] = useState(false)
   const [codeSaving, setCodeSaving] = useState(false)
   const [codeForm, setCodeForm] = useState({
@@ -243,6 +271,22 @@ export function EmployeeProfilePage() {
               >
                 <Icon name="edit" size={15} color={HNH.navy} stroke={2} />
                 <span style={{ fontSize: 12.5, fontWeight: 700, color: HNH.navy }}>Sửa</span>
+              </button>
+              <button
+                onClick={toggleActive}
+                disabled={toggling}
+                style={{
+                  background: p.is_active ? HNH.red50 : HNH.success50,
+                  border: `1px solid ${p.is_active ? HNH.red : HNH.success}`,
+                  borderRadius: 12, padding: '10px 14px',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                  cursor: toggling ? 'default' : 'pointer', flexShrink: 0,
+                }}
+              >
+                <Icon name={p.is_active ? 'pause' : 'play'} size={15} color={p.is_active ? HNH.red : HNH.success} stroke={2} />
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: p.is_active ? HNH.red : HNH.success }}>
+                  {toggling ? '...' : p.is_active ? 'Tạm nghỉ' : 'Kích hoạt'}
+                </span>
               </button>
             </>
           )}
