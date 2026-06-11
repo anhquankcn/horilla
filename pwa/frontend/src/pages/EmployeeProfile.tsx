@@ -19,6 +19,12 @@ export function EmployeeProfilePage() {
   const [data, setData] = useState<ProfileData | null>(null)
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<ProfileTab>('overview')
+  const [toggling, setToggling] = useState(false)
+  const [editCodes, setEditCodes] = useState(false)
+  const [codeSaving, setCodeSaving] = useState(false)
+  const [codeForm, setCodeForm] = useState({
+    stt: '', attendance_code: '', employee_code: '', accounting_code: '', master_data_code: '',
+  })
 
   const load = useCallback(async () => {
     if (!id) return
@@ -55,8 +61,6 @@ export function EmployeeProfilePage() {
     )
   }
 
-  const [toggling, setToggling] = useState(false)
-
   const toggleActive = async () => {
     if (!data) return
     const newStatus = !data.personal.is_active
@@ -82,12 +86,6 @@ export function EmployeeProfilePage() {
     } catch { /* ignore */ }
     setToggling(false)
   }
-
-  const [editCodes, setEditCodes] = useState(false)
-  const [codeSaving, setCodeSaving] = useState(false)
-  const [codeForm, setCodeForm] = useState({
-    stt: '', attendance_code: '', employee_code: '', accounting_code: '', master_data_code: '',
-  })
 
   const openEditCodes = () => {
     setCodeForm({
@@ -125,7 +123,7 @@ export function EmployeeProfilePage() {
     setCodeSaving(false)
   }
 
-  const p = data.personal ?? {} as any
+  const p = data.personal
   const w = data.work ?? {} as any
   const fullName = `${p.first_name || ''} ${p.last_name || ''}`.trim()
   const initials = `${p.first_name?.[0] ?? ''}${p.last_name?.[0] ?? ''}`.toUpperCase()
@@ -196,10 +194,10 @@ export function EmployeeProfilePage() {
           <div className="flex flex-wrap gap-1.5" style={{ marginTop: 8 }}>
             <span style={{
               fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 6,
-              background: p.is_active ? 'rgba(31,138,91,0.3)' : 'rgba(192,34,43,0.4)',
+              background: p.is_active !== false ? 'rgba(31,138,91,0.3)' : 'rgba(192,34,43,0.4)',
               color: '#fff',
             }}>
-              {p.is_active ? 'Đang làm việc' : 'Đã nghỉ'}
+              {p.is_active !== false ? 'Đang làm việc' : 'Đã nghỉ'}
             </span>
             {p.stt && <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 6, background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.8)' }}>STT: {p.stt}</span>}
             {p.attendance_code && <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 6, background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.8)' }}>CC: {p.attendance_code}</span>}
@@ -215,7 +213,7 @@ export function EmployeeProfilePage() {
           >
             {[
               { v: tenure, l: 'thâm niên' },
-              { v: `${data.attendance.this_month}`, l: 'ngày công tháng' },
+              { v: `${data.attendance?.this_month ?? 0}`, l: 'ngày công tháng' },
               { v: activeContract ? statusLabel(activeContract.status) : 'Không HĐ', l: 'hợp đồng' },
             ].map((s, i) => (
               <div key={i} className="flex-1 text-center" style={{ borderLeft: i > 0 ? '1px solid rgba(255,255,255,0.15)' : 'none' }}>
@@ -227,11 +225,11 @@ export function EmployeeProfilePage() {
         </div>
 
         {/* Quick contact + edit */}
-        <div className="flex gap-2" style={{ padding: `10px ${px}px` }}>
+        <div className="flex gap-2 flex-wrap" style={{ padding: `10px ${px}px` }}>
           {p.phone && (
             <a href={`tel:${p.phone}`} className="flex items-center gap-2 flex-1 no-underline" style={{
               background: '#fff', borderRadius: 12, padding: '10px 14px',
-              border: `1px solid ${HNH.line}`,
+              border: `1px solid ${HNH.line}`, minWidth: 120,
             }}>
               <Icon name="phone" size={16} color={HNH.navy} stroke={2} />
               <span style={{ fontSize: 12.5, fontWeight: 700, color: HNH.navy }}>{p.phone}</span>
@@ -240,7 +238,7 @@ export function EmployeeProfilePage() {
           {p.email && (
             <a href={`mailto:${p.email}`} className="flex items-center gap-2 flex-1 no-underline" style={{
               background: '#fff', borderRadius: 12, padding: '10px 14px',
-              border: `1px solid ${HNH.line}`,
+              border: `1px solid ${HNH.line}`, minWidth: 120,
             }}>
               <Icon name="send" size={16} color={HNH.red} stroke={2} />
               <span className="truncate" style={{ fontSize: 12.5, fontWeight: 700, color: HNH.red }}>{p.email}</span>
@@ -276,16 +274,16 @@ export function EmployeeProfilePage() {
                 onClick={toggleActive}
                 disabled={toggling}
                 style={{
-                  background: p.is_active ? HNH.red50 : HNH.success50,
-                  border: `1px solid ${p.is_active ? HNH.red : HNH.success}`,
+                  background: p.is_active !== false ? HNH.red50 : HNH.success50,
+                  border: `1px solid ${p.is_active !== false ? HNH.red : HNH.success}`,
                   borderRadius: 12, padding: '10px 14px',
                   display: 'flex', alignItems: 'center', gap: 6,
                   cursor: toggling ? 'default' : 'pointer', flexShrink: 0,
                 }}
               >
-                <Icon name={p.is_active ? 'pause' : 'play'} size={15} color={p.is_active ? HNH.red : HNH.success} stroke={2} />
-                <span style={{ fontSize: 12.5, fontWeight: 700, color: p.is_active ? HNH.red : HNH.success }}>
-                  {toggling ? '...' : p.is_active ? 'Tạm nghỉ' : 'Kích hoạt'}
+                <Icon name={p.is_active !== false ? 'pause' : 'play'} size={15} color={p.is_active !== false ? HNH.red : HNH.success} stroke={2} />
+                <span style={{ fontSize: 12.5, fontWeight: 700, color: p.is_active !== false ? HNH.red : HNH.success }}>
+                  {toggling ? '...' : p.is_active !== false ? 'Tạm nghỉ' : 'Kích hoạt'}
                 </span>
               </button>
             </>
