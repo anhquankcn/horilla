@@ -278,7 +278,14 @@ function ShiftCard({ shift, depts, isCnb, onToggleDept, onRefresh }: {
                       {isCnb ? (
                         <select
                           value={sch.work_day_coefficient}
-                          onChange={e => toggle('work_day_coefficient', parseFloat(e.target.value))}
+                          onChange={async e => {
+                            await fetch(`/bff/api/employee/shift-mgmt/schedule/${sch.id}/auto/`, {
+                              method: 'PATCH', credentials: 'include',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ work_day_coefficient: parseFloat(e.target.value) }),
+                            })
+                            onRefresh()
+                          }}
                           style={{
                             padding: '4px 8px', borderRadius: 8, fontSize: 13, fontWeight: 700,
                             border: `1px solid ${HNH.line}`, background: '#fff', color: HNH.navy,
