@@ -67,9 +67,11 @@ function PhotoView({ src, label }: { src: string; label: string }) {
           <button
             onClick={() => setExpanded(false)}
             className="absolute border-none cursor-pointer flex items-center justify-center"
-            style={{ top: 16, right: 16, width: 40, height: 40, borderRadius: 12, background: 'rgba(255,255,255,0.15)', zIndex: 1 }}
+            style={{ top: 16, left: 16, width: 44, height: 44, borderRadius: 14, background: 'rgba(255,255,255,0.2)', zIndex: 1 }}
           >
-            <Icon name="x" size={20} color="#fff" stroke={2} />
+            <svg width="9" height="16" viewBox="0 0 9 16">
+              <path d="M7.5 1.5 1.5 8l6 6.5" stroke="#fff" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
           </button>
           <img
             src={photoUrl}
@@ -232,19 +234,24 @@ export function AttendanceDetailModal({ open, onClose, attendanceId, attendanceD
       >
         <div style={{ minHeight: isTablet ? undefined : '100%', background: HNH.cream, paddingBottom: 20, borderRadius: isTablet ? 24 : 0 }}>
           {/* Header */}
-          <div className="flex items-center justify-between" style={{
-            padding: '12px 16px', background: '#fff',
+          <div className="flex items-center gap-3" style={{
+            padding: '10px 16px', background: '#fff',
             borderBottom: `1px solid ${HNH.line}`,
           }}>
             <button
               onClick={onClose}
-              className="flex items-center justify-center border-none cursor-pointer"
-              style={{ width: 36, height: 36, borderRadius: 10, background: HNH.cream }}
+              className="flex items-center justify-center border-none cursor-pointer shrink-0"
+              style={{
+                width: 44, height: 44, borderRadius: 14,
+                background: '#fff',
+                boxShadow: '0 1px 4px rgba(15,20,40,0.09)',
+              }}
             >
-              <Icon name="x" size={18} color={HNH.ink} stroke={2} />
+              <svg width="9" height="16" viewBox="0 0 9 16">
+                <path d="M7.5 1.5 1.5 8l6 6.5" stroke={HNH.ink} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
             </button>
-            <div style={{ fontSize: 15, fontWeight: 700, color: HNH.ink }}>Chi tiết chấm công</div>
-            <div style={{ width: 36 }} />
+            <div style={{ fontSize: 18, fontWeight: 700, color: HNH.ink, letterSpacing: -0.2 }}>Chi tiết chấm công</div>
           </div>
 
           <div style={{ padding: '12px 16px 0' }}>
