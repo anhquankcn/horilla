@@ -33,6 +33,7 @@ export function ServicesPage() {
 
       <div style={{ marginTop: 32, display: 'flex', flexDirection: 'column', gap: 10, width: '100%', maxWidth: 280 }}>
         {[
+          { icon: 'send', label: 'Đặt vé máy bay', status: 'Đang phát triển' },
           { icon: 'car', label: 'Đặt xe công tác', status: 'Đang phát triển' },
           { icon: 'doc', label: 'Yêu cầu văn phòng phẩm', status: 'Đang phát triển' },
           { icon: 'globe', label: 'Đặt phòng họp', status: 'Đang phát triển' },
