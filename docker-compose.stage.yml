@@ -15,7 +15,8 @@ services:
 
   autoclock:
     build: .
-    command: python manage.py auto_clock --loop
+    entrypoint: ["python", "manage.py", "auto_clock", "--loop"]
+    command: []
     env_file:
       - .env.stage
     restart: always
