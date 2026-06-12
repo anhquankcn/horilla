@@ -106,6 +106,7 @@ const APP_FEATURES = [
   { slug: 'export-attendance',  label: 'Xuất CC Excel',    icon: 'doc',     section: 'hrm' },
   // ── Hệ thống ────────────────────────────────────────────────────────────
   { slug: 'service-accounts',   label: 'Service Account',  icon: 'shield',  section: 'hrm' },
+  { slug: 'account-mgmt',      label: 'Quản lý TK',      icon: 'shield',  section: 'hrm' },
 ]
 
 /* ── Group Card ── */

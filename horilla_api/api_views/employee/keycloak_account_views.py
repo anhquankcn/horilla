@@ -169,6 +169,107 @@ class KcAccountView(APIView):
             return Response({"error": str(e)}, status=502)
 
 
+class KcBulkCreateView(APIView):
+    """POST: Bulk create KC accounts for employees in a department."""
+
+    def post(self, request):
+        user = request.user
+        if not (user.is_superuser or user.has_perm("employee.view_employee")):
+            return Response({"error": "Không có quyền"}, status=403)
+
+        employees_data = request.data.get("employees", [])
+        if not employees_data:
+            return Response({"error": "Danh sách nhân viên rỗng"}, status=400)
+
+        no_otp_group = None
+        try:
+            groups = kc.list_groups()
+            no_otp_group = next((g for g in groups if g["name"] == "no-otp"), None)
+        except Exception:
+            pass
+
+        results = []
+        for item in employees_data:
+            emp_id = item.get("id")
+            role_ids = item.get("roles", [])
+            try:
+                emp = Employee.objects.get(pk=emp_id, is_active=True)
+                email = emp.email
+                if not email:
+                    results.append({"id": emp_id, "status": "error", "message": "Không có email"})
+                    continue
+
+                first = emp.employee_first_name or ""
+                last = emp.employee_last_name or ""
+                uid = kc.create_user(email, first, last, DEFAULT_PASSWORD)
+                if not uid:
+                    results.append({"id": emp_id, "status": "error", "message": "KC tạo thất bại"})
+                    continue
+
+                if role_ids:
+                    kc.assign_roles(uid, role_ids)
+                if no_otp_group:
+                    kc.assign_groups(uid, [no_otp_group["id"]])
+
+                try:
+                    _send_welcome_email(emp, email, first, last)
+                except Exception:
+                    pass
+
+                results.append({"id": emp_id, "status": "ok", "email": email})
+            except Employee.DoesNotExist:
+                results.append({"id": emp_id, "status": "error", "message": "Không tìm thấy NV"})
+            except Exception as e:
+                results.append({"id": emp_id, "status": "error", "message": str(e)[:100]})
+
+        ok_count = sum(1 for r in results if r["status"] == "ok")
+        return Response({
+            "total": len(results),
+            "success": ok_count,
+            "failed": len(results) - ok_count,
+            "results": results,
+        })
+
+
+class KcDeptPreviewView(APIView):
+    """GET: List employees in a dept that don't have KC accounts yet."""
+
+    def get(self, request):
+        user = request.user
+        if not (user.is_superuser or user.has_perm("employee.view_employee")):
+            return Response({"error": "Không có quyền"}, status=403)
+
+        dept_id = request.query_params.get("department_id")
+        if not dept_id:
+            return Response({"error": "department_id bắt buộc"}, status=400)
+
+        emps = Employee.objects.filter(
+            is_active=True,
+            employee_work_info__department_id=dept_id,
+        ).select_related("employee_work_info__department_id", "employee_work_info__job_position_id")
+
+        results = []
+        for emp in emps:
+            has_kc = False
+            if emp.email:
+                try:
+                    has_kc = kc.get_user_by_email(emp.email) is not None
+                except Exception:
+                    pass
+
+            wi = getattr(emp, "employee_work_info", None)
+            results.append({
+                "id": emp.id,
+                "name": f"{emp.employee_first_name} {emp.employee_last_name or ''}".strip(),
+                "email": emp.email or "",
+                "badge_id": emp.badge_id or "",
+                "job_position": str(wi.job_position_id) if wi and wi.job_position_id else "",
+                "has_kc": has_kc,
+            })
+
+        return Response({"results": results})
+
+
 # ── Email ─────────────────────────────────────────────────────────────
 
 def _get_smtp_backend() -> tuple[SmtpBackend, str]:
