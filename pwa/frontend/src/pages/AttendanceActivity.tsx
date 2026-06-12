@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { TopBar } from '../components/layout/TopBar'
@@ -468,6 +469,7 @@ function StatChip({ label, value, tone }: { label: string; value: string; tone: 
 
 /* ── Main Page ── */
 export function AttendanceActivityPage() {
+  const navigate = useNavigate()
   const [filter, setFilter] = useState<FilterMode>('today')
   const [view, setView] = useState<ViewMode>('grid')
   const [data, setData] = useState<OverviewData | null>(null)
@@ -513,6 +515,7 @@ export function AttendanceActivityPage() {
     <div style={{ background: HNH.cream, minHeight: '100%' }}>
       <TopBar
         title="Hoạt động Chấm công"
+        onBack={() => navigate(-1)}
         trailing={
           <ViewToggle mode={view} onChange={setView} disabled={!gridAvailable} />
         }

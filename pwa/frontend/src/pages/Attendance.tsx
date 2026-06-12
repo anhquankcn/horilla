@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { Badge } from '../components/ui/Badge'
@@ -104,6 +105,7 @@ const BAR_COLOR: Record<string, string> = {
 }
 
 export function AttendancePage() {
+  const navigate = useNavigate()
   const { employee } = useAuth()
   const { isClockedIn, duration, clockInTime, clockIn, clockOut, acting } = useClock()
   const { now, time } = useLiveClock()
@@ -346,6 +348,7 @@ export function AttendancePage() {
       <TopBar
         title="Chấm công"
         sub={dateStr}
+        onBack={() => navigate(-1)}
         trailing={
           <div
             className="flex items-center gap-1.5"
