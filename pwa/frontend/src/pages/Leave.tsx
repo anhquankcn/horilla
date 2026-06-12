@@ -154,6 +154,7 @@ export function LeavePage() {
   return (
     <div style={{ background: HNH.cream, minHeight: '100%', position: 'relative' }}>
       <TopBar
+        onBack={() => navigate(-1)}
         title="Nghỉ phép"
         sub={`QUYỀN LỢI · ${now.getFullYear()}`}
         trailing={

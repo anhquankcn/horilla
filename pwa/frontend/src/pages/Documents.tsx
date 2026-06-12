@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
@@ -330,6 +331,7 @@ function RequestCard({ row }: { row: ManageRow }) {
 
 /* ── Main Page ── */
 export function DocumentsPage() {
+  const navigate = useNavigate()
   const [view, setView] = useState<ViewMode>('my')
   const [isManager, setIsManager] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -383,7 +385,7 @@ export function DocumentsPage() {
 
   return (
     <div className="flex flex-col h-full" style={{ background: HNH.cream }}>
-      <TopBar title="Tài liệu / Giấy tờ" />
+      <TopBar onBack={() => navigate(-1)} title="Tài liệu / Giấy tờ" />
 
       <PullToRefresh onRefresh={fetchData}>
         <div style={{ padding: '0 16px 100px' }}>

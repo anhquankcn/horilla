@@ -398,7 +398,7 @@ export function ProposalsPage() {
 
   return (
     <div style={{ background: HNH.cream, minHeight: '100%' }}>
-      <TopBar title="Đề xuất" />
+      <TopBar onBack={() => navigate(-1)} title="Đề xuất" />
 
       <PullToRefresh onRefresh={fetchAll}>
       <div style={{ padding: '8px 16px 32px', maxWidth: 600, margin: '0 auto' }}>

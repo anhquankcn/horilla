@@ -242,7 +242,7 @@ export function ExpenseSubmitPage() {
 
   return (
     <div style={{ flex: 1 }}>
-      <TopBar title={editId ? "Sửa yêu cầu chi phí" : "Tạo yêu cầu chi phí"} />
+      <TopBar onBack={() => navigate(-1)} title={editId ? "Sửa yêu cầu chi phí" : "Tạo yêu cầu chi phí"} />
       <div style={{ padding: '16px 16px 120px' }}>
         {/* Category */}
         <label style={{ fontSize: 12, fontWeight: 600, color: HNH.ink2, marginBottom: 6, display: 'block' }}>

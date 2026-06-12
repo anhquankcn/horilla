@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { useState } from 'react'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
@@ -269,6 +270,7 @@ function CreateProposalModal({ employees, onClose, onCreated }: {
 }
 
 export function LeaveManagementPage() {
+  const navigate = useNavigate()
   const [statusFilter, setStatusFilter] = useState<string>('requested')
   const [showCreate, setShowCreate] = useState(false)
 
@@ -319,7 +321,7 @@ export function LeaveManagementPage() {
 
   return (
     <div style={{ background: HNH.cream, minHeight: '100%' }}>
-      <TopBar title="Quản lý Phép" sub="PHÉP BÙ · THÂM NIÊN" />
+      <TopBar onBack={() => navigate(-1)} title="Quản lý Phép" sub="PHÉP BÙ · THÂM NIÊN" />
 
       <div style={{ padding: '0 20px 100px' }}>
         {/* Filter tabs */}

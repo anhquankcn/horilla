@@ -261,7 +261,7 @@ export function ExpenseAdminPage() {
 
   return (
     <div style={{ flex: 1 }}>
-      <TopBar title="Quản lý chi phí (HC)" />
+      <TopBar onBack={() => navigate(-1)} title="Quản lý chi phí (HC)" />
       <div style={{ padding: '0 16px' }}>
         <div className="flex gap-2 overflow-x-auto" style={{ padding: '12px 0' }}>
           {filters.map(f => (

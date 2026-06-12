@@ -463,6 +463,7 @@ export function LeaveProposalPage() {
   return (
     <div style={{ background: HNH.cream, minHeight: '100%' }}>
       <TopBar
+        onBack={() => navigate(-1)}
         title="Nghỉ phép"
         trailing={
           view === 'overview' ? (

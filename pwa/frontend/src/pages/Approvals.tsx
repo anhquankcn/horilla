@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { useState, useEffect, useCallback } from 'react'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
@@ -912,6 +913,7 @@ function EmptyState({ message, sub }: { message?: string; sub?: string }) {
 
 /* ── Main Page ── */
 export function ApprovalsPage() {
+  const navigate = useNavigate()
   const { toast } = useToast()
   const [mode, setMode] = useState<PageMode>('pending')
   const [tab, setTab] = useState<ApprovalTab>('leave')
@@ -1057,6 +1059,7 @@ export function ApprovalsPage() {
   return (
     <div style={{ background: HNH.cream, minHeight: '100%' }}>
       <TopBar
+        onBack={() => navigate(-1)}
         title="Phê duyệt"
         trailing={
           mode === 'pending' ? (

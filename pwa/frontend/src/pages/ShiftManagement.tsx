@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
@@ -809,6 +810,7 @@ function ScheduleTab({
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function ShiftManagementPage() {
+  const navigate = useNavigate()
   const [tab, setTab] = useState<'schedule' | 'setup'>('schedule')
   const [userScope, setUserScope] = useState<Scope>('none')
   const [mgrDeptIds, setMgrDeptIds] = useState<number[]>([])
@@ -935,7 +937,7 @@ export function ShiftManagementPage() {
   if (loading) {
     return (
       <div style={{ background: HNH.cream, minHeight: '100%' }}>
-        <TopBar title="Quản lý Ca" />
+        <TopBar onBack={() => navigate(-1)} title="Quản lý Ca" />
         <div className="flex items-center justify-center" style={{ height: 200 }}>
           <div style={{ fontSize: 13, color: HNH.ink3 }}>Đang tải dữ liệu...</div>
         </div>
@@ -946,7 +948,7 @@ export function ShiftManagementPage() {
   if (userScope === 'none') {
     return (
       <div style={{ background: HNH.cream, minHeight: '100%' }}>
-        <TopBar title="Quản lý Ca" />
+        <TopBar onBack={() => navigate(-1)} title="Quản lý Ca" />
         <div className="flex flex-col items-center justify-center gap-3" style={{ height: 250, padding: '0 32px', textAlign: 'center' }}>
           <Icon name="shield" size={40} color={HNH.ink4 ?? HNH.ink3} />
           <div style={{ fontSize: 14, fontWeight: 600, color: HNH.ink }}>Không có quyền truy cập</div>
@@ -960,7 +962,7 @@ export function ShiftManagementPage() {
 
   return (
     <div style={{ background: HNH.cream, minHeight: '100%' }}>
-      <TopBar title="Quản lý Ca" sub={isCnb ? 'Chuyên viên C&B' : 'Quản lý Ca'} />
+      <TopBar onBack={() => navigate(-1)} title="Quản lý Ca" sub={isCnb ? 'Chuyên viên C&B' : 'Quản lý Ca'} />
 
       {/* Tab bar */}
       <div style={{

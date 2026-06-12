@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { useState, useEffect, useCallback } from 'react'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
@@ -20,6 +21,7 @@ interface Expense {
 }
 
 export function ExpenseApprovalsPage() {
+  const navigate = useNavigate()
   const toast = useToast()
   const [items, setItems] = useState<Expense[]>([])
   const [loading, setLoading] = useState(true)
@@ -57,7 +59,7 @@ export function ExpenseApprovalsPage() {
 
   return (
     <div style={{ flex: 1 }}>
-      <TopBar title="Duyệt chi phí" />
+      <TopBar onBack={() => navigate(-1)} title="Duyệt chi phí" />
       <PullToRefresh onRefresh={load}>
         <div style={{ padding: '16px 16px 100px' }}>
           {loading && items.length === 0 && (

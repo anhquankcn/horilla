@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { useState, useEffect, useCallback } from 'react'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
@@ -614,6 +615,7 @@ function FeedbackCard({ fb }: { fb: FeedbackItem }) {
 
 /* ── Main Page ── */
 export function PMSPage() {
+  const navigate = useNavigate()
   const isTablet = useTablet()
   const [tab, setTab] = useState<Tab>('overview')
   const [loading, setLoading] = useState(true)
@@ -662,7 +664,7 @@ export function PMSPage() {
 
   return (
     <div style={{ minHeight: '100dvh', background: HNH.cream, display: 'flex', flexDirection: 'column' }}>
-      <TopBar title="Hiệu suất" />
+      <TopBar onBack={() => navigate(-1)} title="Hiệu suất" />
 
       {/* Tab bar */}
       <div style={{

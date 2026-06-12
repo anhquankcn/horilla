@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { useState, useEffect, useCallback } from 'react'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
@@ -514,6 +515,7 @@ function LegendDot({ label, color }: { label: string; color: string }) {
    MAIN PAGE
    ══════════════════════════════════════════════════ */
 export function ReportsPage() {
+  const navigate = useNavigate()
   const today = new Date()
   const [report, setReport] = useState<ReportType>('attendance')
   const [year, setYear] = useState(today.getFullYear())
@@ -550,7 +552,7 @@ export function ReportsPage() {
 
   return (
     <div style={{ background: HNH.cream, minHeight: '100%' }}>
-      <TopBar title="Báo cáo" />
+      <TopBar onBack={() => navigate(-1)} title="Báo cáo" />
 
       <PullToRefresh onRefresh={fetchReport}>
         <div style={{ padding: '0 16px 32px', maxWidth: 720, margin: '0 auto' }}>

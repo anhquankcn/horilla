@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { useState, useEffect, useCallback } from 'react'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
@@ -367,6 +368,7 @@ function Cell({ label, val, color }: { label: string; val: string; color?: strin
 
 /* ── Main Page ── */
 export function PayrollMgmtPage() {
+  const navigate = useNavigate()
   const today = new Date()
   const [year, setYear] = useState(today.getFullYear())
   const [month, setMonth] = useState(today.getMonth() + 1)
@@ -411,6 +413,7 @@ export function PayrollMgmtPage() {
   return (
     <div style={{ background: HNH.cream, minHeight: '100%' }}>
       <TopBar
+        onBack={() => navigate(-1)}
         title="Bảng lương"
         trailing={
           data ? (

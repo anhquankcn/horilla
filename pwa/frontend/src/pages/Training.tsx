@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { useState, useEffect, useCallback } from 'react'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
@@ -923,6 +924,7 @@ function EmptyState({ icon, text, sub }: { icon: string; text: string; sub?: str
 
 /* ── Main Page ── */
 export function TrainingPage() {
+  const navigate = useNavigate()
   const isTablet = useTablet()
   const [tab, setTab] = useState<Tab>('overview')
   const [loading, setLoading] = useState(true)
@@ -978,7 +980,7 @@ export function TrainingPage() {
 
   return (
     <div style={{ minHeight: '100dvh', background: HNH.cream, display: 'flex', flexDirection: 'column' }}>
-      <TopBar title="Đào tạo" />
+      <TopBar onBack={() => navigate(-1)} title="Đào tạo" />
 
       {/* Tab bar */}
       <div style={{

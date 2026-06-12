@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { useState, useEffect, useCallback } from 'react'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
@@ -554,6 +555,7 @@ function StageCard({ title, count, accentColor, accentBg, badge, icon, children 
 
 /* ── Main Page ── */
 export function OnboardingPage() {
+  const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('onboarding')
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
@@ -608,7 +610,7 @@ export function OnboardingPage() {
 
   return (
     <div className="flex flex-col h-full" style={{ background: HNH.cream }}>
-      <TopBar title="Onboarding / Offboarding" />
+      <TopBar onBack={() => navigate(-1)} title="Onboarding / Offboarding" />
 
       <PullToRefresh onRefresh={fetchData}>
         <div style={{ padding: '0 16px 100px' }}>

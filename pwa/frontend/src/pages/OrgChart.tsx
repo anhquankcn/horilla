@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { useState, useCallback, useEffect } from 'react'
 import { api } from '../lib/api'
 import { HNH } from '../lib/theme'
@@ -330,6 +331,7 @@ function SearchResultCard({ node }: { node: TreeNode }) {
 // ── Main Page ────────────────────────────────────────────────────────────────
 
 export function OrgChartPage() {
+  const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('tree')
 
   // Tree tab state

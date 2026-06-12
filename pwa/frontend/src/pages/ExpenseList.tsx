@@ -309,7 +309,7 @@ export function ExpenseListPage() {
 
   return (
     <div style={{ flex: 1 }}>
-      <TopBar title="Chi phí của tôi" />
+      <TopBar onBack={() => navigate(-1)} title="Chi phí của tôi" />
 
       {/* Role navigation cards */}
       {role && (role.is_manager || role.is_hc) && (

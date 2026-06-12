@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useSearchParams , useNavigate } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { TopBar } from '../components/layout/TopBar'
 import { api } from '../lib/api'
@@ -425,6 +425,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 /* ── Main Page ── */
 export function HelpDeskPage() {
+  const navigate = useNavigate()
   const { employee } = useAuth()
   const [searchParams] = useSearchParams()
   const initTab = searchParams.get('tab') === 'all' ? 'all' : 'mine'
@@ -483,7 +484,7 @@ export function HelpDeskPage() {
 
   return (
     <div className="flex flex-col" style={{ minHeight: '100dvh', background: HNH.cream }}>
-      <TopBar title="Hỗ trợ" sub="Help Desk" />
+      <TopBar onBack={() => navigate(-1)} title="Hỗ trợ" sub="Help Desk" />
 
       {/* Tab: mine / all */}
       {isManager && (

@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { useState, useEffect, useCallback } from 'react'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
@@ -609,6 +610,7 @@ function ApproveModal({ req, onClose, onDone }: {
 
 /* ── Main Page ── */
 export function AssetsPage() {
+  const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('assets')
   const [data, setData] = useState<DashData | null>(null)
   const [loading, setLoading] = useState(true)
@@ -655,7 +657,7 @@ export function AssetsPage() {
 
   return (
     <div style={{ background: HNH.cream, minHeight: '100%' }}>
-      <TopBar title="Quản lý Tài sản" />
+      <TopBar onBack={() => navigate(-1)} title="Quản lý Tài sản" />
 
       <PullToRefresh onRefresh={fetchData}>
         <div style={{ padding: '0 16px 32px', maxWidth: 720, margin: '0 auto' }}>

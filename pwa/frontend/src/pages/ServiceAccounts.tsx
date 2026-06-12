@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { useState, useEffect, useCallback } from 'react'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
@@ -266,6 +267,7 @@ function IntegrationsTab({ integrations, onUpdated, onError }: {
 }
 
 export function ServiceAccountsPage() {
+  const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('accounts')
   const [accounts, setAccounts] = useState<Account[]>([])
   const [scopes, setScopes] = useState<Scope[]>([])
@@ -392,7 +394,7 @@ export function ServiceAccountsPage() {
 
   return (
     <div style={{ flex: 1 }}>
-      <TopBar title="Service Accounts (M2M)" />
+      <TopBar onBack={() => navigate(-1)} title="Service Accounts (M2M)" />
 
       {/* Tab bar */}
       <div className="flex" style={{ borderBottom: `2px solid ${HNH.line}`, margin: '0 16px' }}>
