@@ -25,6 +25,8 @@ interface Shift {
     auto_punch_out_time: string | null
     require_gps_on_auto_clockin: boolean
     require_gps_on_auto_clockout: boolean
+    work_day_coefficient: number
+    minimum_working_hour: string
   }[]
 }
 
@@ -265,6 +267,36 @@ function ShiftCard({ shift, depts, isCnb, onToggleDept, onRefresh }: {
                 )
                 return (
                   <div key={sch.id} className="flex flex-col gap-3">
+                    {/* Hệ số ngày công */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span style={{ fontSize: 12, color: HNH.ink2 }}>Hệ số ngày công</span>
+                        <span style={{ fontSize: 10, color: HNH.ink3, marginLeft: 4 }}>
+                          ({sch.work_day_coefficient === 1 ? 'nguyên ngày' : sch.work_day_coefficient === 0.5 ? 'nửa ngày' : `${sch.work_day_coefficient} ngày`})
+                        </span>
+                      </div>
+                      {isCnb ? (
+                        <select
+                          value={sch.work_day_coefficient}
+                          onChange={e => toggle('work_day_coefficient', parseFloat(e.target.value))}
+                          style={{
+                            padding: '4px 8px', borderRadius: 8, fontSize: 13, fontWeight: 700,
+                            border: `1px solid ${HNH.line}`, background: '#fff', color: HNH.navy,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <option value={0.33}>0.33 (1/3 ngày)</option>
+                          <option value={0.5}>0.50 (nửa ngày)</option>
+                          <option value={0.75}>0.75 (3/4 ngày)</option>
+                          <option value={1}>1.00 (nguyên ngày)</option>
+                        </select>
+                      ) : (
+                        <span style={{
+                          fontSize: 13, fontWeight: 700, padding: '2px 10px', borderRadius: 6,
+                          background: HNH.navy50, color: HNH.navy,
+                        }}>{sch.work_day_coefficient}</span>
+                      )}
+                    </div>
                     {sw('Tự động Clock In', 'is_auto_punch_in_enabled', sch.is_auto_punch_in_enabled, sch.auto_punch_in_time || sch.start_time || undefined)}
                     {sw('Tự động Clock Out', 'is_auto_punch_out_enabled', sch.is_auto_punch_out_enabled, sch.auto_punch_out_time || sch.end_time || undefined)}
                     {sw('GPS khi auto Clock In', 'require_gps_on_auto_clockin', sch.require_gps_on_auto_clockin)}
