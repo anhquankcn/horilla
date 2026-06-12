@@ -202,7 +202,7 @@ function ViewToggle({ mode, onChange }: { mode: ViewMode; onChange: (m: ViewMode
 export function HNHLifePage() {
   const navigate = useNavigate()
   const isTablet = useTablet()
-  const [mode, setMode] = useState<ViewMode>('launcher')
+  const [activeTab, setActiveTab] = useState<'news' | 'announce'>('news')
   const [allowedApps, setAllowedApps] = useState<Set<string> | null>(null)
   const [feedItems, setFeedItems] = useState<FeedItem[]>([])
   const [feedLoaded, setFeedLoaded] = useState(false)
@@ -212,7 +212,7 @@ export function HNHLifePage() {
       .then(data => setAllowedApps(new Set(data.allowed)))
       .catch(() => setAllowedApps(null))
 
-    api.get<{ results: FeedItem[] }>('/api/notifications/announcements/feed/?page_size=3')
+    api.get<{ results: FeedItem[] }>('/api/notifications/announcements/feed/?page_size=10')
       .then(data => setFeedItems(data.results ?? []))
       .catch(() => {})
       .finally(() => setFeedLoaded(true))
@@ -239,7 +239,12 @@ export function HNHLifePage() {
             <div style={{ fontSize: 20, fontWeight: 800, color: '#fff', letterSpacing: -0.4 }}>HNH Life</div>
             <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.65)', marginTop: 1 }}>{dateLabel}</div>
           </div>
-          <ViewToggle mode={mode} onChange={setMode} />
+          <button onClick={() => navigate('/announcements')} className="border-none cursor-pointer" style={{
+            background: 'rgba(255,255,255,0.15)', borderRadius: 10, padding: '5px 12px',
+            fontSize: 11, fontWeight: 700, color: '#fff',
+          }}>
+            Xem tất cả TB
+          </button>
         </div>
 
         {/* Quick 4-tile row */}
@@ -269,71 +274,92 @@ export function HNHLifePage() {
         </div>
       </div>
 
+      {/* Tab bar */}
+      <div className="flex" style={{ borderBottom: `2px solid ${HNH.line}`, background: '#fff' }}>
+        {([['news', 'Tin tức'], ['announce', 'Thông báo']] as const).map(([key, label]) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key)}
+            className="flex-1 border-none cursor-pointer"
+            style={{
+              padding: '12px 0', background: 'transparent',
+              fontSize: 14, fontWeight: 700,
+              color: activeTab === key ? HNH.red : HNH.ink3,
+              borderBottom: activeTab === key ? `2px solid ${HNH.red}` : '2px solid transparent',
+              marginBottom: -2,
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <div style={{ padding: '16px 16px 100px' }}>
-        {/* Tin nội bộ preview */}
-        {!feedLoaded && (
-          <div style={{ marginBottom: 20 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 10 }}>
-              📢 Tin nội bộ
+        {/* Tab: Tin tức — Facebook Page embed */}
+        {activeTab === 'news' && (
+          <div>
+            <div style={{ fontSize: 12, color: HNH.ink3, marginBottom: 12, lineHeight: 1.5 }}>
+              Tin tức mới nhất từ Hồng Ngọc Hà Travel
             </div>
-            {[0, 1].map(i => (
-              <div key={i} style={{
-                height: 72, borderRadius: 14, background: HNH.line,
-                marginBottom: 8, opacity: 0.5,
-              }} />
-            ))}
+            <div style={{
+              background: '#fff', borderRadius: 16, overflow: 'hidden',
+              border: `1px solid ${HNH.line}`,
+            }}>
+              <iframe
+                src="https://www.facebook.com/plugins/page.php?href=https%3A%2F%2Fwww.facebook.com%2Fhongngocha&tabs=timeline&width=340&height=500&small_header=true&adapt_container_width=true&hide_cover=false&show_facepile=false&appId"
+                width="100%"
+                height="500"
+                style={{ border: 'none', overflow: 'hidden' }}
+                allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
+                title="Hồng Ngọc Hà Travel Facebook"
+              />
+            </div>
           </div>
         )}
-        {feedLoaded && feedItems.length > 0 && (
-          <div style={{ marginBottom: 20 }}>
-            <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, textTransform: 'uppercase', letterSpacing: 0.4 }}>
-                📢 Tin nội bộ
+
+        {/* Tab: Thông báo — Announcement feed */}
+        {activeTab === 'announce' && (
+          <div>
+            <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
+              <div style={{ fontSize: 12, color: HNH.ink3 }}>
+                Thông báo chính thức từ Hành chính
               </div>
               <button
                 onClick={() => navigate('/announcements')}
                 className="flex items-center gap-1 border-none cursor-pointer bg-transparent"
                 style={{ fontSize: 12, fontWeight: 700, color: HNH.red, padding: 0 }}
               >
-                Xem tất cả
+                Tất cả
                 <Icon name="chev-r" size={12} color={HNH.red} stroke={2.5} />
               </button>
             </div>
-            <div className="flex flex-col gap-2">
-              {feedItems.map(item => (
-                <FeedPreviewCard
-                  key={item.id}
-                  item={item}
-                  onClick={() => navigate('/announcements')}
-                />
-              ))}
-            </div>
-          </div>
-        )}
 
-        {/* All features */}
-        <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 10 }}>
-          Tất cả tính năng · {visible.length} ứng dụng
-        </div>
+            {!feedLoaded && (
+              <div>
+                {[0, 1, 2].map(i => (
+                  <div key={i} style={{ height: 72, borderRadius: 14, background: HNH.line, marginBottom: 8, opacity: 0.5 }} />
+                ))}
+              </div>
+            )}
 
-        {mode === 'launcher' ? (
-          <div style={{ background: '#fff', borderRadius: 18, padding: '16px 12px', border: `1px solid ${HNH.line}` }}>
-            <div className="flex flex-wrap gap-4">
-              {visible.map(f => (
-                <FeatureIcon
-                  key={f.slug + f.label}
-                  f={f}
-                  iconBox={iconBox}
-                  onTap={() => navigate(f.path)}
-                />
-              ))}
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {visible.map(f => (
-              <FeatureRow key={f.slug + f.label} f={f} onTap={() => navigate(f.path)} />
-            ))}
+            {feedLoaded && feedItems.length === 0 && (
+              <div style={{ textAlign: 'center', padding: 40, color: HNH.ink3 }}>
+                <Icon name="bell" size={36} color={HNH.ink4} />
+                <div style={{ fontSize: 13, marginTop: 12 }}>Chưa có thông báo</div>
+              </div>
+            )}
+
+            {feedLoaded && feedItems.length > 0 && (
+              <div className="flex flex-col gap-2">
+                {feedItems.map(item => (
+                  <FeedPreviewCard
+                    key={item.id}
+                    item={item}
+                    onClick={() => navigate('/announcements')}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
