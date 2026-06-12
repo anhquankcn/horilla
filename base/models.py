@@ -1149,6 +1149,12 @@ class EmployeeShiftSchedule(HorillaModel):
         help_text=_("Tự động lấy vị trí GPS khi hệ thống auto Clock Out."),
     )
 
+    work_day_coefficient = models.DecimalField(
+        max_digits=3, decimal_places=2, default=1.00,
+        verbose_name=_("Hệ số ngày công"),
+        help_text=_("0.33 = 1/3 ngày, 0.50 = nửa ngày, 1.00 = nguyên ngày"),
+    )
+
     company_id = models.ManyToManyField(Company, blank=True, verbose_name=_("Company"))
 
     objects = HorillaCompanyManager("shift_id__employee_shift__company_id")

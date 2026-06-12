@@ -149,6 +149,8 @@ class ShiftMgmtShiftsView(APIView):
                         "auto_punch_out_time": str(sch.auto_punch_out_time)[:5] if sch.auto_punch_out_time else None,
                         "require_gps_on_auto_clockin": sch.require_gps_on_auto_clockin,
                         "require_gps_on_auto_clockout": sch.require_gps_on_auto_clockout,
+                        "work_day_coefficient": float(sch.work_day_coefficient),
+                        "minimum_working_hour": sch.minimum_working_hour,
                     }
                     for sch in schedules
                 ],
@@ -504,6 +506,11 @@ class ShiftScheduleAutoView(APIView):
             return Response({"error": "Không tìm thấy"}, status=404)
 
         fields_to_update = []
+        if "work_day_coefficient" in request.data:
+            from decimal import Decimal
+            sch.work_day_coefficient = Decimal(str(request.data["work_day_coefficient"]))
+            fields_to_update.append("work_day_coefficient")
+
         for field in [
             "is_auto_punch_in_enabled", "is_auto_punch_out_enabled",
             "require_gps_on_auto_clockin", "require_gps_on_auto_clockout",

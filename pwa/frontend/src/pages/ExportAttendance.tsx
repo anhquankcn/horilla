@@ -18,6 +18,11 @@ interface Row {
   detail: string
   is_late: boolean
   is_early: boolean
+  late_mins: number
+  early_mins: number
+  coefficient: number
+  work_pct: number
+  note: string
 }
 
 const MONTH_NAMES = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6','Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12']
@@ -125,10 +130,10 @@ export function ExportAttendancePage() {
 
         {/* Data table */}
         <div style={{ overflowX: 'auto', borderRadius: 14, border: `1px solid ${HNH.line}` }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, minWidth: 900 }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, minWidth: 1200 }}>
             <thead>
               <tr style={{ background: HNH.navy, color: '#fff' }}>
-                {['STT','Mã NV','Mã KT','Tên','Họ tên','Ngày','Thứ','Vào','Ra','Giờ làm','Chi tiết HĐ','Trễ','Sớm'].map(h => (
+                {['STT','Mã NV','Mã KT','Tên','Họ tên','Ngày','Thứ','Vào','Ra','Giờ làm','Chi tiết HĐ','Trễ','Sớm','Hệ số','% NC','Ghi chú'].map(h => (
                   <th key={h} style={{ padding: '8px 6px', fontWeight: 700, textAlign: 'left', whiteSpace: 'nowrap', borderBottom: `2px solid ${HNH.navy2}` }}>{h}</th>
                 ))}
               </tr>
@@ -159,6 +164,12 @@ export function ExportAttendancePage() {
                     color: r.is_early ? HNH.warn : HNH.ink4, fontWeight: r.is_early ? 700 : 400,
                     background: r.is_early ? HNH.warn50 : 'transparent',
                   }}>{r.is_early ? 'Có' : ''}</td>
+                  <td style={{ padding: '6px', borderBottom: `1px solid ${HNH.line}`, textAlign: 'center', fontWeight: 600 }}>{r.coefficient}</td>
+                  <td style={{
+                    padding: '6px', borderBottom: `1px solid ${HNH.line}`, textAlign: 'center', fontWeight: 700,
+                    color: r.work_pct >= 100 ? HNH.success : r.work_pct >= 80 ? HNH.warn : HNH.red,
+                  }}>{r.work_pct}%</td>
+                  <td style={{ padding: '6px', borderBottom: `1px solid ${HNH.line}`, fontSize: 10, color: HNH.ink2 }}>{r.note}</td>
                 </tr>
               ))}
             </tbody>

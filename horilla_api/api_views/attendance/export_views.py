@@ -85,7 +85,13 @@ def _build_rows(year, month):
 
             is_late = False
             is_early = False
-            if shift and earliest_in:
+            late_mins = 0
+            early_mins = 0
+            coefficient = 1.0
+            min_hour_str = "08:00"
+            notes = []
+
+            if shift:
                 from base.models import EmployeeShiftSchedule, EmployeeShiftDay
                 day_name = d.strftime("%A").lower()
                 try:
@@ -93,12 +99,54 @@ def _build_rows(year, month):
                     sched = EmployeeShiftSchedule.objects.filter(
                         shift_id=shift, day=day_obj
                     ).first()
-                    if sched and sched.start_time and earliest_in > sched.start_time:
-                        is_late = True
-                    if sched and sched.end_time and latest_out and latest_out < sched.end_time:
-                        is_early = True
+                    if sched:
+                        coefficient = float(sched.work_day_coefficient)
+                        min_hour_str = sched.minimum_working_hour or "08:00"
+
+                        grace_secs = 0
+                        if shift.grace_time_id:
+                            grace_secs = shift.grace_time_id.allowed_time_in_secs or 0
+
+                        if sched.start_time and earliest_in:
+                            from datetime import datetime as _dt, timedelta as _td
+                            shift_start_dt = _dt.combine(d, sched.start_time) + _td(seconds=grace_secs)
+                            check_in_dt = _dt.combine(d, earliest_in)
+                            if check_in_dt > shift_start_dt:
+                                is_late = True
+                                late_mins = int((check_in_dt - shift_start_dt).total_seconds() / 60)
+                                notes.append(f"Trễ {late_mins} phút")
+
+                        if sched.end_time and latest_out:
+                            from datetime import datetime as _dt
+                            shift_end_dt = _dt.combine(d, sched.end_time)
+                            check_out_dt = _dt.combine(d, latest_out)
+                            if check_out_dt < shift_end_dt:
+                                is_early = True
+                                early_mins = int((shift_end_dt - check_out_dt).total_seconds() / 60)
+                                notes.append(f"Sớm {early_mins} phút")
                 except Exception:
                     pass
+
+            worked_secs = 0
+            try:
+                parts = worked.split(":")
+                worked_secs = int(parts[0]) * 3600 + int(parts[1]) * 60
+                if len(parts) > 2:
+                    worked_secs += int(parts[2])
+            except Exception:
+                pass
+
+            min_parts = min_hour_str.split(":")
+            min_secs = int(min_parts[0]) * 3600 + int(min_parts[1]) * 60
+            standard_secs = int(min_secs * coefficient) if coefficient else min_secs
+
+            pct = round((worked_secs / standard_secs * 100), 1) if standard_secs > 0 else 0
+            if pct < 100 and worked_secs > 0:
+                notes.append(f"Đạt {pct}% ngày công")
+            elif pct > 100:
+                notes.append(f"Đạt {pct}% ngày công")
+
+            note_str = " | ".join(notes)
 
             rows.append({
                 "stt": stt,
@@ -114,6 +162,11 @@ def _build_rows(year, month):
                 "detail": detail,
                 "is_late": is_late,
                 "is_early": is_early,
+                "late_mins": late_mins,
+                "early_mins": early_mins,
+                "coefficient": coefficient,
+                "work_pct": pct,
+                "note": note_str,
             })
 
     return rows
@@ -163,6 +216,7 @@ class AttendanceExportExcelView(APIView):
             "STT", "Mã N.Viên", "Mã KT", "Tên", "Họ tên đầy đủ",
             "Ngày", "Thứ", "Giờ vào", "Giờ ra", "Giờ làm",
             "Chi tiết hoạt động", "Đi trễ", "Về sớm",
+            "Hệ số", "% Ngày công", "Ghi chú",
         ]
 
         header_font = Font(bold=True, color="FFFFFF", size=11)
@@ -192,6 +246,8 @@ class AttendanceExportExcelView(APIView):
                 r["worked"], r["detail"],
                 "Có" if r["is_late"] else "",
                 "Có" if r["is_early"] else "",
+                r["coefficient"], f'{r["work_pct"]}%',
+                r["note"],
             ]
             for col, v in enumerate(vals, 1):
                 cell = ws.cell(row=i, column=col, value=v)
@@ -202,7 +258,7 @@ class AttendanceExportExcelView(APIView):
                 if r["is_early"] and col == 13:
                     cell.fill = early_fill
 
-        col_widths = [6, 14, 10, 15, 25, 12, 6, 10, 10, 10, 35, 8, 8]
+        col_widths = [6, 14, 10, 15, 25, 12, 6, 10, 10, 10, 35, 8, 8, 8, 12, 30]
         for i, w in enumerate(col_widths, 1):
             ws.column_dimensions[chr(64 + i) if i <= 26 else ""].width = w
 
