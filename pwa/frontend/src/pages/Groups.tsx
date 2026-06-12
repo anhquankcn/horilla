@@ -107,6 +107,7 @@ const APP_FEATURES = [
   // ── Hệ thống ────────────────────────────────────────────────────────────
   { slug: 'service-accounts',   label: 'Service Account',  icon: 'shield',  section: 'hrm' },
   { slug: 'account-mgmt',      label: 'Quản lý TK',      icon: 'shield',  section: 'hrm' },
+  { slug: 'job-mgmt',          label: 'Vị trí & Vai trò',icon: 'layers',  section: 'hrm' },
 ]
 
 /* ── Group Card ── */

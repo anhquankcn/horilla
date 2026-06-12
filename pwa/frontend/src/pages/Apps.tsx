@@ -43,6 +43,7 @@ const features: AppFeature[] = [
   { slug: 'journey',       icon: 'layers',  label: 'Hành trình NV',   desc: 'Vòng đời nhân viên, AI hỗ trợ',            path: '/journey',        tone: 'navy',    group: 'hr' },
   { slug: 'documents',     icon: 'folder',  label: 'Tài liệu',        desc: 'Giấy tờ yêu cầu nộp, theo dõi trạng thái', path: '/documents',     tone: 'navy',    group: 'hr', always: true },
   { slug: 'account-mgmt',  icon: 'shield',  label: 'Quản lý TK',      desc: 'Cấp tài khoản KC hàng loạt theo phòng',     path: '/account-mgmt',  tone: 'navy',    group: 'hr' },
+  { slug: 'job-mgmt',      icon: 'layers',  label: 'Vị trí & Vai trò',desc: 'Quản lý vị trí và vai trò công việc',       path: '/job-mgmt',      tone: 'navy',    group: 'hr' },
 
   // ── Chấm Công ──
   { slug: 'attendance',          icon: 'clock', label: 'Chấm công',     desc: 'Check-in, lịch sử, GPS',                               path: '/attendance',                tone: 'navy', group: 'attendance', always: true },

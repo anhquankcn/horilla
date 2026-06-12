@@ -1,6 +1,7 @@
 from django.urls import path, re_path
 
 from ...api_views.base import views
+from ...api_views.base import job_mgmt_views as jmv
 
 urlpatterns = [
     path(
@@ -282,4 +283,9 @@ urlpatterns = [
     path("hrm-config/", views.HRMConfigView.as_view(), name="api-hrm-config"),
     path("my-preferences/", views.MyPreferencesView.as_view(), name="api-my-preferences"),
     # Old Open API service accounts removed — replaced by /api/m2m/accounts/
+    # ── Job Position & Role management (PWA) ──
+    path("job-mgmt/positions/", jmv.JobPositionListView.as_view(), name="api-job-mgmt-positions"),
+    path("job-mgmt/positions/<int:pk>/", jmv.JobPositionDetailView.as_view(), name="api-job-mgmt-position-detail"),
+    path("job-mgmt/roles/", jmv.JobRoleListView.as_view(), name="api-job-mgmt-roles"),
+    path("job-mgmt/roles/<int:pk>/", jmv.JobRoleDetailView.as_view(), name="api-job-mgmt-role-detail"),
 ]
