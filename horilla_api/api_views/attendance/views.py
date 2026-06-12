@@ -2685,3 +2685,129 @@ class MyMonthCalendarView(APIView):
             "today": today.isoformat(),
             "days": days,
         })
+
+
+class MyTodayShiftDetailView(APIView):
+    """Per-shift attendance detail for today — used by Home card."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from attendance.models import EmployeeShiftPlan
+        from base.models import EmployeeShift
+
+        employee = request.user.employee_get
+        tz = django_tz.get_current_timezone()
+        now_local = django_tz.localtime(django_tz.now(), tz)
+        today = now_local.date()
+
+        # --- Gather shifts assigned today ---
+        plans = list(
+            EmployeeShiftPlan.objects.filter(
+                employee=employee, date=today,
+            ).select_related("shift")
+        )
+
+        if plans:
+            shifts = [p.shift for p in plans]
+        else:
+            wi = getattr(employee, "employee_work_info", None)
+            default_shift = wi.shift_id if wi and wi.shift_id else None
+            shifts = [default_shift] if default_shift else []
+
+        day_name = [
+            "monday", "tuesday", "wednesday", "thursday", "friday",
+            "saturday", "sunday",
+        ][today.weekday()]
+
+        # --- Build per-shift rows ---
+        activities = list(
+            AttendanceActivity.objects.filter(
+                employee_id=employee, attendance_date=today,
+            ).order_by("clock_in")
+        )
+
+        shift_rows = []
+        total_worked = 0
+        total_expected = 0
+
+        for shift in shifts:
+            if not shift:
+                continue
+            schedules = list(
+                EmployeeShiftSchedule.objects.filter(
+                    shift_id=shift,
+                    day__day=day_name,
+                )
+            )
+            if not schedules:
+                continue
+
+            for sched in schedules:
+                start = sched.start_time
+                end = sched.end_time
+                coeff = float(sched.work_day_coefficient or 1)
+
+                start_sec = start.hour * 3600 + start.minute * 60
+                end_sec = end.hour * 3600 + end.minute * 60
+                if end_sec <= start_sec:
+                    end_sec += 86400
+
+                window_start = max(0, start_sec - 1800)
+                window_end = end_sec + 1800
+
+                matched = []
+                for act in activities:
+                    ci_sec = act.clock_in.hour * 3600 + act.clock_in.minute * 60
+                    if window_start <= ci_sec <= window_end:
+                        matched.append(act)
+
+                expected_min = (end_sec - start_sec) / 60
+                worked_min = 0
+                act_rows = []
+                for act in matched:
+                    ci = act.clock_in.strftime("%H:%M") if act.clock_in else None
+                    co = act.clock_out.strftime("%H:%M") if act.clock_out else None
+                    if act.clock_in and act.clock_out:
+                        ci_dt = datetime.combine(today, act.clock_in)
+                        co_dt = datetime.combine(
+                            act.clock_out_date or today, act.clock_out
+                        )
+                        mins = (co_dt - ci_dt).total_seconds() / 60
+                        worked_min += max(0, mins)
+                    elif act.clock_in and not act.clock_out:
+                        ci_dt = datetime.combine(today, act.clock_in)
+                        mins = (now_local - tz.localize(ci_dt)).total_seconds() / 60
+                        worked_min += max(0, mins)
+                    act_rows.append({"clock_in": ci, "clock_out": co})
+
+                if not matched:
+                    s = "pending"
+                elif any(a.clock_in and not a.clock_out for a in matched):
+                    s = "in_progress"
+                else:
+                    s = "completed"
+
+                total_worked += worked_min
+                total_expected += expected_min
+
+                shift_rows.append({
+                    "shift_name": shift.employee_shift,
+                    "start_time": start.strftime("%H:%M"),
+                    "end_time": end.strftime("%H:%M"),
+                    "coefficient": coeff,
+                    "activities": act_rows,
+                    "worked_minutes": round(worked_min),
+                    "expected_minutes": round(expected_min),
+                    "status": s,
+                })
+
+        progress = round(total_worked / total_expected * 100, 1) if total_expected > 0 else 0
+
+        return Response({
+            "date": today.isoformat(),
+            "shifts": shift_rows,
+            "total_worked_minutes": round(total_worked),
+            "total_expected_minutes": round(total_expected),
+            "progress_pct": min(100, progress),
+        })

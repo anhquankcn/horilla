@@ -806,6 +806,138 @@ function MonthCalendar({ compact }: { compact?: boolean }) {
   )
 }
 
+/* ── Today Shift Attendance Card ── */
+interface ShiftRow {
+  shift_name: string
+  start_time: string
+  end_time: string
+  coefficient: number
+  activities: { clock_in: string | null; clock_out: string | null }[]
+  worked_minutes: number
+  expected_minutes: number
+  status: 'pending' | 'in_progress' | 'completed'
+}
+interface TodayShiftData {
+  date: string
+  shifts: ShiftRow[]
+  total_worked_minutes: number
+  total_expected_minutes: number
+  progress_pct: number
+}
+
+const SHIFT_STATUS: Record<string, { label: string; color: string; bg: string }> = {
+  pending: { label: 'Chờ', color: '#f59e0b', bg: '#fef3c7' },
+  in_progress: { label: 'Đang làm', color: '#16a34a', bg: '#dcfce7' },
+  completed: { label: 'Xong', color: '#2563eb', bg: '#dbeafe' },
+}
+
+function TodayShiftCard({ compact }: { compact?: boolean }) {
+  const navigate = useNavigate()
+  const { data, loading } = useApi<TodayShiftData>('/api/attendance/my-today-shifts/')
+  const shifts = data?.shifts ?? []
+  const pct = data?.progress_pct ?? 0
+  const totalWorked = data?.total_worked_minutes ?? 0
+  const totalExpected = data?.total_expected_minutes ?? 0
+
+  const workedH = Math.floor(totalWorked / 60)
+  const workedM = Math.round(totalWorked % 60)
+  const expectedH = Math.floor(totalExpected / 60)
+  const expectedM = Math.round(totalExpected % 60)
+
+  const barColor = pct >= 90 ? HNH.success : pct >= 50 ? '#2563eb' : pct > 0 ? '#f59e0b' : HNH.ink4
+
+  return (
+    <div
+      onClick={() => navigate('/attendance')}
+      style={{
+        background: '#fff', borderRadius: 16,
+        padding: compact ? '12px 12px' : '14px 16px',
+        border: `1px solid ${HNH.line}`,
+        boxShadow: '0 1px 3px rgba(15,20,40,0.05)',
+        cursor: 'pointer',
+      }}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between" style={{ marginBottom: compact ? 8 : 10 }}>
+        <div className="flex items-center gap-2">
+          <Icon name="clock" size={14} color={HNH.navy} stroke={2} />
+          <span style={{ fontSize: compact ? 12 : 13, fontWeight: 700, color: HNH.ink }}>Chấm công hôm nay</span>
+        </div>
+        <span style={{ fontSize: 11, fontWeight: 700, color: barColor }}>
+          {workedH}h{workedM > 0 ? String(workedM).padStart(2, '0') : ''} / {expectedH}h{expectedM > 0 ? String(expectedM).padStart(2, '0') : ''}
+        </span>
+      </div>
+
+      {/* Progress bar */}
+      <div style={{ height: 6, borderRadius: 3, background: HNH.cream2, marginBottom: compact ? 10 : 12, overflow: 'hidden' }}>
+        <div style={{
+          height: '100%', borderRadius: 3,
+          width: `${Math.min(100, pct)}%`,
+          background: barColor,
+          transition: 'width 0.5s ease',
+        }} />
+      </div>
+
+      {loading && <div style={{ fontSize: 12, color: HNH.ink3, textAlign: 'center', padding: 12 }}>Đang tải...</div>}
+
+      {!loading && shifts.length === 0 && (
+        <div style={{ fontSize: 12, color: HNH.ink3, textAlign: 'center', padding: 8 }}>Không có ca hôm nay</div>
+      )}
+
+      {/* Per-shift rows */}
+      {!loading && shifts.map((s, i) => {
+        const st = SHIFT_STATUS[s.status] ?? SHIFT_STATUS.pending
+        const shiftPct = s.expected_minutes > 0 ? Math.min(100, Math.round(s.worked_minutes / s.expected_minutes * 100)) : 0
+        return (
+          <div key={i} style={{
+            background: HNH.cream, borderRadius: 12, padding: compact ? '8px 10px' : '10px 12px',
+            marginBottom: i < shifts.length - 1 ? 6 : 0,
+          }}>
+            {/* Shift header */}
+            <div className="flex items-center justify-between" style={{ marginBottom: 5 }}>
+              <div className="flex items-center gap-2">
+                <span style={{ fontSize: compact ? 12 : 13, fontWeight: 700, color: HNH.ink }}>{s.shift_name}</span>
+                <span style={{ fontSize: 10, color: HNH.ink3, fontWeight: 500 }}>{s.start_time}→{s.end_time}</span>
+              </div>
+              <span style={{
+                fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 6,
+                background: st.bg, color: st.color,
+              }}>{st.label}</span>
+            </div>
+
+            {/* Activities */}
+            {s.activities.map((a, j) => (
+              <div key={j} className="flex items-center gap-3" style={{ marginBottom: 2 }}>
+                <div className="flex items-center gap-1">
+                  <Icon name="arrow-r" size={9} color={HNH.success} stroke={2} />
+                  <span style={{ fontSize: 11, fontWeight: 600, color: a.clock_in ? HNH.ink : HNH.ink4 }}>{a.clock_in ?? '--:--'}</span>
+                </div>
+                <div style={{ flex: 1, height: 1, background: HNH.line, margin: '0 4px' }} />
+                <div className="flex items-center gap-1">
+                  <span style={{ fontSize: 11, fontWeight: 600, color: a.clock_out ? HNH.ink : HNH.ink4 }}>{a.clock_out ?? '--:--'}</span>
+                  <Icon name="arrow-r" size={9} color={a.clock_out ? HNH.red : HNH.ink4} stroke={2} style={{ transform: 'rotate(180deg)' }} />
+                </div>
+              </div>
+            ))}
+
+            {s.activities.length === 0 && (
+              <div style={{ fontSize: 11, color: HNH.ink4, fontStyle: 'italic' }}>Chưa chấm công</div>
+            )}
+
+            {/* Mini progress per shift */}
+            <div className="flex items-center gap-2" style={{ marginTop: 5 }}>
+              <div style={{ flex: 1, height: 4, borderRadius: 2, background: '#e2e8f0', overflow: 'hidden' }}>
+                <div style={{ height: '100%', borderRadius: 2, width: `${shiftPct}%`, background: st.color, transition: 'width 0.5s ease' }} />
+              </div>
+              <span style={{ fontSize: 9, fontWeight: 700, color: st.color, minWidth: 28, textAlign: 'right' }}>{shiftPct}%</span>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 /* ── Main ── */
 export function HomePage() {
   const navigate = useNavigate()
@@ -1240,8 +1372,8 @@ export function HomePage() {
         <MonthCalendar compact={isSmall} />
       </div>
 
-      {/* 2-column: Monthly overview + Today attendance */}
-      <div style={{ padding: `${isSmall ? 10 : 12}px ${px}px 0`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: isSmall ? 8 : 12 }}>
+      {/* Monthly overview */}
+      <div style={{ padding: `${isSmall ? 10 : 12}px ${px}px 0` }}>
         <MonthlyCard
           month={now.getMonth() + 1}
           workingDays={workingDays}
@@ -1251,50 +1383,12 @@ export function HomePage() {
           payrollMonth={payrollMonth}
           activeCount={activeCount}
           totalTasks={tasks?.total ?? 0}
-          compact={isSmall}
         />
-        <button
-          onClick={() => navigate('/attendance')}
-          className="w-full border-none cursor-pointer text-left"
-          style={{
-            background: isClockedIn
-              ? `linear-gradient(160deg, ${HNH.success} 0%, #15803d 100%)`
-              : `linear-gradient(160deg, ${HNH.navy} 0%, ${HNH.navy2} 100%)`,
-            borderRadius: 16, padding: isSmall ? '12px 12px' : '14px 16px', height: '100%', boxSizing: 'border-box',
-            boxShadow: isClockedIn ? '0 4px 12px rgba(22,163,74,0.15)' : '0 4px 12px rgba(20,43,111,0.15)',
-          }}
-        >
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isSmall ? 9 : 12 }}>
-            <div>
-              <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: 0.6, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase' }}>Hôm nay</div>
-              <div style={{ fontSize: isSmall ? 12 : 13, fontWeight: 700, color: '#fff', marginTop: 1 }}>Chấm công</div>
-            </div>
-            <div style={{
-              background: 'rgba(255,255,255,0.15)', borderRadius: 8, padding: '4px 8px',
-              fontSize: 10, fontWeight: 700, color: '#fff',
-            }}>
-              {isClockedIn ? '● Đang làm' : clockInTime ? 'Đã ra' : 'Chưa vào'}
-            </div>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: isSmall ? 5 : 6 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: isSmall ? 11 : 12, color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}>Giờ vào</span>
-              <span style={{ fontSize: isSmall ? 15 : 18, fontWeight: 800, color: clockInTime ? '#fff' : 'rgba(255,255,255,0.25)', lineHeight: 1 }}>{clockInTime ?? '--:--'}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: isSmall ? 11 : 12, color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}>Giờ ra</span>
-              <span style={{ fontSize: isSmall ? 15 : 18, fontWeight: 800, color: clockOutTime ? '#fff' : 'rgba(255,255,255,0.25)', lineHeight: 1 }}>{clockOutTime ?? '--:--'}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: isSmall ? 11 : 12, color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}>Giờ công</span>
-              <span style={{ fontSize: isSmall ? 15 : 18, fontWeight: 800, color: duration !== '00:00:00' ? '#fff' : 'rgba(255,255,255,0.25)', lineHeight: 1, fontFamily: 'monospace' }}>{duration.slice(0, 5)}</span>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: isSmall ? 11 : 12, color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}>Ca</span>
-              <span style={{ fontSize: isSmall ? 11 : 12, fontWeight: 700, color: 'rgba(255,255,255,0.85)', lineHeight: 1 }}>{employee?.shift_name ?? '—'}</span>
-            </div>
-          </div>
-        </button>
+      </div>
+
+      {/* Today shift attendance detail */}
+      <div style={{ padding: `${isSmall ? 10 : 12}px ${px}px 0` }}>
+        <TodayShiftCard compact={isSmall} />
       </div>
 
       <ClockModal
