@@ -70,20 +70,36 @@ export function EmbedPage({ system, title, icon, color, to = '/pwa' }: EmbedPage
       )}
 
       {error && (
-        <div className="flex flex-col items-center justify-center" style={{ height: '100%', gap: 12, padding: 40 }}>
-          <div style={{ fontSize: 14, fontWeight: 600, color: HNH.red, textAlign: 'center' }}>{error}</div>
-          <p style={{ fontSize: 12, color: HNH.ink3, textAlign: 'center' }}>
-            Kiểm tra cấu hình tại Quản trị HT → Tích hợp → {title}
-          </p>
+        <div className="flex flex-col items-center justify-center" style={{ height: '100%', gap: 16, padding: 40 }}>
+          <div style={{
+            width: 64, height: 64, borderRadius: 18,
+            background: HNH.red50,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            <Icon name="alert" size={30} color={HNH.red} />
+          </div>
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: HNH.ink, marginBottom: 6 }}>
+              Chưa kết nối được {title}
+            </div>
+            <div style={{ fontSize: 13, color: HNH.ink3, lineHeight: 1.5 }}>
+              Hệ thống đang bảo trì hoặc tạm gián đoạn.
+              <br />Vui lòng thử lại sau ít phút.
+            </div>
+          </div>
           <button
             onClick={() => { setError(null); setLoading(true); window.location.reload() }}
             style={{
-              padding: '10px 24px', borderRadius: 10, border: 'none',
-              background: color, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              padding: '12px 32px', borderRadius: 12, border: 'none',
+              background: color, color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+              boxShadow: `0 4px 12px ${color}30`,
             }}
           >
             Thử lại
           </button>
+          <div style={{ fontSize: 11, color: HNH.ink4, marginTop: 4 }}>
+            Nếu lỗi kéo dài, liên hệ bộ phận CNTT
+          </div>
         </div>
       )}
 
