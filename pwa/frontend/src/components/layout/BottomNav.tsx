@@ -3,14 +3,14 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { HNH } from '../../lib/theme'
 import { api } from '../../lib/api'
 
-// home | life | [apps] | [ruby] | eoffice | me
+// home | life | [apps] | [ruby] | eoffice | services
 const ALL_TABS = [
-  { id: 'home',    label: 'Trang chủ', path: '/' },
-  { id: 'life',    label: 'HNH Life',  path: '/life' },
-  { id: 'apps',    label: 'Ứng dụng',  path: '/apps' },
-  { id: 'ruby',    label: 'Ruby AI',   path: '/ruby' },
-  { id: 'eoffice', label: 'eOffice',   path: '/eoffice' },
-  { id: 'me',      label: 'Cá nhân',   path: '/profile' },
+  { id: 'home',     label: 'Trang chủ', path: '/' },
+  { id: 'life',     label: 'HNH Life',  path: '/life' },
+  { id: 'apps',     label: 'Ứng dụng',  path: '/apps' },
+  { id: 'ruby',     label: 'Ruby AI',   path: '/ruby' },
+  { id: 'eoffice',  label: 'eOffice',   path: '/eoffice' },
+  { id: 'services', label: 'Dịch vụ',   path: '/services' },
 ] as const
 
 type TabId = typeof ALL_TABS[number]['id']
@@ -32,8 +32,8 @@ function TabIcon({ name, active }: { name: string; active: boolean }) {
       )
     case 'eoffice':
       return <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="2" stroke={c} strokeWidth={sw} fill={fill}/><path d="M9 12l2 2 4-4" stroke={c} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round"/></svg>
-    case 'me':
-      return <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8.5" r="3.5" stroke={c} strokeWidth={sw} fill={fill}/><path d="M4.5 20c1.5-3.5 4.5-5 7.5-5s6 1.5 7.5 5" stroke={c} strokeWidth={sw} strokeLinecap="round" fill="none"/></svg>
+    case 'services':
+      return <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" stroke={c} strokeWidth={sw} strokeLinejoin="round" fill={fill}/></svg>
     default: return null
   }
 }

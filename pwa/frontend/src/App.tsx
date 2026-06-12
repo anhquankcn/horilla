@@ -67,6 +67,7 @@ import { ExpenseBatchesPage } from './pages/ExpenseBatches'
 import { ServiceAccountsPage } from './pages/ServiceAccounts'
 import { EOfficePage } from './pages/EOffice'
 import { ExportAttendancePage } from './pages/ExportAttendance'
+import { ServicesPage } from './pages/Services'
 
 export function App() {
   return (
@@ -133,6 +134,7 @@ export function App() {
         <Route path="/m2m" element={<ServiceAccountsPage />} />
         <Route path="/eoffice" element={<EOfficePage />} />
         <Route path="/export-attendance" element={<ExportAttendancePage />} />
+        <Route path="/services" element={<ServicesPage />} />
         <Route path="/expenses" element={<ExpenseListPage />} />
         <Route path="/expenses/submit" element={<ExpenseSubmitPage />} />
         <Route path="/expenses/approvals" element={<ExpenseApprovalsPage />} />
