@@ -915,7 +915,7 @@ function TodayShiftCard({ compact }: { compact?: boolean }) {
                 <div style={{ flex: 1, height: 1, background: HNH.line, margin: '0 4px' }} />
                 <div className="flex items-center gap-1">
                   <span style={{ fontSize: 11, fontWeight: 600, color: a.clock_out ? HNH.ink : HNH.ink4 }}>{a.clock_out ?? '--:--'}</span>
-                  <Icon name="arrow-r" size={9} color={a.clock_out ? HNH.red : HNH.ink4} stroke={2} style={{ transform: 'rotate(180deg)' }} />
+                  <span style={{ transform: 'rotate(180deg)', display: 'inline-flex' }}><Icon name="arrow-r" size={9} color={a.clock_out ? HNH.red : HNH.ink4} stroke={2} /></span>
                 </div>
               </div>
             ))}
