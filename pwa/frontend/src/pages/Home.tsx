@@ -1316,7 +1316,7 @@ export function HomePage() {
         <MonthCalendar compact={isSmall} />
       </div>
 
-      {/* 2-column: Monthly overview + eOffice tasks */}
+      {/* 2-column: Monthly overview + Today attendance */}
       <div style={{ padding: `${isSmall ? 10 : 12}px ${px}px 0`, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: isSmall ? 8 : 12 }}>
         <MonthlyCard
           month={now.getMonth() + 1}
@@ -1329,27 +1329,49 @@ export function HomePage() {
           totalTasks={tasks?.total ?? 0}
           compact={isSmall}
         />
-        <EOfficeCompactCard tasks={tasks ?? null} compact={isSmall} onClick={() => navigate(TASK_WEBVIEW)} />
+        <button
+          onClick={() => navigate('/attendance')}
+          className="w-full border-none cursor-pointer text-left"
+          style={{
+            background: isClockedIn
+              ? `linear-gradient(160deg, ${HNH.success} 0%, #15803d 100%)`
+              : `linear-gradient(160deg, ${HNH.navy} 0%, ${HNH.navy2} 100%)`,
+            borderRadius: 16, padding: isSmall ? '12px 12px' : '14px 16px', height: '100%', boxSizing: 'border-box',
+            boxShadow: isClockedIn ? '0 4px 12px rgba(22,163,74,0.15)' : '0 4px 12px rgba(20,43,111,0.15)',
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: isSmall ? 9 : 12 }}>
+            <div>
+              <div style={{ fontSize: 9.5, fontWeight: 700, letterSpacing: 0.6, color: 'rgba(255,255,255,0.6)', textTransform: 'uppercase' }}>Hôm nay</div>
+              <div style={{ fontSize: isSmall ? 12 : 13, fontWeight: 700, color: '#fff', marginTop: 1 }}>Chấm công</div>
+            </div>
+            <div style={{
+              background: 'rgba(255,255,255,0.15)', borderRadius: 8, padding: '4px 8px',
+              fontSize: 10, fontWeight: 700, color: '#fff',
+            }}>
+              {isClockedIn ? '● Đang làm' : clockInTime ? 'Đã ra' : 'Chưa vào'}
+            </div>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: isSmall ? 5 : 6 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: isSmall ? 11 : 12, color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}>Giờ vào</span>
+              <span style={{ fontSize: isSmall ? 15 : 18, fontWeight: 800, color: clockInTime ? '#fff' : 'rgba(255,255,255,0.25)', lineHeight: 1 }}>{clockInTime ?? '--:--'}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: isSmall ? 11 : 12, color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}>Giờ ra</span>
+              <span style={{ fontSize: isSmall ? 15 : 18, fontWeight: 800, color: clockOutTime ? '#fff' : 'rgba(255,255,255,0.25)', lineHeight: 1 }}>{clockOutTime ?? '--:--'}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: isSmall ? 11 : 12, color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}>Giờ công</span>
+              <span style={{ fontSize: isSmall ? 15 : 18, fontWeight: 800, color: duration !== '00:00:00' ? '#fff' : 'rgba(255,255,255,0.25)', lineHeight: 1, fontFamily: 'monospace' }}>{duration.slice(0, 5)}</span>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: isSmall ? 11 : 12, color: 'rgba(255,255,255,0.65)', fontWeight: 500 }}>Ca</span>
+              <span style={{ fontSize: isSmall ? 11 : 12, fontWeight: 700, color: 'rgba(255,255,255,0.85)', lineHeight: 1 }}>{employee?.shift_name ?? '—'}</span>
+            </div>
+          </div>
+        </button>
       </div>
-
-      {/* Recent tasks */}
-      {tasks && tasks.recent_tasks.length > 0 && (
-        <div style={{ padding: `${isSmall ? 10 : 12}px ${px}px 0` }}>
-          <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
-            <div style={{ fontSize: isSmall ? 13.5 : 15, fontWeight: 700, color: HNH.ink }}>Việc cần làm</div>
-            <button
-              onClick={() => navigate(TASK_WEBVIEW)}
-              className="border-none bg-transparent cursor-pointer"
-              style={{ fontSize: isSmall ? 11 : 12, color: HNH.red, fontWeight: 600 }}
-            >Xem tất cả →</button>
-          </div>
-          <div className="flex flex-col gap-2">
-            {tasks.recent_tasks.map(t => (
-              <TaskRow key={t.id} t={t} onClick={() => navigate('/tasks', { state: { openTaskId: t.id } })} />
-            ))}
-          </div>
-        </div>
-      )}
 
       <ClockModal
         open={clockModalOpen}
