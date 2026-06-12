@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
-import { useTablet } from '../lib/useTablet'
 import { api } from '../lib/api'
 
 type Tone = 'navy' | 'red' | 'gold' | 'success'
@@ -26,13 +25,6 @@ interface FeedItem {
   like_count: number
   my_like: boolean
   read: boolean
-}
-
-const toneBg: Record<Tone, string> = {
-  navy: HNH.navy50, red: HNH.red50, gold: '#faf1d6', success: HNH.success50,
-}
-const toneColor: Record<Tone, string> = {
-  navy: HNH.navy, red: HNH.red, gold: '#a87908', success: HNH.success,
 }
 
 const FEATURES: Feature[] = [
@@ -114,94 +106,8 @@ function FeedPreviewCard({ item, onClick }: { item: FeedItem; onClick: () => voi
   )
 }
 
-function FeatureIcon({ f, iconBox, onTap }: { f: Feature; iconBox: number; onTap: () => void }) {
-  const iconSize = iconBox >= 56 ? 26 : 20
-  const radius = iconBox >= 56 ? 18 : 14
-  return (
-    <button
-      onClick={onTap}
-      className="flex flex-col items-center gap-1.5 border-none cursor-pointer bg-transparent"
-      style={{ padding: 0, width: iconBox + 20 }}
-    >
-      <div
-        className="flex items-center justify-center"
-        style={{
-          width: iconBox, height: iconBox, borderRadius: radius,
-          background: toneBg[f.tone],
-          boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
-        }}
-      >
-        <Icon name={f.icon} size={iconSize} color={toneColor[f.tone]} stroke={2.2} />
-      </div>
-      <span
-        className="text-center"
-        style={{
-          fontSize: iconBox >= 56 ? 11.5 : 10.5,
-          fontWeight: 600, color: HNH.ink,
-          lineHeight: 1.2, maxWidth: iconBox + 16,
-          wordBreak: 'break-word',
-        }}
-      >
-        {f.label}
-      </span>
-    </button>
-  )
-}
-
-function FeatureRow({ f, onTap }: { f: Feature; onTap: () => void }) {
-  return (
-    <button
-      onClick={onTap}
-      className="flex items-center gap-3 w-full border-none cursor-pointer text-left"
-      style={{ background: '#fff', borderRadius: 14, padding: '12px 14px' }}
-    >
-      <div
-        className="flex items-center justify-center shrink-0"
-        style={{ width: 38, height: 38, borderRadius: 11, background: toneBg[f.tone] }}
-      >
-        <Icon name={f.icon} size={18} color={toneColor[f.tone]} stroke={2} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <div style={{ fontSize: 13.5, fontWeight: 700, color: HNH.ink }}>{f.label}</div>
-        <div style={{ fontSize: 11.5, color: HNH.ink3, marginTop: 1 }}>{f.desc}</div>
-      </div>
-      <Icon name="chev-r" size={14} color={HNH.ink3} stroke={1.8} />
-    </button>
-  )
-}
-
-type ViewMode = 'launcher' | 'list'
-
-function ViewToggle({ mode, onChange }: { mode: ViewMode; onChange: (m: ViewMode) => void }) {
-  return (
-    <div className="flex" style={{
-      background: 'rgba(255,255,255,0.2)', borderRadius: 10, padding: 3,
-    }}>
-      {(['launcher', 'list'] as const).map(m => (
-        <button
-          key={m}
-          onClick={() => onChange(m)}
-          className="flex items-center justify-center border-none cursor-pointer"
-          style={{
-            width: 30, height: 26, borderRadius: 7,
-            background: mode === m ? 'rgba(255,255,255,0.9)' : 'transparent',
-          }}
-        >
-          <Icon
-            name={m === 'launcher' ? 'grid' : 'doc'}
-            size={13}
-            color={mode === m ? HNH.ink : 'rgba(255,255,255,0.7)'}
-            stroke={2}
-          />
-        </button>
-      ))}
-    </div>
-  )
-}
-
 export function HNHLifePage() {
   const navigate = useNavigate()
-  const isTablet = useTablet()
   const [activeTab, setActiveTab] = useState<'news' | 'announce'>('news')
   const [allowedApps, setAllowedApps] = useState<Set<string> | null>(null)
   const [feedItems, setFeedItems] = useState<FeedItem[]>([])
@@ -217,12 +123,6 @@ export function HNHLifePage() {
       .catch(() => {})
       .finally(() => setFeedLoaded(true))
   }, [])
-
-  const visible = allowedApps
-    ? FEATURES.filter(f => allowedApps.has(f.slug))
-    : FEATURES
-
-  const iconBox = isTablet ? 56 : 48
 
   const today = new Date()
   const dayNames = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7']
