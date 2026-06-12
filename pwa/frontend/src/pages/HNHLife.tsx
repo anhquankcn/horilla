@@ -195,25 +195,78 @@ export function HNHLifePage() {
       </div>
 
       <div style={{ padding: '16px 16px 100px' }}>
-        {/* Tab: Tin tức — Facebook Page embed */}
+        {/* Tab: Tin tức */}
         {activeTab === 'news' && (
           <div>
-            <div style={{ fontSize: 12, color: HNH.ink3, marginBottom: 12, lineHeight: 1.5 }}>
+            <div style={{ fontSize: 12, color: HNH.ink3, marginBottom: 16, lineHeight: 1.5 }}>
               Tin tức mới nhất từ Hồng Ngọc Hà Travel
             </div>
-            <div style={{
-              background: '#fff', borderRadius: 16, overflow: 'hidden',
-              border: `1px solid ${HNH.line}`,
-            }}>
-              <iframe
-                src="https://www.facebook.com/plugins/page.php?href=https%3A%2F%2Fwww.facebook.com%2Fhongngocha&tabs=timeline&width=340&height=500&small_header=true&adapt_container_width=true&hide_cover=false&show_facepile=false&appId"
-                width="100%"
-                height="500"
-                style={{ border: 'none', overflow: 'hidden' }}
-                allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
-                title="Hồng Ngọc Hà Travel Facebook"
-              />
-            </div>
+
+            {/* Facebook page link card */}
+            <a
+              href="https://www.facebook.com/hongngocha"
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-4 no-underline"
+              style={{
+                background: '#fff', borderRadius: 16, padding: '16px 18px',
+                border: `1px solid ${HNH.line}`, marginBottom: 12,
+                boxShadow: '0 1px 4px rgba(0,0,0,0.04)',
+              }}
+            >
+              <div style={{
+                width: 52, height: 52, borderRadius: 14, background: '#1877F2',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="white">
+                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                </svg>
+              </div>
+              <div className="flex-1">
+                <div style={{ fontSize: 15, fontWeight: 700, color: HNH.ink }}>Hồng Ngọc Hà Travel</div>
+                <div style={{ fontSize: 12, color: HNH.ink3, marginTop: 2 }}>Xem tin tức mới nhất trên Facebook</div>
+              </div>
+              <Icon name="chev-r" size={16} color={HNH.ink3} />
+            </a>
+
+            {/* Website link */}
+            <a
+              href="https://hongngocha.com"
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-4 no-underline"
+              style={{
+                background: '#fff', borderRadius: 16, padding: '16px 18px',
+                border: `1px solid ${HNH.line}`, marginBottom: 12,
+              }}
+            >
+              <div style={{
+                width: 52, height: 52, borderRadius: 14,
+                background: `linear-gradient(135deg, ${HNH.red} 0%, ${HNH.redDark} 100%)`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+              }}>
+                <Icon name="globe" size={24} color="#fff" />
+              </div>
+              <div className="flex-1">
+                <div style={{ fontSize: 15, fontWeight: 700, color: HNH.ink }}>hongngocha.com</div>
+                <div style={{ fontSize: 12, color: HNH.ink3, marginTop: 2 }}>Website chính thức HNH Travel</div>
+              </div>
+              <Icon name="chev-r" size={16} color={HNH.ink3} />
+            </a>
+
+            {/* Tin nội bộ preview (from announcements) */}
+            {feedLoaded && feedItems.length > 0 && (
+              <div style={{ marginTop: 16 }}>
+                <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, textTransform: 'uppercase', letterSpacing: 0.4, marginBottom: 10 }}>
+                  Tin nội bộ mới nhất
+                </div>
+                <div className="flex flex-col gap-2">
+                  {feedItems.slice(0, 3).map(item => (
+                    <FeedPreviewCard key={item.id} item={item} onClick={() => navigate('/announcements')} />
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
