@@ -871,7 +871,23 @@ export function ProfileTabContent({ tab, data, canEdit }: {
   return (
     <>
       {tab === 'overview' && <OverviewTab data={data} />}
-      {tab === 'contract' && <ContractTab data={data} />}
+      {tab === 'contract' && (
+        canEdit ? <ContractTab data={data} /> : (
+          <div style={{ textAlign: 'center', padding: '40px 20px' }}>
+            <Icon name="doc" size={36} color={HNH.ink4} />
+            <div style={{ fontSize: 14, fontWeight: 700, color: HNH.ink, marginTop: 12 }}>Thông tin Hợp đồng</div>
+            <div style={{ fontSize: 13, color: HNH.ink3, marginTop: 8, lineHeight: 1.6 }}>
+              Nội dung này đang được cập nhật và sẽ hiển thị sớm.
+            </div>
+            <div style={{
+              marginTop: 16, padding: '10px 20px', borderRadius: 10,
+              background: HNH.goldSoft, display: 'inline-block',
+            }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#a87908' }}>Sắp cập nhật</span>
+            </div>
+          </div>
+        )
+      )}
       {tab === 'leave' && <LeaveTab data={data} />}
       {tab === 'account' && (
         <AppAccountTab
