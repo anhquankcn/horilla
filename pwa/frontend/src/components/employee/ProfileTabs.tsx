@@ -709,6 +709,7 @@ export function AppAccountTab({ employeeId, employeeEmail, can_edit, department 
         const otherRoles = deptUpper ? filteredRoles.filter(r => !extractDept(r.description).includes(deptUpper)) : filteredRoles
         return <>
           <ProfileSectionTitle title={`Vai trò Keycloak (${selRoles.length} đã chọn)`} />
+          <div style={{ maxHeight: 720, overflowY: 'auto', borderRadius: 14, border: `1px solid ${HNH.line}`, background: '#fff' }}>
           {deptRoles.length > 0 && (
             <>
               <div style={{ fontSize: 11, fontWeight: 700, color: HNH.navy, padding: '8px 16px 4px', textTransform: 'uppercase', letterSpacing: 0.3 }}>
@@ -764,6 +765,7 @@ export function AppAccountTab({ employeeId, employeeEmail, can_edit, department 
               </button>
             ))}
           </ProfileCard>
+          </div>
 
           <ProfileSectionTitle title={`Nhóm quyền HRM (${selGroups.length} đã chọn)`} />
           <ProfileCard>
