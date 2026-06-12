@@ -71,6 +71,7 @@ interface CalendarDay {
   leave_name: string | null
   leave_status: string | null
   shift_plan: { name: string; start: string | null; end: string | null } | null
+  shift_plans: { name: string; start: string | null; end: string | null }[]
 }
 
 interface MonthCalendarData {
@@ -659,6 +660,7 @@ function MonthCalendar({ compact }: { compact?: boolean }) {
   const now = new Date()
   const [viewYear, setViewYear] = useState(now.getFullYear())
   const [viewMonth, setViewMonth] = useState(now.getMonth() + 1)
+  const [selectedDay, setSelectedDay] = useState<MonthCalendarData['days'][0] | null>(null)
   const url = `/api/attendance/my-month-calendar/?year=${viewYear}&month=${viewMonth}`
   const { data, loading } = useApi<MonthCalendarData>(url)
 
@@ -724,7 +726,8 @@ function MonthCalendar({ compact }: { compact?: boolean }) {
             const isFuture = day.color_status === 'future'
             const statusColor = CAL_STATUS_COLORS[day.color_status]
             const isWeekend = day.weekday >= 5
-            const hasPlan = isFuture && !!day.shift_plan
+            const plans = day.shift_plans || (day.shift_plan ? [day.shift_plan] : [])
+            const hasPlan = plans.length > 0
 
             // Background and border for future days
             let cellBg: string
@@ -741,7 +744,7 @@ function MonthCalendar({ compact }: { compact?: boolean }) {
             }
 
             return (
-              <div key={day.date} style={{
+              <div key={day.date} onClick={() => plans.length > 0 && setSelectedDay(day)} style={{
                 borderRadius: compact ? 5 : 6,
                 background: cellBg,
                 border: cellBorder,
@@ -749,6 +752,7 @@ function MonthCalendar({ compact }: { compact?: boolean }) {
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
                 minHeight: compact ? 54 : 62,
                 position: 'relative', overflow: 'hidden',
+                cursor: plans.length > 0 ? 'pointer' : 'default',
               }}>
                 {!isFuture && statusColor && (
                   <div style={{
@@ -763,25 +767,24 @@ function MonthCalendar({ compact }: { compact?: boolean }) {
                   color: isToday ? HNH.navy : isWeekend ? HNH.red : HNH.ink,
                 }}>{day.day}</div>
 
-                {/* Future day with shift plan */}
-                {hasPlan && day.shift_plan && (
-                  <>
+                {/* Shift plans (future + past) */}
+                {hasPlan && plans.slice(0, 3).map((sp, si) => (
+                  <div key={si} style={{ textAlign: 'center', maxWidth: '100%', marginTop: si === 0 ? 2 : 0 }}>
                     <div style={{
-                      fontSize: compact ? 7 : 7.5, fontWeight: 700, lineHeight: 1.2, marginTop: 2,
-                      color: '#2563eb', textAlign: 'center', maxWidth: '100%',
+                      fontSize: compact ? 6.5 : 7, fontWeight: 700, lineHeight: 1.1,
+                      color: isFuture ? '#2563eb' : HNH.navy,
                       overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
                       padding: '0 1px',
                     }}>
-                      {day.shift_plan.name.length > 8 ? day.shift_plan.name.slice(0, 7) + '…' : day.shift_plan.name}
+                      {sp.name.length > 7 ? sp.name.slice(0, 6) + '…' : sp.name}
                     </div>
-                    {(day.shift_plan.start || day.shift_plan.end) && (
-                      <div style={{ fontSize: compact ? 6.5 : 7, color: '#60a5fa', lineHeight: 1.2, marginTop: 1, textAlign: 'center' }}>
-                        {day.shift_plan.start ? day.shift_plan.start.replace(':', 'h') : '?'}
-                        {day.shift_plan.end ? `→${day.shift_plan.end.replace(':', 'h')}` : ''}
+                    {sp.start && (
+                      <div style={{ fontSize: compact ? 5.5 : 6, color: isFuture ? '#60a5fa' : HNH.ink3, lineHeight: 1.1 }}>
+                        {sp.start.replace(':', 'h')}{sp.end ? `→${sp.end.replace(':', 'h')}` : ''}
                       </div>
                     )}
-                  </>
-                )}
+                  </div>
+                ))}
 
                 {/* Past day content */}
                 {!isFuture && (
@@ -833,6 +836,48 @@ function MonthCalendar({ compact }: { compact?: boolean }) {
           </div>
         ))}
       </div>
+
+      {/* Shift detail modal */}
+      {selectedDay && (selectedDay.shift_plans || []).length > 0 && (
+        <div onClick={() => setSelectedDay(null)} style={{
+          position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.5)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: '#fff', borderRadius: 18, padding: 20, width: 300, maxHeight: '70vh', overflow: 'auto',
+          }}>
+            <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
+              <span style={{ fontSize: 15, fontWeight: 700, color: HNH.ink }}>
+                {new Date(selectedDay.date).toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit' })}
+              </span>
+              <button onClick={() => setSelectedDay(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
+                <Icon name="x" size={18} color={HNH.ink3} />
+              </button>
+            </div>
+            <div style={{ fontSize: 11, color: HNH.ink3, marginBottom: 10 }}>
+              {(selectedDay.shift_plans || []).length} ca được gán
+            </div>
+            {(selectedDay.shift_plans || []).map((sp, i) => (
+              <div key={i} style={{
+                background: HNH.navy50, borderRadius: 12, padding: '10px 14px', marginBottom: 8,
+                border: `1px solid ${HNH.navy}20`,
+              }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: HNH.navy }}>{sp.name}</div>
+                {sp.start && (
+                  <div style={{ fontSize: 12, color: HNH.ink2, marginTop: 4 }}>
+                    {sp.start} → {sp.end || '?'}
+                  </div>
+                )}
+              </div>
+            ))}
+            {selectedDay.worked_hours && (
+              <div style={{ fontSize: 12, color: HNH.ink2, marginTop: 8 }}>
+                Giờ làm: <strong>{selectedDay.worked_hours}</strong>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

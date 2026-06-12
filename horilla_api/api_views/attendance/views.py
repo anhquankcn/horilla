@@ -2576,7 +2576,7 @@ class MyMonthCalendarView(APIView):
         try:
             from attendance.models import EmployeeShiftPlan
             from collections import defaultdict
-            future_start = today + timedelta(days=1)
+            future_start = start
             if future_start <= end:
                 _DAY_NAMES = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
                 plans = list(EmployeeShiftPlan.objects.filter(
@@ -2599,11 +2599,15 @@ class MyMonthCalendarView(APIView):
                     d_iso = plan.date.isoformat()
                     wday = plan.date.weekday()
                     st, et = sched_by_shift[plan.shift_id].get(wday, (None, None))
-                    shift_plan_map[d_iso] = {
+                    if d_iso not in shift_plan_map:
+                        shift_plan_map[d_iso] = []
+                    shift_plan_map[d_iso].append({
                         "name": plan.shift.employee_shift if plan.shift_id else "",
                         "start": st,
                         "end": et,
-                    }
+                    })
+                for d_iso in shift_plan_map:
+                    shift_plan_map[d_iso].sort(key=lambda x: x.get("start") or "99:99")
         except Exception:
             pass
 
@@ -2668,6 +2672,7 @@ class MyMonthCalendarView(APIView):
                 "leave_name": leave["name"] if leave else None,
                 "leave_status": leave["status"] if leave else None,
                 "shift_plan": shift_plan_map.get(d_iso) if is_future else None,
+                "shift_plans": shift_plan_map.get(d_iso, []),
             })
 
         return Response({
