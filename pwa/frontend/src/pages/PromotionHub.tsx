@@ -1,4 +1,3 @@
-import { useNavigate } from 'react-router-dom'
 import { useState, useCallback, useEffect } from 'react'
 import { api } from '../lib/api'
 import { HNH } from '../lib/theme'
@@ -1181,7 +1180,6 @@ function GuideModal({ onClose, onGo }: { onClose: () => void; onGo: (tab: Tab) =
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export function PromotionHubPage() {
-  const navigate = useNavigate()
   const [tab, setTab] = useState<Tab>('overview')
   const [overviewData, setOverviewData] = useState<{ pendingMine: PendingStep[]; stats: OverviewStats; canManage: boolean } | null>(null)
   const [overviewLoading, setOverviewLoading] = useState(true)
