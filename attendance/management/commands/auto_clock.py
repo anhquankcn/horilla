@@ -78,10 +78,21 @@ def _do_auto_clock_in(shift, sched, today, local_now, day_obj, now_time):
         if not emp.is_active:
             continue
 
-        # Skip if already clocked in today
-        existing = AttendanceActivity.objects.filter(
-            employee_id=emp, attendance_date=today
-        ).exists()
+        # Skip if already clocked in for THIS shift's time window
+        # (not any activity today — NV can have multiple shifts/day)
+        shift_start = sched.start_time
+        if shift_start:
+            from datetime import timedelta as _td
+            window_start = (datetime.combine(today, shift_start) - _td(minutes=30)).time()
+            window_end = (datetime.combine(today, shift_start) + _td(minutes=30)).time()
+            existing = AttendanceActivity.objects.filter(
+                employee_id=emp, attendance_date=today,
+                clock_in__gte=window_start, clock_in__lte=window_end,
+            ).exists()
+        else:
+            existing = AttendanceActivity.objects.filter(
+                employee_id=emp, attendance_date=today
+            ).exists()
         if existing:
             continue
 
