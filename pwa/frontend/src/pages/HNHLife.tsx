@@ -204,7 +204,7 @@ export function HNHLifePage() {
 
             {/* Facebook page link card */}
             <a
-              href="https://www.facebook.com/hongngocha"
+              href="https://www.facebook.com/HongNgocHaTravel/?locale=vi_VN"
               target="_blank"
               rel="noreferrer"
               className="flex items-center gap-4 no-underline"
