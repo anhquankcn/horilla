@@ -447,8 +447,14 @@ interface KcAccount {
   required_actions?: string[]
 }
 
-export function AppAccountTab({ employeeId, employeeEmail, can_edit }: {
-  employeeId: number; employeeEmail: string; can_edit: boolean
+function extractDept(desc?: string): string {
+  if (!desc) return ''
+  const parts = desc.split(' - ')
+  return parts.length >= 2 ? parts[parts.length - 1].trim().toUpperCase() : ''
+}
+
+export function AppAccountTab({ employeeId, employeeEmail, can_edit, department }: {
+  employeeId: number; employeeEmail: string; can_edit: boolean; department?: string
 }) {
   const [account, setAccount] = useState<KcAccount | null>(null)
   const [options, setOptions] = useState<KcOptions | null>(null)
@@ -696,11 +702,40 @@ export function AppAccountTab({ employeeId, employeeEmail, can_edit }: {
         </ProfileCard>
       )}
 
-      {!account?.exists && options && (
-        <>
+      {!account?.exists && options && (() => {
+        const deptUpper = (department || '').toUpperCase()
+        const filteredRoles = options.roles.filter(r => !r.name.startsWith('default-roles') && !r.name.startsWith('uma_') && !r.name.startsWith('offline_'))
+        const deptRoles = deptUpper ? filteredRoles.filter(r => extractDept(r.description).includes(deptUpper)) : []
+        const otherRoles = deptUpper ? filteredRoles.filter(r => !extractDept(r.description).includes(deptUpper)) : filteredRoles
+        return <>
           <ProfileSectionTitle title={`Vai trò Keycloak (${selRoles.length} đã chọn)`} />
+          {deptRoles.length > 0 && (
+            <>
+              <div style={{ fontSize: 11, fontWeight: 700, color: HNH.navy, padding: '8px 16px 4px', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+                {department} ({deptRoles.length} vai trò)
+              </div>
+              <ProfileCard>
+                {deptRoles.map((r, i, arr) => (
+                  <button key={r.id} onClick={() => toggleRole(r.id)}
+                    className="flex items-center gap-3 w-full border-none cursor-pointer text-left"
+                    style={{ padding: '11px 14px', background: 'transparent', borderBottom: i < arr.length - 1 ? `1px solid ${HNH.line}` : 'none' }}>
+                    <div style={{ width: 20, height: 20, borderRadius: 6, border: '2px solid', borderColor: selRoles.includes(r.id) ? HNH.navy : HNH.ink4, background: selRoles.includes(r.id) ? HNH.navy : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {selRoles.includes(r.id) && <svg width="10" height="10" viewBox="0 0 12 12"><path d="M2 6l3 3 5-5" stroke="#fff" strokeWidth="2.2" fill="none" strokeLinecap="round"/></svg>}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div style={{ fontSize: 13.5, fontWeight: 600, color: HNH.ink }}>{r.name}</div>
+                      {r.description && <div style={{ fontSize: 11.5, color: HNH.ink3, marginTop: 1 }}>{r.description}</div>}
+                    </div>
+                  </button>
+                ))}
+              </ProfileCard>
+            </>
+          )}
+          <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, padding: '12px 16px 4px', textTransform: 'uppercase', letterSpacing: 0.3 }}>
+            Phòng ban khác ({otherRoles.length})
+          </div>
           <ProfileCard>
-            {options.roles.filter(r => !r.name.startsWith('default-roles')).map((r, i, arr) => (
+            {otherRoles.map((r, i, arr) => (
               <button
                 key={r.id}
                 onClick={() => toggleRole(r.id)}
@@ -789,7 +824,7 @@ export function AppAccountTab({ employeeId, employeeEmail, can_edit }: {
             )}
           </button>
         </>
-      )}
+      })()}
     </div>
   )
 }
@@ -841,6 +876,7 @@ export function ProfileTabContent({ tab, data, canEdit }: {
           employeeId={p.id}
           employeeEmail={p.email}
           can_edit={canEdit}
+          department={data.work?.department || ''}
         />
       )}
     </>
