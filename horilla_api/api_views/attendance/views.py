@@ -247,6 +247,10 @@ class ClockOutAPIView(APIView):
             employee = request.user.employee_get
             local_now = django_tz.localtime(django_tz.now())
 
+            # 23:59 is reserved for auto-close (NCO). Real clock-out → 23:58
+            if local_now.hour == 23 and local_now.minute == 59:
+                local_now = local_now.replace(minute=58, second=0, microsecond=0)
+
             try:
                 attendance, error = do_clock_out(employee, datetime_override=local_now)
                 if error:
