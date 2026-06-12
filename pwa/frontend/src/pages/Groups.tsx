@@ -1010,7 +1010,7 @@ function GroupDetailModal({ groupId, onClose, isTablet }: {
             )}
 
             {/* Members section */}
-            <div style={{ padding: '8px 16px 24px' }}>
+            <div style={{ padding: '8px 16px 100px' }}>
               <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
                 <div className="flex items-center gap-2">
                   <Icon name="users" size={15} color={HNH.navy} stroke={2} />
@@ -1057,7 +1057,7 @@ function GroupDetailModal({ groupId, onClose, isTablet }: {
                           fontSize: 13, fontWeight: 700,
                         }}
                       >
-                        {(m.first_name[0] || '?').toUpperCase()}
+                        {(m.first_name?.[0] || '?').toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div style={{ fontSize: 13, fontWeight: 700, color: HNH.ink }}>
