@@ -114,19 +114,23 @@ export function AccountMgmtPage() {
       <TopBar onBack={() => navigate(-1)} title="Quản lý Tài khoản" sub="CẤP TK KEYCLOAK HÀNG LOẠT" />
 
       <div style={{ padding: '0 16px 100px' }}>
-        {/* Dept selector */}
-        <select
-          value={selectedDept || ''}
-          onChange={e => { const v = parseInt(e.target.value); if (v) loadDept(v) }}
-          style={{
-            width: '100%', padding: '12px 14px', borderRadius: 12,
-            border: `1px solid ${HNH.line}`, fontSize: 14, fontWeight: 600,
-            background: '#fff', marginBottom: 16, boxSizing: 'border-box',
-          }}
-        >
-          <option value="">Chọn phòng ban...</option>
-          {depts.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
-        </select>
+        {/* Dept selector — chip badges */}
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', marginBottom: 14, marginLeft: -16, marginRight: -16, paddingLeft: 16, paddingRight: 16 }}>
+          <div className="flex gap-2" style={{ whiteSpace: 'nowrap', paddingBottom: 4 }}>
+            {depts.map(d => (
+              <button key={d.id} onClick={() => loadDept(d.id)}
+                style={{
+                  padding: '8px 16px', borderRadius: 20, border: 'none', cursor: 'pointer',
+                  fontSize: 12, fontWeight: 700, flexShrink: 0,
+                  background: selectedDept === d.id ? HNH.navy : '#fff',
+                  color: selectedDept === d.id ? '#fff' : HNH.ink,
+                  boxShadow: selectedDept === d.id ? `0 2px 8px ${HNH.navy}30` : `0 1px 3px rgba(0,0,0,0.06)`,
+                }}>
+                {d.name}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {error && (
           <div style={{ padding: 12, borderRadius: 10, background: HNH.red50, marginBottom: 12 }}>

@@ -4,7 +4,7 @@ import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { TopBar } from '../components/layout/TopBar'
 
-interface Dept { id: number; department: string }
+interface Dept { id: number; name: string }
 interface Position { id: number; job_position: string; department_id: number; department_name: string; role_count: number; employee_count: number }
 interface Role { id: number; job_role: string; job_position_id: number; job_position_name: string; department_name: string; employee_count: number }
 interface LinkedEmp { id: number; name: string; badge_id: string; department: string }
@@ -167,12 +167,33 @@ export function JobPositionRolesPage() {
           ))}
         </div>
 
-        {/* Filter by dept */}
-        <select value={filterDept} onChange={e => setFilterDept(e.target.value ? parseInt(e.target.value) : '')}
-          style={{ width: '100%', padding: '10px 12px', borderRadius: 10, border: `1px solid ${HNH.line}`, fontSize: 13, fontWeight: 600, background: '#fff', marginBottom: 12, boxSizing: 'border-box' }}>
-          <option value="">Tất cả phòng ban</option>
-          {depts.map(d => <option key={d.id} value={d.id}>{d.department}</option>)}
-        </select>
+        {/* Filter by dept — chip badges */}
+        <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch', marginBottom: 12, marginLeft: -16, marginRight: -16, paddingLeft: 16, paddingRight: 16 }}>
+          <div className="flex gap-2" style={{ whiteSpace: 'nowrap', paddingBottom: 4 }}>
+            <button onClick={() => setFilterDept('')}
+              style={{
+                padding: '7px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
+                fontSize: 12, fontWeight: 700, flexShrink: 0,
+                background: filterDept === '' ? HNH.navy : '#fff',
+                color: filterDept === '' ? '#fff' : HNH.ink,
+                boxShadow: filterDept === '' ? `0 2px 8px ${HNH.navy}30` : `0 1px 3px rgba(0,0,0,0.06)`,
+              }}>
+              Tất cả
+            </button>
+            {depts.map(d => (
+              <button key={d.id} onClick={() => setFilterDept(filterDept === d.id ? '' : d.id)}
+                style={{
+                  padding: '7px 14px', borderRadius: 20, border: 'none', cursor: 'pointer',
+                  fontSize: 12, fontWeight: 700, flexShrink: 0,
+                  background: filterDept === d.id ? HNH.navy : '#fff',
+                  color: filterDept === d.id ? '#fff' : HNH.ink,
+                  boxShadow: filterDept === d.id ? `0 2px 8px ${HNH.navy}30` : `0 1px 3px rgba(0,0,0,0.06)`,
+                }}>
+                {d.name}
+              </button>
+            ))}
+          </div>
+        </div>
 
         {/* Success / Error */}
         {success && <div style={{ padding: 10, borderRadius: 10, background: HNH.success50, marginBottom: 10, fontSize: 12, fontWeight: 600, color: HNH.success }}>{success}</div>}
@@ -189,11 +210,22 @@ export function JobPositionRolesPage() {
         {showAddPos && (
           <div style={{ background: '#fff', borderRadius: 14, padding: 16, marginBottom: 12, border: `1px solid ${HNH.navy}30` }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: HNH.ink, marginBottom: 10 }}>Tạo Vị trí mới</div>
-            <select value={newPosDept} onChange={e => setNewPosDept(parseInt(e.target.value) || '')}
-              style={{ width: '100%', padding: '10px', borderRadius: 8, border: `1px solid ${HNH.line}`, fontSize: 13, marginBottom: 8, boxSizing: 'border-box' }}>
-              <option value="">Chọn phòng ban...</option>
-              {depts.map(d => <option key={d.id} value={d.id}>{d.department}</option>)}
-            </select>
+            <div style={{ fontSize: 11, fontWeight: 600, color: HNH.ink3, marginBottom: 6 }}>Phòng ban</div>
+            <div style={{ overflowX: 'auto', marginBottom: 10 }}>
+              <div className="flex gap-1.5" style={{ whiteSpace: 'nowrap', paddingBottom: 2 }}>
+                {depts.map(d => (
+                  <button key={d.id} onClick={() => setNewPosDept(newPosDept === d.id ? '' : d.id)}
+                    style={{
+                      padding: '6px 12px', borderRadius: 16, border: 'none', cursor: 'pointer',
+                      fontSize: 11, fontWeight: 700, flexShrink: 0,
+                      background: newPosDept === d.id ? HNH.navy : HNH.cream2,
+                      color: newPosDept === d.id ? '#fff' : HNH.ink,
+                    }}>
+                    {d.name}
+                  </button>
+                ))}
+              </div>
+            </div>
             <input value={newPosName} onChange={e => setNewPosName(e.target.value)} placeholder="Tên vị trí..."
               style={{ width: '100%', padding: '10px', borderRadius: 8, border: `1px solid ${HNH.line}`, fontSize: 13, marginBottom: 10, boxSizing: 'border-box' }} />
             <div className="flex gap-2">
@@ -208,11 +240,23 @@ export function JobPositionRolesPage() {
         {showAddRole && (
           <div style={{ background: '#fff', borderRadius: 14, padding: 16, marginBottom: 12, border: `1px solid ${HNH.navy}30` }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: HNH.ink, marginBottom: 10 }}>Tạo Vai trò mới</div>
-            <select value={newRolePos} onChange={e => setNewRolePos(parseInt(e.target.value) || '')}
-              style={{ width: '100%', padding: '10px', borderRadius: 8, border: `1px solid ${HNH.line}`, fontSize: 13, marginBottom: 8, boxSizing: 'border-box' }}>
-              <option value="">Chọn vị trí...</option>
-              {positions.map(p => <option key={p.id} value={p.id}>{p.job_position} — {p.department_name}</option>)}
-            </select>
+            <div style={{ fontSize: 11, fontWeight: 600, color: HNH.ink3, marginBottom: 6 }}>Vị trí</div>
+            <div style={{ overflowX: 'auto', marginBottom: 10 }}>
+              <div className="flex flex-wrap gap-1.5" style={{ paddingBottom: 2 }}>
+                {positions.map(p => (
+                  <button key={p.id} onClick={() => setNewRolePos(newRolePos === p.id ? '' : p.id)}
+                    style={{
+                      padding: '6px 12px', borderRadius: 16, border: 'none', cursor: 'pointer',
+                      fontSize: 11, fontWeight: 700, flexShrink: 0,
+                      background: newRolePos === p.id ? HNH.navy : HNH.cream2,
+                      color: newRolePos === p.id ? '#fff' : HNH.ink,
+                    }}>
+                    {p.job_position}
+                    <span style={{ fontSize: 9, opacity: 0.7, marginLeft: 4 }}>{p.department_name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
             <input value={newRoleName} onChange={e => setNewRoleName(e.target.value)} placeholder="Tên vai trò..."
               style={{ width: '100%', padding: '10px', borderRadius: 8, border: `1px solid ${HNH.line}`, fontSize: 13, marginBottom: 10, boxSizing: 'border-box' }} />
             <div className="flex gap-2">
