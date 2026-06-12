@@ -85,6 +85,7 @@ const features: AppFeature[] = [
   // ── Báo cáo / Dashboard ──
   { slug: 'dashboard', icon: 'grid',   label: 'Dashboard',    desc: 'Tổng quan công ty, nhân sự, chấm công',    path: '/dashboard',            tone: 'navy', group: 'reports' },
   { slug: 'dashboard', icon: 'clock',  label: 'Dashboard CC', desc: 'Nghỉ phép, đi muộn, xu hướng theo tháng',  path: '/attendance-dashboard', tone: 'red',  group: 'reports' },
+  { slug: 'export-attendance', icon: 'doc', label: 'Xuất CC Excel', desc: 'Xuất hoạt động chấm công tháng ra Excel', path: '/export-attendance', tone: 'gold', group: 'reports' },
   { slug: 'reports',   icon: 'grid',   label: 'Báo cáo',      desc: 'Chấm công, nghỉ phép, đề xuất',            path: '/reports',              tone: 'red',  group: 'reports' },
   { slug: 'pms',       icon: 'target', label: 'Hiệu suất',    desc: 'KPI, mục tiêu, Feedback 360',               path: '/pms',                  tone: 'red',  group: 'reports' },
   { slug: 'training',  icon: 'book',   label: 'Đào tạo',      desc: 'Khóa học, chứng chỉ, phát triển NV',        path: '/training',             tone: 'gold', group: 'reports' },

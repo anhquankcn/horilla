@@ -6,6 +6,7 @@ from django.urls import path
 
 from horilla_api.api_views.attendance.permission_views import AttendancePermissionCheck
 from horilla_api.api_views.attendance.views import *
+from horilla_api.api_views.attendance import export_views
 
 urlpatterns = [
     path("clock-in/", ClockInAPIView.as_view(), name="api-check-in"),
@@ -82,4 +83,7 @@ urlpatterns = [
     path("monthly-detail/", MonthlyAttendanceDetailView.as_view(), name="api-monthly-attendance-detail"),
     path("my-month-calendar/", MyMonthCalendarView.as_view(), name="api-my-month-calendar"),
     path("auto-clockout-schedule/", AutoClockoutScheduleView.as_view(), name="api-auto-clockout-schedule"),
+    # Export
+    path("export-monthly/", export_views.AttendanceExportPreviewView.as_view(), name="api-export-monthly"),
+    path("export-monthly/xlsx/", export_views.AttendanceExportExcelView.as_view(), name="api-export-monthly-xlsx"),
 ]

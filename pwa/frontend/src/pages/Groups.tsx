@@ -103,6 +103,7 @@ const APP_FEATURES = [
   { slug: 'unified-calendar',   label: 'Lịch tổng hợp',   icon: 'cal',     section: 'eoffice' },
   // ── Hành chính ───────────────────────────────────────────────────────────
   { slug: 'expenses-admin',     label: 'Chi phí HC',       icon: 'doc',     section: 'hrm' },
+  { slug: 'export-attendance',  label: 'Xuất CC Excel',    icon: 'doc',     section: 'hrm' },
   // ── Hệ thống ────────────────────────────────────────────────────────────
   { slug: 'service-accounts',   label: 'Service Account',  icon: 'shield',  section: 'hrm' },
 ]
