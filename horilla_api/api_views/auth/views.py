@@ -69,6 +69,9 @@ class OIDCLoginAPIView(APIView):
     Keycloak userinfo endpoint, map to a Horilla user, and return a SimpleJWT
     token + employee data (same format as LoginAPIView)."""
 
+    authentication_classes = []
+    permission_classes = []
+
     def post(self, request):
         kc_access_token = request.data.get("access_token", "").strip()
         if not kc_access_token:
