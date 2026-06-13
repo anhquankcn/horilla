@@ -38,18 +38,24 @@ class Command(BaseCommand):
             round_name = m.get("r", "group")
             points = ROUND_POINTS.get(round_name, 1000)
 
+            defaults = {
+                "team_a": m["a"],
+                "team_b": m["b"],
+                "team_a_code": m["ac"],
+                "team_b_code": m["bc"],
+                "round": round_name,
+                "group_name": m.get("g", ""),
+                "match_time": match_time,
+                "points_pool": points,
+            }
+            if "sa" in m and "sb" in m:
+                defaults["score_a"] = m["sa"]
+                defaults["score_b"] = m["sb"]
+                defaults["status"] = "finished"
+
             _, is_new = WCMatch.objects.update_or_create(
                 match_number=m["n"],
-                defaults={
-                    "team_a": m["a"],
-                    "team_b": m["b"],
-                    "team_a_code": m["ac"],
-                    "team_b_code": m["bc"],
-                    "round": round_name,
-                    "group_name": m.get("g", ""),
-                    "match_time": match_time,
-                    "points_pool": points,
-                },
+                defaults=defaults,
             )
             if is_new:
                 created += 1
