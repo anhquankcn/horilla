@@ -63,7 +63,7 @@ export function WC2026GamePage() {
   const [loading, setLoading] = useState(false)
   const [nickname, setNickname] = useState('')
   const [msg, setMsg] = useState('')
-  const [matchFilter, setMatchFilter] = useState('')
+  const [matchFilter, setMatchFilter] = useState('upcoming')
   const [predicting, setPredicting] = useState<number | null>(null)
   const [initError, setInitError] = useState('')
   const [batchPreds, setBatchPreds] = useState<Record<number, string>>({})
