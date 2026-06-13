@@ -19,8 +19,48 @@ export function LoginPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[100dvh]">
-        <div className="animate-pulse" style={{ fontSize: 14, color: '#999' }}>Đang tải...</div>
+      <div className="flex flex-col items-center justify-center min-h-[100dvh]" style={{
+        background: `linear-gradient(180deg, #0d1f4f 0%, ${HNH.navy} 40%, #1a3a7a 100%)`,
+      }}>
+        <style>{`
+          @keyframes hnh-fly { 0%{transform:translateX(-60px) translateY(20px) scale(0.9);opacity:0} 30%{opacity:1} 100%{transform:translateX(60px) translateY(-20px) scale(1.1);opacity:0} }
+          @keyframes hnh-fade-in { from{opacity:0;transform:scale(0.92)} to{opacity:1;transform:scale(1)} }
+          @keyframes hnh-pulse-glow { 0%,100%{box-shadow:0 0 20px rgba(212,160,23,0.15)} 50%{box-shadow:0 0 40px rgba(212,160,23,0.35)} }
+        `}</style>
+        <div style={{
+          position: 'relative', width: 220, height: 220,
+          animation: 'hnh-fade-in 0.8s ease-out',
+        }}>
+          <img src="/hnh30.jpg" alt="30 Năm HNH Travel" style={{
+            width: '100%', height: '100%', objectFit: 'contain',
+            filter: 'drop-shadow(0 8px 24px rgba(0,0,0,0.3))',
+          }} />
+          <div style={{
+            position: 'absolute', top: '15%', right: '-10%',
+            fontSize: 24, lineHeight: 1,
+            animation: 'hnh-fly 2.5s ease-in-out infinite',
+          }}>
+          </div>
+        </div>
+        <div style={{
+          marginTop: 24, color: '#fff', fontSize: 18, fontWeight: 800,
+          letterSpacing: -0.3, textAlign: 'center',
+          animation: 'hnh-fade-in 1s ease-out 0.3s both',
+        }}>
+          HNH Travel
+        </div>
+        <div style={{
+          marginTop: 6, color: 'rgba(255,255,255,0.6)', fontSize: 12, fontWeight: 600,
+          letterSpacing: 0.5, textTransform: 'uppercase',
+          animation: 'hnh-fade-in 1s ease-out 0.5s both',
+        }}>
+          Hệ thống Nhân sự
+        </div>
+        <div style={{
+          marginTop: 28, width: 36, height: 36, borderRadius: '50%',
+          border: '3px solid rgba(255,255,255,0.15)', borderTopColor: HNH.gold,
+          animation: 'spin 0.8s linear infinite, hnh-pulse-glow 2s ease-in-out infinite',
+        }} />
       </div>
     )
   }
