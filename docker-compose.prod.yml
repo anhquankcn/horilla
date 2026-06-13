@@ -57,6 +57,8 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - pgdata:/var/lib/postgresql/data
+    ports:
+      - "100.99.164.24:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U horilla -d horilla_prod"]
       interval: 5s
