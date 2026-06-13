@@ -33,7 +33,7 @@ services:
       KC_CLIENT_ID: horilla-hrm-pwa
       HORILLA_API: http://web:8000
       BFF_PORT: "3000"
-      BFF_ORIGIN: https://qlns.hnhtravel.work
+      BFF_ORIGIN: https://qlns-stage.hnhtravel.work
       PWA_PATH: /pwa/
       COOKIE_SECRET: ${BFF_COOKIE_SECRET}
       ARKON_BFF_URL: ${ARKON_BFF_URL:-https://arkonbff.hnhtravel.work}
