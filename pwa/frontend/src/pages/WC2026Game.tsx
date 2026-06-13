@@ -65,23 +65,35 @@ export function WC2026GamePage() {
 
   const loadMatches = useCallback(async () => {
     setLoading(true)
-    const url = matchFilter ? `/bff/api/wc2026/matches/?status=${matchFilter}` : '/bff/api/wc2026/matches/'
-    const r = await F(url); const d = await r.json()
-    setMatches(d.results || [])
+    try {
+      const url = matchFilter ? `/bff/api/wc2026/matches/?status=${matchFilter}` : '/bff/api/wc2026/matches/'
+      const r = await F(url)
+      if (!r.ok) { setLoading(false); return }
+      const d = await r.json()
+      setMatches(d.results || [])
+    } catch { /* ignore */ }
     setLoading(false)
   }, [matchFilter])
 
   const loadLeaderboard = useCallback(async () => {
     setLoading(true)
-    const r = await F('/bff/api/wc2026/leaderboard/'); const d = await r.json()
-    setLeaders(d.results || []); setTotalPlayers(d.total_players || 0); setMyRank(d.my_rank)
+    try {
+      const r = await F('/bff/api/wc2026/leaderboard/')
+      if (!r.ok) { setLoading(false); return }
+      const d = await r.json()
+      setLeaders(d.results || []); setTotalPlayers(d.total_players || 0); setMyRank(d.my_rank)
+    } catch { /* ignore */ }
     setLoading(false)
   }, [])
 
   const loadProfile = useCallback(async () => {
     setLoading(true)
-    const r = await F('/bff/api/wc2026/me/'); const d = await r.json()
-    setProfile(d)
+    try {
+      const r = await F('/bff/api/wc2026/me/')
+      if (!r.ok) { setLoading(false); return }
+      const d = await r.json()
+      setProfile(d)
+    } catch { /* ignore */ }
     setLoading(false)
   }, [])
 
