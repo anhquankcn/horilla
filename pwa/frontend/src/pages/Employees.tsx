@@ -14,6 +14,7 @@ import {
 interface Emp {
   id: number
   badge_id: string | null
+  employee_code: string | null
   first_name: string
   last_name: string
   email: string
@@ -107,8 +108,19 @@ function EmpCard({ emp, onTap }: { emp: Emp; onTap: () => void }) {
             <span style={{ fontSize: 9, fontWeight: 700, color: HNH.red, background: HNH.red50, borderRadius: 5, padding: '2px 6px' }}>Tạm nghỉ</span>
           )}
         </div>
-        {emp.badge_id && (
-          <div style={{ fontSize: 11.5, color: HNH.ink3, fontWeight: 600, marginTop: 1 }}>{emp.badge_id}</div>
+        {(emp.badge_id || emp.employee_code) && (
+          <div className="flex items-center gap-2" style={{ marginTop: 2 }}>
+            {emp.badge_id && (
+              <span style={{ fontSize: 10.5, fontWeight: 700, color: HNH.ink3, background: HNH.cream2, borderRadius: 5, padding: '1px 6px' }}>
+                {emp.badge_id}
+              </span>
+            )}
+            {emp.employee_code && emp.employee_code !== emp.badge_id && (
+              <span style={{ fontSize: 10.5, fontWeight: 600, color: HNH.ink4 }}>
+                {emp.employee_code}
+              </span>
+            )}
+          </div>
         )}
         {emp.job_position && (
           <div style={{ fontSize: 12.5, color: HNH.ink2, fontWeight: 500, marginTop: 3 }}>{emp.job_position}</div>
