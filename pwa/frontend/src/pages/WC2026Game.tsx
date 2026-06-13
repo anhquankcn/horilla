@@ -36,7 +36,6 @@ function codeToFlag(code: string): string {
   return String.fromCodePoint(...[...c].map(ch => 0x1F1E6 + ch.charCodeAt(0) - 65))
 }
 
-const PRED_LABELS: Record<string, string> = { win_a: 'Thắng', draw: 'Hòa', win_b: 'Thắng' }
 const ROUND_COLORS: Record<string, string> = {
   group: HNH.navy, round32: '#0891b2', round16: '#7c3aed', quarter: '#c2410c', semi: '#dc2626', final: '#d4a017',
 }
