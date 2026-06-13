@@ -66,8 +66,9 @@ function LogRow({ date, day, clockIn, clockOut, hours, validated, pending, last,
   validated: boolean; pending: boolean
   last?: boolean; onClick?: () => void
 }) {
-  const tag = validated ? 'Hợp lệ' : pending ? 'Chờ duyệt' : 'Chưa duyệt'
-  const tagTone: 'success' | 'warn' | 'ink' = validated ? 'success' : pending ? 'warn' : 'ink'
+  const isAutoValid = !validated && !pending
+  const tag = validated ? 'Hợp lệ' : pending ? 'Chờ duyệt' : 'Hợp lệ'
+  const tagTone: 'success' | 'warn' | 'ink' = validated ? 'success' : pending ? 'warn' : 'warn'
   const outColor = clockOut === '--:--' ? HNH.ink3 : HNH.ink
 
   return (
@@ -89,7 +90,17 @@ function LogRow({ date, day, clockIn, clockOut, hours, validated, pending, last,
           <span style={{ fontSize: 13.5, fontWeight: 600, color: outColor, fontVariantNumeric: 'tabular-nums' }}>{clockOut}</span>
           <span style={{ fontSize: 12.5, color: HNH.ink2, fontWeight: 700, marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' }}>{hours}</span>
         </div>
-        <div style={{ marginTop: 4 }}><Badge tone={tagTone} size="s">{tag}</Badge></div>
+        <div className="flex items-center gap-1.5" style={{ marginTop: 4 }}>
+          <Badge tone={tagTone} size="s">{tag}</Badge>
+          {isAutoValid && (
+            <div title="Giờ công vượt ngưỡng tự động — hệ thống ghi nhận hợp lệ, chờ HR xác nhận nếu cần" style={{
+              width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
+              background: HNH.warn50, border: `1px solid ${HNH.warn}40`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 10, fontWeight: 800, color: HNH.warn, cursor: 'help',
+            }}>i</div>
+          )}
+        </div>
       </div>
       <Icon name="chev-r" size={14} color={HNH.ink4} stroke={2} />
     </button>
