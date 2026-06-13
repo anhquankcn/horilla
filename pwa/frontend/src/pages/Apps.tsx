@@ -77,6 +77,7 @@ const features: AppFeature[] = [
   { slug: 'notifications',     icon: 'bell',   label: 'Thông báo',     desc: 'Xem thông báo hệ thống',                  path: '/notifications',     tone: 'navy',  group: 'support', always: true },
   { slug: 'assets',            icon: 'doc',    label: 'Tài sản',       desc: 'Quản lý tài sản, cấp phát, yêu cầu',     path: '/assets',            tone: 'navy',  group: 'support' },
   { slug: 'eoffice',           icon: 'file-text', label: 'eOffice',    desc: 'Quản lý công việc, phê duyệt, văn phòng điện tử', path: '/eoffice', tone: 'navy', group: 'support' },
+  { slug: 'wc2026',            icon: 'trophy',    label: 'World Cup 2026', desc: 'Dự đoán kết quả trận đấu WC2026',             path: '/wc2026',  tone: 'gold', group: 'support', always: true },
   { slug: 'tasks',             icon: 'check',  label: 'Công việc',     desc: 'Tasks, deadline, phân công',              path: '/tasks',             tone: 'red',   group: 'support', always: true },
   { slug: 'projects',          icon: 'folder', label: 'Dự án',         desc: 'Quản lý dự án, tiến độ',                  path: '/projects',          tone: 'gold',  group: 'support', always: true },
   { slug: 'unified-calendar',  icon: 'cal',    label: 'Lịch tổng hợp',desc: 'Nghỉ phép, deadline, tour, dự án',        path: '/unified-calendar',  tone: 'gold',  group: 'support', always: true },

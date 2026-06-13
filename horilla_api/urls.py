@@ -15,4 +15,5 @@ urlpatterns = [
     path("helpdesk/", include("horilla_api.api_urls.helpdesk.urls")),
     path("expenses/", include("horilla_api.api_urls.expenses.urls")),
     path("m2m/", include("horilla_api.api_urls.m2m.urls")),
+    path("wc2026/", include("horilla_api.api_urls.wc2026.urls")),
 ]

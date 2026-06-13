@@ -198,6 +198,26 @@ export function HNHLifePage() {
         {/* Tab: Tin tức */}
         {activeTab === 'news' && (
           <div>
+            {/* World Cup 2026 Game Card */}
+            <button
+              onClick={() => navigate('/wc2026')}
+              className="w-full border-none cursor-pointer text-left"
+              style={{
+                background: 'linear-gradient(135deg, #1a472a 0%, #2d6a4f 50%, #d4a017 100%)',
+                borderRadius: 18, padding: '16px 18px', marginBottom: 16,
+                boxShadow: '0 6px 20px rgba(45,106,79,0.25)',
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <div style={{ fontSize: 36, lineHeight: 1 }}>⚽</div>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 900, color: '#fff', letterSpacing: -0.3 }}>World Cup 2026</div>
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 2 }}>Dự đoán kết quả · Giành điểm thưởng</div>
+                </div>
+                <div style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, color: '#d4a017', background: 'rgba(255,255,255,0.15)', borderRadius: 8, padding: '4px 10px' }}>Chơi ngay</div>
+              </div>
+            </button>
+
             <div style={{ fontSize: 12, color: HNH.ink3, marginBottom: 16, lineHeight: 1.5 }}>
               Tin tức mới nhất từ Hồng Ngọc Hà Travel
             </div>
