@@ -50,7 +50,7 @@ function fmtTime(iso: string) {
   return `${dd}/${mm} ${hh}:${mi}`
 }
 
-type Tab = 'matches' | 'leaderboard' | 'profile'
+type Tab = 'matches' | 'predict' | 'leaderboard' | 'profile'
 
 export function WC2026GamePage() {
   const navigate = useNavigate()
@@ -66,6 +66,8 @@ export function WC2026GamePage() {
   const [matchFilter, setMatchFilter] = useState('')
   const [predicting, setPredicting] = useState<number | null>(null)
   const [initError, setInitError] = useState('')
+  const [batchPreds, setBatchPreds] = useState<Record<number, string>>({})
+  const [saving, setSaving] = useState(false)
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 3000) }
 
@@ -104,10 +106,20 @@ export function WC2026GamePage() {
   }, [])
 
   useEffect(() => {
-    if (tab === 'matches') loadMatches()
+    if (tab === 'matches' || tab === 'predict') loadMatches()
     else if (tab === 'leaderboard') loadLeaderboard()
     else loadProfile()
   }, [tab, loadMatches, loadLeaderboard, loadProfile])
+
+  useEffect(() => {
+    if (tab === 'predict' && matches.length > 0) {
+      const init: Record<number, string> = {}
+      for (const m of matches) {
+        if (m.my_prediction) init[m.id] = m.my_prediction
+      }
+      setBatchPreds(init)
+    }
+  }, [tab, matches])
 
   const handleRegister = async () => {
     if (!nickname.trim()) return
@@ -125,6 +137,25 @@ export function WC2026GamePage() {
     if (!r.ok) { flash(d.error || 'Lỗi'); setPredicting(null); return }
     flash(d.updated ? 'Đã đổi dự đoán' : 'Đã dự đoán')
     setPredicting(null); loadMatches()
+  }
+
+  const handleBatchSave = async () => {
+    const entries = Object.entries(batchPreds).filter(([id]) => {
+      const m = matches.find(x => x.id === Number(id))
+      return m && m.can_predict
+    })
+    if (entries.length === 0) { flash('Chưa chọn dự đoán nào'); return }
+    setSaving(true)
+    let ok = 0
+    for (const [id, pred] of entries) {
+      try {
+        const r = await J('/bff/api/wc2026/predict/', { match_id: Number(id), prediction: pred })
+        if (r.ok) ok++
+      } catch { /* skip */ }
+    }
+    flash(`Đã lưu ${ok}/${entries.length} dự đoán`)
+    setSaving(false)
+    loadMatches()
   }
 
   const HIGHLIGHT_STYLE: Record<string, { bg: string; color: string; label: string }> = {
@@ -146,6 +177,7 @@ export function WC2026GamePage() {
         <div className="flex gap-1" style={{ marginBottom: 12, background: '#fff', borderRadius: 12, padding: 3, border: `1px solid ${HNH.line}` }}>
           {([
             { id: 'matches' as Tab, label: 'Trận đấu', icon: 'target' },
+            { id: 'predict' as Tab, label: 'Dự đoán', icon: 'check' },
             { id: 'leaderboard' as Tab, label: 'BXH', icon: 'trophy' },
             { id: 'profile' as Tab, label: 'Của tôi', icon: 'users' },
           ]).map(t => (
@@ -243,6 +275,76 @@ export function WC2026GamePage() {
                 </div>
               )
             })}
+          </>
+        )}
+
+        {/* === PREDICT TAB === */}
+        {!loading && tab === 'predict' && (
+          <>
+            {matches.filter(m => m.can_predict).length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 40, color: HNH.ink3, fontSize: 13 }}>Không có trận nào để dự đoán lúc này</div>
+            ) : (
+              <>
+                <div style={{ fontSize: 11, fontWeight: 600, color: HNH.ink3, marginBottom: 10 }}>
+                  Chọn kết quả cho các trận sắp tới rồi bấm Lưu
+                </div>
+                {matches.filter(m => m.can_predict).map(m => {
+                  const rc = ROUND_COLORS[m.round] || HNH.navy
+                  const sel = batchPreds[m.id]
+                  return (
+                    <div key={m.id} style={{ background: '#fff', borderRadius: 14, marginBottom: 8, overflow: 'hidden', border: `1px solid ${sel ? HNH.navy + '30' : HNH.line}` }}>
+                      <div className="flex items-center justify-between" style={{ padding: '5px 12px', background: rc + '10' }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: rc }}>#{m.match_number} · {m.round_display} {m.group_name}</span>
+                        <span style={{ fontSize: 9, color: HNH.ink3 }}>{fmtTime(m.match_time)}</span>
+                      </div>
+                      <div className="flex items-center" style={{ padding: '8px 12px' }}>
+                        <div className="flex-1 text-center">
+                          <div style={{ fontSize: 22, lineHeight: 1 }}>{codeToFlag(m.team_a_code)}</div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: HNH.ink, marginTop: 2 }}>{m.team_a}</div>
+                        </div>
+                        <div style={{ minWidth: 50, textAlign: 'center', fontSize: 11, fontWeight: 700, color: HNH.ink3 }}>VS</div>
+                        <div className="flex-1 text-center">
+                          <div style={{ fontSize: 22, lineHeight: 1 }}>{codeToFlag(m.team_b_code)}</div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: HNH.ink, marginTop: 2 }}>{m.team_b}</div>
+                        </div>
+                      </div>
+                      <div className="flex gap-1" style={{ padding: '0 10px 10px' }}>
+                        {([
+                          { key: 'win_a', label: `${m.team_a.length > 6 ? m.team_a.slice(0,5) + '…' : m.team_a} Thắng`, color: '#2563eb' },
+                          { key: 'draw', label: 'Hòa', color: '#6b7280' },
+                          { key: 'win_b', label: `${m.team_b.length > 6 ? m.team_b.slice(0,5) + '…' : m.team_b} Thắng`, color: '#dc2626' },
+                        ]).map(opt => {
+                          const active = sel === opt.key
+                          return (
+                            <button key={opt.key}
+                              onClick={() => setBatchPreds(prev => ({ ...prev, [m.id]: opt.key }))}
+                              style={{
+                                flex: 1, padding: '8px 2px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                                fontSize: 10, fontWeight: 700,
+                                background: active ? opt.color : HNH.cream2,
+                                color: active ? '#fff' : HNH.ink,
+                                transition: 'all 0.15s',
+                              }}>
+                              {active ? '✓ ' : ''}{opt.label}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                })}
+
+                <button onClick={handleBatchSave} disabled={saving || Object.keys(batchPreds).length === 0}
+                  style={{
+                    width: '100%', padding: '14px', borderRadius: 14, border: 'none', cursor: 'pointer',
+                    background: Object.keys(batchPreds).length > 0 ? HNH.navy : HNH.ink4,
+                    color: '#fff', fontSize: 15, fontWeight: 800, marginTop: 12,
+                    boxShadow: Object.keys(batchPreds).length > 0 ? `0 4px 12px ${HNH.navy}30` : 'none',
+                  }}>
+                  {saving ? 'Đang lưu...' : `Lưu dự đoán (${Object.values(batchPreds).filter(v => v).length} trận)`}
+                </button>
+              </>
+            )}
           </>
         )}
 
