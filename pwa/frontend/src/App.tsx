@@ -140,7 +140,7 @@ export function App() {
         <Route path="/services" element={<ServicesPage />} />
         <Route path="/account-mgmt" element={<AccountMgmtPage />} />
         <Route path="/job-mgmt" element={<JobPositionRolesPage />} />
-        <Route path="/wc2026" element={<div style={{padding:40,textAlign:'center'}}><h2>WC2026 Test OK</h2><p>Route works. Component loading next.</p></div>} />
+        <Route path="/wc2026" element={<WC2026GamePage />} />
         <Route path="/expenses" element={<ExpenseListPage />} />
         <Route path="/expenses/submit" element={<ExpenseSubmitPage />} />
         <Route path="/expenses/approvals" element={<ExpenseApprovalsPage />} />

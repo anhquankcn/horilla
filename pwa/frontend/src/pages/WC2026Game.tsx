@@ -60,6 +60,7 @@ export function WC2026GamePage() {
   const [msg, setMsg] = useState('')
   const [matchFilter, setMatchFilter] = useState('')
   const [predicting, setPredicting] = useState<number | null>(null)
+  const [initError, setInitError] = useState('')
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 3000) }
 
@@ -68,10 +69,10 @@ export function WC2026GamePage() {
     try {
       const url = matchFilter ? `/bff/api/wc2026/matches/?status=${matchFilter}` : '/bff/api/wc2026/matches/'
       const r = await F(url)
-      if (!r.ok) { setLoading(false); return }
+      if (!r.ok) { setInitError(`Matches API ${r.status}`); setLoading(false); return }
       const d = await r.json()
       setMatches(d.results || [])
-    } catch { /* ignore */ }
+    } catch (e: unknown) { setInitError(String(e)) }
     setLoading(false)
   }, [matchFilter])
 
@@ -79,10 +80,10 @@ export function WC2026GamePage() {
     setLoading(true)
     try {
       const r = await F('/bff/api/wc2026/leaderboard/')
-      if (!r.ok) { setLoading(false); return }
+      if (!r.ok) { setInitError(`Leaderboard API ${r.status}`); setLoading(false); return }
       const d = await r.json()
       setLeaders(d.results || []); setTotalPlayers(d.total_players || 0); setMyRank(d.my_rank)
-    } catch { /* ignore */ }
+    } catch (e: unknown) { setInitError(String(e)) }
     setLoading(false)
   }, [])
 
@@ -90,10 +91,10 @@ export function WC2026GamePage() {
     setLoading(true)
     try {
       const r = await F('/bff/api/wc2026/me/')
-      if (!r.ok) { setLoading(false); return }
+      if (!r.ok) { setInitError(`Profile API ${r.status}`); setLoading(false); return }
       const d = await r.json()
       setProfile(d)
-    } catch { /* ignore */ }
+    } catch (e: unknown) { setInitError(String(e)) }
     setLoading(false)
   }, [])
 
@@ -133,6 +134,7 @@ export function WC2026GamePage() {
       <TopBar onBack={() => navigate(-1)} title="World Cup 2026" sub="DỰ ĐOÁN KẾT QUẢ" />
 
       <div style={{ padding: '0 16px 100px' }}>
+        {initError && <div style={{ padding: 10, borderRadius: 10, background: HNH.red50, marginBottom: 10, fontSize: 11, fontWeight: 600, color: HNH.red }}>Debug: {initError}</div>}
         {msg && <div style={{ padding: 10, borderRadius: 10, background: HNH.success50, marginBottom: 10, fontSize: 12, fontWeight: 600, color: HNH.success }}>{msg}</div>}
 
         {/* Tabs */}
