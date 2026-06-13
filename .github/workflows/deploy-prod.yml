@@ -1,0 +1,15 @@
+name: Deploy Production
+
+on:
+  push:
+    branches: [1.0]
+
+jobs:
+  deploy:
+    runs-on: self-hosted
+    timeout-minutes: 15
+    steps:
+      - name: Deploy to production
+        run: |
+          cd /opt/hnh/horilla
+          sudo bash deploy-prod.sh

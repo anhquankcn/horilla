@@ -1,0 +1,89 @@
+services:
+  web:
+    build: .
+    volumes:
+      - staticfiles:/app/staticfiles
+      - media:/app/media
+    env_file:
+      - .env.prod
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  autoclock:
+    build: .
+    entrypoint: ["python", "manage.py", "auto_clock", "--loop"]
+    command: []
+    env_file:
+      - .env.prod
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+      web:
+        condition: service_started
+
+  bff:
+    build: ./pwa/bff
+    environment:
+      KC_BASE: https://sso.hnhtravel.work/realms/HNHTravel-SGN
+      KC_CLIENT_ID: horilla-hrm-pwa
+      HORILLA_API: http://web:8000
+      BFF_PORT: "3000"
+      BFF_ORIGIN: https://qlns.hnhtravel.work
+      PWA_PATH: /pwa/
+      COOKIE_SECRET: ${BFF_COOKIE_SECRET}
+      ARKON_BFF_URL: ${ARKON_BFF_URL:-https://arkonbff.hnhtravel.work}
+      ARKON_SERVICE_TOKEN: ${ARKON_SERVICE_TOKEN}
+    restart: always
+    depends_on:
+      - web
+
+  pwa:
+    build: ./pwa/frontend
+    restart: always
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: horilla_prod
+      POSTGRES_USER: horilla
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U horilla -d horilla_prod"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: always
+
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redisdata:/data
+    restart: always
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "8090:80"
+    volumes:
+      - staticfiles:/static:ro
+      - media:/media:ro
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - web
+      - bff
+      - pwa
+    restart: always
+
+volumes:
+  staticfiles:
+  media:
+  pgdata:
+  redisdata:
