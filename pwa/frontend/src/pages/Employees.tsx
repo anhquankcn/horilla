@@ -30,6 +30,7 @@ interface Emp {
   employee_type: string | null
   date_joining: string | null
   reporting_manager: string | null
+  is_active?: boolean
 }
 
 interface Dept { id: number; name: string }
@@ -100,7 +101,12 @@ function EmpCard({ emp, onTap }: { emp: Emp; onTap: () => void }) {
     >
       <EmpAvatar emp={emp} size={48} />
       <div className="flex-1 min-w-0">
-        <div style={{ fontSize: 14.5, fontWeight: 700, color: HNH.ink }}>{fullName(emp)}</div>
+        <div className="flex items-center gap-2">
+          <span style={{ fontSize: 14.5, fontWeight: 700, color: HNH.ink }}>{fullName(emp)}</span>
+          {emp.is_active === false && (
+            <span style={{ fontSize: 9, fontWeight: 700, color: HNH.red, background: HNH.red50, borderRadius: 5, padding: '2px 6px' }}>Tạm nghỉ</span>
+          )}
+        </div>
         {emp.badge_id && (
           <div style={{ fontSize: 11.5, color: HNH.ink3, fontWeight: 600, marginTop: 1 }}>{emp.badge_id}</div>
         )}
@@ -632,7 +638,7 @@ export function EmployeesPage() {
         <div className="flex" style={{ background: '#fff', borderRadius: 12, padding: 3, border: `1px solid ${HNH.line}`, marginBottom: 10 }}>
           {([
             { id: 'assigned' as EmpTab, label: 'Phòng ban', icon: 'users' },
-            { id: 'pending' as EmpTab, label: 'Chờ / Tạm nghỉ', icon: 'clock' },
+            { id: 'pending' as EmpTab, label: 'Tạm nghỉ / Dừng', icon: 'clock' },
           ]).map(t => (
             <button
               key={t.id}

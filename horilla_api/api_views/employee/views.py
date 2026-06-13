@@ -1156,7 +1156,7 @@ class EmployeeDirectoryView(APIView):
         from django.conf import settings
 
         user = request.user
-        qs = Employee.objects.filter(is_active=True).select_related(
+        qs = Employee.objects.select_related(
             "employee_work_info",
             "employee_work_info__department_id",
             "employee_work_info__job_position_id",
@@ -1194,12 +1194,9 @@ class EmployeeDirectoryView(APIView):
 
         status = request.query_params.get("status")
         if status == "pending":
-            qs = qs.filter(
-                Q(employee_work_info__isnull=True)
-                | Q(employee_work_info__job_position_id__isnull=True)
-            )
+            qs = qs.filter(is_active=False)
         elif status == "assigned":
-            qs = qs.filter(employee_work_info__job_position_id__isnull=False)
+            qs = qs.filter(is_active=True)
 
         qs = qs.order_by("employee_first_name", "employee_last_name")
 
