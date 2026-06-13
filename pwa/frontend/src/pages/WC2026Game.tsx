@@ -67,7 +67,6 @@ export function WC2026GamePage() {
   const [predicting, setPredicting] = useState<number | null>(null)
   const [initError, setInitError] = useState('')
   const [batchPreds, setBatchPreds] = useState<Record<number, string>>({})
-  const [saving, setSaving] = useState(false)
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 3000) }
 
@@ -139,23 +138,16 @@ export function WC2026GamePage() {
     setPredicting(null); loadMatches()
   }
 
-  const handleBatchSave = async () => {
-    const entries = Object.entries(batchPreds).filter(([id]) => {
-      const m = matches.find(x => x.id === Number(id))
-      return m && m.can_predict
-    })
-    if (entries.length === 0) { flash('Chưa chọn dự đoán nào'); return }
-    setSaving(true)
-    let ok = 0
-    for (const [id, pred] of entries) {
-      try {
-        const r = await J('/bff/api/wc2026/predict/', { match_id: Number(id), prediction: pred })
-        if (r.ok) ok++
-      } catch { /* skip */ }
-    }
-    flash(`Đã lưu ${ok}/${entries.length} dự đoán`)
-    setSaving(false)
-    loadMatches()
+  const handleQuickPredict = async (matchId: number, pred: string) => {
+    setBatchPreds(prev => ({ ...prev, [matchId]: pred }))
+    try {
+      const r = await J('/bff/api/wc2026/predict/', { match_id: matchId, prediction: pred })
+      const d = await r.json()
+      if (!r.ok) { flash(d.error || 'Lỗi'); return }
+      const m = matches.find(x => x.id === matchId)
+      const label = pred === 'win_a' ? m?.team_a : pred === 'win_b' ? m?.team_b : 'Hòa'
+      flash(`✓ ${label} — đã lưu`)
+    } catch { flash('Lỗi kết nối') }
   }
 
   const HIGHLIGHT_STYLE: Record<string, { bg: string; color: string; label: string }> = {
@@ -286,7 +278,7 @@ export function WC2026GamePage() {
             ) : (
               <>
                 <div style={{ fontSize: 11, fontWeight: 600, color: HNH.ink3, marginBottom: 10 }}>
-                  Chọn kết quả cho các trận sắp tới rồi bấm Lưu
+                  Bấm chọn kết quả — tự động lưu ngay
                 </div>
                 {matches.filter(m => m.can_predict).map(m => {
                   const rc = ROUND_COLORS[m.round] || HNH.navy
@@ -317,7 +309,7 @@ export function WC2026GamePage() {
                           const active = sel === opt.key
                           return (
                             <button key={opt.key}
-                              onClick={() => setBatchPreds(prev => ({ ...prev, [m.id]: opt.key }))}
+                              onClick={() => handleQuickPredict(m.id, opt.key)}
                               style={{
                                 flex: 1, padding: '8px 2px', borderRadius: 8, border: 'none', cursor: 'pointer',
                                 fontSize: 10, fontWeight: 700,
@@ -334,15 +326,9 @@ export function WC2026GamePage() {
                   )
                 })}
 
-                <button onClick={handleBatchSave} disabled={saving || Object.keys(batchPreds).length === 0}
-                  style={{
-                    width: '100%', padding: '14px', borderRadius: 14, border: 'none', cursor: 'pointer',
-                    background: Object.keys(batchPreds).length > 0 ? HNH.navy : HNH.ink4,
-                    color: '#fff', fontSize: 15, fontWeight: 800, marginTop: 12,
-                    boxShadow: Object.keys(batchPreds).length > 0 ? `0 4px 12px ${HNH.navy}30` : 'none',
-                  }}>
-                  {saving ? 'Đang lưu...' : `Lưu dự đoán (${Object.values(batchPreds).filter(v => v).length} trận)`}
-                </button>
+                <div style={{ textAlign: 'center', padding: '12px 0', fontSize: 11, color: HNH.ink4 }}>
+                  Đã chọn {Object.values(batchPreds).filter(v => v).length} / {matches.filter(m => m.can_predict).length} trận
+                </div>
               </>
             )}
           </>
