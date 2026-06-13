@@ -42,7 +42,12 @@ const ROUND_COLORS: Record<string, string> = {
 
 function fmtTime(iso: string) {
   const d = new Date(iso)
-  return d.toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+  const vn = new Date(d.getTime() + 7 * 3600000)
+  const dd = String(vn.getUTCDate()).padStart(2, '0')
+  const mm = String(vn.getUTCMonth() + 1).padStart(2, '0')
+  const hh = String(vn.getUTCHours()).padStart(2, '0')
+  const mi = String(vn.getUTCMinutes()).padStart(2, '0')
+  return `${dd}/${mm} ${hh}:${mi}`
 }
 
 type Tab = 'matches' | 'leaderboard' | 'profile'
