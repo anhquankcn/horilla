@@ -1,0 +1,13 @@
+name: Deploy Staging
+
+on:
+  push:
+    branches: [horilla_aqv10]
+
+jobs:
+  deploy:
+    runs-on: [self-hosted, staging]
+    timeout-minutes: 15
+    steps:
+      - name: Deploy to staging
+        run: sudo /opt/horilla/deploy.sh
