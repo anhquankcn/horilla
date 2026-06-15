@@ -81,6 +81,7 @@ urlpatterns = [
     path("attendance/<int:pk>/comments/", AttendanceCommentView.as_view(), name="api-attendance-comments"),
     path("company-dashboard/", CompanyAttendanceDashboardView.as_view(), name="api-company-dashboard"),
     path("monthly-detail/", MonthlyAttendanceDetailView.as_view(), name="api-monthly-attendance-detail"),
+    path("activity-detail/", AttendanceActivityDetailView.as_view(), name="api-attendance-activity-detail"),
     path("my-month-calendar/", MyMonthCalendarView.as_view(), name="api-my-month-calendar"),
     path("auto-clockout-schedule/", AutoClockoutScheduleView.as_view(), name="api-auto-clockout-schedule"),
     path("my-today-shifts/", MyTodayShiftDetailView.as_view(), name="api-my-today-shifts"),

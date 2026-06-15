@@ -27,6 +27,7 @@ interface EmployeeRow {
   first_name: string
   last_name: string
   badge_id: string
+  accounting_code: string
   avatar: string | null
   department: string
   department_id: number | null
@@ -51,6 +52,29 @@ interface CellDetailState {
   day: number
   dh: DayHeader
   cell: DayCell
+}
+
+interface ActivityDetail {
+  id: number
+  clock_in: string | null
+  clock_out: string | null
+  clock_in_address: string
+  clock_out_address: string
+  clock_in_lat: string | null
+  clock_in_lng: string | null
+  work_location: string
+  work_location_label: string
+  out_of_office_type: string
+  out_of_office_label: string
+  out_of_office_note: string
+  clock_in_photo: string | null
+  clock_out_photo: string | null
+}
+
+interface ActivityResp {
+  office_name: string
+  office_address: string
+  activities: ActivityDetail[]
 }
 
 const STATUS_CFG: Record<string, { bg: string; border: string; text: string; label: string; dot: string }> = {
@@ -163,7 +187,8 @@ export function MonthlyAttendanceDetailPage() {
     (data?.employees ?? []).filter(e =>
       !search ||
       e.name.toLowerCase().includes(search.toLowerCase()) ||
-      (e.badge_id && e.badge_id.toLowerCase().includes(search.toLowerCase()))
+      (e.badge_id && e.badge_id.toLowerCase().includes(search.toLowerCase())) ||
+      (e.accounting_code && e.accounting_code.toLowerCase().includes(search.toLowerCase()))
     ),
   [data, search])
 
@@ -219,7 +244,7 @@ export function MonthlyAttendanceDetailPage() {
 
         {/* Search */}
         <input
-          placeholder="Tên / mã NV..."
+          placeholder="Tên / mã NV / mã KT..."
           value={search}
           onChange={e => setSearch(e.target.value)}
           style={{ fontSize: 12, border: `1px solid ${HNH.line}`, borderRadius: 8, padding: '5px 10px', width: 128, color: HNH.ink }}
@@ -610,6 +635,18 @@ function CellDetailModal({
   const cfg = STATUS_CFG[st] ?? STATUS_CFG['']
   const dateStr = `${String(day).padStart(2,'0')}/${String(month).padStart(2,'0')}/${year}`
 
+  const [actResp, setActResp] = useState<ActivityResp | null>(null)
+  const [loadingActs, setLoadingActs] = useState(false)
+  useEffect(() => {
+    if (st !== 'present' && st !== 'late' && st !== 'absent') return
+    const dISO = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+    setLoadingActs(true)
+    api.get<ActivityResp>(`/api/attendance/activity-detail/?employee_id=${emp.id}&date=${dISO}`)
+      .then(setActResp)
+      .catch(() => setActResp(null))
+      .finally(() => setLoadingActs(false))
+  }, [emp.id, day, month, year, st])
+
   return (
     <div
       style={{
@@ -640,6 +677,7 @@ function CellDetailModal({
             <div style={{ fontSize: 14, fontWeight: 700, color: HNH.ink }}>{emp.name}</div>
             <div style={{ fontSize: 11, color: HNH.ink3, marginTop: 1 }}>
               {emp.badge_id && <span style={{ color: HNH.navy, fontWeight: 600 }}>{emp.badge_id} · </span>}
+              {emp.accounting_code && <span style={{ color: HNH.ink3, fontWeight: 600 }}>KT {emp.accounting_code} · </span>}
               {dh.weekday} {dateStr}
               {cell.is_weekend && <span style={{ marginLeft: 6, color: '#d97706', fontWeight: 600 }}>· Cuối tuần</span>}
             </div>
@@ -677,6 +715,22 @@ function CellDetailModal({
           )}
         </div>
 
+        {/* Hoạt động chấm công — GPS, văn phòng, lý do ngoài VP, ảnh selfie */}
+        {(st === 'present' || st === 'late' || st === 'absent') && (
+          <div style={{ marginTop: 16 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: HNH.ink2, marginBottom: 8 }}>
+              Hoạt động chấm công
+            </div>
+            {loadingActs && <div style={{ fontSize: 12, color: HNH.ink3 }}>Đang tải…</div>}
+            {!loadingActs && (!actResp || actResp.activities.length === 0) && (
+              <div style={{ fontSize: 12, color: HNH.ink3 }}>Không có hoạt động chấm công.</div>
+            )}
+            {!loadingActs && actResp && actResp.activities.map(act => (
+              <ActivityCard key={act.id} act={act} office={actResp} />
+            ))}
+          </div>
+        )}
+
         <button
           onClick={onClose}
           style={{
@@ -703,6 +757,56 @@ function DetailRow({ icon, label, value, valueColor }: {
       <span style={{ fontSize: 16 }}>{icon}</span>
       <span style={{ flex: 1, fontSize: 13, color: HNH.ink2 }}>{label}</span>
       <span style={{ fontSize: 13, fontWeight: 700, color: valueColor ?? HNH.ink }}>{value}</span>
+    </div>
+  )
+}
+
+function InfoLine({ icon, text }: { icon: string; text: string }) {
+  return (
+    <div style={{ display: 'flex', gap: 8, fontSize: 12, color: HNH.ink2, marginTop: 3, lineHeight: 1.4 }}>
+      <span>{icon}</span><span style={{ flex: 1 }}>{text}</span>
+    </div>
+  )
+}
+
+function ActivityCard({ act, office }: { act: ActivityDetail; office: ActivityResp }) {
+  const isOut = act.work_location === 'out_of_office'
+  return (
+    <div style={{ border: `1px solid ${HNH.line}`, borderRadius: 12, padding: '10px 12px', marginBottom: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+        <span style={{ fontSize: 13, fontWeight: 700, color: HNH.ink }}>
+          {act.clock_in ?? '—'} <span style={{ color: HNH.ink3, fontWeight: 400 }}>→</span> {act.clock_out ?? '?'}
+        </span>
+        {act.work_location_label && (
+          <span style={{
+            marginLeft: 'auto', fontSize: 10, fontWeight: 700, borderRadius: 6, padding: '2px 8px',
+            background: isOut ? '#fef3c7' : '#dcfce7',
+            color: isOut ? '#92400e' : '#15803d',
+          }}>{act.work_location_label}</span>
+        )}
+      </div>
+      {act.clock_in_address && <InfoLine icon="📍" text={act.clock_in_address} />}
+      {(office.office_name || office.office_address) && (
+        <InfoLine icon="🏢" text={[office.office_name, office.office_address].filter(Boolean).join(' · ')} />
+      )}
+      {isOut && act.out_of_office_label && (
+        <InfoLine
+          icon="🚩"
+          text={act.out_of_office_note
+            ? `${act.out_of_office_label}: ${act.out_of_office_note}`
+            : act.out_of_office_label}
+        />
+      )}
+      {(act.clock_in_photo || act.clock_out_photo) && (
+        <div style={{ display: 'flex', gap: 14, marginTop: 6 }}>
+          {act.clock_in_photo && (
+            <a href={act.clock_in_photo} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: HNH.navy, fontWeight: 600 }}>🖼️ Ảnh vào</a>
+          )}
+          {act.clock_out_photo && (
+            <a href={act.clock_out_photo} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: HNH.navy, fontWeight: 600 }}>🖼️ Ảnh ra</a>
+          )}
+        </div>
+      )}
     </div>
   )
 }

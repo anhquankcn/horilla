@@ -2246,6 +2246,7 @@ class MonthlyAttendanceDetailView(APIView):
                 "first_name": emp.employee_first_name or "",
                 "last_name": emp.employee_last_name or "",
                 "badge_id": emp.badge_id or "",
+                "accounting_code": getattr(emp, "accounting_code", "") or "",
                 "avatar": avatar,
                 "department": dept_name,
                 "department_id": department_id,
@@ -2260,6 +2261,123 @@ class MonthlyAttendanceDetailView(APIView):
             "month": month,
             "days": days_header,
             "employees": employees_data,
+        })
+
+
+class AttendanceActivityDetailView(APIView):
+    """Per-activity clock-in/out detail for one employee on one date (HR view).
+
+    Returns each punch with GPS address, office address, in/out-of-office,
+    reason + note, and selfie photo URLs. Same gate as MonthlyAttendanceDetail
+    (attendance.view_attendance) since it exposes other employees' GPS + photos.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    _WORK_LOCATION_VI = {
+        "in_office": "Trong văn phòng",
+        "out_of_office": "Ngoài văn phòng",
+    }
+    _OUT_TYPE_VI = {
+        "remote": "Làm việc từ xa",
+        "client": "Tại khách hàng",
+        "business_trip": "Công tác",
+        "event": "Sự kiện",
+        "other": "Khác",
+    }
+
+    def get(self, request):
+        from attendance.models import AttendanceActivity
+        from employee.models import Employee
+
+        if not request.user.has_perm("attendance.view_attendance"):
+            return Response({"error": "Không có quyền"}, status=403)
+
+        employee_id = request.GET.get("employee_id")
+        date_str = request.GET.get("date", "")
+        if not employee_id:
+            return Response({"error": "Thiếu employee_id"}, status=400)
+        try:
+            y, m, d = map(int, date_str.split("-"))
+            the_date = date(y, m, d)
+        except (ValueError, AttributeError):
+            return Response({"error": "date không hợp lệ (YYYY-MM-DD)"}, status=400)
+
+        emp = (
+            Employee.objects.filter(id=employee_id)
+            .select_related("employee_work_info__company_id")
+            .first()
+        )
+        if not emp:
+            return Response({"error": "Không tìm thấy nhân viên"}, status=404)
+
+        # Office address + geofence from the employee's company
+        office_address = ""
+        office_lat = office_lng = None
+        company = None
+        try:
+            wi = emp.employee_work_info
+            company = wi.company_id if wi else None
+        except Exception:
+            company = None
+        if company is not None:
+            office_address = (getattr(company, "address", "") or "").strip()
+            try:
+                from geofencing.models import GeoFencing
+
+                gf = GeoFencing.objects.filter(company_id=company).first()
+                if gf:
+                    office_lat = gf.latitude
+                    office_lng = gf.longitude
+            except Exception:
+                pass
+
+        def photo_url(f):
+            try:
+                return request.build_absolute_uri(f.url) if f else None
+            except Exception:
+                return None
+
+        def hhmm(t):
+            try:
+                return t.strftime("%H:%M") if t else None
+            except Exception:
+                return None
+
+        acts = AttendanceActivity.objects.filter(
+            employee_id=emp, attendance_date=the_date
+        ).order_by("clock_in", "in_datetime", "id")
+
+        activities = []
+        for a in acts:
+            wl = a.work_location or ""
+            oot = a.out_of_office_type or ""
+            activities.append({
+                "id": a.id,
+                "clock_in": hhmm(a.clock_in),
+                "clock_out": hhmm(a.clock_out),
+                "clock_in_address": a.clock_in_address or "",
+                "clock_out_address": a.clock_out_address or "",
+                "clock_in_lat": str(a.clock_in_latitude) if a.clock_in_latitude is not None else None,
+                "clock_in_lng": str(a.clock_in_longitude) if a.clock_in_longitude is not None else None,
+                "work_location": wl,
+                "work_location_label": self._WORK_LOCATION_VI.get(wl, ""),
+                "out_of_office_type": oot,
+                "out_of_office_label": self._OUT_TYPE_VI.get(oot, ""),
+                "out_of_office_note": a.out_of_office_note or "",
+                "clock_in_photo": photo_url(a.clock_in_photo),
+                "clock_out_photo": photo_url(a.clock_out_photo),
+            })
+
+        return Response({
+            "employee_id": emp.id,
+            "employee_name": emp.get_full_name(),
+            "date": the_date.isoformat(),
+            "office_name": getattr(company, "company", "") if company else "",
+            "office_address": office_address,
+            "office_lat": office_lat,
+            "office_lng": office_lng,
+            "activities": activities,
         })
 
 
