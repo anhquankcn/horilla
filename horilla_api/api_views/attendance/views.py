@@ -2953,40 +2953,70 @@ class MyTodayShiftDetailView(APIView):
                 if end_sec <= start_sec:
                     end_sec += 86400
 
-                window_start = max(0, start_sec - 1800)
-                window_end = end_sec + 1800
-
-                matched = []
-                for act in activities:
-                    ci_sec = act.clock_in.hour * 3600 + act.clock_in.minute * 60
-                    if window_start <= ci_sec <= window_end:
-                        matched.append(act)
-
                 expected_min = (end_sec - start_sec) / 60
+                window_one = max(0, end_sec - start_sec)
+                mode = getattr(sched, "check_mode", "both")
+
+                def _csec(t):
+                    return t.hour * 3600 + t.minute * 60 if t else None
+
+                def _hhmm(sec):
+                    sec = int(sec) % 86400
+                    return f"{sec // 3600:02d}:{(sec % 3600) // 60:02d}"
+
                 worked_min = 0
                 act_rows = []
-                for act in matched:
-                    ci = act.clock_in.strftime("%H:%M") if act.clock_in else None
-                    co = act.clock_out.strftime("%H:%M") if act.clock_out else None
-                    if act.clock_in and act.clock_out:
-                        ci_dt = datetime.combine(today, act.clock_in)
-                        co_dt = datetime.combine(
-                            act.clock_out_date or today, act.clock_out
-                        )
-                        mins = (co_dt - ci_dt).total_seconds() / 60
-                        worked_min += max(0, mins)
-                    elif act.clock_in and not act.clock_out:
-                        ci_dt = datetime.combine(today, act.clock_in)
-                        mins = (now_local - tz.localize(ci_dt)).total_seconds() / 60
-                        worked_min += max(0, mins)
-                    act_rows.append({"clock_in": ci, "clock_out": co})
+                s = "pending"
 
-                if not matched:
-                    s = "pending"
-                elif any(a.clock_in and not a.clock_out for a in matched):
-                    s = "in_progress"
+                if mode == "clock_in_only":
+                    # Ca chỉ chấm vào: coi giờ ra = hết ca (cap), không cần clock-out
+                    ins = sorted(
+                        _csec(a.clock_in) for a in activities
+                        if a.clock_in and start_sec - 1800 <= _csec(a.clock_in) <= end_sec
+                    )
+                    if ins:
+                        worked_min = min(window_one, max(0, end_sec - max(ins[0], start_sec))) / 60
+                        act_rows = [{"clock_in": _hhmm(ins[0]), "clock_out": end.strftime("%H:%M")}]
+                        s = "completed"
+                elif mode == "clock_out_only":
+                    # Ca chỉ chấm ra: coi giờ vào = đầu ca (cap), không cần clock-in
+                    outs = sorted(
+                        _csec(a.clock_out) for a in activities
+                        if a.clock_out and start_sec <= _csec(a.clock_out) <= end_sec + 1800
+                    )
+                    if outs:
+                        worked_min = min(window_one, max(0, min(outs[-1], end_sec) - start_sec)) / 60
+                        act_rows = [{"clock_in": start.strftime("%H:%M"), "clock_out": _hhmm(outs[-1])}]
+                        s = "completed"
                 else:
-                    s = "completed"
+                    window_start = max(0, start_sec - 1800)
+                    window_end = end_sec + 1800
+                    matched = []
+                    for act in activities:
+                        ci_sec = act.clock_in.hour * 3600 + act.clock_in.minute * 60
+                        if window_start <= ci_sec <= window_end:
+                            matched.append(act)
+                    for act in matched:
+                        ci = act.clock_in.strftime("%H:%M") if act.clock_in else None
+                        co = act.clock_out.strftime("%H:%M") if act.clock_out else None
+                        if act.clock_in and act.clock_out:
+                            ci_dt = datetime.combine(today, act.clock_in)
+                            co_dt = datetime.combine(
+                                act.clock_out_date or today, act.clock_out
+                            )
+                            mins = (co_dt - ci_dt).total_seconds() / 60
+                            worked_min += max(0, mins)
+                        elif act.clock_in and not act.clock_out:
+                            ci_dt = datetime.combine(today, act.clock_in)
+                            mins = (now_local - tz.localize(ci_dt)).total_seconds() / 60
+                            worked_min += max(0, mins)
+                        act_rows.append({"clock_in": ci, "clock_out": co})
+                    if not matched:
+                        s = "pending"
+                    elif any(a.clock_in and not a.clock_out for a in matched):
+                        s = "in_progress"
+                    else:
+                        s = "completed"
 
                 total_worked += worked_min
                 total_expected += expected_min
