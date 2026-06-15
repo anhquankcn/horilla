@@ -27,6 +27,7 @@ interface Shift {
     require_gps_on_auto_clockout: boolean
     work_day_coefficient: number
     minimum_working_hour: string
+    check_mode: 'both' | 'clock_in_only' | 'clock_out_only'
   }[]
 }
 
@@ -302,6 +303,42 @@ function ShiftCard({ shift, depts, isCnb, onToggleDept, onRefresh }: {
                           fontSize: 13, fontWeight: 700, padding: '2px 10px', borderRadius: 6,
                           background: HNH.navy50, color: HNH.navy,
                         }}>{sch.work_day_coefficient}</span>
+                      )}
+                    </div>
+                    {/* Kiểu chấm công (ca một chiều) */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span style={{ fontSize: 12, color: HNH.ink2 }}>Kiểu chấm công</span>
+                        <span style={{ fontSize: 10, color: HNH.ink3, marginLeft: 4 }}>
+                          (ca một chiều)
+                        </span>
+                      </div>
+                      {isCnb ? (
+                        <select
+                          value={sch.check_mode}
+                          onChange={async e => {
+                            await fetch(`/bff/api/employee/shift-mgmt/schedule/${sch.id}/auto/`, {
+                              method: 'PATCH', credentials: 'include',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({ check_mode: e.target.value }),
+                            })
+                            onRefresh()
+                          }}
+                          style={{
+                            padding: '4px 8px', borderRadius: 8, fontSize: 13, fontWeight: 700,
+                            border: `1px solid ${HNH.line}`, background: '#fff', color: HNH.navy,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <option value="both">Cả vào & ra</option>
+                          <option value="clock_in_only">Chỉ cần Clock-in</option>
+                          <option value="clock_out_only">Chỉ cần Clock-out</option>
+                        </select>
+                      ) : (
+                        <span style={{
+                          fontSize: 12, fontWeight: 700, padding: '2px 10px', borderRadius: 6,
+                          background: HNH.navy50, color: HNH.navy,
+                        }}>{sch.check_mode === 'clock_in_only' ? 'Chỉ vào' : sch.check_mode === 'clock_out_only' ? 'Chỉ ra' : 'Vào & ra'}</span>
                       )}
                     </div>
                     {sw('Tự động Clock In', 'is_auto_punch_in_enabled', sch.is_auto_punch_in_enabled, sch.auto_punch_in_time || sch.start_time || undefined)}
