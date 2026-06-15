@@ -3030,7 +3030,29 @@ class MyTodayShiftDetailView(APIView):
                     "worked_minutes": round(worked_min),
                     "expected_minutes": round(expected_min),
                     "status": s,
+                    "check_mode": mode,
                 })
+
+        # Gộp ca một chiều: NV có cả clock_in_only + clock_out_only → 1 dòng,
+        # chỉ hiện giờ check-in (ca vào) → giờ check-out (ca ra), bỏ tên ca.
+        in_only = [r for r in shift_rows if r.get("check_mode") == "clock_in_only"]
+        out_only = [r for r in shift_rows if r.get("check_mode") == "clock_out_only"]
+        if in_only and out_only:
+            others = [r for r in shift_rows if r.get("check_mode") not in ("clock_in_only", "clock_out_only")]
+            ci = next((a["clock_in"] for r in in_only for a in r["activities"] if a.get("clock_in")), None)
+            co = next((a["clock_out"] for r in reversed(out_only) for a in reversed(r["activities"]) if a.get("clock_out")), None)
+            combined = {
+                "shift_name": "",
+                "start_time": in_only[0]["start_time"],
+                "end_time": out_only[-1]["end_time"],
+                "coefficient": 1,
+                "activities": [{"clock_in": ci, "clock_out": co}],
+                "worked_minutes": sum(r["worked_minutes"] for r in in_only + out_only),
+                "expected_minutes": sum(r["expected_minutes"] for r in in_only + out_only),
+                "status": "completed" if (ci and co) else ("in_progress" if (ci or co) else "pending"),
+                "check_mode": "combined",
+            }
+            shift_rows = others + [combined]
 
         progress = round(total_worked / total_expected * 100, 1) if total_expected > 0 else 0
 

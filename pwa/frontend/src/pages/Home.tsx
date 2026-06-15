@@ -937,8 +937,12 @@ function TodayShiftCard({ compact }: { compact?: boolean }) {
                   }}>
                     <div className="flex items-center justify-between" style={{ marginBottom: 5 }}>
                       <div className="flex items-center gap-2">
-                        <span style={{ fontSize: compact ? 12 : 13, fontWeight: 700, color: HNH.ink }}>{s.shift_name}</span>
-                        <span style={{ fontSize: 10, color: HNH.ink3, fontWeight: 500 }}>{s.start_time}→{s.end_time}</span>
+                        {s.shift_name
+                          ? <>
+                              <span style={{ fontSize: compact ? 12 : 13, fontWeight: 700, color: HNH.ink }}>{s.shift_name}</span>
+                              <span style={{ fontSize: 10, color: HNH.ink3, fontWeight: 500 }}>{s.start_time}→{s.end_time}</span>
+                            </>
+                          : <span style={{ fontSize: compact ? 12 : 13, fontWeight: 700, color: HNH.ink }}>Trong ngày</span>}
                       </div>
                       <span style={{
                         fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 6,
