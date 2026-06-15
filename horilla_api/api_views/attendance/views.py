@@ -2214,7 +2214,9 @@ class MonthlyAttendanceDetailView(APIView):
             avatar = None
             try:
                 if emp.employee_profile:
-                    avatar = request.build_absolute_uri(emp.employee_profile.url)
+                    # Root-relative /media/ URL (served by nginx at the public origin).
+                    # build_absolute_uri would yield internal http://web:8000.
+                    avatar = emp.employee_profile.url
             except Exception:
                 pass
 
@@ -2333,8 +2335,11 @@ class AttendanceActivityDetailView(APIView):
                 pass
 
         def photo_url(f):
+            # Return a root-relative /media/ URL so the browser loads it from the
+            # public origin via nginx. build_absolute_uri() would yield the internal
+            # http://web:8000 host (BFF forwards Host: web:8000), unreachable by the client.
             try:
-                return request.build_absolute_uri(f.url) if f else None
+                return f.url if f else None
             except Exception:
                 return None
 
