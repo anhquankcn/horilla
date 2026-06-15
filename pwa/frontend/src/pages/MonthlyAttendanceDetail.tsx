@@ -771,6 +771,7 @@ function InfoLine({ icon, text }: { icon: string; text: string }) {
 
 function ActivityCard({ act, office }: { act: ActivityDetail; office: ActivityResp }) {
   const isOut = act.work_location === 'out_of_office'
+  const [zoom, setZoom] = useState<string | null>(null)
   return (
     <div style={{ border: `1px solid ${HNH.line}`, borderRadius: 12, padding: '10px 12px', marginBottom: 8 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
@@ -798,15 +799,75 @@ function ActivityCard({ act, office }: { act: ActivityDetail; office: ActivityRe
         />
       )}
       {(act.clock_in_photo || act.clock_out_photo) && (
-        <div style={{ display: 'flex', gap: 14, marginTop: 6 }}>
+        <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
           {act.clock_in_photo && (
-            <a href={act.clock_in_photo} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: HNH.navy, fontWeight: 600 }}>🖼️ Ảnh vào</a>
+            <PhotoThumb url={act.clock_in_photo} label="Ảnh vào" onOpen={() => setZoom(act.clock_in_photo)} />
           )}
           {act.clock_out_photo && (
-            <a href={act.clock_out_photo} target="_blank" rel="noreferrer" style={{ fontSize: 12, color: HNH.navy, fontWeight: 600 }}>🖼️ Ảnh ra</a>
+            <PhotoThumb url={act.clock_out_photo} label="Ảnh ra" onOpen={() => setZoom(act.clock_out_photo)} />
           )}
         </div>
       )}
+      {zoom && <PhotoLightbox url={zoom} onClose={() => setZoom(null)} />}
+    </div>
+  )
+}
+
+function PhotoThumb({ url, label, onOpen }: { url: string; label: string; onOpen: () => void }) {
+  const [err, setErr] = useState(false)
+  return (
+    <button
+      onClick={onOpen}
+      style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', textAlign: 'center' }}
+    >
+      {err ? (
+        <div style={{
+          width: 60, height: 60, borderRadius: 10, background: '#f1f5f9',
+          border: `1px solid ${HNH.line}`, display: 'flex', alignItems: 'center',
+          justifyContent: 'center', fontSize: 11, color: HNH.ink3,
+        }}>Lỗi ảnh</div>
+      ) : (
+        <img
+          src={url}
+          alt={label}
+          loading="lazy"
+          onError={() => setErr(true)}
+          style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 10, display: 'block', border: `1px solid ${HNH.line}` }}
+        />
+      )}
+      <span style={{ fontSize: 10, color: HNH.ink3, marginTop: 3, display: 'block' }}>{label}</span>
+    </button>
+  )
+}
+
+function PhotoLightbox({ url, onClose }: { url: string; onClose: () => void }) {
+  const [err, setErr] = useState(false)
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 300,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
+      }}
+    >
+      {err ? (
+        <div style={{ color: '#fff', fontSize: 14 }}>Không tải được ảnh</div>
+      ) : (
+        <img
+          src={url}
+          onError={() => setErr(true)}
+          onClick={e => e.stopPropagation()}
+          style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 12, objectFit: 'contain' }}
+        />
+      )}
+      <button
+        onClick={onClose}
+        style={{
+          position: 'fixed', top: 'max(16px, env(safe-area-inset-top))', right: 16,
+          width: 40, height: 40, borderRadius: 20, border: 'none',
+          background: 'rgba(255,255,255,0.18)', color: '#fff', fontSize: 22, cursor: 'pointer',
+        }}
+      >×</button>
     </div>
   )
 }
