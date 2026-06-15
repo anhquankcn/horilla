@@ -76,6 +76,63 @@ def _is_clocked_in(employee):
     return activity is not None and activity.clock_out_date is None
 
 
+def _parse_clock_device(request):
+    """Resolve (kind, label, user_agent) of the clocking device. The PWA sends
+    client_ua + device_kind in the body because the BFF proxy can mask the real
+    HTTP_USER_AGENT. kind in {mobile, tablet, desktop, unknown}."""
+    ua = (request.data.get("client_ua") or request.META.get("HTTP_USER_AGENT") or "")[:1024]
+    kind = (request.data.get("device_kind") or "").strip().lower()
+    u = ua.lower()
+    if kind not in ("mobile", "tablet", "desktop"):
+        if "ipad" in u or "tablet" in u:
+            kind = "tablet"
+        elif "mobi" in u or "android" in u or "iphone" in u:
+            kind = "mobile"
+        elif "windows" in u or "macintosh" in u or "x11" in u or "linux" in u:
+            kind = "desktop"
+        else:
+            kind = "unknown"
+
+    def _pick(pairs):
+        for key, name in pairs:
+            if key in u:
+                return name
+        return ""
+
+    browser = _pick([("edg", "Edge"), ("samsungbrowser", "Samsung"), ("crios", "Chrome"),
+                     ("chrome", "Chrome"), ("fxios", "Firefox"), ("firefox", "Firefox"),
+                     ("safari", "Safari")]) or "Browser"
+    os_name = _pick([("android", "Android"), ("iphone", "iOS"), ("ipad", "iPadOS"),
+                     ("windows", "Windows"), ("mac os", "macOS"), ("macintosh", "macOS"),
+                     ("linux", "Linux")])
+    label = " · ".join([p for p in [browser, os_name, kind] if p])[:120]
+    return kind, label, ua
+
+
+def _clock_device_guard(request):
+    """Block a clock punch on laptop/desktop and when no camera photo is attached.
+    Returns (error_response_or_None, kind, label, user_agent)."""
+    kind, label, ua = _parse_clock_device(request)
+    if kind == "desktop":
+        return (
+            Response(
+                {"error": "Chấm công không được thực hiện trên máy tính/laptop. Vui lòng dùng điện thoại."},
+                status=403,
+            ),
+            kind, label, ua,
+        )
+    photo = request.data.get("photo")
+    if not (isinstance(photo, str) and photo.startswith("data:image")):
+        return (
+            Response(
+                {"error": "Bắt buộc bật camera và chụp ảnh để chấm công."},
+                status=400,
+            ),
+            kind, label, ua,
+        )
+    return None, kind, label, ua
+
+
 class ClockInAPIView(APIView):
     """
     Allows authenticated employees to clock in, determining the correct shift and attendance date, including handling night shifts.
@@ -87,6 +144,9 @@ class ClockInAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        block, _dk, _dl, _ua = _clock_device_guard(request)
+        if block is not None:
+            return block
         if not _is_clocked_in(request.user.employee_get):
             employee, work_info = employee_exists(request)
             if not employee:
@@ -184,6 +244,13 @@ class ClockInAPIView(APIView):
         if request.data.get("no_camera"):
             activity.no_camera = True
             updates.append("no_camera")
+        _kind, _label, _ua = _parse_clock_device(request)
+        if _label:
+            activity.clock_in_device = _label
+            updates.append("clock_in_device")
+        if _ua:
+            activity.clock_in_user_agent = _ua
+            updates.append("clock_in_user_agent")
         wl = request.data.get("work_location")
         if wl in ("in_office", "out_of_office"):
             activity.work_location = wl
@@ -243,6 +310,9 @@ class ClockOutAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
+        block, _dk, _dl, _ua = _clock_device_guard(request)
+        if block is not None:
+            return block
         if _is_clocked_in(request.user.employee_get):
             employee = request.user.employee_get
             local_now = django_tz.localtime(django_tz.now())
@@ -305,6 +375,13 @@ class ClockOutAPIView(APIView):
         if request.data.get("no_camera"):
             activity.no_camera = True
             updates.append("no_camera")
+        _kind, _label, _ua = _parse_clock_device(request)
+        if _label:
+            activity.clock_out_device = _label
+            updates.append("clock_out_device")
+        if _ua:
+            activity.clock_out_user_agent = _ua
+            updates.append("clock_out_user_agent")
         work_location = request.data.get("work_location")
         if work_location in ("in_office", "out_of_office"):
             activity.work_location = work_location

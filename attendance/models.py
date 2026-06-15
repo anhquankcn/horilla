@@ -116,6 +116,11 @@ class AttendanceActivity(HorillaModel):
         max_length=20, choices=OUT_OF_OFFICE_TYPE_CHOICES, null=True, blank=True,
     )
     out_of_office_note = models.TextField(null=True, blank=True)
+    # Device/browser captured at punch time (tied to the employee/user via employee_id).
+    clock_in_device = models.CharField(max_length=120, blank=True, default="")
+    clock_in_user_agent = models.TextField(blank=True, default="")
+    clock_out_device = models.CharField(max_length=120, blank=True, default="")
+    clock_out_user_agent = models.TextField(blank=True, default="")
 
     objects = HorillaCompanyManager(
         related_company_field="employee_id__employee_work_info__company_id"

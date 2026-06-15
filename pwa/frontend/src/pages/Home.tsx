@@ -834,6 +834,7 @@ const SHIFT_STATUS: Record<string, { label: string; color: string; bg: string }>
 function TodayShiftCard({ compact }: { compact?: boolean }) {
   const navigate = useNavigate()
   const { data, loading } = useApi<TodayShiftData>('/api/attendance/my-today-shifts/')
+  const [expanded, setExpanded] = useState(false)
   const shifts = data?.shifts ?? []
   const pct = data?.progress_pct ?? 0
   const totalWorked = data?.total_worked_minutes ?? 0
@@ -846,19 +847,27 @@ function TodayShiftCard({ compact }: { compact?: boolean }) {
 
   const barColor = pct >= 90 ? HNH.success : pct >= 50 ? '#2563eb' : pct > 0 ? '#f59e0b' : HNH.ink4
 
+  // Giờ vào đầu / giờ ra cuối của cả ngày (gộp mọi ca + hoạt động)
+  const allIns = shifts.flatMap(s => s.activities.map(a => a.clock_in).filter((t): t is string => !!t))
+  const allOuts = shifts.flatMap(s => s.activities.map(a => a.clock_out).filter((t): t is string => !!t))
+  const firstIn = allIns.length ? [...allIns].sort()[0] : null
+  const lastOut = allOuts.length ? [...allOuts].sort()[allOuts.length - 1] : null
+
   return (
     <div
-      onClick={() => navigate('/attendance')}
       style={{
         background: '#fff', borderRadius: 16,
         padding: compact ? '12px 12px' : '14px 16px',
         border: `1px solid ${HNH.line}`,
         boxShadow: '0 1px 3px rgba(15,20,40,0.05)',
-        cursor: 'pointer',
       }}
     >
-      {/* Header */}
-      <div className="flex items-center justify-between" style={{ marginBottom: compact ? 8 : 10 }}>
+      {/* Header — tap để mở trang chấm công đầy đủ */}
+      <div
+        onClick={() => navigate('/attendance')}
+        className="flex items-center justify-between"
+        style={{ marginBottom: compact ? 8 : 10, cursor: 'pointer' }}
+      >
         <div className="flex items-center gap-2">
           <Icon name="clock" size={14} color={HNH.navy} stroke={2} />
           <span style={{ fontSize: compact ? 12 : 13, fontWeight: 700, color: HNH.ink }}>Chấm công hôm nay</span>
@@ -884,56 +893,96 @@ function TodayShiftCard({ compact }: { compact?: boolean }) {
         <div style={{ fontSize: 12, color: HNH.ink3, textAlign: 'center', padding: 8 }}>Không có ca hôm nay</div>
       )}
 
-      {/* Per-shift rows */}
-      {!loading && shifts.map((s, i) => {
-        const st = SHIFT_STATUS[s.status] ?? SHIFT_STATUS.pending
-        const shiftPct = s.expected_minutes > 0 ? Math.min(100, Math.round(s.worked_minutes / s.expected_minutes * 100)) : 0
-        return (
-          <div key={i} style={{
-            background: HNH.cream, borderRadius: 12, padding: compact ? '8px 10px' : '10px 12px',
-            marginBottom: i < shifts.length - 1 ? 6 : 0,
+      {/* Tóm tắt: giờ vào đầu → giờ ra cuối của ngày */}
+      {!loading && shifts.length > 0 && (
+        <>
+          <div className="flex items-center gap-3" style={{
+            background: HNH.cream, borderRadius: 12, padding: '10px 12px',
           }}>
-            {/* Shift header */}
-            <div className="flex items-center justify-between" style={{ marginBottom: 5 }}>
-              <div className="flex items-center gap-2">
-                <span style={{ fontSize: compact ? 12 : 13, fontWeight: 700, color: HNH.ink }}>{s.shift_name}</span>
-                <span style={{ fontSize: 10, color: HNH.ink3, fontWeight: 500 }}>{s.start_time}→{s.end_time}</span>
-              </div>
-              <span style={{
-                fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 6,
-                background: st.bg, color: st.color,
-              }}>{st.label}</span>
+            <div className="flex items-center gap-1">
+              <Icon name="arrow-r" size={11} color={HNH.success} stroke={2} />
+              <span style={{ fontSize: 10, color: HNH.ink3 }}>Vào</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: firstIn ? HNH.ink : HNH.ink4 }}>{firstIn ?? '--:--'}</span>
             </div>
-
-            {/* Activities */}
-            {s.activities.map((a, j) => (
-              <div key={j} className="flex items-center gap-3" style={{ marginBottom: 2 }}>
-                <div className="flex items-center gap-1">
-                  <Icon name="arrow-r" size={9} color={HNH.success} stroke={2} />
-                  <span style={{ fontSize: 11, fontWeight: 600, color: a.clock_in ? HNH.ink : HNH.ink4 }}>{a.clock_in ?? '--:--'}</span>
-                </div>
-                <div style={{ flex: 1, height: 1, background: HNH.line, margin: '0 4px' }} />
-                <div className="flex items-center gap-1">
-                  <span style={{ fontSize: 11, fontWeight: 600, color: a.clock_out ? HNH.ink : HNH.ink4 }}>{a.clock_out ?? '--:--'}</span>
-                  <span style={{ transform: 'rotate(180deg)', display: 'inline-flex' }}><Icon name="arrow-r" size={9} color={a.clock_out ? HNH.red : HNH.ink4} stroke={2} /></span>
-                </div>
-              </div>
-            ))}
-
-            {s.activities.length === 0 && (
-              <div style={{ fontSize: 11, color: HNH.ink4, fontStyle: 'italic' }}>Chưa chấm công</div>
-            )}
-
-            {/* Mini progress per shift */}
-            <div className="flex items-center gap-2" style={{ marginTop: 5 }}>
-              <div style={{ flex: 1, height: 4, borderRadius: 2, background: '#e2e8f0', overflow: 'hidden' }}>
-                <div style={{ height: '100%', borderRadius: 2, width: `${shiftPct}%`, background: st.color, transition: 'width 0.5s ease' }} />
-              </div>
-              <span style={{ fontSize: 9, fontWeight: 700, color: st.color, minWidth: 28, textAlign: 'right' }}>{shiftPct}%</span>
+            <div style={{ flex: 1, height: 1, background: HNH.line }} />
+            <div className="flex items-center gap-1">
+              <span style={{ fontSize: 10, color: HNH.ink3 }}>Ra</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: lastOut ? HNH.ink : HNH.ink4 }}>{lastOut ?? '--:--'}</span>
+              <span style={{ transform: 'rotate(180deg)', display: 'inline-flex' }}><Icon name="arrow-r" size={11} color={lastOut ? HNH.red : HNH.ink4} stroke={2} /></span>
             </div>
           </div>
-        )
-      })}
+
+          {/* Nút Xem chi tiết */}
+          <button
+            onClick={(e) => { e.stopPropagation(); setExpanded(v => !v) }}
+            style={{
+              width: '100%', marginTop: 8, padding: '6px', borderRadius: 10,
+              border: `1px solid ${HNH.line}`, background: '#fff',
+              fontSize: 12, fontWeight: 600, color: HNH.navy, cursor: 'pointer',
+            }}
+          >
+            {expanded ? 'Ẩn chi tiết ▴' : 'Xem chi tiết ▾'}
+          </button>
+
+          {/* Chi tiết: Ca, giờ vào - giờ ra, tổng số giờ làm */}
+          {expanded && (
+            <div style={{ marginTop: 8 }}>
+              {shifts.map((s, i) => {
+                const st = SHIFT_STATUS[s.status] ?? SHIFT_STATUS.pending
+                const shiftPct = s.expected_minutes > 0 ? Math.min(100, Math.round(s.worked_minutes / s.expected_minutes * 100)) : 0
+                return (
+                  <div key={i} style={{
+                    background: HNH.cream, borderRadius: 12, padding: compact ? '8px 10px' : '10px 12px',
+                    marginBottom: 6,
+                  }}>
+                    <div className="flex items-center justify-between" style={{ marginBottom: 5 }}>
+                      <div className="flex items-center gap-2">
+                        <span style={{ fontSize: compact ? 12 : 13, fontWeight: 700, color: HNH.ink }}>{s.shift_name}</span>
+                        <span style={{ fontSize: 10, color: HNH.ink3, fontWeight: 500 }}>{s.start_time}→{s.end_time}</span>
+                      </div>
+                      <span style={{
+                        fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 6,
+                        background: st.bg, color: st.color,
+                      }}>{st.label}</span>
+                    </div>
+                    {s.activities.map((a, j) => (
+                      <div key={j} className="flex items-center gap-3" style={{ marginBottom: 2 }}>
+                        <div className="flex items-center gap-1">
+                          <Icon name="arrow-r" size={9} color={HNH.success} stroke={2} />
+                          <span style={{ fontSize: 11, fontWeight: 600, color: a.clock_in ? HNH.ink : HNH.ink4 }}>{a.clock_in ?? '--:--'}</span>
+                        </div>
+                        <div style={{ flex: 1, height: 1, background: HNH.line, margin: '0 4px' }} />
+                        <div className="flex items-center gap-1">
+                          <span style={{ fontSize: 11, fontWeight: 600, color: a.clock_out ? HNH.ink : HNH.ink4 }}>{a.clock_out ?? '--:--'}</span>
+                          <span style={{ transform: 'rotate(180deg)', display: 'inline-flex' }}><Icon name="arrow-r" size={9} color={a.clock_out ? HNH.red : HNH.ink4} stroke={2} /></span>
+                        </div>
+                      </div>
+                    ))}
+                    {s.activities.length === 0 && (
+                      <div style={{ fontSize: 11, color: HNH.ink4, fontStyle: 'italic' }}>Chưa chấm công</div>
+                    )}
+                    <div className="flex items-center gap-2" style={{ marginTop: 5 }}>
+                      <div style={{ flex: 1, height: 4, borderRadius: 2, background: '#e2e8f0', overflow: 'hidden' }}>
+                        <div style={{ height: '100%', borderRadius: 2, width: `${shiftPct}%`, background: st.color, transition: 'width 0.5s ease' }} />
+                      </div>
+                      <span style={{ fontSize: 9, fontWeight: 700, color: st.color, minWidth: 28, textAlign: 'right' }}>{shiftPct}%</span>
+                    </div>
+                  </div>
+                )
+              })}
+              {/* Tổng số giờ làm */}
+              <div className="flex items-center justify-between" style={{
+                padding: '8px 12px', borderRadius: 10, background: HNH.cream2, marginTop: 2,
+              }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: HNH.ink2 }}>Tổng số giờ làm</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: HNH.navy }}>
+                  {workedH}h{workedM > 0 ? String(workedM).padStart(2, '0') : ''}
+                </span>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   )
 }

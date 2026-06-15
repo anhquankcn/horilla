@@ -166,6 +166,17 @@ const OOF_TYPES = [
 
 type DoneState = null | 'valid' | 'pending'
 
+// Phân loại thiết bị để cấm chấm công trên laptop/máy tính. Dùng cảm ứng để
+// không chặn nhầm iPad (Safari iPad giả lập UA macOS).
+function detectDeviceKind(): 'mobile' | 'tablet' | 'desktop' {
+  const ua = navigator.userAgent
+  const touch = (navigator.maxTouchPoints || 0) > 0
+  if (/Android|iPhone|iPod/i.test(ua)) return 'mobile'
+  if (/iPad/i.test(ua) || (/Macintosh/i.test(ua) && touch)) return 'tablet'
+  if (touch && /Tablet|Tab/i.test(ua)) return 'tablet'
+  return 'desktop'
+}
+
 export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, shiftName, acting, onClockIn, onClockOut }: ClockModalProps) {
   const geo = useGeolocation()
   const isTablet = useTablet()
@@ -185,6 +196,8 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
   const [showConfirm, setShowConfirm] = useState(false)
   const [countdown, setCountdown] = useState(10)
   const [pendingBody, setPendingBody] = useState<Record<string, unknown> | null>(null)
+  const [blockMsg, setBlockMsg] = useState<string | null>(null)
+  const deviceKind = detectDeviceKind()
 
   useEffect(() => {
     if (!open) {
@@ -199,9 +212,13 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
       setOofNote('')
       setShowConfirm(false)
       setPendingBody(null)
+      setBlockMsg(null)
       return
     }
     wasClockedIn.current = isClockedIn
+    if (detectDeviceKind() === 'desktop') {
+      setBlockMsg('Không thể chấm công trên máy tính/laptop. Vui lòng dùng điện thoại có camera.')
+    }
     let mounted = true
     async function start() {
       try {
@@ -289,10 +306,23 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
   const openConfirm = useCallback(() => {
     const gpsBlocked = geo.loading && !isClockedIn
     if (acting || !!done || gpsBlocked) return
+    // Cấm chấm công trên laptop/máy tính
+    if (deviceKind === 'desktop') {
+      setBlockMsg('Không thể chấm công trên máy tính/laptop. Vui lòng dùng điện thoại có camera.')
+      return
+    }
+    // Bắt buộc bật camera + chụp ảnh
     const dataUrl = capture()
+    if (!dataUrl) {
+      setBlockMsg('Bắt buộc bật camera và chụp ảnh để chấm công. Hãy cấp quyền Camera rồi thử lại.')
+      return
+    }
+    setBlockMsg(null)
     const body: Record<string, unknown> = {}
     if (geo.position) { body.latitude = geo.position.lat; body.longitude = geo.position.lng }
-    if (dataUrl) { body.photo = dataUrl } else if (cameraError) { body.no_camera = true }
+    body.photo = dataUrl
+    body.client_ua = navigator.userAgent
+    body.device_kind = deviceKind
     if (selectedOfficeId !== null) body.office_id = selectedOfficeId
     body.work_location = workLocation
     if (workLocation === 'out_of_office' && oofType) {
@@ -302,7 +332,7 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
     setPendingBody(body)
     setShowConfirm(true)
     setCountdown(10)
-  }, [acting, done, geo.loading, isClockedIn, capture, geo.position, cameraError, selectedOfficeId, workLocation, oofType, oofNote])
+  }, [acting, done, geo.loading, isClockedIn, capture, geo.position, deviceKind, selectedOfficeId, workLocation, oofType, oofNote])
 
   const confirmAndClock = useCallback(async () => {
     if (!pendingBody) return
@@ -386,7 +416,7 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
     : isClockedIn ? 'clock'
     : 'check'
 
-  const btnDisabled = acting || !!done || gpsBlocked
+  const btnDisabled = acting || !!done || gpsBlocked || deviceKind === 'desktop'
 
   // Confirm dialog summary helpers
   const oofTypeLabel = OOF_TYPES.find(t => t.id === oofType)?.label ?? ''
@@ -407,6 +437,15 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
       </div>
 
       <div style={{ padding: '12px 16px 0' }}>
+        {/* Banner chặn: laptop hoặc thiếu camera */}
+        {blockMsg && (
+          <div style={{
+            background: '#fff1f2', border: '1px solid #fca5a5', borderRadius: 12,
+            padding: '10px 14px', marginBottom: 12, fontSize: 13, color: '#be123c', fontWeight: 600,
+          }}>
+            {blockMsg}
+          </div>
+        )}
         {/* Camera preview */}
         <div className="relative overflow-hidden" style={{ borderRadius: 18, background: '#1a1a2e', marginBottom: 12, border: `1px solid ${HNH.line}` }}>
           <video
