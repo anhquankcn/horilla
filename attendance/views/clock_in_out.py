@@ -193,6 +193,10 @@ def clock_in_attendance_and_activity(
         early_out_instance = attendance.late_come_early_out.filter(type="early_out")
         if early_out_instance.exists():
             early_out_instance[0].delete()
+    try:
+        recompute_combined_day(employee, attendance_date)
+    except Exception:
+        logger.exception("recompute_combined_day (clock-in) failed")
     return attendance
 
 
@@ -477,10 +481,121 @@ def clock_out_attendance_and_activity(employee, date_today, now, out_datetime=No
             attendance.attendance_validated = attendance_validate(attendance)
             attendance.save()
 
+        try:
+            recompute_combined_day(employee, attendance_activity.attendance_date)
+        except Exception:
+            logger.exception("recompute_combined_day (clock-out) failed")
         return attendance
 
     logger.error("No attendance clock in activity found that needs clocking out.")
     return
+
+
+def recompute_combined_day(employee, attendance_date):
+    """Recompute a day's worked hours for one-way / combined shifts.
+
+    For shifts whose schedule has check_mode in {clock_in_only, clock_out_only},
+    credit each shift's window capped to its start/end (no excess for early-in or
+    late-out — OT is handled by the existing OT-approval flow), and the lunch gap
+    between shifts is excluded naturally. Returns {"missing": [...], "worked_sec": n}
+    or None when the day has no one-way shift (the generic activity-sum stands).
+    """
+    from datetime import time as _dtime
+    from attendance.methods.utils import format_time, strtime_seconds as _sts
+    from attendance.models import Attendance, AttendanceActivity, EmployeeShiftPlan
+    from base.models import EmployeeShiftDay, EmployeeShiftSchedule
+
+    weekday = attendance_date.strftime("%A").lower()
+    try:
+        day_obj = EmployeeShiftDay.objects.get(day=weekday)
+    except EmployeeShiftDay.DoesNotExist:
+        return None
+
+    plan_shift_ids = list(
+        EmployeeShiftPlan.objects.filter(employee=employee, date=attendance_date)
+        .values_list("shift_id", flat=True)
+    )
+    if not plan_shift_ids:
+        return None
+    scheds = list(
+        EmployeeShiftSchedule.objects.filter(day=day_obj, shift_id__in=plan_shift_ids)
+        .select_related("shift_id")
+    )
+    if not any(s.check_mode in ("clock_in_only", "clock_out_only") for s in scheds):
+        return None
+
+    acts = list(
+        AttendanceActivity.objects.filter(
+            employee_id=employee, attendance_date=attendance_date
+        )
+    )
+
+    def _secs(t):
+        return t.hour * 3600 + t.minute * 60 + t.second if t else None
+
+    total = 0
+    min_total = 0
+    missing = []
+    day_in = None
+    day_out = None
+    for s in scheds:
+        st = _secs(s.start_time)
+        en = _secs(s.end_time)
+        if st is None or en is None:
+            continue
+        window = max(0, en - st)
+        min_total += _sts(s.minimum_working_hour or "00:00")
+        mode = s.check_mode
+        if mode == "clock_in_only":
+            ins = sorted(
+                _secs(a.clock_in) for a in acts
+                if a.clock_in and st - 3600 <= _secs(a.clock_in) <= en
+            )
+            if not ins:
+                missing.append({"shift": s.shift_id.employee_shift, "need": "clock_in"})
+                continue
+            total += min(window, max(0, en - max(ins[0], st)))
+            day_in = ins[0] if day_in is None else min(day_in, ins[0])
+            day_out = en if day_out is None else max(day_out, en)
+        elif mode == "clock_out_only":
+            outs = sorted(
+                _secs(a.clock_out) for a in acts
+                if a.clock_out and st <= _secs(a.clock_out) <= en + 3600
+            )
+            if not outs:
+                missing.append({"shift": s.shift_id.employee_shift, "need": "clock_out"})
+                continue
+            total += min(window, max(0, min(outs[-1], en) - st))
+            day_in = st if day_in is None else min(day_in, st)
+            day_out = outs[-1] if day_out is None else max(day_out, outs[-1])
+        else:  # both
+            for a in acts:
+                ci = _secs(a.clock_in)
+                co = _secs(a.clock_out)
+                if ci is not None and co is not None and ci >= st - 3600 and co <= en + 3600:
+                    total += max(0, min(co, en) - max(ci, st))
+                    day_in = ci if day_in is None else min(day_in, ci)
+                    day_out = co if day_out is None else max(day_out, co)
+
+    att = Attendance.objects.filter(
+        employee_id=employee, attendance_date=attendance_date
+    ).first()
+    if att is None:
+        return {"missing": missing, "worked_sec": total}
+
+    def _to_time(sec):
+        sec = int(sec) % 86400
+        return _dtime(sec // 3600, (sec % 3600) // 60, sec % 60)
+
+    att.attendance_worked_hour = format_time(total)
+    att.minimum_hour = format_time(min_total)
+    if day_in is not None:
+        att.attendance_clock_in = _to_time(day_in)
+    if day_out is not None:
+        att.attendance_clock_out = _to_time(day_out)
+        att.attendance_clock_out_date = attendance_date
+    att.save()
+    return {"missing": missing, "worked_sec": total}
 
 
 def early_out_create(attendance):

@@ -180,7 +180,9 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         if options["loop"]:
+            from django.core.management import call_command
             self.stdout.write("Auto-clock loop started (every 60s)")
+            last_finalize = None
             while True:
                 # Long-running loop has no request cycle, so Django never refreshes
                 # a DB connection that died (DB restart / idle timeout). Without this,
@@ -189,6 +191,14 @@ class Command(BaseCommand):
                 close_old_connections()
                 try:
                     run_auto_clock()
+                    # Cuối ngày ~23:50: chốt công ca một chiều + nhắc giải trình (1 lần/ngày)
+                    _ln = django_tz.localtime(django_tz.now())
+                    if _ln.hour == 23 and _ln.minute >= 50 and last_finalize != _ln.date():
+                        try:
+                            call_command("finalize_oneway_attendance")
+                            last_finalize = _ln.date()
+                        except Exception:
+                            logger.exception("finalize_oneway_attendance failed")
                 except Exception:
                     logger.exception("auto_clock loop error")
                     # Force-drop possibly-broken connections so the next tick reconnects.

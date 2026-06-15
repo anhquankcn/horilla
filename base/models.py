@@ -1155,6 +1155,20 @@ class EmployeeShiftSchedule(HorillaModel):
         help_text=_("0.33 = 1/3 ngày, 0.50 = nửa ngày, 1.00 = nguyên ngày"),
     )
 
+    CHECK_MODE_CHOICES = [
+        ("both", _("Cả vào & ra")),
+        ("clock_in_only", _("Chỉ cần Clock-in")),
+        ("clock_out_only", _("Chỉ cần Clock-out")),
+    ]
+    check_mode = models.CharField(
+        max_length=20, choices=CHECK_MODE_CHOICES, default="both",
+        verbose_name=_("Kiểu chấm công"),
+        help_text=_(
+            "Ca một chiều: clock_in_only chỉ cần chấm vào, clock_out_only chỉ cần "
+            "chấm ra. Các ca một chiều trong cùng ngày ghép lại để tính giờ công."
+        ),
+    )
+
     company_id = models.ManyToManyField(Company, blank=True, verbose_name=_("Company"))
 
     objects = HorillaCompanyManager("shift_id__employee_shift__company_id")
