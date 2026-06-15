@@ -15,6 +15,7 @@ import time as _time
 from datetime import date, datetime, time, timedelta
 
 from django.core.management.base import BaseCommand
+from django.db import close_old_connections, connections
 from django.utils import timezone as django_tz
 
 from attendance.models import Attendance, AttendanceActivity, EmployeeShiftPlan
@@ -181,10 +182,23 @@ class Command(BaseCommand):
         if options["loop"]:
             self.stdout.write("Auto-clock loop started (every 60s)")
             while True:
+                # Long-running loop has no request cycle, so Django never refreshes
+                # a DB connection that died (DB restart / idle timeout). Without this,
+                # one dead connection makes EVERY subsequent tick raise
+                # "connection already closed" and auto clock-in/out stops silently.
+                close_old_connections()
                 try:
                     run_auto_clock()
                 except Exception:
                     logger.exception("auto_clock loop error")
+                    # Force-drop possibly-broken connections so the next tick reconnects.
+                    for conn in connections.all():
+                        try:
+                            conn.close()
+                        except Exception:
+                            pass
+                finally:
+                    close_old_connections()
                 _time.sleep(60)
         else:
             run_auto_clock()
