@@ -6,7 +6,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: self-hosted
+    runs-on: [self-hosted, production]
     timeout-minutes: 15
     steps:
       - name: Deploy to production
