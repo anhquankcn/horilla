@@ -43,7 +43,10 @@ services:
       - web
 
   pwa:
-    build: ./pwa/frontend
+    build:
+      context: ./pwa/frontend
+      args:
+        VITE_WC2026_ENABLED: "true"
     restart: always
 
   db:

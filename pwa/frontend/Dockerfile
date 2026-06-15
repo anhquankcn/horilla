@@ -3,6 +3,9 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm ci
 COPY . .
+# Feature flags (default off → production hides WC2026; staging passes =true)
+ARG VITE_WC2026_ENABLED=false
+ENV VITE_WC2026_ENABLED=$VITE_WC2026_ENABLED
 RUN npm run build
 
 FROM nginx:alpine

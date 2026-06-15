@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { api } from '../lib/api'
+import { WC2026_ENABLED } from '../lib/flags'
 
 type Tone = 'navy' | 'red' | 'gold' | 'success'
 
@@ -198,7 +199,8 @@ export function HNHLifePage() {
         {/* Tab: Tin tức */}
         {activeTab === 'news' && (
           <div>
-            {/* World Cup 2026 Game Card */}
+            {/* World Cup 2026 Game Card — staging-only via VITE_WC2026_ENABLED */}
+            {WC2026_ENABLED && (
             <button
               onClick={() => navigate('/wc2026')}
               className="w-full border-none cursor-pointer text-left"
@@ -217,6 +219,7 @@ export function HNHLifePage() {
                 <div style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 700, color: '#d4a017', background: 'rgba(255,255,255,0.15)', borderRadius: 8, padding: '4px 10px' }}>Chơi ngay</div>
               </div>
             </button>
+            )}
 
             <div style={{ fontSize: 12, color: HNH.ink3, marginBottom: 16, lineHeight: 1.5 }}>
               Tin tức mới nhất từ Hồng Ngọc Hà Travel
