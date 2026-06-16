@@ -863,7 +863,7 @@ class Attendance(HorillaModel):
         minimum_hour_second = 0
         for attendance in month_attendances:
             required_work_second = strtime_seconds(attendance["minimum_hour"])
-            at_work_second = min(required_work_second, attendance["at_work_second"])
+            at_work_second = min(required_work_second, attendance["at_work_second"] or 0)
             hour_balance += at_work_second
             minimum_hour_second += required_work_second
 
