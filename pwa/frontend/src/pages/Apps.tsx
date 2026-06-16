@@ -5,6 +5,7 @@ import { Icon } from '../components/ui/Icon'
 import { TopBar } from '../components/layout/TopBar'
 import { useTablet } from '../lib/useTablet'
 import { api } from '../lib/api'
+import { WC2026_ENABLED } from '../lib/flags'
 
 type ModuleGroup = 'hr' | 'attendance' | 'leave' | 'payroll' | 'admin' | 'system' | 'support' | 'reports'
 
@@ -105,6 +106,8 @@ const toneColor: Record<string, string> = {
 function getModuleFeatures(group: ModuleGroup, allowed: Set<string> | null): AppFeature[] {
   return features.filter(f => {
     if (f.group !== group) return false
+    // WC2026 chỉ hiện khi cờ bật (stage); prod tắt cờ → ẩn card (khớp route bị gate)
+    if (f.slug === 'wc2026' && !WC2026_ENABLED) return false
     if (f.always) return true
     return !allowed || allowed.has(f.slug)
   })
