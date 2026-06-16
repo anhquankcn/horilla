@@ -50,7 +50,7 @@ function fmtTime(iso: string) {
   return `${dd}/${mm} ${hh}:${mi}`
 }
 
-type Tab = 'matches' | 'predict' | 'leaderboard' | 'profile'
+type Tab = 'matches' | 'predict' | 'leaderboard' | 'profile' | 'admin'
 
 export function WC2026GamePage() {
   const navigate = useNavigate()
@@ -67,8 +67,16 @@ export function WC2026GamePage() {
   const [predicting, setPredicting] = useState<number | null>(null)
   const [initError, setInitError] = useState('')
   const [batchPreds, setBatchPreds] = useState<Record<number, string>>({})
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [adminScores, setAdminScores] = useState<Record<number, { a: string; b: string }>>({})
+  const [savingResult, setSavingResult] = useState<number | null>(null)
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 3000) }
+
+  // Phát hiện quyền admin (staff/superuser) để hiện tab Nhập KQ
+  useEffect(() => {
+    F('/bff/api/wc2026/me/').then(r => (r.ok ? r.json() : null)).then(d => { if (d) setIsAdmin(!!d.is_admin) }).catch(() => {})
+  }, [])
 
   const loadMatches = useCallback(async () => {
     setLoading(true)
@@ -105,7 +113,7 @@ export function WC2026GamePage() {
   }, [])
 
   useEffect(() => {
-    if (tab === 'matches' || tab === 'predict') loadMatches()
+    if (tab === 'matches' || tab === 'predict' || tab === 'admin') loadMatches()
     else if (tab === 'leaderboard') loadLeaderboard()
     else loadProfile()
   }, [tab, loadMatches, loadLeaderboard, loadProfile])
@@ -136,6 +144,18 @@ export function WC2026GamePage() {
     if (!r.ok) { flash(d.error || 'Lỗi'); setPredicting(null); return }
     flash(d.updated ? 'Đã đổi dự đoán' : 'Đã dự đoán')
     setPredicting(null); loadMatches()
+  }
+
+  const handleSaveResult = async (matchId: number) => {
+    const s = adminScores[matchId]
+    if (!s || s.a === '' || s.b === '') { flash('Nhập đủ tỉ số'); return }
+    setSavingResult(matchId)
+    const r = await J('/bff/api/wc2026/admin/result/', { match_id: matchId, score_a: Number(s.a), score_b: Number(s.b) })
+    const d = await r.json()
+    setSavingResult(null)
+    if (!r.ok) { flash(d.error || 'Lỗi'); return }
+    flash(`Đã lưu KQ #${matchId}: ${d.score} · ${d.correct_count} đoán đúng`)
+    loadMatches()
   }
 
   const handleQuickPredict = async (matchId: number, pred: string) => {
@@ -172,6 +192,7 @@ export function WC2026GamePage() {
             { id: 'predict' as Tab, label: 'Dự đoán', icon: 'check' },
             { id: 'leaderboard' as Tab, label: 'BXH', icon: 'trophy' },
             { id: 'profile' as Tab, label: 'Của tôi', icon: 'users' },
+            ...(isAdmin ? [{ id: 'admin' as Tab, label: 'Nhập KQ', icon: 'gear' }] : []),
           ]).map(t => (
             <button key={t.id} onClick={() => setTab(t.id)} className="flex-1 flex items-center justify-center gap-1 border-none cursor-pointer"
               style={{ padding: '9px 0', borderRadius: 10, background: tab === t.id ? HNH.navy : 'transparent', color: tab === t.id ? '#fff' : HNH.ink3, fontSize: 12, fontWeight: 700 }}>
@@ -182,6 +203,55 @@ export function WC2026GamePage() {
         </div>
 
         {loading && <div style={{ textAlign: 'center', padding: 40, color: HNH.ink3, fontSize: 13 }}>Đang tải...</div>}
+
+        {/* === ADMIN: NHẬP KẾT QUẢ === */}
+        {!loading && tab === 'admin' && isAdmin && (
+          <>
+            <div style={{ fontSize: 11, color: HNH.ink3, marginBottom: 10, lineHeight: 1.5 }}>
+              Nhập tỉ số trận đã đá → tự cộng điểm cho người đoán đúng (chia đều {''}
+              <b>điểm thưởng</b> của trận). Lọc theo trạng thái để tìm trận cần nhập.
+            </div>
+            <div className="flex gap-2" style={{ overflowX: 'auto', marginBottom: 12, paddingBottom: 4 }}>
+              {[{ v: 'live', l: 'Đang diễn ra' }, { v: '', l: 'Tất cả' }, { v: 'upcoming', l: 'Sắp tới' }, { v: 'finished', l: 'Kết thúc' }].map(f => (
+                <button key={f.v} onClick={() => setMatchFilter(f.v)} style={{
+                  padding: '7px 14px', borderRadius: 20, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 700, flexShrink: 0,
+                  background: matchFilter === f.v ? HNH.navy : '#fff', color: matchFilter === f.v ? '#fff' : HNH.ink,
+                }}>{f.l}</button>
+              ))}
+            </div>
+            {matches.length === 0 && <div style={{ textAlign: 'center', padding: 40, color: HNH.ink3, fontSize: 13 }}>Không có trận nào</div>}
+            {matches.map(m => {
+              const rc = ROUND_COLORS[m.round] || HNH.navy
+              const sc = adminScores[m.id] ?? { a: m.score_a != null ? String(m.score_a) : '', b: m.score_b != null ? String(m.score_b) : '' }
+              const setA = (v: string) => setAdminScores(p => ({ ...p, [m.id]: { a: v.replace(/[^0-9]/g, ''), b: sc.b } }))
+              const setB = (v: string) => setAdminScores(p => ({ ...p, [m.id]: { a: sc.a, b: v.replace(/[^0-9]/g, '') } }))
+              return (
+                <div key={m.id} style={{ background: '#fff', borderRadius: 14, marginBottom: 10, border: `1px solid ${HNH.line}`, padding: '10px 12px' }}>
+                  <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: rc }}>#{m.match_number} · {m.round_display}{m.group_name ? ` ${m.group_name}` : ''}</span>
+                    <span style={{ fontSize: 10, fontWeight: 600, color: m.status === 'finished' ? HNH.success : HNH.ink3 }}>
+                      {fmtTime(m.match_time)}{m.status === 'finished' ? ' · đã có KQ' : ''}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1" style={{ fontSize: 12, fontWeight: 700, color: HNH.ink, textAlign: 'right' }}>{m.team_a}</div>
+                    <input inputMode="numeric" value={sc.a} onChange={e => setA(e.target.value)} placeholder="-"
+                      style={{ width: 40, textAlign: 'center', padding: '6px 0', borderRadius: 8, border: `1px solid ${HNH.line}`, fontSize: 15, fontWeight: 800 }} />
+                    <span style={{ color: HNH.ink3, fontWeight: 700 }}>-</span>
+                    <input inputMode="numeric" value={sc.b} onChange={e => setB(e.target.value)} placeholder="-"
+                      style={{ width: 40, textAlign: 'center', padding: '6px 0', borderRadius: 8, border: `1px solid ${HNH.line}`, fontSize: 15, fontWeight: 800 }} />
+                    <div className="flex-1" style={{ fontSize: 12, fontWeight: 700, color: HNH.ink }}>{m.team_b}</div>
+                  </div>
+                  <button onClick={() => handleSaveResult(m.id)} disabled={savingResult === m.id}
+                    style={{ marginTop: 8, width: '100%', padding: 9, borderRadius: 10, border: 'none', cursor: 'pointer',
+                      background: savingResult === m.id ? HNH.ink4 : HNH.navy, color: '#fff', fontSize: 12, fontWeight: 700 }}>
+                    {savingResult === m.id ? 'Đang lưu…' : (m.status === 'finished' ? 'Cập nhật KQ + cộng lại điểm' : 'Lưu KQ + cộng điểm')}
+                  </button>
+                </div>
+              )
+            })}
+          </>
+        )}
 
         {/* === MATCHES TAB === */}
         {!loading && tab === 'matches' && (

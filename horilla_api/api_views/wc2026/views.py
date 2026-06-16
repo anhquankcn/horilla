@@ -164,9 +164,10 @@ class WCMyProfileView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        is_admin = bool(request.user.is_staff or request.user.is_superuser)
         player = WCPlayer.objects.filter(user=request.user).first()
         if not player:
-            return Response({"registered": False})
+            return Response({"registered": False, "is_admin": is_admin})
 
         preds = WCPrediction.objects.filter(player=player).select_related("match").order_by("-match__match_time")
         correct = preds.filter(is_correct=True).count()
@@ -193,6 +194,7 @@ class WCMyProfileView(APIView):
 
         return Response({
             "registered": True,
+            "is_admin": is_admin,
             "player": {
                 "nickname": player.nickname,
                 "total_points": player.total_points,
