@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { HNH } from '../lib/theme'
+import { ActivityList, type ActivityResp } from '../components/AttendanceActivityDetail'
 
 type DayStatus = 'present' | 'late' | 'leave' | 'unpaid' | 'absent' | 'nco' | 'weekend' | 'future' | ''
 
@@ -52,33 +53,6 @@ interface CellDetailState {
   day: number
   dh: DayHeader
   cell: DayCell
-}
-
-interface ActivityDetail {
-  id: number
-  clock_in: string | null
-  clock_out: string | null
-  clock_in_address: string
-  clock_out_address: string
-  clock_in_lat: string | null
-  clock_in_lng: string | null
-  work_location: string
-  work_location_label: string
-  out_of_office_type: string
-  out_of_office_label: string
-  out_of_office_note: string
-  clock_in_photo: string | null
-  clock_out_photo: string | null
-}
-
-interface ActivityResp {
-  office_name: string
-  office_address: string
-  activities: ActivityDetail[]
-  is_nco?: boolean
-  nco_pending?: boolean
-  nco_declared_clock_out?: string | null
-  nco_reason?: string | null
 }
 
 const STATUS_CFG: Record<string, { bg: string; border: string; text: string; label: string; dot: string }> = {
@@ -783,13 +757,7 @@ function CellDetailModal({
             <div style={{ fontSize: 12, fontWeight: 700, color: HNH.ink2, marginBottom: 8 }}>
               Hoạt động chấm công
             </div>
-            {loadingActs && <div style={{ fontSize: 12, color: HNH.ink3 }}>Đang tải…</div>}
-            {!loadingActs && (!actResp || actResp.activities.length === 0) && (
-              <div style={{ fontSize: 12, color: HNH.ink3 }}>Không có hoạt động chấm công.</div>
-            )}
-            {!loadingActs && actResp && actResp.activities.map(act => (
-              <ActivityCard key={act.id} act={act} office={actResp} />
-            ))}
+            <ActivityList resp={actResp} loading={loadingActs} />
           </div>
         )}
 
@@ -823,113 +791,3 @@ function DetailRow({ icon, label, value, valueColor }: {
   )
 }
 
-function InfoLine({ icon, text }: { icon: string; text: string }) {
-  return (
-    <div style={{ display: 'flex', gap: 8, fontSize: 12, color: HNH.ink2, marginTop: 3, lineHeight: 1.4 }}>
-      <span>{icon}</span><span style={{ flex: 1 }}>{text}</span>
-    </div>
-  )
-}
-
-function ActivityCard({ act, office }: { act: ActivityDetail; office: ActivityResp }) {
-  const isOut = act.work_location === 'out_of_office'
-  const [zoom, setZoom] = useState<string | null>(null)
-  return (
-    <div style={{ border: `1px solid ${HNH.line}`, borderRadius: 12, padding: '10px 12px', marginBottom: 8 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-        <span style={{ fontSize: 13, fontWeight: 700, color: HNH.ink }}>
-          {act.clock_in ?? '—'} <span style={{ color: HNH.ink3, fontWeight: 400 }}>→</span> {act.clock_out ?? '?'}
-        </span>
-        {act.work_location_label && (
-          <span style={{
-            marginLeft: 'auto', fontSize: 10, fontWeight: 700, borderRadius: 6, padding: '2px 8px',
-            background: isOut ? '#fef3c7' : '#dcfce7',
-            color: isOut ? '#92400e' : '#15803d',
-          }}>{act.work_location_label}</span>
-        )}
-      </div>
-      {act.clock_in_address && <InfoLine icon="📍" text={act.clock_in_address} />}
-      {(office.office_name || office.office_address) && (
-        <InfoLine icon="🏢" text={[office.office_name, office.office_address].filter(Boolean).join(' · ')} />
-      )}
-      {isOut && act.out_of_office_label && (
-        <InfoLine
-          icon="🚩"
-          text={act.out_of_office_note
-            ? `${act.out_of_office_label}: ${act.out_of_office_note}`
-            : act.out_of_office_label}
-        />
-      )}
-      {(act.clock_in_photo || act.clock_out_photo) && (
-        <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
-          {act.clock_in_photo && (
-            <PhotoThumb url={act.clock_in_photo} label="Ảnh vào" onOpen={() => setZoom(act.clock_in_photo)} />
-          )}
-          {act.clock_out_photo && (
-            <PhotoThumb url={act.clock_out_photo} label="Ảnh ra" onOpen={() => setZoom(act.clock_out_photo)} />
-          )}
-        </div>
-      )}
-      {zoom && <PhotoLightbox url={zoom} onClose={() => setZoom(null)} />}
-    </div>
-  )
-}
-
-function PhotoThumb({ url, label, onOpen }: { url: string; label: string; onOpen: () => void }) {
-  const [err, setErr] = useState(false)
-  return (
-    <button
-      onClick={onOpen}
-      style={{ border: 'none', background: 'none', padding: 0, cursor: 'pointer', textAlign: 'center' }}
-    >
-      {err ? (
-        <div style={{
-          width: 60, height: 60, borderRadius: 10, background: '#f1f5f9',
-          border: `1px solid ${HNH.line}`, display: 'flex', alignItems: 'center',
-          justifyContent: 'center', fontSize: 11, color: HNH.ink3,
-        }}>Lỗi ảnh</div>
-      ) : (
-        <img
-          src={url}
-          alt={label}
-          loading="lazy"
-          onError={() => setErr(true)}
-          style={{ width: 60, height: 60, objectFit: 'cover', borderRadius: 10, display: 'block', border: `1px solid ${HNH.line}` }}
-        />
-      )}
-      <span style={{ fontSize: 10, color: HNH.ink3, marginTop: 3, display: 'block' }}>{label}</span>
-    </button>
-  )
-}
-
-function PhotoLightbox({ url, onClose }: { url: string; onClose: () => void }) {
-  const [err, setErr] = useState(false)
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.88)', zIndex: 300,
-        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20,
-      }}
-    >
-      {err ? (
-        <div style={{ color: '#fff', fontSize: 14 }}>Không tải được ảnh</div>
-      ) : (
-        <img
-          src={url}
-          onError={() => setErr(true)}
-          onClick={e => e.stopPropagation()}
-          style={{ maxWidth: '100%', maxHeight: '100%', borderRadius: 12, objectFit: 'contain' }}
-        />
-      )}
-      <button
-        onClick={onClose}
-        style={{
-          position: 'fixed', top: 'max(16px, env(safe-area-inset-top))', right: 16,
-          width: 40, height: 40, borderRadius: 20, border: 'none',
-          background: 'rgba(255,255,255,0.18)', color: '#fff', fontSize: 22, cursor: 'pointer',
-        }}
-      >×</button>
-    </div>
-  )
-}

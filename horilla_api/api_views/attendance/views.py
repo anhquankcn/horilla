@@ -2346,13 +2346,19 @@ class AttendanceActivityDetailView(APIView):
         from attendance.models import AttendanceActivity
         from employee.models import Employee
 
-        if not request.user.has_perm("attendance.view_attendance"):
-            return Response({"error": "Không có quyền"}, status=403)
-
+        # Tự xem (Trang chủ) → mặc định là chính mình, không cần quyền view_attendance.
+        # Xem người khác (CC Tháng / C&B) → cần quyền view_attendance.
+        me = request.user.employee_get
         employee_id = request.GET.get("employee_id")
-        date_str = request.GET.get("date", "")
+        if not employee_id:
+            employee_id = getattr(me, "id", None)
         if not employee_id:
             return Response({"error": "Thiếu employee_id"}, status=400)
+        is_self = str(employee_id) == str(getattr(me, "id", ""))
+        if not is_self and not request.user.has_perm("attendance.view_attendance"):
+            return Response({"error": "Không có quyền"}, status=403)
+
+        date_str = request.GET.get("date", "")
         try:
             y, m, d = map(int, date_str.split("-"))
             the_date = date(y, m, d)

@@ -12,6 +12,7 @@ import { api } from '../lib/api'
 import { ClockModal } from '../components/ClockModal'
 import { useTablet, useSmallPhone } from '../lib/useTablet'
 import { useToast } from '../components/ui/Toast'
+import { ActivityList, type ActivityResp } from '../components/AttendanceActivityDetail'
 
 interface AttendanceRecord {
   id: number
@@ -582,37 +583,158 @@ const CAL_LEGEND: [string, string][] = [
 ]
 const DAY_HEADERS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']
 
-function NcoDeclareModal({ day, onClose, onDone }: {
-  day: MonthCalendarData['days'][0]; onClose: () => void; onDone: () => void
+const CAL_STATUS_LABELS: Record<string, string> = {
+  valid: 'Hợp lệ',
+  leave_deducted: 'Bù phép',
+  pending: 'Chờ duyệt',
+  absent: 'Vắng',
+  leave: 'Nghỉ phép',
+  leave_pending: 'Nghỉ chờ duyệt',
+  holiday: 'Ngày lễ',
+  nco: 'NCO',
+  future: 'Sắp tới',
+}
+
+// Modal chi tiết 1 ngày trên Trang chủ (tự xem): Ca đăng ký + hoạt động chấm công
+// + ảnh + địa điểm (giống chi tiết C&B xem ở CC Tháng), kèm khai báo NCO cho mình.
+function DayDetailModal({ day, onClose, onChanged }: {
+  day: CalendarDay; onClose: () => void; onChanged: () => void
 }) {
+  const plans = day.shift_plans || (day.shift_plan ? [day.shift_plan] : [])
+  const st = day.color_status
+  const statusColor = CAL_STATUS_COLORS[st] ?? HNH.ink3
+  const statusLabel = CAL_STATUS_LABELS[st] ?? st
+  const isFuture = st === 'future'
+  const isNco = st === 'nco'
+
+  const [resp, setResp] = useState<ActivityResp | null>(null)
+  const [loadingActs, setLoadingActs] = useState(false)
   const [out, setOut] = useState('')
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  const submit = async () => {
+
+  useEffect(() => {
+    if (isFuture) return
+    setLoadingActs(true)
+    api.get<ActivityResp>(`/api/attendance/activity-detail/?date=${day.date}`)
+      .then(setResp)
+      .catch(() => setResp(null))
+      .finally(() => setLoadingActs(false))
+  }, [day.date, isFuture])
+
+  const submitNco = async () => {
     if (!out || !reason.trim()) return
     setBusy(true); setErr(null)
     try {
       await api.post('/api/attendance/nco/declare/', { date: day.date, clock_out: out, reason: reason.trim() })
-      onDone()
+      onChanged()
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Lỗi gửi khai báo'); setBusy(false)
     }
   }
+
+  const dateLabel = new Date(day.date).toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })
+
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 120, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 18, padding: 20, width: 320, maxWidth: '100%' }}>
-        <div style={{ fontSize: 15, fontWeight: 800, color: '#c2410c', marginBottom: 4 }}>Khai báo NCO</div>
-        <div style={{ fontSize: 12, color: HNH.ink3, marginBottom: 12 }}>Ngày {day.date} — quên chấm công ra. Khai báo giờ ra thực tế để C&B duyệt.</div>
-        <div style={{ fontSize: 12, color: HNH.ink2, marginBottom: 4 }}>Giờ ra thực tế</div>
-        <input type="time" value={out} onChange={e => setOut(e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: 10, border: `1px solid ${HNH.line}`, fontSize: 15, marginBottom: 10 }} />
-        <div style={{ fontSize: 12, color: HNH.ink2, marginBottom: 4 }}>Lý do</div>
-        <textarea value={reason} onChange={e => setReason(e.target.value)} rows={3} placeholder="Vd: quên bấm clock-out" style={{ width: '100%', padding: '8px 10px', borderRadius: 10, border: `1px solid ${HNH.line}`, fontSize: 14, resize: 'vertical', marginBottom: 10 }} />
-        {err && <div style={{ fontSize: 12, color: HNH.red, marginBottom: 8 }}>{err}</div>}
-        <div className="flex" style={{ gap: 8 }}>
-          <button onClick={onClose} style={{ flex: 1, padding: 11, borderRadius: 12, border: `1px solid ${HNH.line}`, background: '#fff', color: HNH.ink2, fontWeight: 700, cursor: 'pointer' }}>Hủy</button>
-          <button disabled={busy || !out || !reason.trim()} onClick={submit} style={{ flex: 1, padding: 11, borderRadius: 12, border: 'none', background: (out && reason.trim()) ? HNH.navy : HNH.ink4, color: '#fff', fontWeight: 700, cursor: 'pointer' }}>{busy ? 'Đang gửi…' : 'Gửi khai báo'}</button>
+    <div onClick={onClose} style={{
+      position: 'fixed', inset: 0, zIndex: 120, background: 'rgba(0,0,0,0.45)',
+      display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+    }}>
+      <div onClick={e => e.stopPropagation()} style={{
+        background: '#fff', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480,
+        padding: '16px 18px 28px', maxHeight: '85vh', overflowY: 'auto',
+      }}>
+        <div style={{ width: 36, height: 4, background: '#e2e8f0', borderRadius: 2, margin: '0 auto 14px' }} />
+
+        {/* Header */}
+        <div className="flex items-center justify-between" style={{ marginBottom: 14 }}>
+          <div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: HNH.ink, textTransform: 'capitalize' }}>{dateLabel}</div>
+            {day.worked_hours && (
+              <div style={{ fontSize: 12, color: HNH.ink3, marginTop: 2 }}>Giờ làm: <b style={{ color: statusColor }}>{day.worked_hours}</b></div>
+            )}
+          </div>
+          <span style={{
+            fontSize: 11, fontWeight: 700, color: statusColor,
+            background: statusColor + '1a', border: `1px solid ${statusColor}55`,
+            borderRadius: 20, padding: '3px 10px', flexShrink: 0,
+          }}>{statusLabel}</span>
         </div>
+
+        {/* Ca đăng ký */}
+        <div style={{ fontSize: 12, fontWeight: 700, color: HNH.ink2, marginBottom: 8 }}>Ca đăng ký</div>
+        {plans.length === 0 ? (
+          <div style={{ fontSize: 12, color: HNH.ink3, marginBottom: 14 }}>Không có ca được gán.</div>
+        ) : (
+          <div style={{ marginBottom: 14 }}>
+            {plans.map((sp, i) => (
+              <div key={i} style={{
+                background: HNH.navy50, borderRadius: 12, padding: '10px 14px', marginBottom: 8,
+                border: `1px solid ${HNH.navy}20`,
+              }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: HNH.navy }}>{sp.name}</div>
+                {sp.start && (
+                  <div style={{ fontSize: 12, color: HNH.ink2, marginTop: 4 }}>{sp.start} → {sp.end || '?'}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Giờ vào / ra */}
+        {!isFuture && (day.first_in || day.last_out) && (
+          <div style={{
+            display: 'flex', gap: 10, marginBottom: 14,
+          }}>
+            <div style={{ flex: 1, background: '#f8fafc', borderRadius: 10, padding: '9px 12px' }}>
+              <div style={{ fontSize: 11, color: HNH.ink3 }}>Giờ vào đầu</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: HNH.ink }}>{day.first_in ?? '—'}</div>
+            </div>
+            <div style={{ flex: 1, background: '#f8fafc', borderRadius: 10, padding: '9px 12px' }}>
+              <div style={{ fontSize: 11, color: HNH.ink3 }}>Giờ ra cuối</div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: isNco ? '#ea580c' : HNH.ink }}>{isNco ? 'NCO' : (day.last_out ?? '—')}</div>
+            </div>
+          </div>
+        )}
+
+        {/* NCO — khai báo cho chính mình */}
+        {isNco && (
+          <div style={{ background: '#fff7ed', border: '1px solid #fdba74', borderRadius: 10, padding: '12px 14px', marginBottom: 14, fontSize: 13, color: '#c2410c' }}>
+            <div><b>NCO — Quên chấm công ra (No Clock Out).</b> Có giờ vào nhưng không có giờ ra.</div>
+            {resp?.nco_pending ? (
+              <div style={{ marginTop: 8, color: HNH.ink2 }}>
+                Đã khai báo giờ ra: <b>{resp.nco_declared_clock_out}</b> — chờ C&B duyệt.
+                {resp.nco_reason && <div style={{ color: HNH.ink3, fontSize: 12, marginTop: 2 }}>Lý do: {resp.nco_reason}</div>}
+              </div>
+            ) : (
+              <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <div style={{ color: HNH.ink2 }}>Khai báo giờ ra thực tế cho ngày này:</div>
+                <input type="time" value={out} onChange={e => setOut(e.target.value)}
+                  style={{ padding: '6px 8px', borderRadius: 8, border: `1px solid ${HNH.line}`, fontSize: 14 }} />
+                <textarea placeholder="Lý do (vd: quên bấm clock-out)" value={reason} onChange={e => setReason(e.target.value)} rows={2}
+                  style={{ padding: '6px 8px', borderRadius: 8, border: `1px solid ${HNH.line}`, fontSize: 13, resize: 'vertical' }} />
+                {err && <div style={{ fontSize: 12, color: HNH.red }}>{err}</div>}
+                <button disabled={busy || !out || !reason.trim()} onClick={submitNco}
+                  style={{ marginTop: 2, width: '100%', padding: 10, borderRadius: 10, border: 'none', background: (out && reason.trim()) ? HNH.navy : HNH.ink4, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                >{busy ? 'Đang gửi…' : 'Khai báo NCO'}</button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Hoạt động chấm công */}
+        {!isFuture && (
+          <>
+            <div style={{ fontSize: 12, fontWeight: 700, color: HNH.ink2, marginBottom: 8 }}>Hoạt động chấm công</div>
+            <ActivityList resp={resp} loading={loadingActs} />
+          </>
+        )}
+
+        <button onClick={onClose} style={{
+          marginTop: 18, width: '100%', padding: 12, borderRadius: 12,
+          border: 'none', background: HNH.navy, color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer',
+        }}>Đóng</button>
       </div>
     </div>
   )
@@ -623,7 +745,6 @@ function MonthCalendar({ compact }: { compact?: boolean }) {
   const [viewYear, setViewYear] = useState(now.getFullYear())
   const [viewMonth, setViewMonth] = useState(now.getMonth() + 1)
   const [selectedDay, setSelectedDay] = useState<MonthCalendarData['days'][0] | null>(null)
-  const [ncoDay, setNcoDay] = useState<MonthCalendarData['days'][0] | null>(null)
   const url = `/api/attendance/my-month-calendar/?year=${viewYear}&month=${viewMonth}`
   const { data, loading, refresh } = useApi<MonthCalendarData>(url)
 
@@ -706,11 +827,9 @@ function MonthCalendar({ compact }: { compact?: boolean }) {
               cellBorder = statusColor ? `1px solid ${statusColor}35` : `1px solid ${HNH.line}`
             }
 
+            const clickable = !isFuture || plans.length > 0
             return (
-              <div key={day.date} onClick={() => {
-                if (day.color_status === 'nco') setNcoDay(day)
-                else if (plans.length > 0) setSelectedDay(day)
-              }} style={{
+              <div key={day.date} onClick={() => { if (clickable) setSelectedDay(day) }} style={{
                 borderRadius: compact ? 5 : 6,
                 background: cellBg,
                 border: cellBorder,
@@ -718,7 +837,7 @@ function MonthCalendar({ compact }: { compact?: boolean }) {
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
                 minHeight: compact ? 54 : 62,
                 position: 'relative', overflow: 'hidden',
-                cursor: (plans.length > 0 || day.color_status === 'nco') ? 'pointer' : 'default',
+                cursor: clickable ? 'pointer' : 'default',
               }}>
                 {!isFuture && statusColor && (
                   <div style={{
@@ -733,63 +852,26 @@ function MonthCalendar({ compact }: { compact?: boolean }) {
                   color: isToday ? HNH.navy : isWeekend ? HNH.red : HNH.ink,
                 }}>{day.day}</div>
 
-                {/* Shift plans (future + past) */}
-                {hasPlan && plans.slice(0, 3).map((sp, si) => (
-                  <div key={si} style={{ textAlign: 'center', maxWidth: '100%', marginTop: si === 0 ? 2 : 0 }}>
-                    <div style={{
-                      fontSize: compact ? 6.5 : 7, fontWeight: 700, lineHeight: 1.1,
-                      color: isFuture ? '#2563eb' : HNH.navy,
-                      overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis',
-                      padding: '0 1px',
-                    }}>
-                      {sp.name.length > 7 ? sp.name.slice(0, 6) + '…' : sp.name}
-                    </div>
-                    {sp.start && (
-                      <div style={{ fontSize: compact ? 5.5 : 6, color: isFuture ? '#60a5fa' : HNH.ink3, lineHeight: 1.1 }}>
-                        {sp.start.replace(':', 'h')}{sp.end ? `→${sp.end.replace(':', 'h')}` : ''}
-                      </div>
-                    )}
-                  </div>
-                ))}
-
-                {/* Past day content */}
+                {/* Nội dung ngày quá khứ + hôm nay: chỉ Giờ vào đầu - Giờ ra cuối / NCO.
+                    Bỏ thông tin Ca khỏi ô lịch — xem chi tiết Ca khi bấm vào ô. */}
                 {!isFuture && (
                   <>
-                    {/* Worked hours */}
-                    {day.worked_hours && (
+                    {day.color_status === 'nco' ? (
+                      <div style={{ fontSize: compact ? 10 : 11, fontWeight: 800, color: '#ea580c', marginTop: 'auto', marginBottom: 'auto' }}>NCO</div>
+                    ) : (day.first_in || day.last_out) ? (
+                      <div style={{ marginTop: 'auto', textAlign: 'center', lineHeight: 1.2 }}>
+                        <div style={{ fontSize: compact ? 8 : 8.5, fontWeight: 700, color: statusColor ?? HNH.ink2 }}>{day.first_in ?? '—'}</div>
+                        <div style={{ fontSize: compact ? 8 : 8.5, color: HNH.ink3 }}>{day.last_out ?? '—'}</div>
+                      </div>
+                    ) : day.leave_name ? (
                       <div style={{
-                        fontSize: compact ? 9 : 10, fontWeight: 700, lineHeight: 1.2,
-                        color: statusColor ?? HNH.ink2, marginTop: 1,
-                      }}>{day.worked_hours}</div>
-                    )}
-
-                    {/* NCO marker */}
-                    {day.color_status === 'nco' && (
-                      <div style={{ fontSize: compact ? 8.5 : 9.5, fontWeight: 800, color: '#ea580c', marginTop: 1 }}>NCO</div>
-                    )}
-
-                    {/* Leave label (if no attendance) */}
-                    {!day.worked_hours && day.leave_name && (
-                      <div style={{
-                        fontSize: 7, fontWeight: 600, lineHeight: 1.2, marginTop: 2,
+                        fontSize: 7, fontWeight: 600, lineHeight: 1.2, marginTop: 'auto',
                         color: statusColor ?? '#8b5cf6', textAlign: 'center',
                         overflow: 'hidden', maxWidth: '100%',
                       }}>
                         {day.leave_name.length > 9 ? day.leave_name.slice(0, 8) + '…' : day.leave_name}
                       </div>
-                    )}
-
-                    {/* First in / last out times */}
-                    {day.first_in && (
-                      <div style={{ fontSize: compact ? 7 : 7.5, color: HNH.ink3, lineHeight: 1.15, marginTop: 'auto' }}>
-                        {day.first_in}
-                      </div>
-                    )}
-                    {day.last_out && (
-                      <div style={{ fontSize: compact ? 7 : 7.5, color: HNH.ink3, lineHeight: 1.15 }}>
-                        {day.last_out}
-                      </div>
-                    )}
+                    ) : null}
                   </>
                 )}
               </div>
@@ -808,51 +890,13 @@ function MonthCalendar({ compact }: { compact?: boolean }) {
         ))}
       </div>
 
-      {/* NCO declare modal */}
-      {ncoDay && (
-        <NcoDeclareModal day={ncoDay} onClose={() => setNcoDay(null)} onDone={() => { setNcoDay(null); refresh() }} />
-      )}
-
-      {/* Shift detail modal */}
-      {selectedDay && (selectedDay.shift_plans || []).length > 0 && (
-        <div onClick={() => setSelectedDay(null)} style={{
-          position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.5)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <div onClick={e => e.stopPropagation()} style={{
-            background: '#fff', borderRadius: 18, padding: 20, width: 300, maxHeight: '70vh', overflow: 'auto',
-          }}>
-            <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
-              <span style={{ fontSize: 15, fontWeight: 700, color: HNH.ink }}>
-                {new Date(selectedDay.date).toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit' })}
-              </span>
-              <button onClick={() => setSelectedDay(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 4 }}>
-                <Icon name="x" size={18} color={HNH.ink3} />
-              </button>
-            </div>
-            <div style={{ fontSize: 11, color: HNH.ink3, marginBottom: 10 }}>
-              {(selectedDay.shift_plans || []).length} ca được gán
-            </div>
-            {(selectedDay.shift_plans || []).map((sp, i) => (
-              <div key={i} style={{
-                background: HNH.navy50, borderRadius: 12, padding: '10px 14px', marginBottom: 8,
-                border: `1px solid ${HNH.navy}20`,
-              }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: HNH.navy }}>{sp.name}</div>
-                {sp.start && (
-                  <div style={{ fontSize: 12, color: HNH.ink2, marginTop: 4 }}>
-                    {sp.start} → {sp.end || '?'}
-                  </div>
-                )}
-              </div>
-            ))}
-            {selectedDay.worked_hours && (
-              <div style={{ fontSize: 12, color: HNH.ink2, marginTop: 8 }}>
-                Giờ làm: <strong>{selectedDay.worked_hours}</strong>
-              </div>
-            )}
-          </div>
-        </div>
+      {/* Chi tiết 1 ngày: Ca đăng ký + hoạt động chấm công + ảnh + địa điểm + NCO */}
+      {selectedDay && (
+        <DayDetailModal
+          day={selectedDay}
+          onClose={() => setSelectedDay(null)}
+          onChanged={() => { setSelectedDay(null); refresh() }}
+        />
       )}
     </div>
   )
