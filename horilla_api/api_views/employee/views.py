@@ -2496,7 +2496,8 @@ class MyNavTabsView(APIView):
 
     permission_classes = [IsAuthenticated]
 
-    ALL_TABS = ["home", "attend", "apps", "ruby", "tasks", "me"]
+    # Phải khớp ALL_TABS trong pwa/frontend/src/components/layout/BottomNav.tsx
+    ALL_TABS = ["home", "life", "apps", "ruby", "eoffice", "services"]
 
     def get(self, request):
         from base.models import GroupAppVisibility

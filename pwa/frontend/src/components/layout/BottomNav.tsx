@@ -118,8 +118,16 @@ export function BottomNav({ announcementsUnread = 0 }: { announcementsUnread?: n
       .catch(() => {})
   }, [])
 
-  const tabs = allowedTabs && allowedTabs.length < ALL_TABS.length
-    ? ALL_TABS.filter(t => allowedTabs.includes(t.id as TabId))
+  // Chỉ giới hạn khi allowedTabs là tập con HỢP LỆ (mọi id đều nhận diện được).
+  // Nếu chứa id lạ (cấu hình cũ / lệch vocab) → bỏ qua, hiện đủ tab — tránh
+  // navbar suy biến (vd chỉ còn Trang chủ + Ứng dụng). Luôn giữ home + apps.
+  const KNOWN_IDS = new Set(ALL_TABS.map(t => t.id))
+  const validRestriction =
+    !!allowedTabs &&
+    allowedTabs.length < ALL_TABS.length &&
+    allowedTabs.every(id => KNOWN_IDS.has(id))
+  const tabs = validRestriction
+    ? ALL_TABS.filter(t => t.id === 'home' || t.id === 'apps' || allowedTabs!.includes(t.id as TabId))
     : ALL_TABS
 
   const activeTab = tabs.find(t => t.path === location.pathname)?.id ?? 'home'

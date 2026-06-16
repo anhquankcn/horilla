@@ -34,13 +34,14 @@ interface GroupDetail {
   nav_tabs: string[]
 }
 
+// Phải khớp ALL_TABS trong components/layout/BottomNav.tsx (navbar thật).
 const NAV_TAB_OPTIONS = [
-  { id: 'home',   label: 'Trang chủ',  icon: 'home' },
-  { id: 'attend', label: 'Chấm công',  icon: 'clock' },
-  { id: 'apps',   label: 'Ứng dụng',   icon: 'grid' },
-  { id: 'ruby',   label: 'Ruby AI',    icon: 'star' },
-  { id: 'tasks',  label: 'Công việc',  icon: 'check' },
-  { id: 'me',     label: 'Cá nhân',    icon: 'users' },
+  { id: 'home',     label: 'Trang chủ', icon: 'home' },
+  { id: 'life',     label: 'HNH Life',  icon: 'heart' },
+  { id: 'apps',     label: 'Ứng dụng',  icon: 'grid' },
+  { id: 'ruby',     label: 'Ruby AI',   icon: 'star' },
+  { id: 'eoffice',  label: 'eOffice',   icon: 'check' },
+  { id: 'services', label: 'Dịch vụ',   icon: 'star' },
 ]
 
 interface AvailEmp {
