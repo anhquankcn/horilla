@@ -2428,6 +2428,21 @@ class AttendanceActivityDetailView(APIView):
                 "clock_out_photo": photo_url(a.clock_out_photo),
             })
 
+        # Trạng thái NCO + đơn khai báo cho ngày này
+        import json as _json
+        att = Attendance.objects.filter(employee_id=emp, attendance_date=the_date).first()
+        nco = bool(
+            att and att.attendance_clock_out is None and att.attendance_clock_in is not None
+            and the_date < date.today()
+        )
+        nco_pending = bool(att and att.is_validate_request and att.request_type == "nco_declare")
+        nco_declared_out = None
+        if nco_pending:
+            try:
+                nco_declared_out = _json.loads(att.requested_data or "{}").get("clock_out")
+            except Exception:
+                nco_declared_out = None
+
         return Response({
             "employee_id": emp.id,
             "employee_name": emp.get_full_name(),
@@ -2437,7 +2452,133 @@ class AttendanceActivityDetailView(APIView):
             "office_lat": office_lat,
             "office_lng": office_lng,
             "activities": activities,
+            "is_nco": nco,
+            "nco_pending": nco_pending,
+            "nco_declared_clock_out": nco_declared_out,
+            "nco_reason": (att.request_description if nco_pending else None),
         })
+
+
+class NCODeclareView(APIView):
+    """Khai báo giờ ra cho ngày NCO. Nhân viên tự khai (self) hoặc C&B khai hộ
+    (truyền employee_id + cần quyền attendance.view_attendance). Tạo đơn chờ duyệt."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        import json as _json
+        from datetime import time as _time
+        from employee.models import Employee
+
+        me = request.user.employee_get
+        emp_id = request.data.get("employee_id")
+        if emp_id and str(emp_id) != str(getattr(me, "id", "")):
+            if not request.user.has_perm("attendance.view_attendance"):
+                return Response({"error": "Không có quyền khai báo cho người khác"}, status=403)
+            employee = Employee.objects.filter(id=emp_id).first()
+        else:
+            employee = me
+        if not employee:
+            return Response({"error": "Không tìm thấy nhân viên"}, status=404)
+
+        date_str = request.data.get("date", "")
+        clock_out = (request.data.get("clock_out") or "").strip()
+        reason = (request.data.get("reason") or "").strip()
+        try:
+            y, m, d = map(int, date_str.split("-")); the_date = date(y, m, d)
+        except (ValueError, AttributeError):
+            return Response({"error": "date không hợp lệ (YYYY-MM-DD)"}, status=400)
+        try:
+            hh, mm = map(int, clock_out.split(":")); _time(hh, mm)
+        except (ValueError, AttributeError):
+            return Response({"error": "Giờ ra phải dạng HH:MM"}, status=400)
+        if not reason:
+            return Response({"error": "Cần nhập lý do khai báo"}, status=400)
+
+        att = Attendance.objects.filter(employee_id=employee, attendance_date=the_date).first()
+        if not att:
+            return Response({"error": "Không có chấm công ngày này"}, status=404)
+        if att.attendance_clock_out:
+            return Response({"error": "Ngày này đã có giờ ra"}, status=400)
+
+        att.is_validate_request = True
+        att.is_validate_request_approved = False
+        att.request_type = "nco_declare"
+        att.request_description = reason
+        att.requested_data = _json.dumps({"clock_out": clock_out, "reason": reason})
+        att.save()
+        return Response({"ok": True, "status": "pending", "clock_out": clock_out})
+
+
+class NCOApproveView(APIView):
+    """C&B duyệt đơn khai báo NCO → đóng activity mở + tính lại công + validate."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        import json as _json
+        from datetime import time as _time, datetime as _dt
+        from employee.models import Employee
+        from attendance.methods.utils import format_time
+
+        if not request.user.has_perm("attendance.view_attendance"):
+            return Response({"error": "Không có quyền duyệt"}, status=403)
+        employee = Employee.objects.filter(id=request.data.get("employee_id")).first()
+        if not employee:
+            return Response({"error": "Không tìm thấy nhân viên"}, status=404)
+        try:
+            y, m, d = map(int, str(request.data.get("date", "")).split("-")); the_date = date(y, m, d)
+        except (ValueError, AttributeError):
+            return Response({"error": "date không hợp lệ"}, status=400)
+
+        att = Attendance.objects.filter(employee_id=employee, attendance_date=the_date).first()
+        if not att or not att.is_validate_request or att.request_type != "nco_declare":
+            return Response({"error": "Không có đơn khai báo NCO chờ duyệt"}, status=400)
+        try:
+            data = _json.loads(att.requested_data or "{}")
+            hh, mm = map(int, str(data.get("clock_out")).split(":")); cout = _time(hh, mm)
+        except Exception:
+            return Response({"error": "Dữ liệu khai báo lỗi"}, status=400)
+
+        act = (
+            AttendanceActivity.objects.filter(
+                employee_id=employee, attendance_date=the_date, clock_out__isnull=True
+            ).order_by("-id").first()
+        )
+        if act:
+            act.clock_out = cout
+            act.clock_out_date = the_date
+            try:
+                act.out_datetime = django_tz.make_aware(_dt.combine(the_date, cout))
+            except Exception:
+                pass
+            act.save()
+
+        # Tính công từ các activity trong ngày (recompute_combined_day sẽ override nếu ca một chiều)
+        def _s(t):
+            return t.hour * 3600 + t.minute * 60 + (t.second or 0) if t else None
+        total = 0
+        for a in AttendanceActivity.objects.filter(employee_id=employee, attendance_date=the_date):
+            ci, co = _s(a.clock_in), _s(a.clock_out)
+            if ci is not None and co is not None:
+                total += max(0, co - ci)
+        att.attendance_worked_hour = format_time(total)
+        att.attendance_clock_out = cout
+        att.attendance_clock_out_date = the_date
+        att.is_validate_request = False
+        att.is_validate_request_approved = True
+        att.attendance_validated = True
+        try:
+            att.approved_by = request.user.employee_get
+        except Exception:
+            pass
+        att.save()
+        try:
+            from attendance.views.clock_in_out import recompute_combined_day
+            recompute_combined_day(employee, the_date)
+        except Exception:
+            pass
+        return Response({"ok": True})
 
 
 class CompanyAttendanceDashboardView(APIView):
@@ -2827,7 +2968,9 @@ class MyMonthCalendarView(APIView):
             elif is_holiday:
                 color_status = "holiday"
             elif att:
-                if not att["validated"]:
+                if att.get("clock_out") is None and d < today:
+                    color_status = "nco"
+                elif not att["validated"]:
                     color_status = "pending"
                 elif min_sec > 0 and worked_sec < min_sec and leave and leave["status"] == "approved":
                     color_status = "leave_deducted"

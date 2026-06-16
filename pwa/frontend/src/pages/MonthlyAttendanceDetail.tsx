@@ -75,6 +75,10 @@ interface ActivityResp {
   office_name: string
   office_address: string
   activities: ActivityDetail[]
+  is_nco?: boolean
+  nco_pending?: boolean
+  nco_declared_clock_out?: string | null
+  nco_reason?: string | null
 }
 
 const STATUS_CFG: Record<string, { bg: string; border: string; text: string; label: string; dot: string }> = {
@@ -574,6 +578,7 @@ export function MonthlyAttendanceDetailPage() {
           month={month}
           year={year}
           onClose={() => setCellDetail(null)}
+          onChanged={() => { setCellDetail(null); fetchData() }}
         />
       )}
     </div>
@@ -635,16 +640,22 @@ function CellDetailModal({
   month,
   year,
   onClose,
+  onChanged,
 }: {
   detail: CellDetailState
   month: number
   year: number
   onClose: () => void
+  onChanged: () => void
 }) {
   const { emp, day, dh, cell } = detail
   const st = cell.status
   const cfg = STATUS_CFG[st] ?? STATUS_CFG['']
   const dateStr = `${String(day).padStart(2,'0')}/${String(month).padStart(2,'0')}/${year}`
+  const dISOFull = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`
+  const [ncoOut, setNcoOut] = useState('')
+  const [ncoReason, setNcoReason] = useState('')
+  const [ncoBusy, setNcoBusy] = useState(false)
 
   const [actResp, setActResp] = useState<ActivityResp | null>(null)
   const [loadingActs, setLoadingActs] = useState(false)
@@ -727,10 +738,41 @@ function CellDetailModal({
           {st === 'nco' && (
             <div style={{
               background: '#fff7ed', border: '1px solid #fdba74', borderRadius: 10,
-              padding: '10px 14px', fontSize: 13, color: '#c2410c',
+              padding: '12px 14px', fontSize: 13, color: '#c2410c',
             }}>
-              <b>NCO — Quên chấm công ra (No Clock Out).</b> Có giờ vào nhưng không có
-              giờ ra. Nhân viên cần nộp <b>đơn khai báo ngày công</b> để C&B duyệt.
+              <div><b>NCO — Quên chấm công ra (No Clock Out).</b> Có giờ vào nhưng không có giờ ra.</div>
+              {actResp?.nco_pending ? (
+                <div style={{ marginTop: 8 }}>
+                  <div style={{ color: HNH.ink2 }}>Đã khai báo giờ ra: <b>{actResp.nco_declared_clock_out}</b></div>
+                  {actResp.nco_reason && <div style={{ color: HNH.ink3, fontSize: 12, marginTop: 2 }}>Lý do: {actResp.nco_reason}</div>}
+                  <button
+                    disabled={ncoBusy}
+                    onClick={async () => {
+                      setNcoBusy(true)
+                      try { await api.post('/api/attendance/nco/approve/', { employee_id: emp.id, date: dISOFull }); onChanged() }
+                      catch { setNcoBusy(false) }
+                    }}
+                    style={{ marginTop: 8, width: '100%', padding: 10, borderRadius: 10, border: 'none', background: HNH.success, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                  >Duyệt khai báo (C&B)</button>
+                </div>
+              ) : (
+                <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <div style={{ color: HNH.ink2 }}>Khai báo giờ ra cho ngày này:</div>
+                  <input type="time" value={ncoOut} onChange={e => setNcoOut(e.target.value)}
+                    style={{ padding: '6px 8px', borderRadius: 8, border: `1px solid ${HNH.line}`, fontSize: 14 }} />
+                  <textarea placeholder="Lý do (vd: quên chấm công ra)" value={ncoReason} onChange={e => setNcoReason(e.target.value)} rows={2}
+                    style={{ padding: '6px 8px', borderRadius: 8, border: `1px solid ${HNH.line}`, fontSize: 13, resize: 'vertical' }} />
+                  <button
+                    disabled={ncoBusy || !ncoOut || !ncoReason.trim()}
+                    onClick={async () => {
+                      setNcoBusy(true)
+                      try { await api.post('/api/attendance/nco/declare/', { employee_id: emp.id, date: dISOFull, clock_out: ncoOut, reason: ncoReason.trim() }); onChanged() }
+                      catch { setNcoBusy(false) }
+                    }}
+                    style={{ marginTop: 2, width: '100%', padding: 10, borderRadius: 10, border: 'none', background: (ncoOut && ncoReason.trim()) ? HNH.navy : HNH.ink4, color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+                  >Khai báo NCO</button>
+                </div>
+              )}
             </div>
           )}
         </div>

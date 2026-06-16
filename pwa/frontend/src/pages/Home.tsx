@@ -570,6 +570,7 @@ const CAL_STATUS_COLORS: Record<string, string> = {
   leave:          '#8b5cf6',
   leave_pending:  '#fb923c',
   holiday:        '#ec4899',
+  nco:            '#ea580c',
 }
 const CAL_LEGEND: [string, string][] = [
   ['#16a34a', 'Hợp lệ'],
@@ -577,16 +578,54 @@ const CAL_LEGEND: [string, string][] = [
   ['#f59e0b', 'Chờ duyệt'],
   ['#ef4444', 'Vắng'],
   ['#8b5cf6', 'Nghỉ phép'],
+  ['#ea580c', 'NCO'],
 ]
 const DAY_HEADERS = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']
+
+function NcoDeclareModal({ day, onClose, onDone }: {
+  day: MonthCalendarData['days'][0]; onClose: () => void; onDone: () => void
+}) {
+  const [out, setOut] = useState('')
+  const [reason, setReason] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
+  const submit = async () => {
+    if (!out || !reason.trim()) return
+    setBusy(true); setErr(null)
+    try {
+      await api.post('/api/attendance/nco/declare/', { date: day.date, clock_out: out, reason: reason.trim() })
+      onDone()
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Lỗi gửi khai báo'); setBusy(false)
+    }
+  }
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 120, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: 18, padding: 20, width: 320, maxWidth: '100%' }}>
+        <div style={{ fontSize: 15, fontWeight: 800, color: '#c2410c', marginBottom: 4 }}>Khai báo NCO</div>
+        <div style={{ fontSize: 12, color: HNH.ink3, marginBottom: 12 }}>Ngày {day.date} — quên chấm công ra. Khai báo giờ ra thực tế để C&B duyệt.</div>
+        <div style={{ fontSize: 12, color: HNH.ink2, marginBottom: 4 }}>Giờ ra thực tế</div>
+        <input type="time" value={out} onChange={e => setOut(e.target.value)} style={{ width: '100%', padding: '8px 10px', borderRadius: 10, border: `1px solid ${HNH.line}`, fontSize: 15, marginBottom: 10 }} />
+        <div style={{ fontSize: 12, color: HNH.ink2, marginBottom: 4 }}>Lý do</div>
+        <textarea value={reason} onChange={e => setReason(e.target.value)} rows={3} placeholder="Vd: quên bấm clock-out" style={{ width: '100%', padding: '8px 10px', borderRadius: 10, border: `1px solid ${HNH.line}`, fontSize: 14, resize: 'vertical', marginBottom: 10 }} />
+        {err && <div style={{ fontSize: 12, color: HNH.red, marginBottom: 8 }}>{err}</div>}
+        <div className="flex" style={{ gap: 8 }}>
+          <button onClick={onClose} style={{ flex: 1, padding: 11, borderRadius: 12, border: `1px solid ${HNH.line}`, background: '#fff', color: HNH.ink2, fontWeight: 700, cursor: 'pointer' }}>Hủy</button>
+          <button disabled={busy || !out || !reason.trim()} onClick={submit} style={{ flex: 1, padding: 11, borderRadius: 12, border: 'none', background: (out && reason.trim()) ? HNH.navy : HNH.ink4, color: '#fff', fontWeight: 700, cursor: 'pointer' }}>{busy ? 'Đang gửi…' : 'Gửi khai báo'}</button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function MonthCalendar({ compact }: { compact?: boolean }) {
   const now = new Date()
   const [viewYear, setViewYear] = useState(now.getFullYear())
   const [viewMonth, setViewMonth] = useState(now.getMonth() + 1)
   const [selectedDay, setSelectedDay] = useState<MonthCalendarData['days'][0] | null>(null)
+  const [ncoDay, setNcoDay] = useState<MonthCalendarData['days'][0] | null>(null)
   const url = `/api/attendance/my-month-calendar/?year=${viewYear}&month=${viewMonth}`
-  const { data, loading } = useApi<MonthCalendarData>(url)
+  const { data, loading, refresh } = useApi<MonthCalendarData>(url)
 
   const prevMonth = () => {
     if (viewMonth === 1) { setViewYear(y => y - 1); setViewMonth(12) }
@@ -668,7 +707,10 @@ function MonthCalendar({ compact }: { compact?: boolean }) {
             }
 
             return (
-              <div key={day.date} onClick={() => plans.length > 0 && setSelectedDay(day)} style={{
+              <div key={day.date} onClick={() => {
+                if (day.color_status === 'nco') setNcoDay(day)
+                else if (plans.length > 0) setSelectedDay(day)
+              }} style={{
                 borderRadius: compact ? 5 : 6,
                 background: cellBg,
                 border: cellBorder,
@@ -676,7 +718,7 @@ function MonthCalendar({ compact }: { compact?: boolean }) {
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
                 minHeight: compact ? 54 : 62,
                 position: 'relative', overflow: 'hidden',
-                cursor: plans.length > 0 ? 'pointer' : 'default',
+                cursor: (plans.length > 0 || day.color_status === 'nco') ? 'pointer' : 'default',
               }}>
                 {!isFuture && statusColor && (
                   <div style={{
@@ -721,6 +763,11 @@ function MonthCalendar({ compact }: { compact?: boolean }) {
                       }}>{day.worked_hours}</div>
                     )}
 
+                    {/* NCO marker */}
+                    {day.color_status === 'nco' && (
+                      <div style={{ fontSize: compact ? 8.5 : 9.5, fontWeight: 800, color: '#ea580c', marginTop: 1 }}>NCO</div>
+                    )}
+
                     {/* Leave label (if no attendance) */}
                     {!day.worked_hours && day.leave_name && (
                       <div style={{
@@ -760,6 +807,11 @@ function MonthCalendar({ compact }: { compact?: boolean }) {
           </div>
         ))}
       </div>
+
+      {/* NCO declare modal */}
+      {ncoDay && (
+        <NcoDeclareModal day={ncoDay} onClose={() => setNcoDay(null)} onDone={() => { setNcoDay(null); refresh() }} />
+      )}
 
       {/* Shift detail modal */}
       {selectedDay && (selectedDay.shift_plans || []).length > 0 && (
