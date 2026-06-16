@@ -65,6 +65,7 @@ import { ExpenseApprovalsPage } from './pages/ExpenseApprovals'
 import { ExpenseAdminPage } from './pages/ExpenseAdmin'
 import { ExpenseBatchesPage } from './pages/ExpenseBatches'
 import { ServiceAccountsPage } from './pages/ServiceAccounts'
+import { DbSyncPage } from './pages/DbSync'
 import { EOfficePage } from './pages/EOffice'
 import { ExportAttendancePage } from './pages/ExportAttendance'
 import { ServicesPage } from './pages/Services'
@@ -136,6 +137,7 @@ export function App() {
         <Route path="/attendance-settings" element={<AttendanceSettingsPage />} />
         {/* open-api removed — replaced by /m2m ServiceAccounts */}
         <Route path="/m2m" element={<ServiceAccountsPage />} />
+        <Route path="/db-sync" element={<DbSyncPage />} />
         <Route path="/eoffice" element={<EOfficePage />} />
         <Route path="/export-attendance" element={<ExportAttendancePage />} />
         <Route path="/services" element={<ServicesPage />} />

@@ -84,6 +84,7 @@ const features: AppFeature[] = [
   { slug: 'hrm-app-setting',   icon: 'gear',   label: 'Cài đặt App',  desc: 'Thông báo đẩy, bộ nhớ cache, tài khoản', path: '/settings',          tone: 'navy',  group: 'support', always: true },
   // ── Quản trị Hệ thống ──
   { slug: 'service-accounts',  icon: 'shield', label: 'Service Account', desc: 'Quản lý M2M token, scope, IP cho hệ thống ngoài', path: '/m2m', tone: 'navy', group: 'system' },
+  { slug: 'service-accounts',  icon: 'gear',   label: 'Đồng bộ DB',      desc: 'Lịch sử & đối chiếu Standby→Stage (5h/13h)',      path: '/db-sync', tone: 'navy', group: 'system' },
 
   // ── Báo cáo / Dashboard ──
   { slug: 'dashboard', icon: 'grid',   label: 'Dashboard',    desc: 'Tổng quan công ty, nhân sự, chấm công',    path: '/dashboard',            tone: 'navy', group: 'reports' },

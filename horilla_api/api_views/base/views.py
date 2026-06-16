@@ -2093,6 +2093,32 @@ def _get_service_group():
     return group
 
 
+class StandbySyncLogView(APIView):
+    """Lịch sử + kết quả job đồng bộ Standby→Stage (Quản trị Hệ thống)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not _is_api_admin(request.user):
+            return Response({"error": "Chỉ Quản trị Hệ thống"}, status=403)
+        from base.models import StandbySyncLog
+
+        def row(l):
+            return {
+                "id": l.id,
+                "started_at": l.started_at.isoformat() if l.started_at else None,
+                "finished_at": l.finished_at.isoformat() if l.finished_at else None,
+                "duration_seconds": l.duration_seconds,
+                "trigger": l.trigger,
+                "status": l.status,
+                "tables": l.tables,
+                "reconciliation": l.reconciliation,
+                "message": l.message,
+            }
+
+        return Response({"results": [row(l) for l in StandbySyncLog.objects.all()[:50]]})
+
+
 class ServiceAccountView(APIView):
     """
     GET  /api/base/service-accounts/  — danh sách service accounts

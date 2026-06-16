@@ -286,6 +286,7 @@ urlpatterns = [
     # ── Job Position & Role management (PWA) ──
     path("job-mgmt/positions/", jmv.JobPositionListView.as_view(), name="api-job-mgmt-positions"),
     path("job-mgmt/positions/<int:pk>/", jmv.JobPositionDetailView.as_view(), name="api-job-mgmt-position-detail"),
+    path("standby-sync/logs/", views.StandbySyncLogView.as_view(), name="api-standby-sync-logs"),
     path("job-mgmt/roles/", jmv.JobRoleListView.as_view(), name="api-job-mgmt-roles"),
     path("job-mgmt/roles/<int:pk>/", jmv.JobRoleDetailView.as_view(), name="api-job-mgmt-role-detail"),
 ]
