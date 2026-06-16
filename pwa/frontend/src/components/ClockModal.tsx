@@ -58,7 +58,7 @@ function MiniMap({ officeLat, officeLng, officeRadius, userLat, userLng }: {
 }) {
   const containerRef = useRef<HTMLDivElement>(null)
   const [mapW, setMapW] = useState(0)
-  const mapH = 190
+  const mapH = 127
 
   useEffect(() => {
     const el = containerRef.current
@@ -416,7 +416,15 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
     : isClockedIn ? 'clock'
     : 'check'
 
-  const btnDisabled = acting || !!done || gpsBlocked || deviceKind === 'desktop'
+  // Chỉ enable nút khi: không đang xử lý/chưa xong, không phải máy tính,
+  // camera sẵn sàng (chụp được selfie), có toạ độ GPS, đã chọn Trong/Ngoài VP,
+  // và nếu Trong VP thì phải nằm trong GeoFence.
+  const btnDisabled =
+    acting || !!done || gpsBlocked || deviceKind === 'desktop'
+    || !cameraReady || !!cameraError
+    || !geo.position
+    || !workLocation
+    || (workLocation === 'in_office' && isInsideSelected !== true)
 
   // Confirm dialog summary helpers
   const oofTypeLabel = OOF_TYPES.find(t => t.id === oofType)?.label ?? ''
@@ -446,40 +454,6 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
             {blockMsg}
           </div>
         )}
-        {/* Camera preview */}
-        <div className="relative overflow-hidden" style={{ borderRadius: 18, background: '#1a1a2e', marginBottom: 12, border: `1px solid ${HNH.line}` }}>
-          <video
-            ref={videoRef}
-            autoPlay playsInline muted
-            style={{ width: '100%', height: 220, objectFit: 'cover', transform: 'scaleX(-1)', display: selfie ? 'none' : 'block' }}
-          />
-          {selfie && (
-            <img src={selfie} alt="Selfie" style={{ width: '100%', height: 220, objectFit: 'cover', display: 'block' }} />
-          )}
-          {!cameraReady && !cameraError && !selfie && (
-            <div className="absolute inset-0 flex items-center justify-center" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>
-              Đang mở camera...
-            </div>
-          )}
-          {cameraError && !selfie && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>
-              <Icon name="shield" size={32} color="rgba(255,255,255,0.3)" />
-              <div>{cameraError}</div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>Chấm công sẽ được ghi chú "nocam"</div>
-            </div>
-          )}
-          {/* GPS overlay on camera */}
-          <div className="absolute flex items-center gap-1.5" style={{ bottom: 10, left: 10, right: 10, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)', borderRadius: 10, padding: '8px 12px' }}>
-            <Icon name="pin" size={14} color={geo.inside ? '#4ade80' : geo.inside === false ? '#f87171' : '#94a3b8'} />
-            <span style={{ fontSize: 12, color: '#fff', fontWeight: 600, flex: 1 }}>{gpsLabel}</span>
-            {geo.loading && <div style={{ width: 12, height: 12, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />}
-            {!geo.loading && geo.inside === true && <Badge tone="success" size="s">Hợp lệ</Badge>}
-            {!geo.loading && geo.inside === false && <Badge tone="red" size="s">Ngoài VP</Badge>}
-          </div>
-        </div>
-
-        <canvas ref={canvasRef} style={{ display: 'none' }} />
-
         {/* Office picker */}
         {officesWithDist.length > 0 && (
           <div style={{ marginBottom: 12 }}>
@@ -751,6 +725,40 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
             </div>
           </div>
         )}
+
+        {/* Camera preview (đặt cuối, ngay trên nút Chấm công) */}
+        <div className="relative overflow-hidden" style={{ borderRadius: 18, background: '#1a1a2e', marginTop: 12, marginBottom: 4, border: `1px solid ${HNH.line}` }}>
+          <video
+            ref={videoRef}
+            autoPlay playsInline muted
+            style={{ width: '100%', height: 220, objectFit: 'cover', transform: 'scaleX(-1)', display: selfie ? 'none' : 'block' }}
+          />
+          {selfie && (
+            <img src={selfie} alt="Selfie" style={{ width: '100%', height: 220, objectFit: 'cover', display: 'block' }} />
+          )}
+          {!cameraReady && !cameraError && !selfie && (
+            <div className="absolute inset-0 flex items-center justify-center" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>
+              Đang mở camera...
+            </div>
+          )}
+          {cameraError && !selfie && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>
+              <Icon name="shield" size={32} color="rgba(255,255,255,0.3)" />
+              <div>{cameraError}</div>
+              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>Chấm công sẽ được ghi chú "nocam"</div>
+            </div>
+          )}
+          {/* GPS overlay on camera */}
+          <div className="absolute flex items-center gap-1.5" style={{ bottom: 10, left: 10, right: 10, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(8px)', borderRadius: 10, padding: '8px 12px' }}>
+            <Icon name="pin" size={14} color={geo.inside ? '#4ade80' : geo.inside === false ? '#f87171' : '#94a3b8'} />
+            <span style={{ fontSize: 12, color: '#fff', fontWeight: 600, flex: 1 }}>{gpsLabel}</span>
+            {geo.loading && <div style={{ width: 12, height: 12, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />}
+            {!geo.loading && geo.inside === true && <Badge tone="success" size="s">Hợp lệ</Badge>}
+            {!geo.loading && geo.inside === false && <Badge tone="red" size="s">Ngoài VP</Badge>}
+          </div>
+        </div>
+
+        <canvas ref={canvasRef} style={{ display: 'none' }} />
       </div>
     </div>
   )
