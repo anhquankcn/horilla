@@ -23,7 +23,7 @@ class Command(BaseCommand):
         parser.add_argument("--date", help="YYYY-MM-DD (mặc định hôm nay)")
 
     def handle(self, *args, **options):
-        from attendance.models import AttendanceActivity, EmployeeShiftPlan
+        from attendance.models import EmployeeShiftPlan
         from attendance.views.clock_in_out import recompute_combined_day
         from base.models import EmployeeShiftDay, EmployeeShiftSchedule
         from employee.models import Employee
@@ -70,16 +70,9 @@ class Command(BaseCommand):
                 logger.exception("recompute failed for %s", emp)
                 continue
 
-            # Đóng activity còn mở để không chặn clock-in hôm sau. KHÔNG đổi giờ
-            # công (recompute đã tính theo cửa sổ ca); đóng zero-duration để đánh
-            # dấu là chấm công dở (NV vẫn cần nộp giải trình).
-            for a in AttendanceActivity.objects.filter(
-                employee_id=emp, attendance_date=the_date, clock_out__isnull=True
-            ):
-                a.clock_out = a.clock_in
-                a.clock_out_date = the_date
-                a.save(update_fields=["clock_out", "clock_out_date"])
-
+            # KHÔNG đóng activity còn mở: để mở = NCO (No Clock Out). NV nộp đơn
+            # khai báo ngày công cho C&B duyệt; CC Tháng hiển thị NCO; clock-in
+            # ngày mới vẫn bình thường (_is_clocked_in chỉ tính ca mở trong ~18h).
             if not (res and res.get("missing")):
                 continue
             needs = ", ".join(

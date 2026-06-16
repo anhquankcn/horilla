@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { HNH } from '../lib/theme'
 
-type DayStatus = 'present' | 'late' | 'leave' | 'unpaid' | 'absent' | 'weekend' | 'future' | ''
+type DayStatus = 'present' | 'late' | 'leave' | 'unpaid' | 'absent' | 'nco' | 'weekend' | 'future' | ''
 
 interface DayCell {
   check_in: string | null
@@ -83,12 +83,13 @@ const STATUS_CFG: Record<string, { bg: string; border: string; text: string; lab
   leave:   { bg: '#fefce8', border: '#fde047', text: '#92400e', dot: '#f59e0b', label: 'Nghỉ phép' },
   unpaid:  { bg: '#f3f4f6', border: '#d1d5db', text: '#6b7280', dot: '#9ca3af', label: 'K. lương' },
   absent:  { bg: '#fff1f2', border: '#fca5a5', text: '#be123c', dot: '#ef4444', label: 'Vắng mặt' },
+  nco:     { bg: '#fff7ed', border: '#fdba74', text: '#c2410c', dot: '#fb923c', label: 'NCO' },
   weekend: { bg: '#f8fafc', border: 'transparent', text: '#cbd5e1', dot: '#e2e8f0', label: 'Cuối tuần' },
   future:  { bg: '#ffffff', border: '#f1f5f9', text: '#e2e8f0', dot: '#f1f5f9', label: '' },
   '':      { bg: '#ffffff', border: 'transparent', text: '#e2e8f0', dot: '#e2e8f0', label: '' },
 }
 
-const LEGEND_KEYS: DayStatus[] = ['present', 'late', 'leave', 'unpaid', 'absent']
+const LEGEND_KEYS: DayStatus[] = ['present', 'late', 'leave', 'unpaid', 'absent', 'nco']
 const NAME_COL_W = 124
 const SUMM_COL_W = 80
 const DAY_COL_W  = 64
@@ -536,7 +537,7 @@ export function MonthlyAttendanceDetailPage() {
                       const cfg = STATUS_CFG[st] ?? STATUS_CFG['']
                       const isToday = isCurrentMonth && dh.day === todayDay
                       const isWeekendWork = cell?.is_weekend && (st === 'present' || st === 'late')
-                      const clickable = cell && (st === 'present' || st === 'late' || st === 'absent' || st === 'leave' || st === 'unpaid')
+                      const clickable = cell && (st === 'present' || st === 'late' || st === 'absent' || st === 'leave' || st === 'unpaid' || st === 'nco')
 
                       return (
                         <td
@@ -611,6 +612,16 @@ function CellContent({
     )
   }
 
+  if (st === 'nco') {
+    return (
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: cfg.text, lineHeight: 1.3 }}>
+          {cell.check_in ?? '—'}
+        </div>
+        <div style={{ fontSize: 11, fontWeight: 800, color: cfg.text, lineHeight: 1.3 }}>NCO</div>
+      </div>
+    )
+  }
   if (st === 'leave') return <div style={{ fontSize: 11, fontWeight: 700, color: cfg.text }}>NP</div>
   if (st === 'unpaid') return <div style={{ fontSize: 11, fontWeight: 700, color: cfg.text }}>KL</div>
   if (st === 'absent') return <div style={{ fontSize: 14, fontWeight: 800, color: cfg.text }}>V</div>
@@ -638,7 +649,7 @@ function CellDetailModal({
   const [actResp, setActResp] = useState<ActivityResp | null>(null)
   const [loadingActs, setLoadingActs] = useState(false)
   useEffect(() => {
-    if (st !== 'present' && st !== 'late' && st !== 'absent') return
+    if (st !== 'present' && st !== 'late' && st !== 'absent' && st !== 'nco') return
     const dISO = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`
     setLoadingActs(true)
     api.get<ActivityResp>(`/api/attendance/activity-detail/?employee_id=${emp.id}&date=${dISO}`)
@@ -671,7 +682,7 @@ function CellDetailModal({
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 18, flexShrink: 0,
           }}>
-            {st === 'present' ? '✅' : st === 'late' ? '⚠️' : st === 'absent' ? '❌' : st === 'leave' ? '🌿' : st === 'unpaid' ? '⏸️' : '📅'}
+            {st === 'present' ? '✅' : st === 'late' ? '⚠️' : st === 'nco' ? '🟠' : st === 'absent' ? '❌' : st === 'leave' ? '🌿' : st === 'unpaid' ? '⏸️' : '📅'}
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 700, color: HNH.ink }}>{emp.name}</div>
@@ -711,6 +722,15 @@ function CellDetailModal({
               padding: '10px 14px', fontSize: 13, color: '#be123c',
             }}>
               Không ghi nhận chấm công ngày này.
+            </div>
+          )}
+          {st === 'nco' && (
+            <div style={{
+              background: '#fff7ed', border: '1px solid #fdba74', borderRadius: 10,
+              padding: '10px 14px', fontSize: 13, color: '#c2410c',
+            }}>
+              <b>NCO — Quên chấm công ra (No Clock Out).</b> Có giờ vào nhưng không có
+              giờ ra. Nhân viên cần nộp <b>đơn khai báo ngày công</b> để C&B duyệt.
             </div>
           )}
         </div>

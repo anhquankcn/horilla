@@ -77,14 +77,19 @@ def _build_rows(year, month):
                     if latest_out is None or cout > latest_out:
                         latest_out = cout
                 else:
-                    cout_str = "--:--"
+                    cout_str = "NCO" if cin else "--:--"
                 detail_parts.append(f"{cin_str}-{cout_str}")
 
             worked = att.attendance_worked_hour or "00:00"
             earliest_str = str(earliest_in)[:5] if earliest_in else "--:--"
-            latest_str = str(latest_out)[:5] if latest_out else "--:--"
-            if latest_str == "23:59":
+            if latest_out:
+                latest_str = str(latest_out)[:5]
+                if latest_str == "23:59":
+                    latest_str = "NCO"
+            elif earliest_in:
                 latest_str = "NCO"
+            else:
+                latest_str = "--:--"
             detail = " ".join(detail_parts) if detail_parts else ""
 
             is_late = False

@@ -61,19 +61,21 @@ def query_dict(data):
 
 
 def _is_clocked_in(employee):
-    """Check if employee has an open AttendanceActivity (no clock_out) within the last 2 days.
-    Activities older than 2 days without clock_out are considered dangling and ignored.
+    """Clocked-in = the latest activity is still open (no clock_out) AND it started
+    within the last ~18h. An open activity older than that = a forgotten clock-out
+    (NCO, No Clock Out) — it does NOT block the next day's clock-in.
     """
-    cutoff = date.today() - timedelta(days=2)
     activity = (
-        AttendanceActivity.objects.filter(
-            employee_id=employee,
-            attendance_date__gte=cutoff,
-        )
+        AttendanceActivity.objects.filter(employee_id=employee)
         .order_by("-id")
         .first()
     )
-    return activity is not None and activity.clock_out_date is None
+    if activity is None or activity.clock_out_date is not None:
+        return False
+    indt = activity.in_datetime
+    if indt is None:
+        return activity.attendance_date == date.today()
+    return (django_tz.now() - indt) <= timedelta(hours=18)
 
 
 def _parse_clock_device(request):
@@ -1261,44 +1263,15 @@ class CheckingStatus(APIView):
 
     @staticmethod
     def _auto_close_yesterday(employee):
-        """Auto-close open activities/attendance from previous days at 23:59."""
-        try:
-            today = date.today()
-            close_time = datetime.strptime("23:59:00", "%H:%M:%S").time()
+        """NCO policy: KHÔNG còn tự đóng activity/attendance ngày cũ lúc 23:59.
 
-            open_acts = AttendanceActivity.objects.filter(
-                employee_id=employee,
-                clock_out__isnull=True,
-                attendance_date__lt=today,
-            )
-            for act in open_acts:
-                close_dt = datetime.combine(act.attendance_date, close_time)
-                AttendanceActivity.objects.filter(pk=act.pk).update(
-                    clock_out=close_time,
-                    clock_out_date=act.attendance_date,
-                    out_datetime=django_tz.make_aware(close_dt),
-                )
-
-            open_atts = Attendance.objects.filter(
-                employee_id=employee,
-                attendance_clock_out__isnull=True,
-                attendance_date__lt=today,
-            )
-            for att in open_atts:
-                clock_in_dt = datetime.combine(att.attendance_date, att.attendance_clock_in)
-                clock_out_dt = datetime.combine(att.attendance_date, close_time)
-                diff = clock_out_dt - clock_in_dt
-                total_sec = max(0, int(diff.total_seconds()))
-                h, m, s = total_sec // 3600, (total_sec % 3600) // 60, total_sec % 60
-                worked = f"{h:02d}:{m:02d}:{s:02d}"
-                Attendance.objects.filter(pk=att.pk).update(
-                    attendance_clock_out=close_time,
-                    attendance_worked_hour=worked,
-                    attendance_validated=True,
-                )
-        except Exception:
-            logger = logging.getLogger(__name__)
-            logger.exception("_auto_close_yesterday failed for %s", employee)
+        Nếu nhân viên quên clock-out, hoạt động ngày đó để MỞ và coi là NCO
+        (No Clock Out): hiển thị NCO trong CC Tháng, nhân viên phải nộp đơn khai
+        báo ngày công để C&B duyệt. Clock-in ngày mới vẫn bình thường vì
+        _is_clocked_in chỉ tính ca mở trong ~18h gần nhất. Giữ method (no-op) để
+        không phá vỡ chỗ gọi hiện có.
+        """
+        return
 
     def get(self, request):
         try:
@@ -2274,7 +2247,11 @@ class MonthlyAttendanceDetailView(APIView):
                     except Exception:
                         min_secs = 0
                     work_secs = cell["at_work_second"]
-                    cell["status"] = "late" if (min_secs > 0 and work_secs < min_secs) else "present"
+                    if co is None and d < today_date:
+                        # Có clock-in nhưng không clock-out ở ngày đã qua → NCO
+                        cell["status"] = "nco"
+                    else:
+                        cell["status"] = "late" if (min_secs > 0 and work_secs < min_secs) else "present"
                 elif is_weekend:
                     cell["status"] = "weekend"
                 elif d > today_date:
