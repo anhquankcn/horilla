@@ -280,7 +280,9 @@ OIDC_OP_JWKS_ENDPOINT = f"{KC_BASE}/protocol/openid-connect/certs"
 OIDC_RP_SIGN_ALGO = "RS256"
 OIDC_RP_SCOPES = "openid email profile"
 OIDC_VERIFY_SSL = env.bool("OIDC_VERIFY_SSL", default=False)
-LOGIN_REDIRECT_URL = "/"
+# Sau khi đăng nhập, mặc định đưa về giao diện PWA (mobile-first) cho mọi user.
+# Admin/HR vẫn vào desktop HRM bằng URL trực tiếp (/login, /employee/..., /admin/).
+LOGIN_REDIRECT_URL = "/pwa/"
 LOGOUT_REDIRECT_URL = "/login"
 OIDC_USERNAME_ALGO = "horilla.oidc_backend.generate_username"
 OIDC_AUTHENTICATION_BACKEND = "horilla.oidc_backend.HorillaOIDCBackend"
