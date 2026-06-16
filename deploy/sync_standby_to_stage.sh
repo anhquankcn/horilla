@@ -64,11 +64,10 @@ upsert_table employee_employee id
 upsert_table employee_employeeworkinformation id
 upsert_table attendance_employeeshiftplan id
 
-echo "-- REPLACE attendance (delete child-first) --"
+echo "-- REPLACE attendance (truncate cascade) --"
 if [ "$DRY" = 0 ]; then
-  $ST_RUN -c "DELETE FROM attendance_attendancelatecomeearlyout;
-              DELETE FROM attendance_attendanceactivity;
-              DELETE FROM attendance_attendance;" >/dev/null
+  # CASCADE để dọn luôn các bảng phụ thuộc (workrecords, overtime, comments...)
+  $ST_RUN -c "TRUNCATE attendance_attendance, attendance_attendanceactivity, attendance_attendancelatecomeearlyout CASCADE;" >/dev/null
 fi
 replace_load attendance_attendance
 replace_load attendance_attendanceactivity
