@@ -3245,3 +3245,30 @@ def delete_deduction_cutleave_from_penalty(sender, instance, **kwargs):
 
 
 User.add_to_class("is_new_employee", models.BooleanField(default=False))
+
+
+class StandbySyncLog(models.Model):
+    """Lịch sử job đồng bộ dữ liệu từ Standby DB (replica prod) sang Stage DB."""
+
+    TRIGGER_CHOICES = [("scheduled", "Theo lịch"), ("manual", "Thủ công")]
+    STATUS_CHOICES = [
+        ("running", "Đang chạy"),
+        ("success", "Thành công"),
+        ("error", "Lỗi"),
+        ("partial", "Một phần"),
+    ]
+    started_at = models.DateTimeField(auto_now_add=True)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    duration_seconds = models.IntegerField(null=True, blank=True)
+    trigger = models.CharField(max_length=20, choices=TRIGGER_CHOICES, default="scheduled")
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="running")
+    tables = models.JSONField(default=dict, blank=True)          # {table: rows_loaded}
+    reconciliation = models.JSONField(default=dict, blank=True)  # {prod_attendance, stage_attendance, match, ...}
+    message = models.TextField(blank=True, default="")
+
+    class Meta:
+        verbose_name = _("Standby Sync Log")
+        ordering = ["-started_at"]
+
+    def __str__(self):
+        return f"StandbySync {self.started_at:%Y-%m-%d %H:%M} {self.status}"
