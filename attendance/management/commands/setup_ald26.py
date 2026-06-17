@@ -53,16 +53,18 @@ class Command(BaseCommand):
                 sched_n += 1
             self.stdout.write(f"Lịch ca 7 ngày: {sched_n} bản ghi")
 
-            qs = EmployeeWorkInformation.objects.exclude(shift_id=shift)
-            count = qs.count()
+            # _base_manager: bỏ qua HorillaCompanyManager (thêm DISTINCT → vỡ .update())
+            mgr = EmployeeWorkInformation._base_manager
+            ids = list(mgr.exclude(shift_id=shift).values_list("id", flat=True))
+            count = len(ids)
             if dry:
                 self.stdout.write(f"[DRY-RUN] sẽ gán ALD26 cho {count} nhân viên")
                 transaction.set_rollback(True)
             else:
-                qs.update(shift_id=shift)
+                mgr.filter(id__in=ids).update(shift_id=shift)
                 self.stdout.write(self.style.SUCCESS(f"Đã gán ALD26 cho {count} nhân viên"))
 
-        total = __import__("employee").models.EmployeeWorkInformation.objects.filter(
+        total = EmployeeWorkInformation._base_manager.filter(
             shift_id__employee_shift=ALD26_NAME
         ).count()
         self.stdout.write(self.style.SUCCESS(f"Tổng NV đang ở ca ALD26: {total}"))
