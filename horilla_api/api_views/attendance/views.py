@@ -1283,9 +1283,8 @@ class CheckingStatus(APIView):
         # KHÔNG tick live. Chưa chấm lượt nào hôm nay → 00:00:00.
         duration = "00:00:00"
         try:
-            from datetime import date as _date
             att_today = Attendance.objects.filter(
-                employee_id=request.user.employee_get, attendance_date=_date.today()
+                employee_id=request.user.employee_get, attendance_date=django_tz.localdate()
             ).first()
             if att_today and att_today.attendance_worked_hour:
                 wh = att_today.attendance_worked_hour
@@ -1295,10 +1294,9 @@ class CheckingStatus(APIView):
 
         # ALD26: First = lượt chấm ĐẦU trong ngày, Last = lượt chấm CUỐI (kể cả lượt
         # mở/clock-in chưa đóng). Last hiện khi có ≥2 lượt; status = còn activity mở.
-        from datetime import date as _date
         try:
             acts = list(AttendanceActivity.objects.filter(
-                employee_id=request.user.employee_get, attendance_date=_date.today()
+                employee_id=request.user.employee_get, attendance_date=django_tz.localdate()
             ))
         except Exception:
             acts = []
