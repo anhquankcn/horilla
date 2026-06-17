@@ -7,8 +7,10 @@ from django.urls import path
 from horilla_api.api_views.attendance.permission_views import AttendancePermissionCheck
 from horilla_api.api_views.attendance.views import *
 from horilla_api.api_views.attendance import export_views
+from horilla_api.api_views.attendance.biometric_ingest import BiometricPunchView
 
 urlpatterns = [
+    path("biometric-punch/", BiometricPunchView.as_view(), name="api-biometric-punch"),
     path("clock-in/", ClockInAPIView.as_view(), name="api-check-in"),
     path("clock-out/", ClockOutAPIView.as_view(), name="api-check-out"),
     path("attendance/", AttendanceView.as_view(), name="api-attendance-list"),

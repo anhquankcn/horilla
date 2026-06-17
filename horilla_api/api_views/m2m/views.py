@@ -25,6 +25,7 @@ from horilla_api.m2m_auth import M2MAuthentication, require_m2m_scope
 AVAILABLE_SCOPES = [
     ("employee:read", "Đọc danh sách nhân viên, hồ sơ cá nhân"),
     ("attendance:read", "Đọc dữ liệu chấm công"),
+    ("attendance:write", "Ghi lượt chấm công (máy chấm công Ronald Jack)"),
     ("leave:read", "Đọc số dư nghỉ phép"),
     ("payroll:read", "Đọc dữ liệu lương"),
     ("embed:login", "Nhúng UI với SSO handoff"),
