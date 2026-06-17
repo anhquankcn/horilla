@@ -71,6 +71,7 @@ import { ExportAttendancePage } from './pages/ExportAttendance'
 import { ServicesPage } from './pages/Services'
 import { AccountMgmtPage } from './pages/AccountMgmt'
 import { JobPositionRolesPage } from './pages/JobPositionRoles'
+import { OnboardEmployeePage } from './pages/OnboardEmployee'
 import { WC2026GamePage } from './pages/WC2026Game'
 import { WC2026_ENABLED } from './lib/flags'
 
@@ -143,6 +144,7 @@ export function App() {
         <Route path="/services" element={<ServicesPage />} />
         <Route path="/account-mgmt" element={<AccountMgmtPage />} />
         <Route path="/job-mgmt" element={<JobPositionRolesPage />} />
+        <Route path="/onboard-employee" element={<OnboardEmployeePage />} />
         {WC2026_ENABLED && <Route path="/wc2026" element={<WC2026GamePage />} />}
         <Route path="/expenses" element={<ExpenseListPage />} />
         <Route path="/expenses/submit" element={<ExpenseSubmitPage />} />

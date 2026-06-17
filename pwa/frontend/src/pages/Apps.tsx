@@ -36,6 +36,7 @@ const MODULE_ORDER: ModuleGroup[] = ['hr', 'attendance', 'leave', 'payroll', 'ad
 const features: AppFeature[] = [
   // ── Nhân sự ──
   { slug: 'employees',     icon: 'users',   label: 'Nhân sự',         desc: 'Danh sách, hồ sơ nhân viên',               path: '/employees',      tone: 'navy',    group: 'hr' },
+  { slug: 'employees',     icon: 'users',   label: 'Onboarding NV',   desc: 'Tạo NV mới: gán vị trí, vai trò, nhóm quyền, tài khoản KC', path: '/onboard-employee', tone: 'red', group: 'hr' },
   { slug: 'org-chart',     icon: 'sitemap', label: 'Cây tổ chức',     desc: 'Sơ đồ phân cấp, phân công quản lý',        path: '/org-chart',      tone: 'navy',    group: 'hr' },
   { slug: 'roles',         icon: 'shield',  label: 'Vai trò & Quyền', desc: 'Phân quyền, nhóm vai trò',                 path: '/roles',          tone: 'navy',    group: 'hr' },
   { slug: 'groups',        icon: 'folder',  label: 'Nhóm Quyền',      desc: 'Quản lý nhóm, phân nhân sự',               path: '/groups',         tone: 'navy',    group: 'hr' },
