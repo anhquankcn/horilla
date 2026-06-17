@@ -28,7 +28,9 @@ class Command(BaseCommand):
         dry = opts["dry_run"]
 
         with transaction.atomic():
-            shift, created = EmployeeShift.objects.get_or_create(
+            # _base_manager khắp nơi: HorillaCompanyManager thêm DISTINCT, mà
+            # update_or_create dùng select_for_update → "FOR UPDATE not allowed with DISTINCT".
+            shift, created = EmployeeShift._base_manager.get_or_create(
                 employee_shift=ALD26_NAME,
                 defaults={"weekly_full_time": "168:00", "full_time": "744:00"},
             )
@@ -36,8 +38,8 @@ class Command(BaseCommand):
 
             sched_n = 0
             for day_name in DAYS:
-                day_obj, _ = EmployeeShiftDay.objects.get_or_create(day=day_name)
-                _, sc = EmployeeShiftSchedule.objects.update_or_create(
+                day_obj, _ = EmployeeShiftDay._base_manager.get_or_create(day=day_name)
+                _, sc = EmployeeShiftSchedule._base_manager.update_or_create(
                     shift_id=shift, day=day_obj,
                     defaults={
                         "start_time": time(0, 0, 0),
