@@ -413,11 +413,11 @@ export function AttendancePage() {
       <AttendanceDetailModal
         open={!!selectedAtt}
         onClose={() => setSelectedAtt(null)}
-        attendanceId={selectedAtt?.id ?? null}
         attendanceDate={selectedAtt?.attendance_date ?? ''}
         clockIn={fmtTime(selectedAtt?.attendance_clock_in)}
         clockOut={fmtTime(selectedAtt?.attendance_clock_out)}
         workedHour={selectedAtt?.attendance_worked_hour?.slice(0, 5) ?? '—'}
+        onChanged={refreshHistory}
       />
     </div>
   )
