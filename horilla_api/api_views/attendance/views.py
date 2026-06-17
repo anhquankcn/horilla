@@ -1284,12 +1284,17 @@ class CheckingStatus(APIView):
             .order_by("-id")
             .first()
         )
-        duration = None
+        # Giờ công = span lượt cuối − lượt đầu trong ngày (= attendance_worked_hour ALD26),
+        # KHÔNG tick live. Chưa chấm lượt nào hôm nay → 00:00:00.
+        duration = "00:00:00"
         try:
-            work_seconds = request.user.employee_get.get_forecasted_at_work()[
-                "forecasted_at_work_seconds"
-            ]
-            duration = CheckingStatus._format_seconds(int(work_seconds))
+            from datetime import date as _date
+            att_today = Attendance.objects.filter(
+                employee_id=request.user.employee_get, attendance_date=_date.today()
+            ).first()
+            if att_today and att_today.attendance_worked_hour:
+                wh = att_today.attendance_worked_hour
+                duration = wh if wh.count(":") >= 2 else f"{wh}:00"
         except Exception:
             duration = "00:00:00"
 

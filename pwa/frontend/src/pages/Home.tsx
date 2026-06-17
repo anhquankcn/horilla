@@ -1337,10 +1337,10 @@ export function HomePage() {
         <div className="flex items-center gap-1 shrink-0">
           <div style={{ fontSize: 9, fontWeight: 700, lineHeight: 1.7, textAlign: 'right' }}>
             <div style={{ color: clockInTime ? HNH.success : HNH.ink4 }}>
-              IN&nbsp;{clockInTime ?? '--:--'}
+              First&nbsp;{clockInTime ?? '--:--'}
             </div>
             <div style={{ color: clockOutTime ? HNH.red : HNH.ink4 }}>
-              OUT {clockOutTime ?? '--:--'}
+              Last {clockOutTime ?? '--:--'}
             </div>
           </div>
           <button

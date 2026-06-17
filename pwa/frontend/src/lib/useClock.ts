@@ -19,13 +19,6 @@ function parseDuration(d: string): number {
   return (parts[0] ?? 0) * 3600 + (parts[1] ?? 0) * 60 + (parts[2] ?? 0);
 }
 
-function formatDuration(totalSec: number): string {
-  const h = Math.floor(totalSec / 3600);
-  const m = Math.floor((totalSec % 3600) / 60);
-  const s = totalSec % 60;
-  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-}
-
 export interface UseClockResult {
   isClockedIn: boolean;
   duration: string;
@@ -62,14 +55,9 @@ export function useClock(): UseClockResult {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  useEffect(() => {
-    if (!status?.status) return;
-    const id = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - fetchedAt.current) / 1000);
-      setLiveDuration(formatDuration(baseSec.current + elapsed));
-    }, 1000);
-    return () => clearInterval(id);
-  }, [status?.status]);
+  // ALD26: giờ công KHÔNG tick live theo phút — chỉ đổi theo lượt chấm (cập nhật khi
+  // refresh sau mỗi lần chấm in/out, hoặc khi mở lại app). duration = span lượt cuối −
+  // lượt đầu do backend trả; chưa chấm lượt nào hôm nay → 00:00:00.
 
   const clockIn = useCallback(async (body?: Record<string, unknown>): Promise<ClockResponse | null> => {
     setActing(true);
