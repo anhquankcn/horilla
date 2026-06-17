@@ -1279,11 +1279,6 @@ class CheckingStatus(APIView):
         except Exception:
             pass
 
-        attendance_activity = (
-            AttendanceActivity.objects.filter(employee_id=request.user.employee_get)
-            .order_by("-id")
-            .first()
-        )
         # Giờ công = span lượt cuối − lượt đầu trong ngày (= attendance_worked_hour ALD26),
         # KHÔNG tick live. Chưa chấm lượt nào hôm nay → 00:00:00.
         duration = "00:00:00"
@@ -1298,59 +1293,41 @@ class CheckingStatus(APIView):
         except Exception:
             duration = "00:00:00"
 
-        status = False
-        clock_in_time = None
+        # ALD26: First = lượt chấm ĐẦU trong ngày, Last = lượt chấm CUỐI (kể cả lượt
+        # mở/clock-in chưa đóng). Last hiện khi có ≥2 lượt; status = còn activity mở.
+        from datetime import date as _date
+        try:
+            acts = list(AttendanceActivity.objects.filter(
+                employee_id=request.user.employee_get, attendance_date=_date.today()
+            ))
+        except Exception:
+            acts = []
 
-        today = datetime.now()
-        attendance_activity_first = (
-            AttendanceActivity.objects.filter(
-                employee_id=request.user.employee_get, clock_in_date=today
-            )
-            .order_by("in_datetime")
-            .first()
-        )
-        if attendance_activity and attendance_activity_first:
-            try:
-                clock_in_time = attendance_activity_first.clock_in.strftime("%H:%M")
-                clock_in_iso = None
-                if attendance_activity_first.in_datetime:
-                    clock_in_iso = attendance_activity_first.in_datetime.isoformat()
-                if attendance_activity.clock_out_date:
-                    status = False
-                    clock_out_time = None
-                    try:
-                        clock_out_time = attendance_activity.clock_out.strftime("%H:%M")
-                    except Exception:
-                        pass
-                    return Response(
-                        {
-                            "status": status,
-                            "duration": duration,
-                            "clock_in": clock_in_time,
-                            "clock_in_iso": clock_in_iso,
-                            "clock_out": clock_out_time,
-                        },
-                        status=200,
-                    )
-                else:
-                    status = True
-                    return Response(
-                        {
-                            "status": status,
-                            "duration": duration,
-                            "clock_in": clock_in_time,
-                            "clock_in_iso": clock_in_iso,
-                            "clock_out": None,
-                        },
-                        status=200,
-                    )
-            except Exception:
-                return Response(
-                    {"status": status, "duration": duration, "clock_in": clock_in_time, "clock_out": None},
-                    status=200,
-                )
+        punch_times = []
+        for a in acts:
+            if a.clock_in:
+                punch_times.append(a.clock_in)
+            if a.clock_out:
+                punch_times.append(a.clock_out)
+        punch_times.sort()
+
+        clock_in_time = punch_times[0].strftime("%H:%M") if punch_times else None
+        clock_out_time = punch_times[-1].strftime("%H:%M") if len(punch_times) >= 2 else None
+
+        status = any(a.clock_out is None for a in acts)
+        clock_in_iso = None
+        first_act = min(acts, key=lambda x: (x.in_datetime or x.id), default=None) if acts else None
+        if first_act and first_act.in_datetime:
+            clock_in_iso = first_act.in_datetime.isoformat()
+
         return Response(
-            {"status": status, "duration": duration, "clock_in": None, "clock_out": None},
+            {
+                "status": status,
+                "duration": duration,
+                "clock_in": clock_in_time,
+                "clock_in_iso": clock_in_iso,
+                "clock_out": clock_out_time,
+            },
             status=200,
         )
 
