@@ -307,7 +307,7 @@ export function AttendancePage() {
           boxShadow: '0 8px 18px rgba(20,43,111,0.2)',
         }}
       >
-        <Icon name="check" size={20} color="#fff" stroke={2.2} />
+        <Icon name="stamp" size={20} color="#fff" stroke={2.2} />
         Chấm công
       </button>
     </div>

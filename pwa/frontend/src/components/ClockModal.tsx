@@ -411,8 +411,7 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
     : done === 'pending' ? 'clock'
     : acting ? 'clock'
     : gpsBlocked ? 'pin'
-    : isClockedIn ? 'clock'
-    : 'check'
+    : 'stamp'
 
   // Chỉ enable nút khi: không đang xử lý/chưa xong, không phải máy tính,
   // camera sẵn sàng (chụp được selfie), có toạ độ GPS, đã chọn Trong/Ngoài VP,

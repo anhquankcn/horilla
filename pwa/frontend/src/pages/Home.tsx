@@ -848,12 +848,12 @@ function TodayShiftCard({ compact }: { compact?: boolean }) {
           }}>
             <div className="flex items-center gap-1">
               <Icon name="arrow-r" size={11} color={HNH.success} stroke={2} />
-              <span style={{ fontSize: 10, color: HNH.ink3 }}>Vào</span>
+              <span style={{ fontSize: 10, color: HNH.ink3 }}>First</span>
               <span style={{ fontSize: 13, fontWeight: 700, color: firstIn ? HNH.ink : HNH.ink4 }}>{firstIn ?? '--:--'}</span>
             </div>
             <div style={{ flex: 1, height: 1, background: HNH.line }} />
             <div className="flex items-center gap-1">
-              <span style={{ fontSize: 10, color: HNH.ink3 }}>Ra</span>
+              <span style={{ fontSize: 10, color: HNH.ink3 }}>Last</span>
               <span style={{ fontSize: 13, fontWeight: 700, color: lastOut ? HNH.ink : HNH.ink4 }}>{lastOut ?? '--:--'}</span>
               <span style={{ transform: 'rotate(180deg)', display: 'inline-flex' }}><Icon name="arrow-r" size={11} color={lastOut ? HNH.red : HNH.ink4} stroke={2} /></span>
             </div>
@@ -1352,7 +1352,7 @@ export function HomePage() {
               boxShadow: isClockedIn ? '0 2px 8px rgba(34,197,94,0.3)' : '0 2px 8px rgba(192,34,43,0.3)',
             }}
           >
-            <Icon name={isClockedIn ? 'check' : 'clock'} size={isSmall ? 16 : 18} color="#fff" stroke={2.2} />
+            <Icon name="stamp" size={isSmall ? 16 : 18} color="#fff" stroke={2.2} />
           </button>
         </div>
       </div>

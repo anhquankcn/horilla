@@ -16,6 +16,7 @@ export function Icon({ name, size = 18, color = HNH.ink, stroke: sw = 1.8 }: Ico
     case 'clock': return <svg width={size} height={size} viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" {...p}/><path d="M12 7v5l3 2" {...p}/></svg>
     case 'plus': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" {...p}/></svg>
     case 'check': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="m4 12 5 5L20 6" {...p}/></svg>
+    case 'stamp': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M5 22h14" {...p}/><path d="M19.27 13.73A2.5 2.5 0 0 0 17.5 13h-11A2.5 2.5 0 0 0 4 15.5V17a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-1.5c0-.66-.26-1.3-.73-1.77Z" {...p}/><path d="M14 13V8.5C14 7 15 7 15 5a3 3 0 0 0-3-3 3 3 0 0 0-3 3c0 2 1 2 1 3.5V13" {...p}/></svg>
     case 'x': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="m6 6 12 12M18 6 6 18" {...p}/></svg>
     case 'chev-r': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="m9 6 6 6-6 6" {...p}/></svg>
     case 'chev-l': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="m15 6-6 6 6 6" {...p}/></svg>
