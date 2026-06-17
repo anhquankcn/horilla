@@ -156,3 +156,85 @@ export function ActivityList({ resp, loading }: { resp: ActivityResp | null; loa
     </>
   )
 }
+
+// ── Danh sách LƯỢT CHẤM phẳng (mỗi lần chấm = 1 lượt) — dùng chung CC Tháng + tự xem ──
+interface Punch {
+  key: string
+  time: string
+  photo: string | null
+  address: string
+  workLocation: string
+  oofLabel: string
+  oofNote: string
+}
+
+export function flattenPunches(resp: ActivityResp | null): Punch[] {
+  if (!resp) return []
+  const out: Punch[] = []
+  for (const a of resp.activities) {
+    const note = a.out_of_office_type === 'other' ? (a.out_of_office_note || '') : ''
+    if (a.clock_in) {
+      out.push({ key: `${a.id}-in`, time: a.clock_in, photo: a.clock_in_photo, address: a.clock_in_address,
+        workLocation: a.work_location, oofLabel: a.out_of_office_label, oofNote: note })
+    }
+    if (a.clock_out) {
+      out.push({ key: `${a.id}-out`, time: a.clock_out, photo: a.clock_out_photo, address: a.clock_out_address,
+        workLocation: a.work_location, oofLabel: a.out_of_office_label, oofNote: note })
+    }
+  }
+  out.sort((x, y) => (x.time < y.time ? -1 : x.time > y.time ? 1 : 0))
+  return out
+}
+
+function PunchCard({ punch, index, total, role, officeName }: {
+  punch: Punch; index: number; total: number; role: 'in' | 'out' | 'mid'; officeName: string
+}) {
+  const [zoom, setZoom] = useState<string | null>(null)
+  const isOut = punch.workLocation === 'out_of_office'
+  const isIn = punch.workLocation === 'in_office'
+  const roleLabel = role === 'in' ? 'Giờ vào ca' : role === 'out' ? 'Giờ ra ca' : 'Giờ chấm'
+  const accent = role === 'in' ? HNH.success : role === 'out' ? HNH.navy : HNH.ink2
+  const accentBg = role === 'in' ? HNH.success50 : role === 'out' ? HNH.navy50 : HNH.cream2
+
+  return (
+    <div style={{ background: '#fff', borderRadius: 12, padding: '10px 12px', marginBottom: 8, border: `1px solid ${HNH.line}` }}>
+      <div className="flex items-start gap-3">
+        <div style={{ width: 30, height: 30, borderRadius: 9, background: accentBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 12, fontWeight: 800, color: accent }}>
+          {index + 1}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2" style={{ flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 10.5, color: HNH.ink3, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.3 }}>Lượt {index + 1}/{total}</span>
+            <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 6, padding: '1px 7px', background: role === 'in' ? '#dcfce7' : role === 'out' ? HNH.navy50 : HNH.cream2, color: accent }}>{roleLabel}</span>
+            {isIn && <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 6, padding: '1px 7px', background: '#dcfce7', color: '#15803d' }}>Trong VP</span>}
+            {isOut && <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 6, padding: '1px 7px', background: '#fef3c7', color: '#92400e' }}>Ngoài VP</span>}
+          </div>
+          <div style={{ fontSize: 16, fontWeight: 800, color: HNH.ink, fontFamily: "'Plus Jakarta Sans', monospace", marginTop: 2 }}>{punch.time?.slice(0, 5) || '--:--'}</div>
+          {isIn && officeName && <InfoLine icon="🏢" text={officeName} />}
+          {isOut && punch.oofLabel && <InfoLine icon="🚩" text={punch.oofNote ? `${punch.oofLabel}: ${punch.oofNote}` : punch.oofLabel} />}
+          {isOut && punch.address && <InfoLine icon="📍" text={punch.address} />}
+          {!isIn && !isOut && punch.address && <InfoLine icon="📍" text={punch.address} />}
+        </div>
+        {punch.photo && <PhotoThumb url={punch.photo} label={`Lượt ${index + 1}`} onOpen={() => setZoom(punch.photo)} />}
+      </div>
+      {zoom && <PhotoLightbox url={zoom} onClose={() => setZoom(null)} />}
+    </div>
+  )
+}
+
+export function PunchList({ resp, loading, isPast }: { resp: ActivityResp | null; loading: boolean; isPast: boolean }) {
+  const punches = flattenPunches(resp)
+  const role = (i: number): 'in' | 'out' | 'mid' =>
+    i === 0 ? 'in' : (isPast && i === punches.length - 1 && punches.length >= 2 ? 'out' : 'mid')
+  return (
+    <>
+      {loading && <div style={{ fontSize: 12, color: HNH.ink3 }}>Đang tải…</div>}
+      {!loading && punches.length === 0 && (
+        <div style={{ fontSize: 12, color: HNH.ink3 }}>Không có lượt chấm nào.</div>
+      )}
+      {punches.map((p, i) => (
+        <PunchCard key={p.key} punch={p} index={i} total={punches.length} role={role(i)} officeName={resp?.office_name ?? ''} />
+      ))}
+    </>
+  )
+}

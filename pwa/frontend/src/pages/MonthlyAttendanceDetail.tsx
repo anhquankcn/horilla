@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { HNH } from '../lib/theme'
-import { ActivityList, type ActivityResp } from '../components/AttendanceActivityDetail'
+import { PunchList, type ActivityResp } from '../components/AttendanceActivityDetail'
 
 type DayStatus = 'present' | 'late' | 'leave' | 'unpaid' | 'absent' | 'nco' | 'weekend' | 'future' | ''
 
@@ -759,13 +759,13 @@ function CellDetailModal({
           )}
         </div>
 
-        {/* Hoạt động chấm công — GPS, văn phòng, lý do ngoài VP, ảnh selfie */}
-        {(st === 'present' || st === 'late' || st === 'absent') && (
+        {/* Lượt chấm công — từng lượt: Trong/Ngoài VP, văn phòng, lý do, địa điểm, ảnh */}
+        {(st === 'present' || st === 'late' || st === 'absent' || st === 'nco') && (
           <div style={{ marginTop: 16 }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: HNH.ink2, marginBottom: 8 }}>
-              Hoạt động chấm công
+              Lượt chấm công
             </div>
-            <ActivityList resp={actResp} loading={loadingActs} />
+            <PunchList resp={actResp} loading={loadingActs} isPast={dISOFull < new Date().toISOString().slice(0, 10)} />
           </div>
         )}
 
