@@ -60,16 +60,16 @@ function fmtTime(t: string | null | undefined): string {
 }
 
 /* ── Log row ── */
-function LogRow({ date, day, clockIn, clockOut, hours, validated, pending, last, onClick }: {
+function LogRow({ date, day, clockIn, clockOut, hours, validated, pending, nco, last, onClick }: {
   date: string; day: string
   clockIn: string; clockOut: string; hours: string
-  validated: boolean; pending: boolean
+  validated: boolean; pending: boolean; nco?: boolean
   last?: boolean; onClick?: () => void
 }) {
-  const isAutoValid = !validated && !pending
-  const tag = validated ? 'Hợp lệ' : pending ? 'Chờ duyệt' : 'Hợp lệ'
-  const tagTone: 'success' | 'warn' | 'ink' = validated ? 'success' : pending ? 'warn' : 'warn'
-  const outColor = clockOut === '--:--' ? HNH.ink3 : HNH.ink
+  const isAutoValid = !validated && !pending && !nco
+  const tag = nco ? 'NCO' : validated ? 'Hợp lệ' : pending ? 'Chờ duyệt' : 'Hợp lệ'
+  const tagTone: 'success' | 'warn' | 'ink' = nco ? 'warn' : validated ? 'success' : pending ? 'warn' : 'warn'
+  const outColor = nco ? '#ea580c' : clockOut === '--:--' ? HNH.ink3 : HNH.ink
 
   return (
     <button
@@ -275,7 +275,7 @@ export function AttendancePage() {
         <div>
           <div className="flex items-center gap-1.5" style={{ fontSize: 11.5, fontWeight: 700, color: isClockedIn ? HNH.success : HNH.ink3, letterSpacing: 0.4, textTransform: 'uppercase' }}>
             <span style={{ width: 6, height: 6, borderRadius: '50%', background: isClockedIn ? HNH.success : HNH.ink3, display: 'inline-block' }} />
-            {isClockedIn ? 'Đang làm việc' : 'Chưa chấm công'}
+            {clockInTime ? 'Đã chấm công' : 'Chưa chấm công hôm nay'}
           </div>
           <div style={{ fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 44, fontWeight: 800, letterSpacing: -1.5, color: HNH.ink, lineHeight: 1, marginTop: 4 }}>
             {duration.split(':').map((p, i) => (
@@ -283,7 +283,7 @@ export function AttendancePage() {
             ))}
           </div>
           <div style={{ fontSize: 12.5, color: HNH.ink3, marginTop: 4, fontWeight: 500 }}>
-            {clockInTime ? `Bắt đầu ${clockInTime}` : 'Chưa vào ca'} · {employee?.shift_name ?? 'Ca hành chính'}
+            {clockInTime ? `Chấm đầu ${clockInTime}` : 'Chưa chấm hôm nay'} · {employee?.shift_name ?? 'Ca ALD26'}
           </div>
         </div>
       </div>
@@ -302,15 +302,13 @@ export function AttendancePage() {
         className="flex items-center justify-center gap-2.5 border-none cursor-pointer w-full"
         style={{
           marginTop: 16, height: 54, borderRadius: 16,
-          background: isClockedIn ? HNH.red : HNH.navy,
+          background: HNH.navy,
           color: '#fff', fontWeight: 700, fontSize: 15.5,
-          boxShadow: isClockedIn
-            ? '0 8px 18px rgba(192,34,43,0.28)'
-            : '0 8px 18px rgba(20,43,111,0.2)',
+          boxShadow: '0 8px 18px rgba(20,43,111,0.2)',
         }}
       >
-        <Icon name={isClockedIn ? 'clock' : 'check'} size={20} color="#fff" stroke={2.2} />
-        {isClockedIn ? 'Chấm công kết thúc ca' : 'Chấm công vào ca'}
+        <Icon name="check" size={20} color="#fff" stroke={2.2} />
+        Chấm công
       </button>
     </div>
   )
@@ -329,10 +327,12 @@ export function AttendancePage() {
           const dateLabel = `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
           const dayLabel = DAY_LABELS[d.getDay()]
 
-          // clock_in: first arrival (attendance_clock_in)
+          // ALD26: giờ vào ca = lượt chấm đầu; giờ ra ca = lượt chấm cuối
+          // (attendance_clock_out đã = lượt cuối sau recompute). 1 lượt → NCO.
           const clockIn = fmtTime(att.attendance_clock_in)
-          // clock_out: prefer latest activity clock_out, else attendance_clock_out
-          const clockOut = fmtTime(att.latest_activity_clock_out ?? att.attendance_clock_out)
+          const outRaw = att.attendance_clock_out ?? att.latest_activity_clock_out
+          const isNco = !outRaw && !!att.attendance_clock_in && att.attendance_date < todayStr
+          const clockOut = isNco ? 'NCO' : fmtTime(outRaw)
           const hours = att.attendance_worked_hour?.slice(0, 5) ?? '—'
 
           return (
@@ -342,7 +342,8 @@ export function AttendancePage() {
               day={dayLabel}
               clockIn={clockIn}
               clockOut={clockOut}
-              hours={hours}
+              hours={isNco ? '—' : hours}
+              nco={isNco}
               validated={att.attendance_validated}
               pending={att.is_validate_request && !att.attendance_validated}
               last={i === Math.min(history.length, 10) - 1}

@@ -177,7 +177,7 @@ function detectDeviceKind(): 'mobile' | 'tablet' | 'desktop' {
   return 'desktop'
 }
 
-export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, shiftName, acting, onClockIn, onClockOut }: ClockModalProps) {
+export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName, acting, onClockIn, onClockOut }: ClockModalProps) {
   const geo = useGeolocation()
   const isTablet = useTablet()
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -371,15 +371,14 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
     : isOutside ? HNH.warn
     : HNH.red
 
+  // ALD26: mọi lượt đều là "Chấm công" (không phân vào/ra ca)
   const statusText =
     done === 'valid'
-      ? (wasClockedIn.current ? 'ĐÃ KẾT THÚC CA' : 'ĐÃ CHẤM CÔNG VÀO CA')
+      ? 'ĐÃ CHẤM CÔNG'
     : done === 'pending'
       ? 'CHỜ XÁC NHẬN'
     : gpsBlocked
       ? 'ĐANG ĐỊNH VỊ GPS...'
-    : isClockedIn
-      ? 'ĐANG LÀM VIỆC'
     : isOutside
       ? 'NGOÀI KHU VỰC VĂN PHÒNG'
     : 'SẴN SÀNG CHẤM CÔNG'
@@ -404,9 +403,8 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
     : done === 'pending' ? 'Chờ xác nhận từ quản lý'
     : acting ? 'Đang xử lý...'
     : gpsBlocked ? 'Đang định vị GPS...'
-    : isClockedIn ? 'Kết thúc ca'
-    : isOutside ? 'Chấm công ngoài VP'
-    : 'Chấm vào ca'
+    : isOutside ? 'Chấm công (ngoài VP)'
+    : 'Chấm công'
 
   const btnIcon =
     done === 'valid' ? 'check'
@@ -569,15 +567,10 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
             fontFamily: "'Plus Jakarta Sans', sans-serif", fontSize: 52, fontWeight: 800,
             color: HNH.ink, letterSpacing: -2.5, lineHeight: 1, marginTop: 8,
           }}>
-            {isClockedIn && !done
-              ? duration.split(':').map((p, i) => (
-                  <span key={i}>{i > 0 && <span style={{ color: HNH.ink3 }}>:</span>}{p}</span>
-                ))
-              : <>{hh}<span style={{ color: HNH.ink3 }}>:</span>{mm}</>
-            }
+            {hh}<span style={{ color: HNH.ink3 }}>:</span>{mm}
           </div>
           <div className="relative" style={{ fontSize: 12, color: HNH.ink3, marginTop: 4 }}>
-            {shiftName}{clockInTime ? ` · Vào lúc ${clockInTime}` : ''}
+            {shiftName}{clockInTime ? ` · Chấm đầu ${clockInTime}` : ''}
           </div>
           {isClockedIn && clockInTime && !done && (
             <div className="relative flex items-center justify-center gap-1.5" style={{ fontSize: 11.5, color: HNH.success, fontWeight: 600, marginTop: 10 }}>
@@ -588,13 +581,13 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
           {done === 'valid' && (
             <div className="relative flex items-center justify-center gap-1.5" style={{ fontSize: 11.5, color: HNH.success, fontWeight: 600, marginTop: 10 }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: HNH.success }} />
-              {wasClockedIn.current ? `Kết thúc ca lúc ${hh}:${mm}` : `Vào ca lúc ${hh}:${mm}`}
+              Đã chấm công lúc {hh}:{mm}
             </div>
           )}
           {done === 'pending' && (
             <div className="relative flex items-center justify-center gap-1.5" style={{ fontSize: 11.5, color: HNH.warn, fontWeight: 600, marginTop: 10 }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: HNH.warn }} />
-              {wasClockedIn.current ? `Kết thúc ca lúc ${hh}:${mm} · Chờ duyệt` : `Vào ca lúc ${hh}:${mm} · Chờ duyệt`}
+              Đã chấm công lúc {hh}:{mm} · Chờ duyệt
             </div>
           )}
         </div>
@@ -826,7 +819,7 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, duration, 
               Xác nhận thông tin
             </div>
             <div style={{ fontSize: 18, fontWeight: 800, color: HNH.ink, marginTop: 2 }}>
-              {isClockedIn ? 'Kết thúc ca' : 'Chấm vào ca'}
+              Chấm công
             </div>
           </div>
           {selfie && (

@@ -108,7 +108,7 @@ function ActivityCard({ activity, index, total }: { activity: Activity; index: n
             {index + 1}
           </div>
           <span style={{ fontSize: 12.5, fontWeight: 700, color: HNH.ink }}>
-            Hoạt động {index + 1}/{total}
+            Lượt chấm {index + 1}/{total}
           </span>
         </div>
         <Badge tone={isOpen ? 'warn' : 'success'} size="s">
@@ -126,7 +126,7 @@ function ActivityCard({ activity, index, total }: { activity: Activity; index: n
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span style={{ fontSize: 11, color: HNH.ink3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>Vào ca</span>
+            <span style={{ fontSize: 11, color: HNH.ink3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>Chấm vào</span>
             <span style={{ fontSize: 15, fontWeight: 800, color: HNH.ink, fontFamily: "'Plus Jakarta Sans', monospace" }}>{inTime}</span>
           </div>
           {activity.gps_in_company_name && (
@@ -170,7 +170,7 @@ function ActivityCard({ activity, index, total }: { activity: Activity; index: n
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span style={{ fontSize: 11, color: HNH.ink3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>Ra ca</span>
+            <span style={{ fontSize: 11, color: HNH.ink3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>Chấm ra</span>
             <span style={{ fontSize: 15, fontWeight: 800, color: isOpen ? HNH.warn : HNH.ink, fontFamily: "'Plus Jakarta Sans', monospace" }}>
               {isOpen ? 'Chưa ra' : outTime}
             </span>
