@@ -27,7 +27,7 @@ def _is_cnb(user):
     )
 
 
-def _build_rows(year, month):
+def _build_rows(year, month, company_id=None, department_id=None):
     import calendar
     first = date(year, month, 1)
     last = date(year, month, calendar.monthrange(year, month)[1])
@@ -35,6 +35,10 @@ def _build_rows(year, month):
     employees = Employee.objects.filter(is_active=True).select_related(
         "employee_work_info__shift_id"
     ).order_by("stt", "employee_first_name")
+    if company_id:
+        employees = employees.filter(employee_work_info__company_id=company_id)
+    if department_id:
+        employees = employees.filter(employee_work_info__department_id=department_id)
 
     rows = []
     stt = 0
@@ -58,39 +62,33 @@ def _build_rows(year, month):
                 attendance_date=d,
             ).order_by("clock_in")
 
-            earliest_in = None
-            latest_out = None
-            detail_parts = []
+            # ALD26: gom mọi lượt chấm phẳng (clock_in + clock_out), sắp theo thời gian.
+            # Lượt 1 = giờ vào; lượt cuối (ngày đã qua) = giờ ra; chỉ 1 lượt → NCO.
+            punch_times = []
             for act in acts:
-                cin = act.clock_in
-                cout = act.clock_out
-                if cin:
-                    cin_str = str(cin)[:5]
-                    if earliest_in is None or cin < earliest_in:
-                        earliest_in = cin
-                else:
-                    cin_str = "--:--"
-                if cout:
-                    cout_str = str(cout)[:5]
-                    if cout_str == "23:59":
-                        cout_str = "NCO"
-                    if latest_out is None or cout > latest_out:
-                        latest_out = cout
-                else:
-                    cout_str = "NCO" if cin else "--:--"
-                detail_parts.append(f"{cin_str}-{cout_str}")
+                if act.clock_in:
+                    punch_times.append(act.clock_in)
+                if act.clock_out:
+                    punch_times.append(act.clock_out)
+            punch_times.sort()
+
+            def _hm(t):
+                s = str(t)[:5]
+                return "NCO" if s == "23:59" else s
+
+            detail = " · ".join(_hm(t) for t in punch_times)
+
+            earliest_in = punch_times[0] if punch_times else None
+            latest_out = punch_times[-1] if len(punch_times) >= 2 else None
 
             worked = att.attendance_worked_hour or "00:00"
             earliest_str = str(earliest_in)[:5] if earliest_in else "--:--"
-            if latest_out:
-                latest_str = str(latest_out)[:5]
-                if latest_str == "23:59":
-                    latest_str = "NCO"
-            elif earliest_in:
+            if len(punch_times) >= 2:
+                latest_str = _hm(punch_times[-1])
+            elif len(punch_times) == 1 and d < date.today():
                 latest_str = "NCO"
             else:
                 latest_str = "--:--"
-            detail = " ".join(detail_parts) if detail_parts else ""
 
             is_late = False
             is_early = False
@@ -150,6 +148,7 @@ def _build_rows(year, month):
             standard_secs = int(min_secs * coefficient) if coefficient else min_secs
 
             pct = round((worked_secs / standard_secs * 100), 1) if standard_secs > 0 else 0
+            cong = round(min(1.0, worked_secs / standard_secs), 2) if standard_secs > 0 else 0.0
             if pct < 100 and worked_secs > 0:
                 notes.append(f"Đạt {pct}% ngày công")
             elif pct > 100:
@@ -175,6 +174,7 @@ def _build_rows(year, month):
                 "early_mins": early_mins,
                 "coefficient": coefficient,
                 "work_pct": pct,
+                "cong": cong,
                 "note": note_str,
             })
 
@@ -191,8 +191,10 @@ class AttendanceExportPreviewView(APIView):
 
         year = int(request.query_params.get("year", date.today().year))
         month = int(request.query_params.get("month", date.today().month))
+        company_id = request.query_params.get("company_id") or None
+        department_id = request.query_params.get("department_id") or None
 
-        rows = _build_rows(year, month)
+        rows = _build_rows(year, month, company_id, department_id)
         return Response({
             "year": year,
             "month": month,
@@ -214,8 +216,10 @@ class AttendanceExportExcelView(APIView):
 
         year = int(request.query_params.get("year", date.today().year))
         month = int(request.query_params.get("month", date.today().month))
+        company_id = request.query_params.get("company_id") or None
+        department_id = request.query_params.get("department_id") or None
 
-        rows = _build_rows(year, month)
+        rows = _build_rows(year, month, company_id, department_id)
 
         wb = Workbook()
         ws = wb.active
@@ -224,8 +228,8 @@ class AttendanceExportExcelView(APIView):
         headers = [
             "STT", "Mã N.Viên", "Mã KT", "Tên", "Họ tên đầy đủ",
             "Ngày", "Thứ", "Giờ vào", "Giờ ra", "Giờ làm",
-            "Chi tiết hoạt động", "Đi trễ", "Về sớm",
-            "Hệ số", "% Ngày công", "Ghi chú",
+            "Lượt chấm", "Đi trễ", "Về sớm",
+            "Hệ số", "% Ngày công", "Công", "Ghi chú",
         ]
 
         header_font = Font(bold=True, color="FFFFFF", size=11)
@@ -255,7 +259,7 @@ class AttendanceExportExcelView(APIView):
                 r["worked"], r["detail"],
                 "Có" if r["is_late"] else "",
                 "Có" if r["is_early"] else "",
-                r["coefficient"], f'{r["work_pct"]}%',
+                r["coefficient"], f'{r["work_pct"]}%', r["cong"],
                 r["note"],
             ]
             for col, v in enumerate(vals, 1):
@@ -267,7 +271,7 @@ class AttendanceExportExcelView(APIView):
                 if r["is_early"] and col == 13:
                     cell.fill = early_fill
 
-        col_widths = [6, 14, 10, 15, 25, 12, 6, 10, 10, 10, 35, 8, 8, 8, 12, 30]
+        col_widths = [6, 14, 10, 15, 25, 12, 6, 10, 10, 10, 35, 8, 8, 8, 12, 8, 30]
         for i, w in enumerate(col_widths, 1):
             ws.column_dimensions[chr(64 + i) if i <= 26 else ""].width = w
 

@@ -22,10 +22,24 @@ interface Row {
   early_mins: number
   coefficient: number
   work_pct: number
+  cong: number
   note: string
 }
 
+interface Opt { id: number; name: string }
+
 const MONTH_NAMES = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6','Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12']
+
+function Chip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button onClick={onClick} style={{
+      padding: '6px 12px', borderRadius: 20, border: 'none', cursor: 'pointer', flexShrink: 0,
+      fontSize: 12, fontWeight: 700, whiteSpace: 'nowrap',
+      background: active ? HNH.navy : '#fff', color: active ? '#fff' : HNH.ink2,
+      boxShadow: active ? `0 2px 8px ${HNH.navy}30` : `0 1px 3px rgba(0,0,0,0.06)`,
+    }}>{label}</button>
+  )
+}
 
 export function ExportAttendancePage() {
   const navigate = useNavigate()
@@ -36,12 +50,29 @@ export function ExportAttendancePage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [downloading, setDownloading] = useState(false)
+  const [companies, setCompanies] = useState<Opt[]>([])
+  const [depts, setDepts] = useState<Opt[]>([])
+  const [companyId, setCompanyId] = useState<number | null>(null)
+  const [deptId, setDeptId] = useState<number | null>(null)
+
+  // Danh sách Công ty + Phòng ban để lọc (badge)
+  useEffect(() => {
+    fetch('/bff/api/employee/companies/', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : []).then((arr: any[]) =>
+        setCompanies(arr.map(c => ({ id: c.id, name: c.company ?? c.name })))).catch(() => {})
+    fetch('/bff/api/employee/departments/', { credentials: 'include' })
+      .then(r => r.ok ? r.json() : []).then((arr: any[]) =>
+        setDepts(arr.map(d => ({ id: d.id, name: d.department ?? d.name })))).catch(() => {})
+  }, [])
+  useEffect(() => { setDeptId(null) }, [companyId])
+
+  const filterQS = `${companyId ? `&company_id=${companyId}` : ''}${deptId ? `&department_id=${deptId}` : ''}`
 
   const load = useCallback(async () => {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch(`/bff/api/attendance/export-monthly/?year=${year}&month=${month}`, { credentials: 'include' })
+      const res = await fetch(`/bff/api/attendance/export-monthly/?year=${year}&month=${month}${filterQS}`, { credentials: 'include' })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
         setError(d.error || `Lỗi ${res.status}`)
@@ -54,14 +85,14 @@ export function ExportAttendancePage() {
       setError(e.message || 'Lỗi')
     }
     setLoading(false)
-  }, [year, month])
+  }, [year, month, filterQS])
 
   useEffect(() => { load() }, [load])
 
   const handleDownload = async () => {
     setDownloading(true)
     try {
-      const res = await fetch(`/bff/api/attendance/export-monthly/xlsx/?year=${year}&month=${month}`, { credentials: 'include' })
+      const res = await fetch(`/bff/api/attendance/export-monthly/xlsx/?year=${year}&month=${month}${filterQS}`, { credentials: 'include' })
       if (!res.ok) throw new Error('Download failed')
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
@@ -102,6 +133,20 @@ export function ExportAttendancePage() {
           </button>
         </div>
 
+        {/* Lọc Công ty / Phòng ban */}
+        {companies.length > 0 && (
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 8, marginBottom: 4 }}>
+            <Chip label="Tất cả Cty" active={companyId === null} onClick={() => setCompanyId(null)} />
+            {companies.map(c => <Chip key={c.id} label={c.name} active={companyId === c.id} onClick={() => setCompanyId(c.id)} />)}
+          </div>
+        )}
+        {depts.length > 0 && (
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 10, marginBottom: 4 }}>
+            <Chip label="Tất cả Phòng" active={deptId === null} onClick={() => setDeptId(null)} />
+            {depts.map(d => <Chip key={d.id} label={d.name} active={deptId === d.id} onClick={() => setDeptId(d.id)} />)}
+          </div>
+        )}
+
         {/* Stats + download */}
         <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
           <span style={{ fontSize: 13, color: HNH.ink2 }}>
@@ -133,7 +178,7 @@ export function ExportAttendancePage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, minWidth: 1200 }}>
             <thead>
               <tr style={{ background: HNH.navy, color: '#fff' }}>
-                {['STT','Mã NV','Mã KT','Tên','Họ tên','Ngày','Thứ','Vào','Ra','Giờ làm','Chi tiết HĐ','Trễ','Sớm','Hệ số','% NC','Ghi chú'].map(h => (
+                {['STT','Mã NV','Mã KT','Tên','Họ tên','Ngày','Thứ','Vào','Ra','Giờ làm','Lượt chấm','Trễ','Sớm','Hệ số','% NC','Công','Ghi chú'].map(h => (
                   <th key={h} style={{ padding: '8px 6px', fontWeight: 700, textAlign: 'left', whiteSpace: 'nowrap', borderBottom: `2px solid ${HNH.navy2}` }}>{h}</th>
                 ))}
               </tr>
@@ -169,6 +214,10 @@ export function ExportAttendancePage() {
                     padding: '6px', borderBottom: `1px solid ${HNH.line}`, textAlign: 'center', fontWeight: 700,
                     color: r.work_pct >= 100 ? HNH.success : r.work_pct >= 80 ? HNH.warn : HNH.red,
                   }}>{r.work_pct}%</td>
+                  <td style={{
+                    padding: '6px', borderBottom: `1px solid ${HNH.line}`, textAlign: 'center', fontWeight: 800,
+                    color: r.cong >= 1 ? HNH.success : '#c2410c',
+                  }}>{r.cong}</td>
                   <td style={{ padding: '6px', borderBottom: `1px solid ${HNH.line}`, fontSize: 10, color: HNH.ink2 }}>{r.note}</td>
                 </tr>
               ))}
