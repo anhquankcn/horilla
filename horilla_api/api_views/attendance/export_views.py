@@ -27,8 +27,11 @@ def _is_cnb(user):
     )
 
 
-def _build_rows(year, month, company_id=None, department_id=None):
+def _build_rows(year, month, company_id=None, department_id=None, search=None):
     import calendar
+    from django.db.models import Q, F, Value, CharField
+    from django.db.models.functions import Concat
+
     first = date(year, month, 1)
     last = date(year, month, calendar.monthrange(year, month)[1])
 
@@ -39,6 +42,24 @@ def _build_rows(year, month, company_id=None, department_id=None):
         employees = employees.filter(employee_work_info__company_id=company_id)
     if department_id:
         employees = employees.filter(employee_work_info__department_id=department_id)
+
+    # Lọc theo Tên / Họ đệm+Tên / Mã NV (badge) / Mã Kế toán. Nhiều NV: phân cách dấu phẩy.
+    if search and search.strip():
+        terms = [t.strip() for t in search.split(",") if t.strip()] or [search.strip()]
+        employees = employees.annotate(
+            _fullname=Concat(
+                F("employee_last_name"), Value(" "), F("employee_first_name"),
+                output_field=CharField(),
+            )
+        )
+        cond = Q()
+        for t in terms:
+            cond |= (
+                Q(employee_first_name__icontains=t) | Q(employee_last_name__icontains=t)
+                | Q(_fullname__icontains=t) | Q(badge_id__icontains=t)
+                | Q(accounting_code__icontains=t)
+            )
+        employees = employees.filter(cond)
 
     rows = []
     stt = 0
@@ -161,7 +182,7 @@ def _build_rows(year, month, company_id=None, department_id=None):
                 "employee_code": emp.employee_code or emp.badge_id or "",
                 "accounting_code": emp.accounting_code or "",
                 "first_name": emp.employee_first_name,
-                "full_name": f"{emp.employee_first_name} {emp.employee_last_name or ''}".strip(),
+                "full_name": f"{emp.employee_last_name or ''} {emp.employee_first_name}".strip(),
                 "date": d.isoformat(),
                 "weekday": weekday,
                 "clock_in": earliest_str,
@@ -193,8 +214,9 @@ class AttendanceExportPreviewView(APIView):
         month = int(request.query_params.get("month", date.today().month))
         company_id = request.query_params.get("company_id") or None
         department_id = request.query_params.get("department_id") or None
+        search = request.query_params.get("q") or None
 
-        rows = _build_rows(year, month, company_id, department_id)
+        rows = _build_rows(year, month, company_id, department_id, search)
         return Response({
             "year": year,
             "month": month,
@@ -218,8 +240,9 @@ class AttendanceExportExcelView(APIView):
         month = int(request.query_params.get("month", date.today().month))
         company_id = request.query_params.get("company_id") or None
         department_id = request.query_params.get("department_id") or None
+        search = request.query_params.get("q") or None
 
-        rows = _build_rows(year, month, company_id, department_id)
+        rows = _build_rows(year, month, company_id, department_id, search)
 
         wb = Workbook()
         ws = wb.active

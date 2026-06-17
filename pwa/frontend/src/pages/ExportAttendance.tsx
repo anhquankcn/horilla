@@ -54,6 +54,14 @@ export function ExportAttendancePage() {
   const [depts, setDepts] = useState<Opt[]>([])
   const [companyId, setCompanyId] = useState<number | null>(null)
   const [deptId, setDeptId] = useState<number | null>(null)
+  const [q, setQ] = useState('')
+  const [qApplied, setQApplied] = useState('')
+
+  // Debounce ô tìm kiếm (Tên / Mã NV / Mã KT) — tránh gọi API mỗi ký tự
+  useEffect(() => {
+    const id = setTimeout(() => setQApplied(q.trim()), 400)
+    return () => clearTimeout(id)
+  }, [q])
 
   // Danh sách Công ty + Phòng ban để lọc (badge)
   useEffect(() => {
@@ -66,7 +74,7 @@ export function ExportAttendancePage() {
   }, [])
   useEffect(() => { setDeptId(null) }, [companyId])
 
-  const filterQS = `${companyId ? `&company_id=${companyId}` : ''}${deptId ? `&department_id=${deptId}` : ''}`
+  const filterQS = `${companyId ? `&company_id=${companyId}` : ''}${deptId ? `&department_id=${deptId}` : ''}${qApplied ? `&q=${encodeURIComponent(qApplied)}` : ''}`
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -131,6 +139,22 @@ export function ExportAttendancePage() {
           <button onClick={nextMonth} style={{ background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer' }}>
             <Icon name="chevron-right" size={16} color="#fff" />
           </button>
+        </div>
+
+        {/* Ô lọc theo Tên / Mã NV / Mã KT (nhiều NV: cách nhau dấu phẩy) */}
+        <div style={{ position: 'relative', marginBottom: 10 }}>
+          <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }}>
+            <Icon name="search" size={15} color={HNH.ink3} />
+          </span>
+          <input
+            value={q}
+            onChange={e => setQ(e.target.value)}
+            placeholder="Lọc theo Tên / Mã NV / Mã KT (vd: Trâm  hoặc  PVHT, an.nd)"
+            style={{ width: '100%', padding: '10px 30px 10px 32px', borderRadius: 12, border: `1px solid ${HNH.line}`, fontSize: 13, boxSizing: 'border-box' }}
+          />
+          {q && (
+            <button onClick={() => setQ('')} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', border: 'none', background: 'none', cursor: 'pointer', color: HNH.ink3, fontSize: 16 }}>×</button>
+          )}
         </div>
 
         {/* Lọc Công ty / Phòng ban */}
