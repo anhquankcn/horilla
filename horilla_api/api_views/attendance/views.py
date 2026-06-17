@@ -2838,18 +2838,27 @@ class MyMonthCalendarView(APIView):
                 if not a.attendance_validated:
                     entry["validated"] = False
 
-        # AttendanceActivity: accurate first clock-in / last clock-out per day
-        act_map = {}
+        # AttendanceActivity: gom MỌI lượt chấm/ngày → lượt đầu = giờ vào ca,
+        # lượt cuối = giờ ra ca (ALD26: lượt thứ >2 cập nhật giờ ra ca theo lượt mới
+        # nhất, kể cả lượt lẻ). 1 lượt → chỉ có giờ vào (NCO).
+        act_punch_map = {}
         for act in AttendanceActivity.objects.filter(
             employee_id=employee,
             attendance_date__range=[start, end],
         ).order_by("attendance_date", "clock_in"):
             d = act.attendance_date.isoformat()
-            if d not in act_map:
-                act_map[d] = {"first_in": act.clock_in, "last_out": act.clock_out}
-            else:
-                if act.clock_out:
-                    act_map[d]["last_out"] = act.clock_out
+            lst = act_punch_map.setdefault(d, [])
+            if act.clock_in:
+                lst.append(act.clock_in)
+            if act.clock_out:
+                lst.append(act.clock_out)
+        act_map = {}
+        for d, lst in act_punch_map.items():
+            punches = sorted(lst)
+            act_map[d] = {
+                "first_in": punches[0] if punches else None,
+                "last_out": punches[-1] if len(punches) >= 2 else None,
+            }
 
         # Leaves (approved + pending "requested")
         leave_map = {}

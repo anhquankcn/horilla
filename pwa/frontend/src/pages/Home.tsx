@@ -857,7 +857,10 @@ function MonthCalendar({ compact }: { compact?: boolean }) {
                 {!isFuture && (
                   <>
                     {day.color_status === 'nco' ? (
-                      <div style={{ fontSize: compact ? 10 : 11, fontWeight: 800, color: '#ea580c', marginTop: 'auto', marginBottom: 'auto' }}>NCO</div>
+                      <div style={{ marginTop: 'auto', textAlign: 'center', lineHeight: 1.2 }}>
+                        <div style={{ fontSize: compact ? 8 : 8.5, fontWeight: 700, color: '#ea580c' }}>{day.first_in ?? '—'}</div>
+                        <div style={{ fontSize: compact ? 9 : 10, fontWeight: 800, color: '#ea580c' }}>NCO</div>
+                      </div>
                     ) : (day.first_in || day.last_out) ? (
                       <div style={{ marginTop: 'auto', textAlign: 'center', lineHeight: 1.2 }}>
                         <div style={{ fontSize: compact ? 8 : 8.5, fontWeight: 700, color: statusColor ?? HNH.ink2 }}>{day.first_in ?? '—'}</div>

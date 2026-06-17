@@ -194,9 +194,9 @@ def clock_in_attendance_and_activity(
         if early_out_instance.exists():
             early_out_instance[0].delete()
     try:
-        recompute_combined_day(employee, attendance_date)
+        recompute_day(employee, attendance_date)
     except Exception:
-        logger.exception("recompute_combined_day (clock-in) failed")
+        logger.exception("recompute_day (clock-in) failed")
     return attendance
 
 
@@ -482,13 +482,93 @@ def clock_out_attendance_and_activity(employee, date_today, now, out_datetime=No
             attendance.save()
 
         try:
-            recompute_combined_day(employee, attendance_activity.attendance_date)
+            recompute_day(employee, attendance_activity.attendance_date)
         except Exception:
-            logger.exception("recompute_combined_day (clock-out) failed")
+            logger.exception("recompute_day (clock-out) failed")
         return attendance
 
     logger.error("No attendance clock in activity found that needs clocking out.")
     return
+
+
+ALD26_MIN_SECONDS = 9 * 3600 + 35 * 60  # 09:35 = đủ 100% công
+
+
+def _is_ald26(employee):
+    """True nếu nhân viên đang ở ca ALD26 (ca 24h chung toàn công ty)."""
+    try:
+        wi = getattr(employee, "employee_work_info", None)
+        return bool(wi and wi.shift_id and wi.shift_id.employee_shift == "ALD26")
+    except Exception:
+        return False
+
+
+def recompute_day(employee, attendance_date):
+    """Bộ điều phối: ALD26 dùng thuật toán span (đầu→cuối); còn lại dùng one-way."""
+    if _is_ald26(employee):
+        return recompute_ald26_day(employee, attendance_date)
+    return recompute_combined_day(employee, attendance_date)
+
+
+def recompute_ald26_day(employee, attendance_date):
+    """Tính công 1 ngày cho ca ALD26.
+
+    Gom MỌI lượt chấm trong ngày (clock_in + clock_out của các activity):
+    - giờ vào ca = lượt chấm đầu tiên
+    - giờ ra ca  = lượt chấm cuối cùng (lượt thứ >2 → giờ ra ca cập nhật theo lượt mới nhất)
+    - tổng giờ   = lượt cuối − lượt đầu (span thô, KHÔNG trừ nghỉ trưa)
+    Chỉ 1 lượt → giờ ra ca = None (NCO). 0 lượt → không có Attendance (Vắng).
+    """
+    from datetime import time as _dtime
+    from attendance.methods.utils import format_time
+    from attendance.models import Attendance, AttendanceActivity
+
+    acts = list(
+        AttendanceActivity.objects.filter(
+            employee_id=employee, attendance_date=attendance_date
+        )
+    )
+
+    def _secs(t):
+        return t.hour * 3600 + t.minute * 60 + t.second if t else None
+
+    punches = []
+    for a in acts:
+        for t in (a.clock_in, a.clock_out):
+            s = _secs(t)
+            if s is not None:
+                punches.append(s)
+    punches.sort()
+
+    att = Attendance.objects.filter(
+        employee_id=employee, attendance_date=attendance_date
+    ).first()
+    if att is None:
+        return {"punches": len(punches), "worked_sec": 0}
+
+    def _to_time(sec):
+        sec = int(sec) % 86400
+        return _dtime(sec // 3600, (sec % 3600) // 60, sec % 60)
+
+    att.minimum_hour = "09:35"
+    if len(punches) >= 2:
+        worked = max(0, punches[-1] - punches[0])
+        att.attendance_clock_in = _to_time(punches[0])
+        att.attendance_clock_out = _to_time(punches[-1])
+        att.attendance_clock_out_date = attendance_date
+        att.attendance_worked_hour = format_time(worked)
+        att.at_work_second = worked
+    else:
+        # 1 lượt → NCO (có giờ vào, chưa có giờ ra)
+        worked = 0
+        if punches:
+            att.attendance_clock_in = _to_time(punches[0])
+        att.attendance_clock_out = None
+        att.attendance_clock_out_date = None
+        att.attendance_worked_hour = format_time(0)
+        att.at_work_second = 0
+    att.save()
+    return {"punches": len(punches), "worked_sec": worked}
 
 
 def recompute_combined_day(employee, attendance_date):
