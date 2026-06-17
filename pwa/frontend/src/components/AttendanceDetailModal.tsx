@@ -84,125 +84,101 @@ function PhotoView({ src, label }: { src: string; label: string }) {
   )
 }
 
-function ActivityCard({ activity, index, total }: { activity: Activity; index: number; total: number }) {
-  const inTime = activity.clock_in?.slice(0, 5) ?? '--:--'
-  const outTime = activity.clock_out?.slice(0, 5) ?? '--:--'
-  const hasInGps = activity.clock_in_latitude && activity.clock_in_longitude
-  const hasOutGps = activity.clock_out_latitude && activity.clock_out_longitude
-  const isOpen = !activity.clock_out
+// 1 lượt chấm phẳng (không còn cặp vào/ra) — mỗi lần chấm là 1 sự kiện.
+interface Punch {
+  key: string
+  time: string            // HH:MM:SS
+  photo: string | null
+  lat: string | null
+  lng: string | null
+  address: string | null
+  companyName: string | null
+  companyAddress: string | null
+  distanceM: number | null
+}
+
+// Gom các AttendanceActivity (cặp clock_in/clock_out) thành danh sách lượt chấm
+// phẳng, sắp theo thời gian. Mỗi clock_in và clock_out = 1 lượt riêng.
+function flattenPunches(activities: Activity[]): Punch[] {
+  const punches: Punch[] = []
+  for (const a of activities) {
+    if (a.clock_in) {
+      punches.push({
+        key: `${a.id}-in`, time: a.clock_in, photo: a.clock_in_photo,
+        lat: a.clock_in_latitude, lng: a.clock_in_longitude, address: a.clock_in_address,
+        companyName: a.gps_in_company_name, companyAddress: a.gps_in_company_address,
+        distanceM: a.gps_in_distance_m,
+      })
+    }
+    if (a.clock_out) {
+      punches.push({
+        key: `${a.id}-out`, time: a.clock_out, photo: a.clock_out_photo,
+        lat: a.clock_out_latitude, lng: a.clock_out_longitude, address: a.clock_out_address,
+        companyName: a.gps_out_company_name, companyAddress: a.gps_out_company_address,
+        distanceM: a.gps_out_distance_m,
+      })
+    }
+  }
+  punches.sort((x, y) => (x.time < y.time ? -1 : x.time > y.time ? 1 : 0))
+  return punches
+}
+
+function PunchCard({ punch, index, total, role }: {
+  punch: Punch; index: number; total: number; role: 'in' | 'out' | 'mid'
+}) {
+  const time = punch.time?.slice(0, 5) ?? '--:--'
+  const hasGps = punch.lat && punch.lng
+  const roleLabel = role === 'in' ? 'Giờ vào ca' : role === 'out' ? 'Giờ ra ca' : 'Giờ chấm'
+  const accent = role === 'in' ? HNH.success : role === 'out' ? HNH.navy : HNH.ink2
+  const accentBg = role === 'in' ? HNH.success50 : role === 'out' ? HNH.navy50 : HNH.cream2
 
   return (
     <div style={{
-      background: '#fff', borderRadius: 16, padding: '14px 16px',
-      border: `1px solid ${HNH.line}`,
-      boxShadow: '0 1px 2px rgba(15,20,40,0.03)',
+      background: '#fff', borderRadius: 16, padding: '12px 14px',
+      border: `1px solid ${HNH.line}`, boxShadow: '0 1px 2px rgba(15,20,40,0.03)',
     }}>
-      <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
-        <div className="flex items-center gap-2">
-          <div style={{
-            width: 24, height: 24, borderRadius: 8,
-            background: isOpen ? HNH.warn50 : HNH.success50,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 11, fontWeight: 800, color: isOpen ? HNH.warn : HNH.success,
-          }}>
-            {index + 1}
-          </div>
-          <span style={{ fontSize: 12.5, fontWeight: 700, color: HNH.ink }}>
-            Lượt chấm {index + 1}/{total}
-          </span>
-        </div>
-        <Badge tone={isOpen ? 'warn' : 'success'} size="s">
-          {isOpen ? 'Đang mở' : 'Hoàn tất'}
-        </Badge>
-      </div>
-
-      {/* Clock in */}
-      <div className="flex items-start gap-3" style={{ padding: '8px 0', borderBottom: `1px solid ${HNH.line}` }}>
+      <div className="flex items-start gap-3">
         <div style={{
-          width: 32, height: 32, borderRadius: 10, background: HNH.success50,
+          width: 34, height: 34, borderRadius: 10, background: accentBg,
           display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          fontSize: 13, fontWeight: 800, color: accent,
         }}>
-          <Icon name="arrow-up" size={14} color={HNH.success} stroke={2.2} />
+          {index + 1}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <span style={{ fontSize: 11, color: HNH.ink3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>Chấm vào</span>
-            <span style={{ fontSize: 15, fontWeight: 800, color: HNH.ink, fontFamily: "'Plus Jakarta Sans', monospace" }}>{inTime}</span>
-          </div>
-          {activity.gps_in_company_name && (
-            <div className="flex items-center gap-1" style={{ marginTop: 4 }}>
-              <Icon name="pin" size={11} color={HNH.success} stroke={1.5} />
-              <span style={{ fontSize: 10.5, color: HNH.ink2, fontWeight: 600 }}>
-                {activity.gps_in_company_name}
-                {activity.gps_in_distance_m != null && (
-                  <span style={{ color: HNH.ink3, fontWeight: 400 }}> · {activity.gps_in_distance_m}m</span>
-                )}
-              </span>
-            </div>
-          )}
-          {activity.gps_in_company_address && (
-            <div style={{ marginTop: 1, paddingLeft: 15 }}>
-              <span style={{ fontSize: 10, color: HNH.ink3 }}>{activity.gps_in_company_address}</span>
-            </div>
-          )}
-          {!activity.gps_in_company_name && (hasInGps || activity.clock_in_address) && (
-            <div className="flex items-center gap-1" style={{ marginTop: 4 }}>
-              <Icon name="pin" size={11} color={HNH.ink3} stroke={1.5} />
-              <span style={{ fontSize: 10.5, color: HNH.ink3 }}>
-                {activity.clock_in_address || `${Number(activity.clock_in_latitude).toFixed(5)}, ${Number(activity.clock_in_longitude).toFixed(5)}`}
-              </span>
-            </div>
-          )}
-        </div>
-        {activity.clock_in_photo && (
-          <PhotoView src={activity.clock_in_photo} label="Vào" />
-        )}
-      </div>
-
-      {/* Clock out */}
-      <div className="flex items-start gap-3" style={{ padding: '8px 0' }}>
-        <div style={{
-          width: 32, height: 32, borderRadius: 10,
-          background: isOpen ? HNH.warn50 : HNH.navy50,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-        }}>
-          <Icon name={isOpen ? 'clock' : 'arrow-r'} size={14} color={isOpen ? HNH.warn : HNH.navy} stroke={2.2} />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span style={{ fontSize: 11, color: HNH.ink3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>Chấm ra</span>
-            <span style={{ fontSize: 15, fontWeight: 800, color: isOpen ? HNH.warn : HNH.ink, fontFamily: "'Plus Jakarta Sans', monospace" }}>
-              {isOpen ? 'Chưa ra' : outTime}
+            <span style={{ fontSize: 11, color: HNH.ink3, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+              Lượt {index + 1}/{total}
             </span>
+            <Badge tone={role === 'in' ? 'success' : role === 'out' ? 'navy' : 'ink'} size="s">{roleLabel}</Badge>
           </div>
-          {activity.gps_out_company_name && (
+          <div style={{ fontSize: 17, fontWeight: 800, color: HNH.ink, fontFamily: "'Plus Jakarta Sans', monospace", marginTop: 2 }}>{time}</div>
+          {punch.companyName && (
             <div className="flex items-center gap-1" style={{ marginTop: 4 }}>
-              <Icon name="pin" size={11} color={HNH.navy} stroke={1.5} />
+              <Icon name="pin" size={11} color={accent} stroke={1.5} />
               <span style={{ fontSize: 10.5, color: HNH.ink2, fontWeight: 600 }}>
-                {activity.gps_out_company_name}
-                {activity.gps_out_distance_m != null && (
-                  <span style={{ color: HNH.ink3, fontWeight: 400 }}> · {activity.gps_out_distance_m}m</span>
+                {punch.companyName}
+                {punch.distanceM != null && (
+                  <span style={{ color: HNH.ink3, fontWeight: 400 }}> · {punch.distanceM}m</span>
                 )}
               </span>
             </div>
           )}
-          {activity.gps_out_company_address && (
+          {punch.companyAddress && (
             <div style={{ marginTop: 1, paddingLeft: 15 }}>
-              <span style={{ fontSize: 10, color: HNH.ink3 }}>{activity.gps_out_company_address}</span>
+              <span style={{ fontSize: 10, color: HNH.ink3 }}>{punch.companyAddress}</span>
             </div>
           )}
-          {!activity.gps_out_company_name && (hasOutGps || activity.clock_out_address) && (
+          {!punch.companyName && (hasGps || punch.address) && (
             <div className="flex items-center gap-1" style={{ marginTop: 4 }}>
               <Icon name="pin" size={11} color={HNH.ink3} stroke={1.5} />
               <span style={{ fontSize: 10.5, color: HNH.ink3 }}>
-                {activity.clock_out_address || `${Number(activity.clock_out_latitude).toFixed(5)}, ${Number(activity.clock_out_longitude).toFixed(5)}`}
+                {punch.address || `${Number(punch.lat).toFixed(5)}, ${Number(punch.lng).toFixed(5)}`}
               </span>
             </div>
           )}
         </div>
-        {activity.clock_out_photo && (
-          <PhotoView src={activity.clock_out_photo} label="Ra" />
-        )}
+        {punch.photo && <PhotoView src={punch.photo} label={`Lượt ${index + 1}`} />}
       </div>
     </div>
   )
@@ -219,6 +195,14 @@ export function AttendanceDetailModal({ open, onClose, attendanceId, attendanceD
   const d = new Date(attendanceDate)
   const dayLabels = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7']
   const dateLabel = `${dayLabels[d.getDay()]}, ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+
+  // N lượt chấm phẳng. Lượt 1 = giờ vào ca; ngày ĐÃ QUA → lượt cuối = giờ ra ca;
+  // các lượt còn lại = giờ chấm.
+  const punches = flattenPunches(activities ?? [])
+  const todayISO = new Date().toISOString().slice(0, 10)
+  const isPast = attendanceDate < todayISO
+  const punchRole = (i: number): 'in' | 'out' | 'mid' =>
+    i === 0 ? 'in' : (isPast && i === punches.length - 1 && punches.length >= 2 ? 'out' : 'mid')
 
   return (
     <div
@@ -272,7 +256,7 @@ export function AttendanceDetailModal({ open, onClose, attendanceId, attendanceD
                 </div>
                 <Icon name="arrow-r" size={16} color={HNH.ink3} />
                 <div>
-                  <div style={{ fontSize: 10.5, color: HNH.ink3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>Ra</div>
+                  <div style={{ fontSize: 10.5, color: HNH.ink3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>{isPast ? 'Ra' : 'Chấm cuối'}</div>
                   <div style={{ fontSize: 18, fontWeight: 800, color: HNH.ink, fontFamily: "'Plus Jakarta Sans', monospace" }}>{clockOut}</div>
                 </div>
                 <div className="ml-auto" style={{ textAlign: 'right' }}>
@@ -282,10 +266,10 @@ export function AttendanceDetailModal({ open, onClose, attendanceId, attendanceD
               </div>
             </div>
 
-            {/* Activities */}
+            {/* Lượt chấm công (phẳng) */}
             <div style={{ fontSize: 13.5, fontWeight: 700, color: HNH.ink, marginBottom: 8 }}>
-              Hoạt động chấm công
-              {activities && <span style={{ color: HNH.ink3, fontWeight: 500 }}> ({activities.length})</span>}
+              Lượt chấm công
+              {!loading && <span style={{ color: HNH.ink3, fontWeight: 500 }}> ({punches.length})</span>}
             </div>
 
             {loading && (
@@ -294,20 +278,20 @@ export function AttendanceDetailModal({ open, onClose, attendanceId, attendanceD
               </div>
             )}
 
-            {!loading && activities && activities.length === 0 && (
+            {!loading && punches.length === 0 && (
               <div style={{
                 padding: 30, textAlign: 'center',
                 background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`,
               }}>
                 <Icon name="clock" size={28} color={HNH.ink3} />
-                <div style={{ color: HNH.ink3, fontSize: 13, marginTop: 8 }}>Chưa có hoạt động</div>
+                <div style={{ color: HNH.ink3, fontSize: 13, marginTop: 8 }}>Chưa có lượt chấm nào</div>
               </div>
             )}
 
-            {activities && activities.length > 0 && (
+            {punches.length > 0 && (
               <div className="flex flex-col gap-2.5">
-                {activities.map((act, i) => (
-                  <ActivityCard key={act.id} activity={act} index={i} total={activities.length} />
+                {punches.map((p, i) => (
+                  <PunchCard key={p.key} punch={p} index={i} total={punches.length} role={punchRole(i)} />
                 ))}
               </div>
             )}
