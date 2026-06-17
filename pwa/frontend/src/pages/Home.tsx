@@ -17,6 +17,7 @@ import { AttendanceDetailModal } from '../components/AttendanceDetailModal'
 interface AttendanceRecord {
   id: number
   attendance_date: string
+  at_work_second?: number
 }
 
 interface PaginatedResponse<T> {
@@ -1051,10 +1052,15 @@ export function HomePage() {
 
   const currentMonth = now.getMonth()
   const currentYear = now.getFullYear()
-  const workingDays = attendanceData?.results?.filter(r => {
-    const d = new Date(r.attendance_date)
-    return d.getMonth() === currentMonth && d.getFullYear() === currentYear
-  }).length ?? 0
+  // Ngày công = tổng công tỉ lệ (giờ làm / 9h35, tối đa 1.0) trong tháng — ALD26
+  const workingDays = (() => {
+    const recs = attendanceData?.results?.filter(r => {
+      const d = new Date(r.attendance_date)
+      return d.getMonth() === currentMonth && d.getFullYear() === currentYear
+    }) ?? []
+    const sum = recs.reduce((acc, r) => acc + Math.min(1, (r.at_work_second ?? 0) / 34500), 0)
+    return Math.round(sum * 10) / 10
+  })()
   const totalWorkDaysInMonth = (() => {
     const year = now.getFullYear()
     const month = now.getMonth()

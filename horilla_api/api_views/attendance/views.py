@@ -2224,6 +2224,7 @@ class MonthlyAttendanceDetailView(APIView):
         employees_data = []
         for emp in emp_qs:
             days_data = {}
+            total_cong = 0.0
             for day_num in range(1, days_in_month + 1):
                 d = date(year, month, day_num)
                 cell = {"check_in": None, "check_out": None, "status": ""}
@@ -2247,11 +2248,15 @@ class MonthlyAttendanceDetailView(APIView):
                     except Exception:
                         min_secs = 0
                     work_secs = cell["at_work_second"]
+                    # Công ngày = giờ làm / mức tối thiểu (9h35 cho ALD26), tối đa 1.0
+                    denom = min_secs or 34500
                     if co is None and d < today_date:
                         # Có clock-in nhưng không clock-out ở ngày đã qua → NCO
                         cell["status"] = "nco"
+                        cell["cong"] = 0.0
                     else:
                         cell["status"] = "late" if (min_secs > 0 and work_secs < min_secs) else "present"
+                        cell["cong"] = round(min(1.0, work_secs / denom), 2)
                 elif is_weekend:
                     cell["status"] = "weekend"
                 elif d > today_date:
@@ -2260,9 +2265,12 @@ class MonthlyAttendanceDetailView(APIView):
                     payment = leave.get("leave_type_id__payment", "unpaid")
                     cell["status"] = "leave" if payment == "paid" else "unpaid"
                     cell["leave_name"] = leave.get("leave_type_id__name", "")
+                    if payment == "paid":
+                        cell["cong"] = 1.0  # nghỉ phép có lương = đủ công
                 else:
                     cell["status"] = "absent"
 
+                total_cong += cell.get("cong") or 0
                 days_data[str(day_num)] = cell
 
             avatar = None
@@ -2309,6 +2317,7 @@ class MonthlyAttendanceDetailView(APIView):
                 "company_id": company_id,
                 "company_name": company_name,
                 "days": days_data,
+                "total_cong": round(total_cong, 2),
             })
 
         return Response({

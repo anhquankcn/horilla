@@ -14,6 +14,7 @@ interface DayCell {
   at_work_second?: number
   overtime_second?: number
   is_weekend?: boolean
+  cong?: number
 }
 
 interface DayHeader {
@@ -35,6 +36,7 @@ interface EmployeeRow {
   company_id: number | null
   company_name: string
   days: Record<string, DayCell>
+  total_cong?: number
 }
 
 interface MonthlyData {
@@ -503,7 +505,7 @@ export function MonthlyAttendanceDetailPage() {
                       textAlign: 'center',
                       verticalAlign: 'middle',
                     }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: HNH.navy }}>{wd}WD</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: HNH.navy }}>{(emp.total_cong ?? wd)} công</div>
                       <div style={{ fontSize: 10, color: HNH.ink2 }}>{fmtSecs(whSec)}</div>
                       {otSec > 0 && <div style={{ fontSize: 10, color: '#d97706', fontWeight: 600 }}>{fmtSecs(otSec)}</div>}
                     </td>
@@ -570,6 +572,7 @@ function CellContent({
   const st = cell.status
 
   if (st === 'present' || st === 'late') {
+    const cong = cell.cong
     return (
       <div>
         <div style={{ fontSize: 11, fontWeight: 700, color: cfg.text, lineHeight: 1.3 }}>
@@ -578,13 +581,15 @@ function CellContent({
         <div style={{ fontSize: 10, color: cfg.text, opacity: 0.75, lineHeight: 1.3 }}>
           {cell.check_out ?? '?'}
         </div>
-        {st === 'late' && (
+        {cong != null && (
           <div style={{
             display: 'inline-block', marginTop: 1,
-            fontSize: 8, background: '#fde68a', color: '#92400e',
-            borderRadius: 3, padding: '1px 3px', fontWeight: 600,
+            fontSize: 8.5, fontWeight: 800,
+            color: cong >= 1 ? '#15803d' : '#c2410c',
+            background: cong >= 1 ? '#dcfce7' : '#ffedd5',
+            borderRadius: 3, padding: '0px 3px',
           }}>
-            TG
+            {cong} công
           </div>
         )}
       </div>
@@ -693,6 +698,9 @@ function CellDetailModal({
               <DetailRow icon="🕐" label="Giờ vào" value={cell.check_in ?? '—'} />
               <DetailRow icon="🕔" label="Giờ ra" value={cell.check_out ?? '—'} />
               <DetailRow icon="⏱️" label="Giờ làm việc" value={fmtSecs(cell.at_work_second ?? 0)} valueColor={HNH.success} />
+              {cell.cong != null && (
+                <DetailRow icon="📊" label="Công ngày" value={`${cell.cong} (tối thiểu 9h35 = 1.0)`} valueColor={cell.cong >= 1 ? HNH.success : '#c2410c'} />
+              )}
               {(cell.overtime_second ?? 0) > 0 && (
                 <DetailRow icon="🔥" label="Giờ tăng ca" value={fmtSecs(cell.overtime_second ?? 0)} valueColor="#d97706" />
               )}

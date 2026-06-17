@@ -907,6 +907,41 @@ def _std_working_days(year: int, month: int) -> int:
     )
 
 
+def _actual_cong(employee, year: int, month: int) -> Decimal:
+    """Tổng công thực tế trong tháng theo ALD26: mỗi ngày công = giờ làm / mức tối
+    thiểu (9h35), tối đa 1.0; nghỉ phép có lương = 1.0 công. Dùng làm actual_days
+    mặc định khi tạo bảng lương (C&B vẫn chỉnh tay được)."""
+    from attendance.models import Attendance
+    from leave.models import LeaveRequest
+
+    start = date(year, month, 1)
+    end = date(year, month, calendar.monthrange(year, month)[1])
+    total = 0.0
+    for a in Attendance.objects.filter(employee_id=employee, attendance_date__range=[start, end]):
+        ws = a.at_work_second or 0
+        try:
+            mh, mm = map(int, str(a.minimum_hour or "09:35").split(":"))
+            denom = mh * 3600 + mm * 60 or 34500
+        except Exception:
+            denom = 34500
+        total += min(1.0, ws / denom)
+    # Nghỉ phép có lương = đủ công
+    leave_dates = set()
+    for lr in LeaveRequest.objects.filter(
+        employee_id=employee, status="approved",
+        start_date__lte=end, end_date__gte=start,
+    ).select_related("leave_type_id"):
+        if getattr(lr.leave_type_id, "payment", "unpaid") != "paid":
+            continue
+        d = lr.start_date
+        while d <= (lr.end_date or lr.start_date):
+            if start <= d <= end:
+                leave_dates.add(d)
+            d += timedelta(days=1)
+    total += len(leave_dates)
+    return Decimal(str(round(total, 2)))
+
+
 def _build_entry_stub(contract, year: int, month: int, company=None) -> MonthlyPayrollEntry:
     """Build an unsaved MonthlyPayrollEntry stub from an HNH contract.
 
@@ -952,7 +987,7 @@ def _build_entry_stub(contract, year: int, month: int, company=None) -> MonthlyP
         month=month,
         company=company,
         standard_days=Decimal(str(std_days)),
-        actual_days=Decimal(str(std_days)),
+        actual_days=_actual_cong(contract.employee_id, year, month),
         lcb_bhxh=G,
         total_gross=H,
         pc_chuc_vu=pc_cv,
@@ -1228,7 +1263,7 @@ def _build_entry_stub_horilla(contract: "HorillaContract", year: int, month: int
         month=month,
         company=company,
         standard_days=Decimal(str(std_days)),
-        actual_days=Decimal(str(std_days)),
+        actual_days=_actual_cong(contract.employee_id, year, month),
         lcb_bhxh=G,
         total_gross=H,
         npt=npt_count,
