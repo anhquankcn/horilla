@@ -5,7 +5,8 @@ import { env } from "./env.js";
 import { authRoutes } from "./auth.js";
 import { proxyRoutes } from "./proxy.js";
 
-const app = Fastify({ logger: true });
+// bodyLimit 15MB: ảnh CCCD/selfie base64 (Fastify mặc định chỉ 1MB → 413).
+const app = Fastify({ logger: true, bodyLimit: 15 * 1024 * 1024 });
 
 await app.register(cookie, { secret: env.COOKIE_SECRET });
 await app.register(cors, {

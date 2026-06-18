@@ -90,6 +90,34 @@ function StrSelect({ value, onChange, opts }: { value: string; onChange: (v: str
   )
 }
 
+// Nén & resize ảnh CCCD trước khi gửi (giảm payload → tránh 413, dưới ngưỡng Arkon 8MB,
+// nhanh hơn). Giữ tỉ lệ, cạnh dài tối đa maxDim, xuất JPEG.
+function compressImage(file: File, maxDim = 1600, quality = 0.85): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(new Error('Không đọc được ảnh'))
+    reader.onload = () => {
+      const img = new Image()
+      img.onerror = () => reject(new Error('Ảnh không hợp lệ'))
+      img.onload = () => {
+        let { width, height } = img
+        if (width > maxDim || height > maxDim) {
+          const scale = maxDim / Math.max(width, height)
+          width = Math.round(width * scale); height = Math.round(height * scale)
+        }
+        const canvas = document.createElement('canvas')
+        canvas.width = width; canvas.height = height
+        const ctx = canvas.getContext('2d')
+        if (!ctx) { reject(new Error('Không xử lý được ảnh')); return }
+        ctx.drawImage(img, 0, 0, width, height)
+        resolve(canvas.toDataURL('image/jpeg', quality))
+      }
+      img.src = reader.result as string
+    }
+    reader.readAsDataURL(file)
+  })
+}
+
 // Tách "NGUYỄN THỊ LY" → last_name="NGUYỄN THỊ", first_name="LY"
 function splitName(full: string): { first_name: string; last_name: string } {
   const parts = full.trim().split(/\s+/).filter(Boolean)
@@ -114,14 +142,9 @@ export function OnboardEmployeePage() {
   const onScanFile = async (file: File) => {
     setScanBusy(true); setScanMsg(null)
     try {
-      const dataUrl: string = await new Promise((res, rej) => {
-        const r = new FileReader()
-        r.onload = () => res(r.result as string)
-        r.onerror = () => rej(new Error('Không đọc được ảnh'))
-        r.readAsDataURL(file)
-      })
+      const dataUrl = await compressImage(file)
       const r = await api.post<any>('/api/employee/onboard/scan-id/', {
-        image_base64: dataUrl, mime_type: file.type || 'image/jpeg',
+        image_base64: dataUrl, mime_type: 'image/jpeg',
       })
       setF(p => ({
         ...p,
