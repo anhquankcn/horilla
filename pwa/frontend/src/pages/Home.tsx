@@ -772,16 +772,10 @@ interface TodayShiftData {
   progress_pct: number
 }
 
-const SHIFT_STATUS: Record<string, { label: string; color: string; bg: string }> = {
-  pending: { label: 'Chờ', color: '#f59e0b', bg: '#fef3c7' },
-  in_progress: { label: 'Đang làm', color: '#16a34a', bg: '#dcfce7' },
-  completed: { label: 'Xong', color: '#2563eb', bg: '#dbeafe' },
-}
-
 function TodayShiftCard({ compact }: { compact?: boolean }) {
   const navigate = useNavigate()
-  const { data, loading } = useApi<TodayShiftData>('/api/attendance/my-today-shifts/')
-  const [expanded, setExpanded] = useState(false)
+  const { data, loading, refresh } = useApi<TodayShiftData>('/api/attendance/my-today-shifts/')
+  const [detailOpen, setDetailOpen] = useState(false)
   const shifts = data?.shifts ?? []
   const pct = data?.progress_pct ?? 0
   const totalWorked = data?.total_worked_minutes ?? 0
@@ -859,78 +853,28 @@ function TodayShiftCard({ compact }: { compact?: boolean }) {
             </div>
           </div>
 
-          {/* Nút Xem chi tiết */}
+          {/* Xem chi tiết — mở modal lượt chấm đầy đủ (lượt phẳng + Trong/Ngoài VP + lý do + ảnh) */}
           <button
-            onClick={(e) => { e.stopPropagation(); setExpanded(v => !v) }}
+            onClick={(e) => { e.stopPropagation(); setDetailOpen(true) }}
             style={{
               width: '100%', marginTop: 8, padding: '6px', borderRadius: 10,
               border: `1px solid ${HNH.line}`, background: '#fff',
               fontSize: 12, fontWeight: 600, color: HNH.navy, cursor: 'pointer',
             }}
           >
-            {expanded ? 'Ẩn chi tiết ▴' : 'Xem chi tiết ▾'}
+            Xem chi tiết lượt chấm ▾
           </button>
 
-          {/* Chi tiết: Ca, giờ vào - giờ ra, tổng số giờ làm */}
-          {expanded && (
-            <div style={{ marginTop: 8 }}>
-              {shifts.map((s, i) => {
-                const st = SHIFT_STATUS[s.status] ?? SHIFT_STATUS.pending
-                const shiftPct = s.expected_minutes > 0 ? Math.min(100, Math.round(s.worked_minutes / s.expected_minutes * 100)) : 0
-                return (
-                  <div key={i} style={{
-                    background: HNH.cream, borderRadius: 12, padding: compact ? '8px 10px' : '10px 12px',
-                    marginBottom: 6,
-                  }}>
-                    <div className="flex items-center justify-between" style={{ marginBottom: 5 }}>
-                      <div className="flex items-center gap-2">
-                        {s.shift_name
-                          ? <>
-                              <span style={{ fontSize: compact ? 12 : 13, fontWeight: 700, color: HNH.ink }}>{s.shift_name}</span>
-                              <span style={{ fontSize: 10, color: HNH.ink3, fontWeight: 500 }}>{s.start_time}→{s.end_time}</span>
-                            </>
-                          : <span style={{ fontSize: compact ? 12 : 13, fontWeight: 700, color: HNH.ink }}>Trong ngày</span>}
-                      </div>
-                      <span style={{
-                        fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 6,
-                        background: st.bg, color: st.color,
-                      }}>{st.label}</span>
-                    </div>
-                    {s.activities.map((a, j) => (
-                      <div key={j} className="flex items-center gap-3" style={{ marginBottom: 2 }}>
-                        <div className="flex items-center gap-1">
-                          <Icon name="arrow-r" size={9} color={HNH.success} stroke={2} />
-                          <span style={{ fontSize: 11, fontWeight: 600, color: a.clock_in ? HNH.ink : HNH.ink4 }}>{a.clock_in ?? '--:--'}</span>
-                        </div>
-                        <div style={{ flex: 1, height: 1, background: HNH.line, margin: '0 4px' }} />
-                        <div className="flex items-center gap-1">
-                          <span style={{ fontSize: 11, fontWeight: 600, color: a.clock_out ? HNH.ink : HNH.ink4 }}>{a.clock_out ?? '--:--'}</span>
-                          <span style={{ transform: 'rotate(180deg)', display: 'inline-flex' }}><Icon name="arrow-r" size={9} color={a.clock_out ? HNH.red : HNH.ink4} stroke={2} /></span>
-                        </div>
-                      </div>
-                    ))}
-                    {s.activities.length === 0 && (
-                      <div style={{ fontSize: 11, color: HNH.ink4, fontStyle: 'italic' }}>Chưa chấm công</div>
-                    )}
-                    <div className="flex items-center gap-2" style={{ marginTop: 5 }}>
-                      <div style={{ flex: 1, height: 4, borderRadius: 2, background: '#e2e8f0', overflow: 'hidden' }}>
-                        <div style={{ height: '100%', borderRadius: 2, width: `${shiftPct}%`, background: st.color, transition: 'width 0.5s ease' }} />
-                      </div>
-                      <span style={{ fontSize: 9, fontWeight: 700, color: st.color, minWidth: 28, textAlign: 'right' }}>{shiftPct}%</span>
-                    </div>
-                  </div>
-                )
-              })}
-              {/* Tổng số giờ làm */}
-              <div className="flex items-center justify-between" style={{
-                padding: '8px 12px', borderRadius: 10, background: HNH.cream2, marginTop: 2,
-              }}>
-                <span style={{ fontSize: 12, fontWeight: 600, color: HNH.ink2 }}>Tổng số giờ làm</span>
-                <span style={{ fontSize: 13, fontWeight: 800, color: HNH.navy }}>
-                  {workedH}h{workedM > 0 ? String(workedM).padStart(2, '0') : ''}
-                </span>
-              </div>
-            </div>
+          {data?.date && (
+            <AttendanceDetailModal
+              open={detailOpen}
+              onClose={() => setDetailOpen(false)}
+              attendanceDate={data.date}
+              clockIn={firstIn ?? '—'}
+              clockOut={lastOut ?? '—'}
+              workedHour={`${workedH}h${workedM > 0 ? String(workedM).padStart(2, '0') : ''}`}
+              onChanged={() => { setDetailOpen(false); refresh() }}
+            />
           )}
         </>
       )}
