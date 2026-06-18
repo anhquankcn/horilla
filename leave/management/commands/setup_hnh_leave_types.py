@@ -20,11 +20,13 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         from leave.models import LeaveType
         from horilla.horilla_middlewares import _thread_locals
+        from django.contrib.auth.models import AnonymousUser
 
-        # LeaveType.save() đọc request.session từ thread-local → đặt request giả
-        # (session rỗng) để chạy được trong management command (không có HTTP request).
+        # LeaveType.save() + HorillaModel.save() đọc request.session/user từ thread-local
+        # → đặt request giả (session rỗng, user ẩn danh) để chạy trong management command.
         class _FakeReq:
             session = {}
+            user = AnonymousUser()
         _thread_locals.request = _FakeReq()
 
         template = (
