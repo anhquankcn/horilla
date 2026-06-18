@@ -109,6 +109,7 @@ export function OnboardEmployeePage() {
   const [scanBusy, setScanBusy] = useState(false)
   const [scanMsg, setScanMsg] = useState<{ kind: 'ok' | 'warn' | 'err'; text: string } | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
+  const galleryRef = useRef<HTMLInputElement>(null)
 
   const onScanFile = async (file: File) => {
     setScanBusy(true); setScanMsg(null)
@@ -145,6 +146,7 @@ export function OnboardEmployeePage() {
     } finally {
       setScanBusy(false)
       if (fileRef.current) fileRef.current.value = ''
+      if (galleryRef.current) galleryRef.current.value = ''
     }
   }
 
@@ -243,13 +245,25 @@ export function OnboardEmployeePage() {
               <>
                 <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }}
                   onChange={e => { const file = e.target.files?.[0]; if (file) onScanFile(file) }} />
-                <button onClick={() => fileRef.current?.click()} disabled={scanBusy}
-                  className="flex items-center justify-center gap-2 w-full"
-                  style={{ padding: 12, borderRadius: 12, marginBottom: 12, cursor: 'pointer', fontWeight: 800, fontSize: 13.5,
-                    border: `1.5px dashed ${HNH.navy}`, background: HNH.navy50, color: HNH.navy }}>
-                  <Icon name="camera" size={18} color={HNH.navy} />
-                  {scanBusy ? 'Đang đọc CCCD…' : 'Quét CCCD tự điền (chụp/tải ảnh)'}
-                </button>
+                <input ref={galleryRef} type="file" accept="image/*" style={{ display: 'none' }}
+                  onChange={e => { const file = e.target.files?.[0]; if (file) onScanFile(file) }} />
+                <div style={{ fontSize: 11.5, fontWeight: 700, color: HNH.ink3, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.3 }}>Quét CCCD tự điền</div>
+                <div className="flex gap-2" style={{ marginBottom: scanMsg ? 8 : 12 }}>
+                  <button onClick={() => fileRef.current?.click()} disabled={scanBusy}
+                    className="flex items-center justify-center gap-2"
+                    style={{ flex: 1, padding: 11, borderRadius: 12, cursor: 'pointer', fontWeight: 800, fontSize: 12.5,
+                      border: `1.5px dashed ${HNH.navy}`, background: HNH.navy50, color: HNH.navy }}>
+                    <Icon name="camera" size={16} color={HNH.navy} />
+                    {scanBusy ? 'Đang đọc…' : 'Chụp CCCD'}
+                  </button>
+                  <button onClick={() => galleryRef.current?.click()} disabled={scanBusy}
+                    className="flex items-center justify-center gap-2"
+                    style={{ flex: 1, padding: 11, borderRadius: 12, cursor: 'pointer', fontWeight: 800, fontSize: 12.5,
+                      border: `1.5px dashed ${HNH.navy}`, background: HNH.navy50, color: HNH.navy }}>
+                    <Icon name="upload" size={16} color={HNH.navy} />
+                    {scanBusy ? 'Đang đọc…' : 'Tải ảnh từ máy'}
+                  </button>
+                </div>
                 {scanMsg && (
                   <div style={{ padding: '9px 11px', borderRadius: 10, marginBottom: 12, fontSize: 12, fontWeight: 600,
                     background: scanMsg.kind === 'ok' ? '#dcfce7' : scanMsg.kind === 'warn' ? '#fff3cd' : HNH.red50,
