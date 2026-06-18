@@ -73,6 +73,20 @@ replace_load attendance_attendance
 replace_load attendance_attendanceactivity
 replace_load attendance_attendancelatecomeearlyout
 
+# Reset sequence về max(id) cho MỌI bảng vừa nạp. COPY giữ nguyên id từ prod nên
+# sequence của stage KHÔNG tự nhảy → INSERT mới của app (chấm công, late/early-out…)
+# đụng PK đã tồn tại → "duplicate key ... _pkey" → 500. Bắt buộc reset sau mỗi sync.
+if [ "$DRY" = 0 ]; then
+  for t in base_employeeshift base_employeeshiftschedule employee_employee \
+           employee_employeeworkinformation attendance_employeeshiftplan \
+           attendance_attendance attendance_attendanceactivity \
+           attendance_attendancelatecomeearlyout; do
+    $ST_RUN -c "SELECT setval(pg_get_serial_sequence('$t','id'), (SELECT COALESCE(MAX(id),1) FROM $t));" >/dev/null 2>&1 \
+      || echo "  ! setval $t failed (bỏ qua)"
+  done
+  echo "  ✓ reset sequences sau khi nạp"
+fi
+
 # Đối chiếu
 SB_ATT=$($SB -c "SELECT count(*) FROM attendance_attendance")
 ST_ATT=$($ST -c "SELECT count(*) FROM attendance_attendance")
