@@ -287,6 +287,7 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
       setWorkLocation('in_office'); setOofType(''); setOofNote('')
     } else if (isInsideSelected === false) {
       setWorkLocation('out_of_office')
+      setOofType(prev => prev || 'remote')   // mặc định "Làm từ xa" khi Ngoài VP
     }
   }, [isInsideSelected, done])
 
@@ -972,10 +973,10 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
 
   return (
     <div
-      className="fixed inset-0 flex flex-col"
+      className="clock-modal-fill flex flex-col"
       style={{ zIndex: 9999, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
     >
-      <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' as never }}>
+      <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' as never, minHeight: 0 }}>
         {scrollContent}
       </div>
       {bottomBar}

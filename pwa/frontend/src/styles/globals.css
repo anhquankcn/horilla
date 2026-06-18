@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Overlay phủ ĐÚNG vùng nhìn thấy (loại trừ thanh trình duyệt mobile) để bottom
+   bar (nút Chấm công) luôn hiển thị. vh = fallback, dvh override khi hỗ trợ. */
+.clock-modal-fill {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 100vh;
+  height: 100dvh;
+}
+
 @layer base {
   html, body, #root {
     margin: 0;
