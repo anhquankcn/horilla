@@ -3052,6 +3052,51 @@ class MyTodayShiftDetailView(APIView):
             ).order_by("clock_in")
         )
 
+        # ===== ALD26: mô hình lượt phẳng — giờ công = span (lượt cuối − lượt đầu),
+        # tối thiểu 9h35 = công đủ ngày. Last = lượt chấm cuối (kể cả lượt mở). =====
+        ald26 = next((sh for sh in shifts if sh and getattr(sh, "employee_shift", "") == "ALD26"), None)
+        if ald26:
+            def _csec(t):
+                return t.hour * 3600 + t.minute * 60 + (t.second or 0) if t else None
+
+            def _hhmm(sec):
+                sec = int(sec) % 86400
+                return f"{sec // 3600:02d}:{(sec % 3600) // 60:02d}"
+
+            punches = sorted(
+                s for a in activities for s in (_csec(a.clock_in), _csec(a.clock_out)) if s is not None
+            )
+            exp_sec = 34500  # 9h35
+            sched = EmployeeShiftSchedule.objects.filter(shift_id=ald26, day__day=day_name).first()
+            if sched and sched.minimum_working_hour:
+                try:
+                    hh, mm = str(sched.minimum_working_hour).split(":")[:2]
+                    exp_sec = int(hh) * 3600 + int(mm) * 60
+                except Exception:
+                    exp_sec = 34500
+            worked_sec = max(0, punches[-1] - punches[0]) if len(punches) >= 2 else 0
+            first_p = punches[0] if punches else None
+            last_p = punches[-1] if len(punches) >= 2 else None
+            status = "completed" if len(punches) >= 2 else ("in_progress" if punches else "pending")
+            row = {
+                "shift_name": "ALD26",
+                "start_time": "00:00", "end_time": "23:58", "coefficient": 1,
+                "activities": ([{
+                    "clock_in": _hhmm(first_p) if first_p is not None else None,
+                    "clock_out": _hhmm(last_p) if last_p is not None else None,
+                }] if first_p is not None else []),
+                "worked_minutes": round(worked_sec / 60),
+                "expected_minutes": round(exp_sec / 60),
+                "status": status, "check_mode": "both",
+            }
+            return Response({
+                "date": today.isoformat(),
+                "shifts": [row],
+                "total_worked_minutes": round(worked_sec / 60),
+                "total_expected_minutes": round(exp_sec / 60),
+                "progress_pct": min(100, round(worked_sec / exp_sec * 100, 1)) if exp_sec > 0 else 0,
+            })
+
         shift_rows = []
         total_worked = 0
         total_expected = 0
