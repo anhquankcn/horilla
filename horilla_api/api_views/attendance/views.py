@@ -3054,7 +3054,15 @@ class MyTodayShiftDetailView(APIView):
 
         # ===== ALD26: mô hình lượt phẳng — giờ công = span (lượt cuối − lượt đầu),
         # tối thiểu 9h35 = công đủ ngày. Last = lượt chấm cuối (kể cả lượt mở). =====
-        ald26 = next((sh for sh in shifts if sh and getattr(sh, "employee_shift", "") == "ALD26"), None)
+        # Nhận diện ALD26 từ CA ĐƯỢC GÁN (work_info.shift_id) trước — KHÔNG phụ thuộc
+        # EmployeeShiftPlan (nhiều NV còn sót plan ca cũ HCS26/HCC26 hôm nay → nếu chỉ
+        # xét `shifts` sẽ bỏ nhánh ALD26 và rơi về tính ca cũ sai). ALD26 là ca toàn cty.
+        _wi = getattr(employee, "employee_work_info", None)
+        _assigned = _wi.shift_id if _wi and _wi.shift_id else None
+        ald26 = (
+            _assigned if (_assigned and getattr(_assigned, "employee_shift", "") == "ALD26")
+            else next((sh for sh in shifts if sh and getattr(sh, "employee_shift", "") == "ALD26"), None)
+        )
         if ald26:
             def _csec(t):
                 return t.hour * 3600 + t.minute * 60 + (t.second or 0) if t else None
