@@ -14,6 +14,20 @@ from rest_framework.views import APIView
 logger = logging.getLogger(__name__)
 
 
+def _parse_date(v):
+    """Nhận 'YYYY-MM-DD' (input date) hoặc 'DD/MM/YYYY'. Trả date hoặc None."""
+    if not v:
+        return None
+    v = str(v).strip()
+    from datetime import datetime as _dt
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+        try:
+            return _dt.strptime(v, fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
 def _can_onboard(user):
     if user.is_superuser or user.has_perm("employee.add_employee"):
         return True
@@ -49,6 +63,18 @@ class OnboardOptionsView(APIView):
             "shifts": lst(EmployeeShift.objects.all(), "employee_shift"),
             "groups": [{"id": g.id, "name": g.name} for g in Group.objects.all().order_by("name")],
             "default_shift_id": ald26.id if ald26 else None,
+            "marital_statuses": [
+                {"id": "single", "name": "Độc thân"},
+                {"id": "married", "name": "Đã kết hôn"},
+                {"id": "divorced", "name": "Đã ly hôn"},
+            ],
+            "education_levels": [
+                {"id": "Trung học phổ thông", "name": "Trung học phổ thông"},
+                {"id": "Trung cấp", "name": "Trung cấp"},
+                {"id": "Cao đẳng", "name": "Cao đẳng"},
+                {"id": "Đại học", "name": "Đại học"},
+                {"id": "Sau đại học", "name": "Sau đại học"},
+            ],
         })
 
 
@@ -98,6 +124,17 @@ class OnboardEmployeeView(APIView):
                     gender=d.get("gender") or "male",
                     is_active=True,
                 )
+                # Trường cá nhân chuẩn (Employee)
+                dob = _parse_date(d.get("dob"))
+                if dob:
+                    emp.dob = dob
+                if d.get("marital_status"):
+                    emp.marital_status = d.get("marital_status")
+                if d.get("qualification"):
+                    emp.qualification = d.get("qualification")
+                if d.get("address"):  # địa chỉ thường trú (theo CCCD)
+                    emp.address = d.get("address")
+                    emp.country = emp.country or "Vietnam"
                 emp.save()  # tự tạo User (username=email, password=phone)
                 emp.refresh_from_db()
 
@@ -110,11 +147,50 @@ class OnboardEmployeeView(APIView):
                 # Ca mặc định ALD26 nếu không truyền
                 shift = _fk(EmployeeShift, "shift_id") or EmployeeShift.objects.filter(employee_shift="ALD26").first()
                 wi.shift_id = shift
-                if d.get("date_joining"):
-                    wi.date_joining = d.get("date_joining")
+                dj = _parse_date(d.get("date_joining"))
+                if dj:
+                    wi.date_joining = dj
                 if email:
                     wi.email = email
+                if phone:
+                    wi.mobile = phone
                 wi.save()
+
+                # Ngân hàng (mặc định VCB)
+                acc = (d.get("bank_account") or "").strip()
+                bank_name = (d.get("bank_name") or "").strip()
+                bank_branch = (d.get("bank_branch") or "").strip()
+                if acc or bank_name or bank_branch:
+                    from employee.models import EmployeeBankDetails
+                    bd = getattr(emp, "employee_bank_details", None) or EmployeeBankDetails(employee_id=emp)
+                    bd.account_number = acc or bd.account_number
+                    bd.bank_name = bank_name or "Vietcombank (VCB)"
+                    bd.branch = bank_branch or bd.branch
+                    bd.save()
+
+                # Hồ sơ HNH mở rộng (CCCD, BHXH, chủ hộ, MST...)
+                from employee.models import HNHEmployeeProfile
+                prof = HNHEmployeeProfile(employee_id=emp)
+                prof.cccd = (d.get("cccd") or "").strip() or None
+                prof.cccd_issue_date = _parse_date(d.get("cccd_issue_date"))
+                prof.cccd_issue_place = (d.get("cccd_issue_place") or "").strip() or None
+                prof.job_title = (d.get("job_title") or "").strip() or None
+                prof.major = (d.get("major") or "").strip() or None
+                prof.temporary_address = (d.get("temporary_address") or "").strip() or None
+                prof.ethnicity = (d.get("ethnicity") or "").strip() or "Kinh"
+                prof.birth_cert_place = (d.get("birth_cert_place") or "").strip() or None
+                prof.license_plate = (d.get("license_plate") or "").strip() or None
+                prof.bhxh_number = (d.get("bhxh_number") or "").strip() or None
+                prof.bhxh_hospital = (d.get("bhxh_hospital") or "").strip() or None
+                prof.tax_code = (d.get("tax_code") or "").strip() or None
+                prof.unemployment_benefit = bool(d.get("unemployment_benefit"))
+                prof.household_head_name = (d.get("household_head_name") or "").strip() or None
+                prof.household_head_dob = _parse_date(d.get("household_head_dob"))
+                prof.household_head_cccd = (d.get("household_head_cccd") or "").strip() or None
+                prof.household_head_phone = (d.get("household_head_phone") or "").strip() or None
+                prof.household_address = (d.get("household_address") or "").strip() or None
+                prof.household_relation = (d.get("household_relation") or "").strip() or None
+                prof.save()
 
                 # Nhóm quyền
                 group_ids = d.get("group_ids") or []

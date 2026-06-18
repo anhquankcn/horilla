@@ -1381,3 +1381,52 @@ class WorkLevel(HorillaModel):
 
     def __str__(self):
         return f"L{self.level_number} – {self.name}"
+
+
+class HNHEmployeeProfile(models.Model):
+    """Hồ sơ nhân sự mở rộng HNH — các trường onboarding ngoài model Horilla chuẩn.
+
+    Trường chuẩn (họ tên, ngày sinh, giới tính, SĐT, email, hôn nhân, học vấn,
+    địa chỉ thường trú) lưu ở Employee; công việc ở EmployeeWorkInformation;
+    ngân hàng ở EmployeeBankDetails. Model này giữ phần đặc thù: CCCD, chức danh,
+    địa chỉ tạm trú, chuyên ngành, biển số xe, BHXH, dân tộc, khối chủ hộ, MST.
+    """
+
+    employee_id = models.OneToOneField(
+        Employee, on_delete=models.CASCADE, related_name="hnh_profile",
+        verbose_name=_("Nhân viên"),
+    )
+    # Giấy tờ tuỳ thân
+    cccd = models.CharField(max_length=20, null=True, blank=True, verbose_name=_("Số CCCD/CMND"))
+    cccd_issue_date = models.DateField(null=True, blank=True, verbose_name=_("Ngày cấp"))
+    cccd_issue_place = models.CharField(max_length=150, null=True, blank=True, verbose_name=_("Nơi cấp"))
+    # Công việc / học vấn (phần không có ở model chuẩn)
+    job_title = models.CharField(max_length=150, null=True, blank=True, verbose_name=_("Chức danh công việc"))
+    major = models.CharField(max_length=150, null=True, blank=True, verbose_name=_("Chuyên ngành học"))
+    # Địa chỉ & nhân thân
+    temporary_address = models.TextField(max_length=255, null=True, blank=True, verbose_name=_("Địa chỉ tạm trú / liên hệ"))
+    ethnicity = models.CharField(max_length=50, null=True, blank=True, default="Kinh", verbose_name=_("Dân tộc"))
+    birth_cert_place = models.TextField(max_length=255, null=True, blank=True, verbose_name=_("Nơi cấp giấy khai sinh"))
+    license_plate = models.CharField(max_length=20, null=True, blank=True, verbose_name=_("Biển số xe"))
+    # BHXH / thuế
+    bhxh_number = models.CharField(max_length=20, null=True, blank=True, verbose_name=_("Số sổ BHXH"))
+    bhxh_hospital = models.CharField(max_length=150, null=True, blank=True, verbose_name=_("Nơi đăng ký KCB BHXH"))
+    tax_code = models.CharField(max_length=20, null=True, blank=True, verbose_name=_("Mã số thuế cá nhân"))
+    unemployment_benefit = models.BooleanField(default=False, verbose_name=_("Đang hưởng trợ cấp thất nghiệp"))
+    # Chủ hộ (hộ khẩu thường trú)
+    household_head_name = models.CharField(max_length=100, null=True, blank=True, verbose_name=_("Họ tên chủ hộ"))
+    household_head_dob = models.DateField(null=True, blank=True, verbose_name=_("Ngày sinh chủ hộ"))
+    household_head_cccd = models.CharField(max_length=20, null=True, blank=True, verbose_name=_("Số CCCD chủ hộ"))
+    household_head_phone = models.CharField(max_length=20, null=True, blank=True, verbose_name=_("SĐT chủ hộ"))
+    household_address = models.TextField(max_length=255, null=True, blank=True, verbose_name=_("Địa chỉ hộ khẩu thường trú"))
+    household_relation = models.CharField(max_length=50, null=True, blank=True, verbose_name=_("Quan hệ với chủ hộ"))
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Hồ sơ nhân sự HNH"
+        verbose_name_plural = "Hồ sơ nhân sự HNH"
+
+    def __str__(self):
+        return f"Hồ sơ HNH — {self.employee_id}"

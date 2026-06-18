@@ -6,39 +6,69 @@ import { TopBar } from '../components/layout/TopBar'
 import { api } from '../lib/api'
 
 interface Opt { id: number; name: string }
+interface StrOpt { id: string; name: string }
 interface PosOpt extends Opt { department_id: number | null }
 interface RoleOpt extends Opt { job_position_id: number | null }
 interface Options {
   companies: Opt[]; departments: Opt[]; job_positions: PosOpt[]; job_roles: RoleOpt[]
   work_types: Opt[]; shifts: Opt[]; groups: Opt[]; default_shift_id: number | null
+  marital_statuses: StrOpt[]; education_levels: StrOpt[]
 }
 
 interface Form {
-  first_name: string; last_name: string; email: string; badge_id: string; phone: string; gender: string
+  // Bắt buộc
+  full_name: string; dob: string; gender: string; cccd: string
+  email: string; phone: string; badge_id: string; date_joining: string
   company_id: number | null; department_id: number | null; job_position_id: number | null
-  job_role_id: number | null; shift_id: number | null; work_type_id: number | null
+  job_role_id: number | null; shift_id: number | null; work_type_id: number | null; job_title: string
+  // Giấy tờ & hộ khẩu
+  cccd_issue_date: string; cccd_issue_place: string; address: string; temporary_address: string
+  ethnicity: string; birth_cert_place: string; marital_status: string; qualification: string
+  major: string; license_plate: string
+  // Ngân hàng & BHXH
+  bank_account: string; bank_name: string; bank_branch: string; bhxh_number: string
+  bhxh_hospital: string; tax_code: string; unemployment_benefit: boolean
+  // Chủ hộ
+  household_head_name: string; household_head_dob: string; household_head_cccd: string
+  household_head_phone: string; household_address: string; household_relation: string
   group_ids: number[]
 }
 
 const EMPTY: Form = {
-  first_name: '', last_name: '', email: '', badge_id: '', phone: '', gender: 'male',
-  company_id: null, department_id: null, job_position_id: null, job_role_id: null,
-  shift_id: null, work_type_id: null, group_ids: [],
+  full_name: '', dob: '', gender: 'female', cccd: '', email: '', phone: '', badge_id: '', date_joining: '',
+  company_id: null, department_id: null, job_position_id: null, job_role_id: null, shift_id: null,
+  work_type_id: null, job_title: '',
+  cccd_issue_date: '', cccd_issue_place: 'Bộ Công an', address: '', temporary_address: '',
+  ethnicity: 'Kinh', birth_cert_place: '', marital_status: 'single', qualification: '', major: '', license_plate: '',
+  bank_account: '', bank_name: 'Vietcombank (VCB)', bank_branch: '', bhxh_number: '',
+  bhxh_hospital: '', tax_code: '', unemployment_benefit: false,
+  household_head_name: '', household_head_dob: '', household_head_cccd: '',
+  household_head_phone: '', household_address: '', household_relation: '', group_ids: [],
 }
 
-const STEPS = ['Thông tin', 'Vị trí công việc', 'Nhóm quyền', 'Xác nhận']
+const STEPS = ['Bắt buộc', 'Công việc', 'Giấy tờ & Hộ khẩu', 'Ngân hàng & BHXH', 'Chủ hộ', 'Nhóm quyền', 'Xác nhận']
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 12 }}>
       <div style={{ fontSize: 11.5, fontWeight: 700, color: HNH.ink3, marginBottom: 5, textTransform: 'uppercase', letterSpacing: 0.3 }}>{label}</div>
       {children}
+      {hint && <div style={{ fontSize: 10.5, color: HNH.ink4, marginTop: 3 }}>{hint}</div>}
     </div>
   )
 }
 const inputStyle: React.CSSProperties = {
   width: '100%', padding: '10px 12px', borderRadius: 10, border: `1px solid ${HNH.line}`,
   fontSize: 14, boxSizing: 'border-box', background: '#fff',
+}
+
+function TextInput({ value, onChange, placeholder, type = 'text', upper = false }: {
+  value: string; onChange: (v: string) => void; placeholder?: string; type?: string; upper?: boolean
+}) {
+  return (
+    <input style={inputStyle} type={type} value={value} placeholder={placeholder}
+      onChange={e => onChange(upper ? e.target.value.toUpperCase() : e.target.value)} />
+  )
 }
 
 function Select({ value, onChange, opts, placeholder }: {
@@ -50,6 +80,22 @@ function Select({ value, onChange, opts, placeholder }: {
       {opts.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
     </select>
   )
+}
+
+function StrSelect({ value, onChange, opts }: { value: string; onChange: (v: string) => void; opts: StrOpt[] }) {
+  return (
+    <select value={value} onChange={e => onChange(e.target.value)} style={inputStyle}>
+      {opts.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+    </select>
+  )
+}
+
+// Tách "NGUYỄN THỊ LY" → last_name="NGUYỄN THỊ", first_name="LY"
+function splitName(full: string): { first_name: string; last_name: string } {
+  const parts = full.trim().split(/\s+/).filter(Boolean)
+  if (parts.length === 0) return { first_name: '', last_name: '' }
+  if (parts.length === 1) return { first_name: parts[0], last_name: '' }
+  return { first_name: parts[parts.length - 1], last_name: parts.slice(0, -1).join(' ') }
 }
 
 export function OnboardEmployeePage() {
@@ -75,12 +121,31 @@ export function OnboardEmployeePage() {
   const positions = (opts?.job_positions ?? []).filter(p => !f.department_id || p.department_id === f.department_id)
   const roles = (opts?.job_roles ?? []).filter(r => !f.job_position_id || r.job_position_id === f.job_position_id)
 
-  const step1Valid = f.first_name.trim() && f.email.trim() && f.badge_id.trim()
+  const step0Valid = f.full_name.trim() && f.email.trim() && f.badge_id.trim()
+
+  const missingRequired = (): string[] => {
+    const m: string[] = []
+    if (!f.full_name.trim()) m.push('Họ tên đầy đủ')
+    if (!f.email.trim()) m.push('Email')
+    if (!f.badge_id.trim()) m.push('Mã NV')
+    if (!f.phone.trim()) m.push('Số điện thoại')
+    if (!f.dob) m.push('Ngày sinh')
+    if (!f.cccd.trim()) m.push('Số CCCD')
+    if (!f.date_joining) m.push('Ngày vào làm')
+    if (!f.company_id) m.push('Văn phòng làm việc')
+    if (!f.department_id) m.push('Phòng ban')
+    if (!f.job_position_id) m.push('Vị trí công việc')
+    return m
+  }
 
   const submit = async () => {
+    const miss = missingRequired()
+    if (miss.length) { setErr('Thiếu thông tin bắt buộc: ' + miss.join(', ')); return }
     setBusy(true); setErr('')
+    const { first_name, last_name } = splitName(f.full_name)
+    const payload = { ...f, first_name, last_name }
     try {
-      const res = await api.post<{ name: string; badge_id: string; keycloak: any }>('/api/employee/onboard/', f)
+      const res = await api.post<{ name: string; badge_id: string; keycloak: any }>('/api/employee/onboard/', payload)
       setDone({ name: res.name, badge_id: res.badge_id, kc: res.keycloak })
     } catch (e) {
       setErr(e instanceof Error ? e.message : 'Lỗi tạo nhân sự'); setBusy(false)
@@ -119,11 +184,11 @@ export function OnboardEmployeePage() {
       <TopBar title="Onboarding nhân sự" sub="C&B tạo nhân viên mới" onBack={() => navigate('/apps')} />
       <div style={{ padding: '12px 16px 110px' }}>
         {/* Steps */}
-        <div className="flex" style={{ gap: 4, marginBottom: 16 }}>
+        <div className="flex" style={{ gap: 3, marginBottom: 16 }}>
           {STEPS.map((s, i) => (
             <div key={s} style={{ flex: 1, textAlign: 'center' }}>
               <div style={{ height: 4, borderRadius: 2, background: i <= step ? HNH.navy : HNH.line, marginBottom: 4 }} />
-              <span style={{ fontSize: 9.5, fontWeight: 700, color: i === step ? HNH.navy : HNH.ink3 }}>{s}</span>
+              <span style={{ fontSize: 8.5, fontWeight: 700, color: i === step ? HNH.navy : HNH.ink3 }}>{s}</span>
             </div>
           ))}
         </div>
@@ -135,28 +200,94 @@ export function OnboardEmployeePage() {
           <div style={{ background: '#fff', borderRadius: 16, padding: '16px 16px', border: `1px solid ${HNH.line}` }}>
             {step === 0 && (
               <>
-                <Field label="Tên *"><input style={inputStyle} value={f.first_name} onChange={e => set('first_name', e.target.value)} placeholder="Tên" /></Field>
-                <Field label="Họ đệm"><input style={inputStyle} value={f.last_name} onChange={e => set('last_name', e.target.value)} placeholder="Họ và tên đệm" /></Field>
-                <Field label="Email * (dùng đăng nhập Microsoft)"><input style={inputStyle} type="email" value={f.email} onChange={e => set('email', e.target.value)} placeholder="ten.abc@hongngocha.com" /></Field>
-                <Field label="Mã nhân viên (badge) *"><input style={inputStyle} value={f.badge_id} onChange={e => set('badge_id', e.target.value)} placeholder="Mã NV" /></Field>
-                <Field label="Số điện thoại"><input style={inputStyle} value={f.phone} onChange={e => set('phone', e.target.value)} placeholder="SĐT" /></Field>
+                <Field label="Họ tên đầy đủ * (VIẾT HOA)" hint="VD: NGUYỄN VĂN A — hệ thống tự tách Họ đệm / Tên">
+                  <TextInput value={f.full_name} onChange={v => set('full_name', v)} placeholder="NGUYỄN VĂN A" upper />
+                </Field>
+                <Field label="Email * (đăng nhập Microsoft)">
+                  <TextInput type="email" value={f.email} onChange={v => set('email', v)} placeholder="ten.abc@hongngocha.com" />
+                </Field>
+                <Field label="Mã nhân viên (badge) *">
+                  <TextInput value={f.badge_id} onChange={v => set('badge_id', v)} placeholder="VD: HNH00xxx" />
+                </Field>
+                <Field label="Số điện thoại *">
+                  <TextInput type="tel" value={f.phone} onChange={v => set('phone', v)} placeholder="SĐT" />
+                </Field>
+                <Field label="Ngày sinh *">
+                  <TextInput type="date" value={f.dob} onChange={v => set('dob', v)} />
+                </Field>
                 <Field label="Giới tính">
                   <Select value={f.gender === 'male' ? 1 : f.gender === 'female' ? 2 : 3} onChange={v => set('gender', v === 1 ? 'male' : v === 2 ? 'female' : 'other')}
                     opts={[{ id: 1, name: 'Nam' }, { id: 2, name: 'Nữ' }, { id: 3, name: 'Khác' }]} placeholder="Chọn" />
+                </Field>
+                <Field label="Số CCCD/CMND *">
+                  <TextInput value={f.cccd} onChange={v => set('cccd', v)} placeholder="VD: 079..." />
+                </Field>
+                <Field label="Ngày vào làm *">
+                  <TextInput type="date" value={f.date_joining} onChange={v => set('date_joining', v)} />
                 </Field>
               </>
             )}
             {step === 1 && (
               <>
-                <Field label="Công ty"><Select value={f.company_id} onChange={v => set('company_id', v)} opts={opts.companies} placeholder="Chọn công ty" /></Field>
-                <Field label="Phòng ban"><Select value={f.department_id} onChange={v => { set('department_id', v); set('job_position_id', null); set('job_role_id', null) }} opts={opts.departments} placeholder="Chọn phòng ban" /></Field>
-                <Field label="Vị trí công việc"><Select value={f.job_position_id} onChange={v => { set('job_position_id', v); set('job_role_id', null) }} opts={positions} placeholder="Chọn vị trí" /></Field>
+                <Field label="Văn phòng làm việc *"><Select value={f.company_id} onChange={v => set('company_id', v)} opts={opts.companies} placeholder="Chọn văn phòng" /></Field>
+                <Field label="Phòng ban / Bộ phận *"><Select value={f.department_id} onChange={v => { set('department_id', v); set('job_position_id', null); set('job_role_id', null) }} opts={opts.departments} placeholder="Chọn phòng ban" /></Field>
+                <Field label="Vị trí công việc *"><Select value={f.job_position_id} onChange={v => { set('job_position_id', v); set('job_role_id', null) }} opts={positions} placeholder="Chọn vị trí" /></Field>
                 <Field label="Vai trò (→ role Keycloak)"><Select value={f.job_role_id} onChange={v => set('job_role_id', v)} opts={roles} placeholder="Chọn vai trò" /></Field>
+                <Field label="Chức danh công việc" hint="VD: Nhân viên Booker (team Vé Đoàn)"><TextInput value={f.job_title} onChange={v => set('job_title', v)} placeholder="Chức danh cụ thể" /></Field>
                 <Field label="Ca làm việc"><Select value={f.shift_id} onChange={v => set('shift_id', v)} opts={opts.shifts} placeholder="Chọn ca" /></Field>
                 <Field label="Loại hình"><Select value={f.work_type_id} onChange={v => set('work_type_id', v)} opts={opts.work_types} placeholder="Chọn loại hình" /></Field>
               </>
             )}
             {step === 2 && (
+              <>
+                <Field label="Ngày cấp CCCD"><TextInput type="date" value={f.cccd_issue_date} onChange={v => set('cccd_issue_date', v)} /></Field>
+                <Field label="Nơi cấp"><TextInput value={f.cccd_issue_place} onChange={v => set('cccd_issue_place', v)} placeholder="VD: Bộ Công an" /></Field>
+                <Field label="Địa chỉ thường trú (theo CCCD)" hint="Nhập địa chỉ mới sau sáp nhập"><TextInput value={f.address} onChange={v => set('address', v)} placeholder="Số nhà, phường/xã, tỉnh/TP" /></Field>
+                <Field label="Địa chỉ tạm trú / liên hệ"><TextInput value={f.temporary_address} onChange={v => set('temporary_address', v)} placeholder="Địa chỉ hiện tại" /></Field>
+                <Field label="Dân tộc"><TextInput value={f.ethnicity} onChange={v => set('ethnicity', v)} placeholder="Kinh" /></Field>
+                <Field label="Nơi cấp giấy khai sinh" hint="Tổ/Thôn - Xã/Phường - Quận/Huyện - Tỉnh"><TextInput value={f.birth_cert_place} onChange={v => set('birth_cert_place', v)} /></Field>
+                <Field label="Tình trạng hôn nhân"><StrSelect value={f.marital_status} onChange={v => set('marital_status', v)} opts={opts.marital_statuses} /></Field>
+                <Field label="Trình độ học vấn">
+                  <select value={f.qualification} onChange={e => set('qualification', e.target.value)} style={inputStyle}>
+                    <option value="">Chọn trình độ</option>
+                    {opts.education_levels.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                  </select>
+                </Field>
+                <Field label="Chuyên ngành học" hint="Từ Trung cấp trở lên; THPT trở xuống ghi 'Không có'"><TextInput value={f.major} onChange={v => set('major', v)} /></Field>
+                <Field label="Biển số xe"><TextInput value={f.license_plate} onChange={v => set('license_plate', v)} placeholder="VD: 59C1-30788" /></Field>
+              </>
+            )}
+            {step === 3 && (
+              <>
+                <Field label="Số tài khoản ngân hàng" hint="Bắt buộc VCB — nếu chưa có ghi TK khác, mở VCB trong 7 ngày"><TextInput value={f.bank_account} onChange={v => set('bank_account', v)} /></Field>
+                <Field label="Tên ngân hàng - Chi nhánh"><TextInput value={f.bank_branch} onChange={v => set('bank_branch', v)} placeholder="VD: VCB - CN HCM" /></Field>
+                <Field label="Số sổ BHXH"><TextInput value={f.bhxh_number} onChange={v => set('bhxh_number', v)} placeholder="VD: 079..." /></Field>
+                <Field label="Nơi đăng ký KCB BHXH"><TextInput value={f.bhxh_hospital} onChange={v => set('bhxh_hospital', v)} placeholder="VD: Bệnh viện Thống Nhất" /></Field>
+                <Field label="Mã số thuế cá nhân"><TextInput value={f.tax_code} onChange={v => set('tax_code', v)} /></Field>
+                <Field label="Đang hưởng trợ cấp thất nghiệp?">
+                  <div className="flex gap-2">
+                    {[['Không', false], ['Có', true]].map(([lbl, val]) => (
+                      <button key={String(lbl)} onClick={() => set('unemployment_benefit', val)}
+                        style={{ flex: 1, padding: 10, borderRadius: 10, fontWeight: 700, fontSize: 13, cursor: 'pointer',
+                          border: `1.5px solid ${f.unemployment_benefit === val ? HNH.navy : HNH.line}`,
+                          background: f.unemployment_benefit === val ? HNH.navy50 : '#fff', color: HNH.ink }}>{lbl}</button>
+                    ))}
+                  </div>
+                </Field>
+              </>
+            )}
+            {step === 4 && (
+              <>
+                <div style={{ fontSize: 12, color: HNH.ink3, marginBottom: 10 }}>Thông tin chủ hộ trên hộ khẩu thường trú (phục vụ BHXH/thuế).</div>
+                <Field label="Họ tên chủ hộ"><TextInput value={f.household_head_name} onChange={v => set('household_head_name', v)} placeholder="VD: Nguyễn Văn B" /></Field>
+                <Field label="Ngày sinh chủ hộ"><TextInput type="date" value={f.household_head_dob} onChange={v => set('household_head_dob', v)} /></Field>
+                <Field label="Số CCCD/CMND chủ hộ"><TextInput value={f.household_head_cccd} onChange={v => set('household_head_cccd', v)} /></Field>
+                <Field label="SĐT chủ hộ"><TextInput type="tel" value={f.household_head_phone} onChange={v => set('household_head_phone', v)} /></Field>
+                <Field label="Địa chỉ hộ khẩu thường trú"><TextInput value={f.household_address} onChange={v => set('household_address', v)} placeholder="VD: 04 Nguyễn Tất Thành, P12, Q4, TP.HCM" /></Field>
+                <Field label="Quan hệ với chủ hộ"><TextInput value={f.household_relation} onChange={v => set('household_relation', v)} placeholder="VD: Con / Em / Con dâu..." /></Field>
+              </>
+            )}
+            {step === 5 && (
               <>
                 <div style={{ fontSize: 12.5, color: HNH.ink3, marginBottom: 10 }}>Chọn nhóm quyền cho nhân viên (có thể chọn nhiều).</div>
                 {opts.groups.map(g => {
@@ -175,18 +306,25 @@ export function OnboardEmployeePage() {
                 {opts.groups.length === 0 && <div style={{ fontSize: 12.5, color: HNH.ink3 }}>Chưa có nhóm quyền nào.</div>}
               </>
             )}
-            {step === 3 && (
+            {step === 6 && (
               <>
                 <div style={{ fontSize: 14, fontWeight: 800, color: HNH.ink, marginBottom: 10 }}>Xác nhận tạo nhân sự</div>
                 {[
-                  ['Họ tên', `${f.last_name} ${f.first_name}`.trim()],
+                  ['Họ tên', f.full_name],
+                  ['Ngày sinh', f.dob || '—'],
                   ['Email', f.email],
                   ['Mã NV', f.badge_id],
-                  ['Công ty', opts.companies.find(o => o.id === f.company_id)?.name || '—'],
+                  ['SĐT', f.phone || '—'],
+                  ['Số CCCD', f.cccd || '—'],
+                  ['Ngày vào làm', f.date_joining || '—'],
+                  ['Văn phòng', opts.companies.find(o => o.id === f.company_id)?.name || '—'],
                   ['Phòng ban', opts.departments.find(o => o.id === f.department_id)?.name || '—'],
                   ['Vị trí', opts.job_positions.find(o => o.id === f.job_position_id)?.name || '—'],
+                  ['Chức danh', f.job_title || '—'],
                   ['Vai trò', opts.job_roles.find(o => o.id === f.job_role_id)?.name || '—'],
-                  ['Ca', opts.shifts.find(o => o.id === f.shift_id)?.name || '—'],
+                  ['Số TK / NH', [f.bank_account, f.bank_branch].filter(Boolean).join(' · ') || '—'],
+                  ['Số sổ BHXH', f.bhxh_number || '—'],
+                  ['Chủ hộ', f.household_head_name || '—'],
                   ['Nhóm quyền', f.group_ids.map(id => opts.groups.find(g => g.id === id)?.name).filter(Boolean).join(', ') || '—'],
                 ].map(([k, v]) => (
                   <div key={k} className="flex justify-between" style={{ padding: '8px 0', borderBottom: `1px solid ${HNH.line}`, fontSize: 13 }}>
@@ -195,7 +333,7 @@ export function OnboardEmployeePage() {
                   </div>
                 ))}
                 <div style={{ marginTop: 12, padding: '10px 12px', borderRadius: 10, background: HNH.navy50, fontSize: 12, color: HNH.navy, fontWeight: 600 }}>
-                  Khi tạo: lập hồ sơ NV + gán vị trí/vai trò/ca + nhóm quyền + tạo tài khoản Keycloak (đăng nhập Microsoft).
+                  Khi tạo: lập hồ sơ NV đầy đủ + gán vị trí/vai trò/ca + nhóm quyền + tạo tài khoản Keycloak (đăng nhập Microsoft). Thông tin chưa nhập có thể bổ sung sau.
                 </div>
               </>
             )}
@@ -209,9 +347,9 @@ export function OnboardEmployeePage() {
           {step > 0 && (
             <button onClick={() => setStep(s => s - 1)} style={{ flex: 1, padding: 13, borderRadius: 12, border: `1px solid ${HNH.line}`, background: '#fff', fontWeight: 700, color: HNH.ink2, cursor: 'pointer' }}>Quay lại</button>
           )}
-          {step < 3 ? (
-            <button onClick={() => setStep(s => s + 1)} disabled={step === 0 && !step1Valid}
-              style={{ flex: 2, padding: 13, borderRadius: 12, border: 'none', background: (step === 0 && !step1Valid) ? HNH.ink4 : HNH.navy, color: '#fff', fontWeight: 800, cursor: 'pointer' }}>Tiếp tục</button>
+          {step < STEPS.length - 1 ? (
+            <button onClick={() => setStep(s => s + 1)} disabled={step === 0 && !step0Valid}
+              style={{ flex: 2, padding: 13, borderRadius: 12, border: 'none', background: (step === 0 && !step0Valid) ? HNH.ink4 : HNH.navy, color: '#fff', fontWeight: 800, cursor: 'pointer' }}>Tiếp tục</button>
           ) : (
             <button onClick={submit} disabled={busy}
               style={{ flex: 2, padding: 13, borderRadius: 12, border: 'none', background: busy ? HNH.ink4 : HNH.success, color: '#fff', fontWeight: 800, cursor: 'pointer' }}>{busy ? 'Đang tạo…' : 'Tạo nhân sự + tài khoản'}</button>
