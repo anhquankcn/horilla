@@ -39,15 +39,21 @@ interface HNHSummary {
 
 interface Paginated<T> { count: number; results: T[] }
 
-function calcDays(start: string, end: string): number {
-  if (!start) return 0
-  const e = end || start
-  const d1 = new Date(start)
-  const d2 = new Date(e)
-  return Math.max(1, Math.round((d2.getTime() - d1.getTime()) / 86400000) + 1)
+type Breakdown = 'full_day' | 'first_half' | 'second_half'
+interface DayPick { date: string; bd: Breakdown }
+
+const BD_OPTS: { id: Breakdown; label: string; coef: number }[] = [
+  { id: 'first_half', label: 'Sáng', coef: 0.5 },
+  { id: 'second_half', label: 'Chiều', coef: 0.5 },
+  { id: 'full_day', label: 'Cả ngày', coef: 1.0 },
+]
+const coefOf = (bd: Breakdown) => (bd === 'full_day' ? 1 : 0.5)
+const fmtDate = (s: string) => {
+  const d = new Date(s)
+  const wd = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][d.getDay()]
+  return `${wd}, ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
-// Priority order for display: Phép Bù, Phép Năm, Phép Ốm, Phép Thâm Niên, others
 function sortLeaveTypes(types: AvailableLeave[]): AvailableLeave[] {
   const priority = (name: string) => {
     const n = name.toLowerCase()
@@ -79,13 +85,12 @@ export function LeaveNewPage() {
   const leaveTypes = sortLeaveTypes(rawTypes)
 
   const [selectedTypeId, setSelectedTypeId] = useState<number | null>(null)
-  const [startDate, setStartDate] = useState('')
-  const [endDate, setEndDate] = useState('')
+  const [days, setDays] = useState<DayPick[]>([])
+  const [addDate, setAddDate] = useState('')
   const [reason, setReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Auto-select Phép Bù if available, else Phép Năm
   useEffect(() => {
     if (selectedTypeId !== null || leaveTypes.length === 0) return
     const bu = leaveTypes.find(t => t.leave_type_id.name.toLowerCase().includes('bù') && t.available_days > 0)
@@ -94,79 +99,69 @@ export function LeaveNewPage() {
   }, [leaveTypes, selectedTypeId])
 
   const selected = leaveTypes.find(t => t.leave_type_id.id === selectedTypeId)
-  const totalDays = calcDays(startDate, endDate)
-  const canSubmit = selectedTypeId && startDate && reason.trim() && !submitting
+  const totalDays = days.reduce((s, d) => s + coefOf(d.bd), 0)
+  const canSubmit = !!selectedTypeId && days.length > 0 && reason.trim() && !submitting
+
+  const addDay = (ds: string) => {
+    if (!ds) return
+    setDays(prev => prev.some(d => d.date === ds)
+      ? prev
+      : [...prev, { date: ds, bd: 'full_day' as Breakdown }].sort((a, b) => a.date.localeCompare(b.date)))
+    setAddDate('')
+  }
+  const removeDay = (ds: string) => setDays(prev => prev.filter(d => d.date !== ds))
+  const setBd = (ds: string, bd: Breakdown) => setDays(prev => prev.map(d => d.date === ds ? { ...d, bd } : d))
 
   const handleSubmit = async () => {
     if (!canSubmit) return
-    setSubmitting(true)
-    setError(null)
+    setSubmitting(true); setError(null)
     try {
-      await api.post('/api/leave/user-request/', {
+      await api.post('/api/leave/user-request-days/', {
         leave_type_id: selectedTypeId,
-        start_date: startDate,
-        end_date: endDate || startDate,
-        start_date_breakdown: 'full_day',
-        end_date_breakdown: 'full_day',
+        days: days.map(d => ({ date: d.date, breakdown: d.bd })),
         description: reason,
       })
       navigate('/leave')
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Có lỗi xảy ra'
+      let msg = e instanceof Error ? e.message : 'Có lỗi xảy ra'
+      try { const j = JSON.parse(msg); if (j.error) msg = j.error } catch { /* keep */ }
       setError(msg)
     } finally {
       setSubmitting(false)
     }
   }
 
-  // Seniority days from summary
   const seniorityDays = summary?.seniority_days ?? 0
+  const overBalance = !!selected && totalDays > selected.total_leave_days && selected.leave_type_id.total_days > 1
 
   return (
     <div className="flex flex-col min-h-[100dvh]" style={{ background: HNH.cream }}>
       {/* Header */}
       <div className="flex items-center justify-between" style={{ padding: '6px 16px 8px' }}>
-        <button
-          onClick={() => navigate(-1)}
-          className="border-none bg-transparent cursor-pointer"
-          style={{ height: 32, padding: '0 12px', borderRadius: 10, color: HNH.red, fontWeight: 600, fontSize: 14 }}
-        >
+        <button onClick={() => navigate(-1)} className="border-none bg-transparent cursor-pointer"
+          style={{ height: 32, padding: '0 12px', borderRadius: 10, color: HNH.red, fontWeight: 600, fontSize: 14 }}>
           Hủy
         </button>
-        <div style={{ fontSize: 15, fontWeight: 700, color: HNH.ink }}>Đơn xin nghỉ</div>
-        <button
-          onClick={handleSubmit}
-          disabled={!canSubmit}
-          className="border-none cursor-pointer"
+        <div style={{ fontSize: 15, fontWeight: 700, color: HNH.ink }}>Đơn xin nghỉ (theo ngày)</div>
+        <button onClick={handleSubmit} disabled={!canSubmit} className="border-none cursor-pointer"
           style={{
             height: 32, padding: '0 14px', borderRadius: 10,
-            background: canSubmit ? HNH.red : HNH.cream2,
-            color: canSubmit ? '#fff' : HNH.ink3,
+            background: canSubmit ? HNH.red : HNH.cream2, color: canSubmit ? '#fff' : HNH.ink3,
             fontWeight: 700, fontSize: 13.5,
-          }}
-        >
+          }}>
           {submitting ? '...' : 'Gửi'}
         </button>
       </div>
 
       <div className="flex-1 overflow-auto" style={{ padding: '6px 20px 20px' }}>
-        {/* Error */}
         {error && (
-          <div style={{
-            background: HNH.red50, border: `1px solid ${HNH.red}`, borderRadius: 12,
-            padding: '10px 14px', marginBottom: 12, fontSize: 12.5, color: HNH.red, fontWeight: 600,
-          }}>
+          <div style={{ background: HNH.red50, border: `1px solid ${HNH.red}`, borderRadius: 12, padding: '10px 14px', marginBottom: 12, fontSize: 12.5, color: HNH.red, fontWeight: 600 }}>
             {error}
           </div>
         )}
 
-        {/* Priority notice when Phép Bù available */}
         {summary?.compensatory && summary.compensatory.available_days > 0 && (
-          <div style={{
-            background: '#faf1d6', border: `1px solid ${HNH.gold}`, borderRadius: 12,
-            padding: '9px 12px', marginBottom: 12,
-            display: 'flex', alignItems: 'center', gap: 8,
-          }}>
+          <div style={{ background: '#faf1d6', border: `1px solid ${HNH.gold}`, borderRadius: 12, padding: '9px 12px', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 8 }}>
             <Icon name="palm" size={14} color="#a87908" stroke={2} />
             <span style={{ fontSize: 12, color: '#a87908', fontWeight: 700 }}>
               Bạn còn {summary.compensatory.available_days} ngày Phép Bù — sẽ được trừ trước
@@ -177,43 +172,22 @@ export function LeaveNewPage() {
         {/* Type selector */}
         <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, padding: '6px 6px 6px' }}>LOẠI NGHỈ</div>
         <div style={{ background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`, overflow: 'hidden' }}>
-          {leaveTypes.length === 0 && (
-            <div style={{ padding: 16, textAlign: 'center', color: HNH.ink3, fontSize: 13 }}>Đang tải...</div>
-          )}
+          {leaveTypes.length === 0 && <div style={{ padding: 16, textAlign: 'center', color: HNH.ink3, fontSize: 13 }}>Đang tải...</div>}
           {leaveTypes.map((opt, i) => {
             const isSelected = selectedTypeId === opt.leave_type_id.id
             const avail = opt.available_days % 1 === 0 ? opt.available_days : opt.available_days.toFixed(1)
             const total = opt.leave_type_id.total_days
-            const remainStr = total > 1
-              ? `${avail} / ${total % 1 === 0 ? total : total.toFixed(1)} ngày`
-              : `${avail} ngày`
+            const remainStr = total > 1 ? `${avail} / ${total % 1 === 0 ? total : total.toFixed(1)} ngày` : `${avail} ngày`
             const isBu = opt.leave_type_id.name.toLowerCase().includes('bù')
             const meta = leaveIcon(opt.leave_type_id.name)
-
-            // Show seniority total from summary if available
             const displayRemain = isBu && summary?.compensatory
               ? `${summary.compensatory.available_days % 1 === 0 ? summary.compensatory.available_days : summary.compensatory.available_days.toFixed(1)} ngày`
               : remainStr
-
             return (
-              <button
-                key={opt.leave_type_id.id}
-                onClick={() => setSelectedTypeId(opt.leave_type_id.id)}
+              <button key={opt.leave_type_id.id} onClick={() => setSelectedTypeId(opt.leave_type_id.id)}
                 className="flex items-center gap-3 w-full bg-transparent border-none cursor-pointer text-left"
-                style={{
-                  padding: '12px 14px',
-                  borderBottom: i === leaveTypes.length - 1 ? 'none' : `1px solid ${HNH.line}`,
-                  background: isSelected ? (isBu ? '#faf1d6' : HNH.red50) : 'transparent',
-                }}
-              >
-                <div
-                  className="flex items-center justify-center shrink-0"
-                  style={{
-                    width: 22, height: 22, borderRadius: '50%',
-                    border: `2px solid ${isSelected ? (isBu ? '#a87908' : HNH.red) : HNH.line2}`,
-                    background: isSelected ? (isBu ? '#a87908' : HNH.red) : '#fff',
-                  }}
-                >
+                style={{ padding: '12px 14px', borderBottom: i === leaveTypes.length - 1 ? 'none' : `1px solid ${HNH.line}`, background: isSelected ? (isBu ? '#faf1d6' : HNH.red50) : 'transparent' }}>
+                <div className="flex items-center justify-center shrink-0" style={{ width: 22, height: 22, borderRadius: '50%', border: `2px solid ${isSelected ? (isBu ? '#a87908' : HNH.red) : HNH.line2}`, background: isSelected ? (isBu ? '#a87908' : HNH.red) : '#fff' }}>
                   {isSelected && <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />}
                 </div>
                 <div className="flex items-center justify-center shrink-0" style={{ width: 28, height: 28, borderRadius: 8, background: meta.bg }}>
@@ -222,11 +196,7 @@ export function LeaveNewPage() {
                 <div className="flex-1">
                   <div className="flex items-center gap-1.5" style={{ fontSize: 14, fontWeight: 600, color: HNH.ink }}>
                     {opt.leave_type_id.name}
-                    {isBu && (
-                      <span style={{ fontSize: 10, color: '#a87908', fontWeight: 700, background: '#fceac9', borderRadius: 4, padding: '1px 5px' }}>
-                        Ưu tiên
-                      </span>
-                    )}
+                    {isBu && <span style={{ fontSize: 10, color: '#a87908', fontWeight: 700, background: '#fceac9', borderRadius: 4, padding: '1px 5px' }}>Ưu tiên</span>}
                   </div>
                   <div style={{ fontSize: 11.5, color: HNH.ink3, marginTop: 1 }}>{displayRemain}</div>
                 </div>
@@ -235,80 +205,67 @@ export function LeaveNewPage() {
           })}
         </div>
 
-        {/* Seniority info */}
         {seniorityDays > 0 && (
           <div style={{ fontSize: 11.5, color: HNH.ink3, padding: '8px 6px', fontStyle: 'italic' }}>
             Thâm niên: bạn được cộng thêm <strong style={{ color: HNH.red }}>{seniorityDays} ngày</strong> phép thâm niên năm nay
           </div>
         )}
 
-        {/* Date range */}
-        <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, padding: '14px 6px 6px' }}>KHOẢNG NGHỈ</div>
+        {/* Multi-day picker */}
+        <div className="flex items-center justify-between" style={{ padding: '14px 6px 6px' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4 }}>NGÀY NGHỈ</span>
+          <span style={{ fontSize: 10.5, color: HNH.ink3 }}>Chọn nhiều ngày, mỗi ngày chọn buổi</span>
+        </div>
         <div style={{ background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`, padding: 12 }}>
-          <div className="flex gap-2 items-center">
-            <label className="flex-1" style={{
-              padding: '10px 12px', borderRadius: 12, background: HNH.cream,
-              border: startDate ? `1.5px solid ${HNH.red}` : `1px solid ${HNH.line}`,
-              cursor: 'pointer',
-            }}>
-              <div style={{ fontSize: 10.5, color: startDate ? HNH.red : HNH.ink3, fontWeight: 700, letterSpacing: 0.2 }}>TỪ NGÀY</div>
-              <input
-                type="date"
-                value={startDate}
-                onChange={e => setStartDate(e.target.value)}
-                style={{
-                  width: '100%', border: 'none', background: 'transparent', outline: 'none',
-                  fontSize: 15, fontWeight: 700, color: HNH.ink, marginTop: 2,
-                  fontFamily: 'inherit',
-                }}
-              />
-            </label>
-            <Icon name="arrow-r" size={16} color={HNH.ink3} stroke={2} />
-            <label className="flex-1" style={{
-              padding: '10px 12px', borderRadius: 12, background: HNH.cream,
-              border: endDate ? `1.5px solid ${HNH.red}` : `1px solid ${HNH.line}`,
-              cursor: 'pointer',
-            }}>
-              <div style={{ fontSize: 10.5, color: endDate ? HNH.red : HNH.ink3, fontWeight: 700, letterSpacing: 0.2 }}>ĐẾN NGÀY</div>
-              <input
-                type="date"
-                value={endDate}
-                min={startDate}
-                onChange={e => setEndDate(e.target.value)}
-                style={{
-                  width: '100%', border: 'none', background: 'transparent', outline: 'none',
-                  fontSize: 15, fontWeight: 700, color: HNH.ink, marginTop: 2,
-                  fontFamily: 'inherit',
-                }}
-              />
-            </label>
-          </div>
-          {startDate && (
+          {/* Add a day */}
+          <label className="flex items-center gap-2" style={{ padding: '10px 12px', borderRadius: 12, background: HNH.cream, border: `1px dashed ${HNH.line2}`, cursor: 'pointer' }}>
+            <Icon name="plus" size={16} color={HNH.red} stroke={2.5} />
+            <span style={{ fontSize: 13, fontWeight: 700, color: HNH.red, flex: 1 }}>Thêm ngày nghỉ</span>
+            <input type="date" value={addDate} onChange={e => addDay(e.target.value)}
+              style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: 13, fontWeight: 700, color: HNH.ink3, fontFamily: 'inherit' }} />
+          </label>
+
+          {/* Selected days list */}
+          {days.map(d => (
+            <div key={d.date} style={{ marginTop: 10, padding: '10px 12px', borderRadius: 12, background: HNH.cream, border: `1px solid ${HNH.line}` }}>
+              <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
+                <span style={{ fontSize: 13.5, fontWeight: 700, color: HNH.ink }}>{fmtDate(d.date)}</span>
+                <button onClick={() => removeDay(d.date)} className="border-none bg-transparent cursor-pointer flex items-center" style={{ color: HNH.ink3, padding: 2 }}>
+                  <Icon name="x" size={16} color={HNH.ink3} stroke={2} />
+                </button>
+              </div>
+              <div className="flex gap-1.5">
+                {BD_OPTS.map(o => {
+                  const sel = d.bd === o.id
+                  return (
+                    <button key={o.id} onClick={() => setBd(d.date, o.id)} className="flex-1 border-none cursor-pointer"
+                      style={{ padding: '7px 0', borderRadius: 9, fontSize: 12.5, fontWeight: 700, border: `1.5px solid ${sel ? HNH.red : HNH.line}`, background: sel ? HNH.red : '#fff', color: sel ? '#fff' : HNH.ink3 }}>
+                      {o.label} <span style={{ fontSize: 10, opacity: 0.8 }}>({o.coef})</span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+
+          {days.length > 0 && (
             <div className="flex items-center justify-between" style={{ marginTop: 12, paddingTop: 12, borderTop: `1px dashed ${HNH.line2}` }}>
               <span style={{ fontSize: 12.5, color: HNH.ink3, fontWeight: 600 }}>Tổng số ngày nghỉ</span>
-              <span style={{ fontSize: 15, fontWeight: 700, color: HNH.red }}>{totalDays} ngày</span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: HNH.red }}>{totalDays % 1 === 0 ? totalDays : totalDays.toFixed(2)} ngày</span>
             </div>
           )}
-          {selected && startDate && totalDays > selected.total_leave_days && selected.leave_type_id.total_days > 1 && (
+          {overBalance && (
             <div style={{ marginTop: 8, fontSize: 11.5, color: HNH.red, fontWeight: 600 }}>
-              Vượt quá số ngày phép còn lại ({selected.total_leave_days} ngày)
+              Vượt quá số ngày phép còn lại ({selected?.total_leave_days} ngày)
             </div>
           )}
         </div>
 
-        {/* Reason input */}
+        {/* Reason */}
         <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, padding: '14px 6px 6px' }}>LÝ DO</div>
-        <textarea
-          value={reason}
-          onChange={e => setReason(e.target.value)}
-          placeholder="Nhập lý do xin nghỉ..."
+        <textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="Nhập lý do xin nghỉ..."
           className="w-full resize-none"
-          style={{
-            background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`, padding: '12px 14px',
-            fontSize: 14, color: HNH.ink, lineHeight: 1.4, minHeight: 90,
-            fontFamily: 'inherit', outline: 'none',
-          }}
-        />
+          style={{ background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`, padding: '12px 14px', fontSize: 14, color: HNH.ink, lineHeight: 1.4, minHeight: 90, fontFamily: 'inherit', outline: 'none' }} />
       </div>
     </div>
   )

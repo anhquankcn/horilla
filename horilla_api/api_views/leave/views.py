@@ -130,6 +130,148 @@ class EmployeeLeaveRequestGetCreateAPIView(APIView):
         return Response(serializer.errors, status=400)
 
 
+class EmployeeLeaveRequestDaysAPIView(APIView):
+    """P1 — Đơn nghỉ phép/bù THEO NGÀY: chọn nhiều ngày rời, mỗi ngày Sáng/Chiều/
+    Cả ngày. Tạo LeaveRequest tối ưu: gộp các ngày 'cả ngày' liên tiếp thành 1 range,
+    nửa ngày tách riêng. Trừ phép theo tổng requested_days. Atomic — lỗi 1 đoạn rollback hết.
+    """
+    permission_classes = [IsAuthenticated]
+
+    _BD = {"full_day", "first_half", "second_half"}
+
+    def post(self, request):
+        from datetime import datetime, date as _date
+        from django.db import transaction
+        from leave.models import LeaveRequest, AvailableLeave, LeaveType, cal_effective_requested_days
+        from leave.methods import calculate_requested_days
+        from employee.models import Employee
+
+        employee = request.user.employee_get
+        d = request.data
+        leave_type_id = d.get("leave_type_id")
+        description = (d.get("description") or "").strip()
+        days_in = d.get("days") or []
+        approver_ids = d.get("approver_ids") or []
+        watcher_ids = d.get("watcher_ids") or []
+
+        if not leave_type_id:
+            return Response({"error": "Thiếu loại nghỉ phép"}, status=400)
+        if not days_in:
+            return Response({"error": "Chưa chọn ngày nghỉ"}, status=400)
+        lt = LeaveType.objects.filter(id=leave_type_id).first()
+        if not lt:
+            return Response({"error": "Loại nghỉ phép không tồn tại"}, status=400)
+
+        # Parse + validate days
+        parsed = []
+        seen = set()
+        for it in days_in:
+            ds = (it.get("date") or "").strip()
+            bd = (it.get("breakdown") or "full_day").strip()
+            if bd not in self._BD:
+                return Response({"error": f"Thời lượng không hợp lệ: {bd}"}, status=400)
+            try:
+                dt = datetime.strptime(ds, "%Y-%m-%d").date()
+            except ValueError:
+                return Response({"error": f"Ngày không hợp lệ: {ds}"}, status=400)
+            if dt in seen:
+                return Response({"error": f"Ngày bị trùng: {ds}"}, status=400)
+            seen.add(dt)
+            parsed.append({"date": dt, "breakdown": bd})
+        parsed.sort(key=lambda x: x["date"])
+
+        # Gom đoạn: ngày 'full_day' liên tiếp → 1 range; nửa ngày → từng ngày riêng
+        segments = []
+        i, n = 0, len(parsed)
+        while i < n:
+            cur = parsed[i]
+            if cur["breakdown"] == "full_day":
+                j = i
+                while (j + 1 < n and parsed[j + 1]["breakdown"] == "full_day"
+                       and (parsed[j + 1]["date"] - parsed[j]["date"]).days == 1):
+                    j += 1
+                segments.append((parsed[i]["date"], parsed[j]["date"], "full_day", "full_day"))
+                i = j + 1
+            else:
+                segments.append((cur["date"], cur["date"], cur["breakdown"], cur["breakdown"]))
+                i += 1
+
+        # Pre-check tổng số ngày xin so với số dư (chỉ với loại TRỪ phép)
+        avail = AvailableLeave.objects.filter(employee_id=employee, leave_type_id=lt).first()
+        total_req = 0.0
+        for (sd, ed, sbd, ebd) in segments:
+            rd = calculate_requested_days(sd, ed, sbd, ebd)
+            rd = cal_effective_requested_days(start_date=sd, end_date=ed, leave_type_id=lt, requested_days=rd)
+            total_req += rd
+        total_req = round(total_req, 2)
+        if avail is not None:
+            balance = (avail.available_days or 0) + (avail.carryforward_days or 0)
+            if total_req > balance + 1e-6:
+                return Response({"error": f"Vượt số phép: xin {total_req} ngày nhưng còn {round(balance,2)} ngày"}, status=400)
+        elif lt.payment == "paid":
+            return Response({"error": "Bạn chưa được cấp loại phép này"}, status=400)
+
+        created = []
+        try:
+            with transaction.atomic():
+                for (sd, ed, sbd, ebd) in segments:
+                    data = {
+                        "employee_id": employee.id,
+                        "leave_type_id": lt.id,
+                        "start_date": sd.isoformat(),
+                        "end_date": ed.isoformat(),
+                        "start_date_breakdown": sbd,
+                        "end_date_breakdown": ebd,
+                        "description": description,
+                    }
+                    ser = LeaveRequestCreateUpdateSerializer(data=data)
+                    if not ser.is_valid():
+                        raise ValueError(str(ser.errors))
+                    created.append(ser.save())
+                # Approvers (gắn cho mọi request vừa tạo)
+                from leave.models import LeaveRequestConditionApproval
+                for lr in created:
+                    for seq, aid in enumerate(approver_ids, start=1):
+                        with contextlib.suppress(Exception):
+                            ap = Employee.objects.get(id=aid, is_active=True)
+                            LeaveRequestConditionApproval.objects.get_or_create(
+                                leave_request_id=lr, manager_id=ap,
+                                defaults={"sequence": seq, "is_approved": False, "is_rejected": False},
+                            )
+        except ValueError as e:
+            return Response({"error": f"Lỗi tạo đơn: {e}"}, status=400)
+        except Exception as e:
+            return Response({"error": f"Lỗi tạo đơn: {e}"}, status=400)
+
+        # Notify quản lý + approvers/watchers (1 lần, gộp)
+        actor = employee
+        emp_name = f"{actor.employee_first_name} {actor.employee_last_name or ''}".strip()
+        notified = set()
+        with contextlib.suppress(Exception):
+            rm = actor.employee_work_info.reporting_manager_id
+            if rm:
+                notify.send(actor, recipient=rm.employee_user_id,
+                            verb=f"{emp_name} gửi đề xuất nghỉ phép {total_req} ngày",
+                            icon="people-circle", redirect="/leave/request-view")
+                notified.add(rm.employee_user_id.id)
+        from employee.models import Employee as _Emp
+        for uid in list(approver_ids) + list(watcher_ids):
+            with contextlib.suppress(Exception):
+                u = _Emp.objects.get(id=uid, is_active=True)
+                if u.employee_user_id.id not in notified:
+                    notify.send(actor, recipient=u.employee_user_id,
+                                verb=f"{emp_name} gửi đề xuất nghỉ phép {total_req} ngày cần phê duyệt",
+                                icon="people-circle", redirect="/leave/request-view")
+                    notified.add(u.employee_user_id.id)
+
+        return Response({
+            "ok": True,
+            "created": len(created),
+            "total_days": total_req,
+            "request_ids": [lr.id for lr in created],
+        }, status=201)
+
+
 class EmployeeLeaveRequestUpdateDeleteAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
