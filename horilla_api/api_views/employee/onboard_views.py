@@ -78,6 +78,77 @@ class OnboardOptionsView(APIView):
         })
 
 
+class OnboardScanIdView(APIView):
+    """Quét ảnh CCCD/CMND/Hộ chiếu qua Arkon AI → trả field tiền-điền form onboard.
+
+    Backend Django gọi Arkon (token là secret server, KHÔNG để lộ ra PWA).
+    Spec: docs/HRM-ID-SCAN-INTEGRATION.md (repo arkon).
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        import os
+        import requests as http_requests
+
+        if not _can_onboard(request.user):
+            return Response({"error": "Không có quyền"}, status=403)
+
+        image_b64 = request.data.get("image_base64")
+        if not image_b64:
+            return Response({"error": "Thiếu ảnh (image_base64)"}, status=400)
+
+        token = os.environ.get("ARKAN_IDSCAN_TOKEN")
+        if not token:
+            return Response(
+                {"error": "Chưa cấu hình ARKAN_IDSCAN_TOKEN trên server"}, status=503
+            )
+        base = os.environ.get("ARKAN_BASE", "http://100.99.164.24:5166").rstrip("/")
+
+        try:
+            r = http_requests.post(
+                f"{base}/api/m2m/id-scan/json",
+                headers={"X-Arkan-Service-Token": token, "Content-Type": "application/json"},
+                json={
+                    "image_base64": image_b64,
+                    "mime_type": request.data.get("mime_type") or "image/jpeg",
+                },
+                timeout=35,
+            )
+        except http_requests.RequestException as e:
+            logger.warning("Arkan id-scan unreachable: %s", e)
+            return Response({"error": "Không kết nối được dịch vụ nhận diện"}, status=502)
+
+        if r.status_code == 413:
+            return Response({"error": "Ảnh quá lớn (>8MB), vui lòng nén lại"}, status=400)
+        if r.status_code in (401, 403):
+            logger.error("Arkan id-scan auth failed: %s", r.status_code)
+            return Response({"error": "Lỗi xác thực dịch vụ nhận diện"}, status=502)
+        if r.status_code != 200:
+            return Response({"error": f"Nhận diện lỗi ({r.status_code})"}, status=502)
+
+        data = r.json()
+        # Lỗi tầng vision trả 200 kèm "error" → cho người dùng thử lại
+        if data.get("error"):
+            return Response({"error": data["error"]}, status=502)
+
+        sex = (data.get("sex") or "").lower()
+        gender = "female" if ("nữ" in sex or "nu" in sex) else "male" if ("nam" in sex) else ""
+
+        return Response({
+            "full_name": data.get("full_name") or "",
+            "dob": data.get("date_of_birth") or "",
+            "gender": gender,
+            "cccd": data.get("id_number") or data.get("passport_no") or "",
+            "cccd_issue_date": data.get("issue_date") or "",
+            "cccd_issue_place": data.get("issuing_authority") or "",
+            "address": data.get("place_of_residence") or "",
+            "place_of_origin": data.get("place_of_origin") or "",
+            "document_type": data.get("document_type") or "",
+            "confidence": data.get("confidence") or "",
+            "warnings": data.get("warnings") or [],
+        }, status=200)
+
+
 class OnboardEmployeeView(APIView):
     """Tạo nhân sự mới trọn gói: Employee → WorkInformation → Nhóm quyền → Keycloak."""
     permission_classes = [IsAuthenticated]

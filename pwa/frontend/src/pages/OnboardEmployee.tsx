@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
@@ -106,6 +106,47 @@ export function OnboardEmployeePage() {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [done, setDone] = useState<{ name: string; badge_id: string; kc: any } | null>(null)
+  const [scanBusy, setScanBusy] = useState(false)
+  const [scanMsg, setScanMsg] = useState<{ kind: 'ok' | 'warn' | 'err'; text: string } | null>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const onScanFile = async (file: File) => {
+    setScanBusy(true); setScanMsg(null)
+    try {
+      const dataUrl: string = await new Promise((res, rej) => {
+        const r = new FileReader()
+        r.onload = () => res(r.result as string)
+        r.onerror = () => rej(new Error('Không đọc được ảnh'))
+        r.readAsDataURL(file)
+      })
+      const r = await api.post<any>('/api/employee/onboard/scan-id/', {
+        image_base64: dataUrl, mime_type: file.type || 'image/jpeg',
+      })
+      setF(p => ({
+        ...p,
+        full_name: (r.full_name || p.full_name).toUpperCase(),
+        dob: r.dob || p.dob,
+        gender: r.gender || p.gender,
+        cccd: r.cccd || p.cccd,
+        cccd_issue_date: r.cccd_issue_date || p.cccd_issue_date,
+        cccd_issue_place: r.cccd_issue_place || p.cccd_issue_place,
+        address: r.address || p.address,
+        birth_cert_place: r.place_of_origin || p.birth_cert_place,
+      }))
+      const warns: string[] = r.warnings || []
+      if (r.document_type && r.document_type !== 'cccd' && r.document_type !== 'cmnd' && r.document_type !== 'passport') {
+        setScanMsg({ kind: 'warn', text: 'Ảnh có thể không phải CCCD/CMND — vui lòng kiểm tra kỹ.' })
+      } else {
+        const conf = r.confidence === 'low' ? ' (độ tin cậy thấp — kiểm tra kỹ)' : r.confidence === 'medium' ? ' (kiểm tra lại)' : ''
+        setScanMsg({ kind: r.confidence === 'low' ? 'warn' : 'ok', text: `Đã đọc CCCD${conf}. Vui lòng soát & sửa trước khi lưu.${warns.length ? ' ⚠ ' + warns.join('; ') : ''}` })
+      }
+    } catch (e) {
+      setScanMsg({ kind: 'err', text: e instanceof Error ? e.message : 'Quét CCCD lỗi, thử lại' })
+    } finally {
+      setScanBusy(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
 
   useEffect(() => {
     api.get<Options>('/api/employee/onboard/options/')
@@ -200,6 +241,22 @@ export function OnboardEmployeePage() {
           <div style={{ background: '#fff', borderRadius: 16, padding: '16px 16px', border: `1px solid ${HNH.line}` }}>
             {step === 0 && (
               <>
+                <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display: 'none' }}
+                  onChange={e => { const file = e.target.files?.[0]; if (file) onScanFile(file) }} />
+                <button onClick={() => fileRef.current?.click()} disabled={scanBusy}
+                  className="flex items-center justify-center gap-2 w-full"
+                  style={{ padding: 12, borderRadius: 12, marginBottom: 12, cursor: 'pointer', fontWeight: 800, fontSize: 13.5,
+                    border: `1.5px dashed ${HNH.navy}`, background: HNH.navy50, color: HNH.navy }}>
+                  <Icon name="camera" size={18} color={HNH.navy} />
+                  {scanBusy ? 'Đang đọc CCCD…' : 'Quét CCCD tự điền (chụp/tải ảnh)'}
+                </button>
+                {scanMsg && (
+                  <div style={{ padding: '9px 11px', borderRadius: 10, marginBottom: 12, fontSize: 12, fontWeight: 600,
+                    background: scanMsg.kind === 'ok' ? '#dcfce7' : scanMsg.kind === 'warn' ? '#fff3cd' : HNH.red50,
+                    color: scanMsg.kind === 'ok' ? '#15803d' : scanMsg.kind === 'warn' ? '#92660a' : HNH.red }}>
+                    {scanMsg.text}
+                  </div>
+                )}
                 <Field label="Họ tên đầy đủ * (VIẾT HOA)" hint="VD: NGUYỄN VĂN A — hệ thống tự tách Họ đệm / Tên">
                   <TextInput value={f.full_name} onChange={v => set('full_name', v)} placeholder="NGUYỄN VĂN A" upper />
                 </Field>
