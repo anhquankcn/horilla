@@ -907,6 +907,12 @@ class LeaveRequest(HorillaModel):
     requested_days = models.FloatField(
         blank=True, null=True, verbose_name=_("Requested Days")
     )
+    # HNH — đơn nghỉ THEO GIỜ: quy đổi giờ→ngày (8h = 1 ngày). Khi is_hourly,
+    # save() lấy requested_days = round(requested_hours/8, 2) thay vì theo breakdown.
+    is_hourly = models.BooleanField(default=False, verbose_name=_("Nghỉ theo giờ"))
+    requested_hours = models.FloatField(blank=True, null=True, verbose_name=_("Số giờ nghỉ"))
+    start_time = models.TimeField(blank=True, null=True, verbose_name=_("Từ giờ"))
+    end_time = models.TimeField(blank=True, null=True, verbose_name=_("Đến giờ"))
     leave_clashes_count = models.IntegerField(
         default=0, verbose_name=_("Leave Clashes Count")
     )
@@ -1389,12 +1395,16 @@ class LeaveRequest(HorillaModel):
         return overlapping_requests
 
     def save(self, *args, **kwargs):
-        self.requested_days = calculate_requested_days(
-            self.start_date,
-            self.end_date,
-            self.start_date_breakdown,
-            self.end_date_breakdown,
-        )
+        if self.is_hourly and self.requested_hours is not None:
+            # Đơn theo giờ: quy đổi 8h = 1 ngày, lấy 2 số lẻ. KHÔNG dùng breakdown.
+            self.requested_days = round((self.requested_hours or 0) / 8.0, 2)
+        else:
+            self.requested_days = calculate_requested_days(
+                self.start_date,
+                self.end_date,
+                self.start_date_breakdown,
+                self.end_date_breakdown,
+            )
         if (
             self.leave_type_id.exclude_company_leave == "yes"
             and self.leave_type_id.exclude_holiday == "yes"

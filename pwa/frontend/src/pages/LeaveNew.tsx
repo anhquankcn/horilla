@@ -48,6 +48,15 @@ const BD_OPTS: { id: Breakdown; label: string; coef: number }[] = [
   { id: 'full_day', label: 'Cả ngày', coef: 1.0 },
 ]
 const coefOf = (bd: Breakdown) => (bd === 'full_day' ? 1 : 0.5)
+
+type Mode = 'day' | 'hour'
+interface HourEntry { date: string; from: string; to: string }
+const hoursOf = (e: HourEntry): number => {
+  if (!e.from || !e.to) return 0
+  const [fh, fm] = e.from.split(':').map(Number)
+  const [th, tm] = e.to.split(':').map(Number)
+  return Math.max(0, (th * 60 + tm - fh * 60 - fm) / 60)
+}
 const fmtDate = (s: string) => {
   const d = new Date(s)
   const wd = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][d.getDay()]
@@ -85,8 +94,10 @@ export function LeaveNewPage() {
   const leaveTypes = sortLeaveTypes(rawTypes)
 
   const [selectedTypeId, setSelectedTypeId] = useState<number | null>(null)
+  const [mode, setMode] = useState<Mode>('day')
   const [days, setDays] = useState<DayPick[]>([])
   const [addDate, setAddDate] = useState('')
+  const [hourEntries, setHourEntries] = useState<HourEntry[]>([])
   const [reason, setReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -99,8 +110,14 @@ export function LeaveNewPage() {
   }, [leaveTypes, selectedTypeId])
 
   const selected = leaveTypes.find(t => t.leave_type_id.id === selectedTypeId)
-  const totalDays = days.reduce((s, d) => s + coefOf(d.bd), 0)
-  const canSubmit = !!selectedTypeId && days.length > 0 && reason.trim() && !submitting
+  const totalHours = hourEntries.reduce((s, e) => s + hoursOf(e), 0)
+  const totalDays = mode === 'day'
+    ? days.reduce((s, d) => s + coefOf(d.bd), 0)
+    : Math.round((totalHours / 8) * 100) / 100
+  const canSubmit = !!selectedTypeId && reason.trim() && !submitting && (
+    mode === 'day' ? days.length > 0
+      : hourEntries.length > 0 && hourEntries.every(e => e.date && hoursOf(e) > 0)
+  )
 
   const addDay = (ds: string) => {
     if (!ds) return
@@ -116,11 +133,19 @@ export function LeaveNewPage() {
     if (!canSubmit) return
     setSubmitting(true); setError(null)
     try {
-      await api.post('/api/leave/user-request-days/', {
-        leave_type_id: selectedTypeId,
-        days: days.map(d => ({ date: d.date, breakdown: d.bd })),
-        description: reason,
-      })
+      if (mode === 'day') {
+        await api.post('/api/leave/user-request-days/', {
+          leave_type_id: selectedTypeId,
+          days: days.map(d => ({ date: d.date, breakdown: d.bd })),
+          description: reason,
+        })
+      } else {
+        await api.post('/api/leave/user-request-hours/', {
+          leave_type_id: selectedTypeId,
+          entries: hourEntries.map(e => ({ date: e.date, start_time: e.from, end_time: e.to })),
+          description: reason,
+        })
+      }
       navigate('/leave')
     } catch (e: unknown) {
       let msg = e instanceof Error ? e.message : 'Có lỗi xảy ra'
@@ -142,7 +167,7 @@ export function LeaveNewPage() {
           style={{ height: 32, padding: '0 12px', borderRadius: 10, color: HNH.red, fontWeight: 600, fontSize: 14 }}>
           Hủy
         </button>
-        <div style={{ fontSize: 15, fontWeight: 700, color: HNH.ink }}>Đơn xin nghỉ (theo ngày)</div>
+        <div style={{ fontSize: 15, fontWeight: 700, color: HNH.ink }}>Đơn xin nghỉ ({mode === 'day' ? 'theo ngày' : 'theo giờ'})</div>
         <button onClick={handleSubmit} disabled={!canSubmit} className="border-none cursor-pointer"
           style={{
             height: 32, padding: '0 14px', borderRadius: 10,
@@ -211,7 +236,21 @@ export function LeaveNewPage() {
           </div>
         )}
 
-        {/* Multi-day picker */}
+        {/* Mode toggle: theo ngày / theo giờ */}
+        <div className="flex gap-2" style={{ marginTop: 14 }}>
+          {([['day', 'Theo ngày'], ['hour', 'Theo giờ']] as const).map(([m, lbl]) => {
+            const sel = mode === m
+            return (
+              <button key={m} onClick={() => setMode(m)} className="flex-1 border-none cursor-pointer"
+                style={{ padding: '10px 0', borderRadius: 12, fontSize: 13.5, fontWeight: 700, border: `1.5px solid ${sel ? HNH.red : HNH.line}`, background: sel ? HNH.red : '#fff', color: sel ? '#fff' : HNH.ink3 }}>
+                {lbl}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* ===== THEO NGÀY ===== */}
+        {mode === 'day' && (<>
         <div className="flex items-center justify-between" style={{ padding: '14px 6px 6px' }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4 }}>NGÀY NGHỈ</span>
           <span style={{ fontSize: 10.5, color: HNH.ink3 }}>Chọn nhiều ngày, mỗi ngày chọn buổi</span>
@@ -260,6 +299,67 @@ export function LeaveNewPage() {
             </div>
           )}
         </div>
+        </>)}
+
+        {/* ===== THEO GIỜ ===== */}
+        {mode === 'hour' && (<>
+        <div className="flex items-center justify-between" style={{ padding: '14px 6px 6px' }}>
+          <span style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4 }}>NGÀY &amp; GIỜ NGHỈ</span>
+          <span style={{ fontSize: 10.5, color: HNH.ink3 }}>8 giờ = 1 ngày phép</span>
+        </div>
+        <div style={{ background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`, padding: 12 }}>
+          <button onClick={() => setHourEntries(prev => [...prev, { date: '', from: '08:00', to: '12:00' }])}
+            className="flex items-center gap-2 w-full border-none cursor-pointer"
+            style={{ padding: '10px 12px', borderRadius: 12, background: HNH.cream, border: `1px dashed ${HNH.line2}` }}>
+            <Icon name="plus" size={16} color={HNH.red} stroke={2.5} />
+            <span style={{ fontSize: 13, fontWeight: 700, color: HNH.red }}>Thêm khoảng giờ</span>
+          </button>
+
+          {hourEntries.map((e, idx) => {
+            const h = hoursOf(e)
+            const upd = (patch: Partial<HourEntry>) => setHourEntries(prev => prev.map((x, i) => i === idx ? { ...x, ...patch } : x))
+            return (
+              <div key={idx} style={{ marginTop: 10, padding: '10px 12px', borderRadius: 12, background: HNH.cream, border: `1px solid ${HNH.line}` }}>
+                <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
+                  <input type="date" value={e.date} onChange={ev => upd({ date: ev.target.value })}
+                    style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: 13.5, fontWeight: 700, color: HNH.ink, fontFamily: 'inherit' }} />
+                  <button onClick={() => setHourEntries(prev => prev.filter((_, i) => i !== idx))} className="border-none bg-transparent cursor-pointer flex items-center" style={{ padding: 2 }}>
+                    <Icon name="x" size={16} color={HNH.ink3} stroke={2} />
+                  </button>
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="flex-1" style={{ padding: '7px 10px', borderRadius: 9, background: '#fff', border: `1px solid ${HNH.line}` }}>
+                    <div style={{ fontSize: 9.5, color: HNH.ink3, fontWeight: 700 }}>TỪ GIỜ</div>
+                    <input type="time" value={e.from} onChange={ev => upd({ from: ev.target.value })}
+                      style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', fontSize: 14, fontWeight: 700, color: HNH.ink, fontFamily: 'inherit' }} />
+                  </label>
+                  <Icon name="arrow-r" size={14} color={HNH.ink3} stroke={2} />
+                  <label className="flex-1" style={{ padding: '7px 10px', borderRadius: 9, background: '#fff', border: `1px solid ${HNH.line}` }}>
+                    <div style={{ fontSize: 9.5, color: HNH.ink3, fontWeight: 700 }}>ĐẾN GIỜ</div>
+                    <input type="time" value={e.to} onChange={ev => upd({ to: ev.target.value })}
+                      style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', fontSize: 14, fontWeight: 700, color: HNH.ink, fontFamily: 'inherit' }} />
+                  </label>
+                  <span style={{ fontSize: 12.5, fontWeight: 700, color: h > 0 ? HNH.navy : HNH.ink4, minWidth: 42, textAlign: 'right' }}>
+                    {h > 0 ? `${h % 1 === 0 ? h : h.toFixed(1)}h` : '—'}
+                  </span>
+                </div>
+              </div>
+            )
+          })}
+
+          {hourEntries.length > 0 && (
+            <div className="flex items-center justify-between" style={{ marginTop: 12, paddingTop: 12, borderTop: `1px dashed ${HNH.line2}` }}>
+              <span style={{ fontSize: 12.5, color: HNH.ink3, fontWeight: 600 }}>Tổng {totalHours % 1 === 0 ? totalHours : totalHours.toFixed(1)}h = quy đổi</span>
+              <span style={{ fontSize: 15, fontWeight: 700, color: HNH.red }}>{totalDays % 1 === 0 ? totalDays : totalDays.toFixed(2)} ngày</span>
+            </div>
+          )}
+          {overBalance && (
+            <div style={{ marginTop: 8, fontSize: 11.5, color: HNH.red, fontWeight: 600 }}>
+              Vượt quá số ngày phép còn lại ({selected?.total_leave_days} ngày)
+            </div>
+          )}
+        </div>
+        </>)}
 
         {/* Reason */}
         <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, padding: '14px 6px 6px' }}>LÝ DO</div>

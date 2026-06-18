@@ -11,6 +11,7 @@ urlpatterns = [
     path("available-leave/", EmployeeAvailableLeaveGetAPIView.as_view()),
     path("user-request/", EmployeeLeaveRequestGetCreateAPIView.as_view()),
     path("user-request-days/", EmployeeLeaveRequestDaysAPIView.as_view()),
+    path("user-request-hours/", EmployeeLeaveRequestHoursAPIView.as_view()),
     path("user-request/<int:pk>/", EmployeeLeaveRequestUpdateDeleteAPIView.as_view()),
     path("leave-type/", LeaveTypeGetCreateAPIView.as_view()),
     path("leave-type/<int:pk>/", LeaveTypeGetUpdateDeleteAPIView.as_view()),

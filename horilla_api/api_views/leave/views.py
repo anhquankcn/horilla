@@ -272,6 +272,120 @@ class EmployeeLeaveRequestDaysAPIView(APIView):
         }, status=201)
 
 
+class EmployeeLeaveRequestHoursAPIView(APIView):
+    """P2 — Đơn nghỉ phép/bù THEO GIỜ: nhiều cặp [Ngày - Từ giờ - Đến giờ] trong 1 đơn.
+    Quy đổi 8h = 1 ngày (requested_days = round(hours/8, 2)). Mỗi ngày = 1 LeaveRequest
+    is_hourly. Trừ phép theo tổng. Atomic.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from datetime import datetime
+        from django.db import transaction
+        from leave.models import LeaveRequest, AvailableLeave, LeaveType
+        from employee.models import Employee
+
+        employee = request.user.employee_get
+        d = request.data
+        leave_type_id = d.get("leave_type_id")
+        description = (d.get("description") or "").strip()
+        entries_in = d.get("entries") or []
+        approver_ids = d.get("approver_ids") or []
+        watcher_ids = d.get("watcher_ids") or []
+
+        if not leave_type_id:
+            return Response({"error": "Thiếu loại nghỉ phép"}, status=400)
+        if not entries_in:
+            return Response({"error": "Chưa chọn ngày/giờ nghỉ"}, status=400)
+        lt = LeaveType.objects.filter(id=leave_type_id).first()
+        if not lt:
+            return Response({"error": "Loại nghỉ phép không tồn tại"}, status=400)
+
+        parsed = []
+        for it in entries_in:
+            ds = (it.get("date") or "").strip()
+            st = (it.get("start_time") or "").strip()
+            et = (it.get("end_time") or "").strip()
+            try:
+                dt = datetime.strptime(ds, "%Y-%m-%d").date()
+                t1 = datetime.strptime(st, "%H:%M").time()
+                t2 = datetime.strptime(et, "%H:%M").time()
+            except ValueError:
+                return Response({"error": f"Ngày/giờ không hợp lệ: {ds} {st}-{et}"}, status=400)
+            mins = (t2.hour * 60 + t2.minute) - (t1.hour * 60 + t1.minute)
+            if mins <= 0:
+                return Response({"error": f"Giờ kết thúc phải sau giờ bắt đầu ({ds})"}, status=400)
+            parsed.append({"date": dt, "t1": t1, "t2": t2, "hours": mins / 60.0})
+
+        total_hours = round(sum(p["hours"] for p in parsed), 2)
+        total_days = round(total_hours / 8.0, 2)
+
+        avail = AvailableLeave.objects.filter(employee_id=employee, leave_type_id=lt).first()
+        if avail is not None:
+            balance = (avail.available_days or 0) + (avail.carryforward_days or 0)
+            if total_days > balance + 1e-6:
+                return Response({"error": f"Vượt số phép: xin {total_days} ngày ({total_hours}h) nhưng còn {round(balance,2)} ngày"}, status=400)
+        elif lt.payment == "paid":
+            return Response({"error": "Bạn chưa được cấp loại phép này"}, status=400)
+
+        created = []
+        try:
+            with transaction.atomic():
+                for p in parsed:
+                    lr = LeaveRequest(
+                        employee_id=employee,
+                        leave_type_id=lt,
+                        start_date=p["date"],
+                        end_date=p["date"],
+                        start_date_breakdown="full_day",
+                        end_date_breakdown="full_day",
+                        is_hourly=True,
+                        requested_hours=round(p["hours"], 2),
+                        start_time=p["t1"],
+                        end_time=p["t2"],
+                        description=description,
+                        status="requested",
+                    )
+                    lr.save()  # save() → requested_days = round(hours/8, 2)
+                    created.append(lr)
+                from leave.models import LeaveRequestConditionApproval
+                for lr in created:
+                    for seq, aid in enumerate(approver_ids, start=1):
+                        with contextlib.suppress(Exception):
+                            ap = Employee.objects.get(id=aid, is_active=True)
+                            LeaveRequestConditionApproval.objects.get_or_create(
+                                leave_request_id=lr, manager_id=ap,
+                                defaults={"sequence": seq, "is_approved": False, "is_rejected": False},
+                            )
+        except Exception as e:
+            return Response({"error": f"Lỗi tạo đơn: {e}"}, status=400)
+
+        actor = employee
+        emp_name = f"{actor.employee_first_name} {actor.employee_last_name or ''}".strip()
+        notified = set()
+        with contextlib.suppress(Exception):
+            rm = actor.employee_work_info.reporting_manager_id
+            if rm:
+                notify.send(actor, recipient=rm.employee_user_id,
+                            verb=f"{emp_name} gửi đề xuất nghỉ phép {total_hours}h ({total_days} ngày)",
+                            icon="people-circle", redirect="/leave/request-view")
+                notified.add(rm.employee_user_id.id)
+        for uid in list(approver_ids) + list(watcher_ids):
+            with contextlib.suppress(Exception):
+                u = Employee.objects.get(id=uid, is_active=True)
+                if u.employee_user_id.id not in notified:
+                    notify.send(actor, recipient=u.employee_user_id,
+                                verb=f"{emp_name} gửi đề xuất nghỉ phép {total_hours}h cần phê duyệt",
+                                icon="people-circle", redirect="/leave/request-view")
+                    notified.add(u.employee_user_id.id)
+
+        return Response({
+            "ok": True, "created": len(created),
+            "total_hours": total_hours, "total_days": total_days,
+            "request_ids": [lr.id for lr in created],
+        }, status=201)
+
+
 class EmployeeLeaveRequestUpdateDeleteAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
