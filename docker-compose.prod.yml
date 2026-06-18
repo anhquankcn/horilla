@@ -14,21 +14,6 @@ services:
       redis:
         condition: service_started
 
-  autoclock:
-    build: .
-    entrypoint: ["python", "manage.py", "auto_clock", "--loop"]
-    command: []
-    volumes:
-      - ./.env.prod:/app/.env:ro
-    env_file:
-      - .env.prod
-    restart: always
-    depends_on:
-      db:
-        condition: service_healthy
-      web:
-        condition: service_started
-
   bff:
     build: ./pwa/bff
     environment:
