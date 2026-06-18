@@ -1174,6 +1174,26 @@ export function HomePage() {
               </button>
             </div>
 
+            {/* Thoát Tài khoản KC — đăng xuất + đóng session Keycloak, về màn Login */}
+            <div style={{ padding: '0 16px 12px' }}>
+              <button
+                onClick={() => { window.location.href = '/bff/auth/logout' }}
+                className="flex items-center justify-center gap-2"
+                style={{
+                  width: '100%', padding: '11px 0', borderRadius: 13,
+                  background: '#fff', color: '#dc2626',
+                  border: '1.5px solid #fca5a5', cursor: 'pointer',
+                  fontSize: 14, fontWeight: 700,
+                }}
+              >
+                <Icon name="logout" size={16} color="#dc2626" stroke={2} />
+                Thoát Tài khoản KC
+              </button>
+              <div style={{ fontSize: 10.5, color: HNH.ink4, marginTop: 5, textAlign: 'center' }}>
+                Đăng xuất & đóng session Keycloak, về màn hình đăng nhập
+              </div>
+            </div>
+
             {/* Version + build info */}
             <div style={{ padding: '0 16px 14px', borderTop: `1px solid ${HNH.line}`, paddingTop: 10 }}>
               <div style={{ fontSize: 10, color: HNH.ink4, fontWeight: 500 }}>
