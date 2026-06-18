@@ -173,6 +173,12 @@ export function LeaveNewPage() {
 
   const rawTypes = balResp?.results ?? []
   const leaveTypes = sortLeaveTypes(rawTypes)
+  // Nhóm 2 — loại KHÔNG trừ phép (không có allocation). Lấy từ toàn bộ leave-type,
+  // lọc theo tên đặc thù và loại trừ các loại đã có balance (Nhóm 1).
+  const { data: allTypesResp } = useApi<Paginated<{ id: number; name: string }>>('/api/leave/leave-type/?page_size=50')
+  const deductingIds = new Set(leaveTypes.map(t => t.leave_type_id.id))
+  const NHOM2_RE = /(công tác|hiếu|hỷ|phúc lợi|không lương)/i
+  const nonDeductTypes = (allTypesResp?.results ?? []).filter(t => NHOM2_RE.test(t.name) && !deductingIds.has(t.id))
 
   const [selectedTypeId, setSelectedTypeId] = useState<number | null>(null)
   const [mode, setMode] = useState<Mode>('day')
@@ -203,6 +209,9 @@ export function LeaveNewPage() {
   }, [leaveTypes, selectedTypeId])
 
   const selected = leaveTypes.find(t => t.leave_type_id.id === selectedTypeId)
+  const isNonDeduct = !!selectedTypeId && nonDeductTypes.some(t => t.id === selectedTypeId)
+  const selectedTypeName = selected?.leave_type_id.name
+    ?? nonDeductTypes.find(t => t.id === selectedTypeId)?.name ?? '—'
   const totalHours = hourDays.reduce((s, d) => s + dayHours(d), 0)
   const totalDays = mode === 'day'
     ? days.reduce((s, d) => s + coefOf(d.bd), 0)
@@ -293,7 +302,7 @@ export function LeaveNewPage() {
           style={{ background: '#fff', borderRadius: 14, border: `1px solid ${HNH.line}`, padding: '11px 14px', fontSize: 14, color: HNH.ink, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
 
         {/* Type selector */}
-        <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, padding: '14px 6px 6px' }}>LOẠI NGHỈ</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, padding: '14px 6px 6px' }}>LOẠI NGHỈ — TRỪ PHÉP</div>
         <div style={{ background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`, overflow: 'hidden' }}>
           {leaveTypes.length === 0 && <div style={{ padding: 16, textAlign: 'center', color: HNH.ink3, fontSize: 13 }}>Đang tải...</div>}
           {leaveTypes.map((opt, i) => {
@@ -327,6 +336,37 @@ export function LeaveNewPage() {
             )
           })}
         </div>
+
+        {/* Nhóm 2 — KHÔNG trừ phép */}
+        {nonDeductTypes.length > 0 && (
+          <>
+            <div className="flex items-center gap-2" style={{ padding: '12px 6px 6px' }}>
+              <span style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4 }}>KHÔNG TRỪ PHÉP</span>
+              <span style={{ fontSize: 9.5, fontWeight: 700, color: '#a87908', background: '#faf1d6', borderRadius: 5, padding: '1px 6px' }}>Ghi nhận thủ tục</span>
+            </div>
+            <div style={{ background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`, overflow: 'hidden' }}>
+              {nonDeductTypes.map((t, i) => {
+                const isSelected = selectedTypeId === t.id
+                return (
+                  <button key={t.id} onClick={() => setSelectedTypeId(t.id)}
+                    className="flex items-center gap-3 w-full bg-transparent border-none cursor-pointer text-left"
+                    style={{ padding: '12px 14px', borderBottom: i === nonDeductTypes.length - 1 ? 'none' : `1px solid ${HNH.line}`, background: isSelected ? HNH.navy50 : 'transparent' }}>
+                    <div className="flex items-center justify-center shrink-0" style={{ width: 22, height: 22, borderRadius: '50%', border: `2px solid ${isSelected ? HNH.navy : HNH.line2}`, background: isSelected ? HNH.navy : '#fff' }}>
+                      {isSelected && <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />}
+                    </div>
+                    <div className="flex items-center justify-center shrink-0" style={{ width: 28, height: 28, borderRadius: 8, background: HNH.cream2 }}>
+                      <Icon name="doc" size={13} color={HNH.ink2} stroke={2} />
+                    </div>
+                    <div className="flex-1">
+                      <div style={{ fontSize: 14, fontWeight: 600, color: HNH.ink }}>{t.name}</div>
+                      <div style={{ fontSize: 11.5, color: HNH.ink3, marginTop: 1 }}>Không trừ phép năm</div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          </>
+        )}
 
         {seniorityDays > 0 && (
           <div style={{ fontSize: 11.5, color: HNH.ink3, padding: '8px 6px', fontStyle: 'italic' }}>
@@ -513,7 +553,7 @@ export function LeaveNewPage() {
             <div style={{ flex: 1, overflowY: 'auto', padding: '12px 18px' }}>
               {([
                 ['Tiêu đề', title.trim() || '—'],
-                ['Loại nghỉ', selected?.leave_type_id.name ?? '—'],
+                ['Loại nghỉ', selectedTypeName + (isNonDeduct ? ' (không trừ phép)' : '')],
                 ['Hình thức', mode === 'day' ? 'Theo ngày' : 'Theo giờ'],
                 ['Tổng quy đổi', `${totalDays % 1 === 0 ? totalDays : totalDays.toFixed(2)} ngày${mode === 'hour' ? ` (${totalHours % 1 === 0 ? totalHours : totalHours.toFixed(1)}h)` : ''}`],
                 ['Người duyệt', approverNames.join(', ') || '—'],
