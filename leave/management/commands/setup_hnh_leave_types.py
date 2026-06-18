@@ -19,6 +19,13 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         from leave.models import LeaveType
+        from horilla.horilla_middlewares import _thread_locals
+
+        # LeaveType.save() đọc request.session từ thread-local → đặt request giả
+        # (session rỗng) để chạy được trong management command (không có HTTP request).
+        class _FakeReq:
+            session = {}
+        _thread_locals.request = _FakeReq()
 
         template = (
             LeaveType.objects.filter(name="Công tác").first()
