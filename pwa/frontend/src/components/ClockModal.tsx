@@ -753,15 +753,16 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
           </div>
         )}
 
-        {/* Camera preview (đặt cuối, ngay trên nút Chấm công) */}
-        <div className="relative overflow-hidden" style={{ borderRadius: 18, background: '#1a1a2e', marginTop: 12, marginBottom: 4, border: `1px solid ${HNH.line}` }}>
+        {/* Camera preview (đặt cuối, ngay trên nút Chấm công) — khung tỉ lệ 4:3 đúng
+            kích cỡ ảnh chụp, hiển thị đầy đủ chiều cao thông thường (không cắt dải ngang). */}
+        <div className="relative overflow-hidden" style={{ borderRadius: 18, background: '#1a1a2e', marginTop: 12, marginBottom: 4, border: `1px solid ${HNH.line}`, aspectRatio: '4 / 3' }}>
           <video
             ref={videoRef}
             autoPlay playsInline muted
-            style={{ width: '100%', height: 220, objectFit: 'cover', transform: 'scaleX(-1)', display: selfie ? 'none' : 'block' }}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', transform: 'scaleX(-1)', display: selfie ? 'none' : 'block' }}
           />
           {selfie && (
-            <img src={selfie} alt="Selfie" style={{ width: '100%', height: 220, objectFit: 'cover', display: 'block' }} />
+            <img src={selfie} alt="Selfie" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
           )}
           {!cameraReady && !cameraError && !selfie && (
             <div className="absolute inset-0 flex items-center justify-center" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>
