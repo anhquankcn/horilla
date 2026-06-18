@@ -50,8 +50,10 @@ if $REBUILD_BFF; then
   $COMPOSE up -d --no-deps bff
 fi
 
-# Always restart nginx to pick up new container IPs
-$COMPOSE up -d --no-deps nginx
+# Always force-recreate nginx để re-resolve IP container mới (web/pwa/bff vừa
+# recreate sẽ đổi IP). `up -d` thường KHÔNG recreate nginx nếu config không đổi
+# → nginx giữ IP cũ → 502. --force-recreate cũng áp nginx.conf mới (bind-mount inode).
+$COMPOSE up -d --force-recreate --no-deps nginx
 
 # Run migrations
 echo "Running migrations..."
