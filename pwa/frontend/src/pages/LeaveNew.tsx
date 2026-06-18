@@ -193,6 +193,7 @@ export function LeaveNewPage() {
   }, [managers, approverIds.length])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   useEffect(() => {
     if (selectedTypeId !== null || leaveTypes.length === 0) return
@@ -221,7 +222,7 @@ export function LeaveNewPage() {
   const removeDay = (ds: string) => setDays(prev => prev.filter(d => d.date !== ds))
   const setBd = (ds: string, bd: Breakdown) => setDays(prev => prev.map(d => d.date === ds ? { ...d, bd } : d))
 
-  const handleSubmit = async () => {
+  const doSubmit = async () => {
     if (!canSubmit) return
     setSubmitting(true); setError(null)
     const desc = title.trim() ? `${title.trim()} — ${reason.trim()}` : reason.trim()
@@ -240,11 +241,12 @@ export function LeaveNewPage() {
           description: desc, approver_ids: approverIds, watcher_ids: watcherIds,
         })
       }
+      setConfirmOpen(false)
       navigate('/leave')
     } catch (e: unknown) {
       let msg = e instanceof Error ? e.message : 'Có lỗi xảy ra'
       try { const j = JSON.parse(msg); if (j.error) msg = j.error } catch { /* keep */ }
-      setError(msg)
+      setError(msg); setConfirmOpen(false)
     } finally {
       setSubmitting(false)
     }
@@ -252,27 +254,23 @@ export function LeaveNewPage() {
 
   const seniorityDays = summary?.seniority_days ?? 0
   const overBalance = !!selected && totalDays > selected.total_leave_days && selected.leave_type_id.total_days > 1
+  const bdLabel = (bd: Breakdown) => BD_OPTS.find(o => o.id === bd)?.label ?? ''
+  const approverNames = (managers ?? []).filter(m => approverIds.includes(m.id)).map(m => m.name)
+  const watcherNames = (watchersData ?? []).filter(w => watcherIds.includes(w.id)).map(w => w.name)
 
   return (
-    <div className="flex flex-col min-h-[100dvh]" style={{ background: HNH.cream }}>
+    <div className="flex flex-col" style={{ background: HNH.cream, height: '100dvh' }}>
       {/* Header */}
-      <div className="flex items-center justify-between" style={{ padding: '6px 16px 8px' }}>
+      <div className="flex items-center justify-between" style={{ padding: '6px 16px 8px', flexShrink: 0 }}>
         <button onClick={() => navigate(-1)} className="border-none bg-transparent cursor-pointer"
           style={{ height: 32, padding: '0 12px', borderRadius: 10, color: HNH.red, fontWeight: 600, fontSize: 14 }}>
           Hủy
         </button>
         <div style={{ fontSize: 15, fontWeight: 700, color: HNH.ink }}>Đơn xin nghỉ ({mode === 'day' ? 'theo ngày' : 'theo giờ'})</div>
-        <button onClick={handleSubmit} disabled={!canSubmit} className="border-none cursor-pointer"
-          style={{
-            height: 32, padding: '0 14px', borderRadius: 10,
-            background: canSubmit ? HNH.red : HNH.cream2, color: canSubmit ? '#fff' : HNH.ink3,
-            fontWeight: 700, fontSize: 13.5,
-          }}>
-          {submitting ? '...' : 'Gửi'}
-        </button>
+        <div style={{ width: 48 }} />
       </div>
 
-      <div className="flex-1 overflow-auto" style={{ padding: '6px 20px 20px' }}>
+      <div className="flex-1 overflow-auto" style={{ padding: '6px 20px 20px', minHeight: 0 }}>
         {error && (
           <div style={{ background: HNH.red50, border: `1px solid ${HNH.red}`, borderRadius: 12, padding: '10px 14px', marginBottom: 12, fontSize: 12.5, color: HNH.red, fontWeight: 600 }}>
             {error}
@@ -493,6 +491,73 @@ export function LeaveNewPage() {
           className="w-full resize-none"
           style={{ background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`, padding: '12px 14px', fontSize: 14, color: HNH.ink, lineHeight: 1.4, minHeight: 90, fontFamily: 'inherit', outline: 'none' }} />
       </div>
+
+      {/* Bottom bar — nút Gửi đơn luôn hiện */}
+      <div style={{ flexShrink: 0, background: '#fff', borderTop: `1px solid ${HNH.line}`, padding: '10px 16px', paddingBottom: 'calc(10px + env(safe-area-inset-bottom, 0px))' }}>
+        <button onClick={() => { if (canSubmit) setConfirmOpen(true) }} disabled={!canSubmit}
+          className="flex items-center justify-center gap-2 w-full border-none"
+          style={{ height: 50, borderRadius: 14, background: canSubmit ? HNH.red : HNH.cream2, color: canSubmit ? '#fff' : HNH.ink3, fontWeight: 800, fontSize: 15.5, cursor: canSubmit ? 'pointer' : 'not-allowed' }}>
+          <Icon name="send" size={18} color={canSubmit ? '#fff' : HNH.ink3} stroke={2.2} />
+          Gửi đơn{totalDays > 0 ? ` · ${totalDays % 1 === 0 ? totalDays : totalDays.toFixed(2)} ngày` : ''}
+        </button>
+      </div>
+
+      {/* Màn xác nhận — tổng hợp thông tin */}
+      {confirmOpen && (
+        <div className="fixed inset-0 flex items-end justify-center" style={{ zIndex: 300, background: 'rgba(0,0,0,0.45)' }} onClick={() => !submitting && setConfirmOpen(false)}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, maxHeight: '85vh', background: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ padding: '16px 18px 10px', borderBottom: `1px solid ${HNH.line}` }}>
+              <div style={{ fontSize: 16, fontWeight: 800, color: HNH.ink }}>Xác nhận đơn xin nghỉ</div>
+              <div style={{ fontSize: 12, color: HNH.ink3, marginTop: 2 }}>Kiểm tra thông tin trước khi gửi chính thức</div>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '12px 18px' }}>
+              {([
+                ['Tiêu đề', title.trim() || '—'],
+                ['Loại nghỉ', selected?.leave_type_id.name ?? '—'],
+                ['Hình thức', mode === 'day' ? 'Theo ngày' : 'Theo giờ'],
+                ['Tổng quy đổi', `${totalDays % 1 === 0 ? totalDays : totalDays.toFixed(2)} ngày${mode === 'hour' ? ` (${totalHours % 1 === 0 ? totalHours : totalHours.toFixed(1)}h)` : ''}`],
+                ['Người duyệt', approverNames.join(', ') || '—'],
+                ['Người theo dõi', watcherNames.join(', ') || '—'],
+                ['Lý do', reason.trim() || '—'],
+              ] as [string, string][]).map(([k, v]) => (
+                <div key={k} className="flex justify-between gap-3" style={{ padding: '8px 0', borderBottom: `1px solid ${HNH.line}`, fontSize: 13 }}>
+                  <span style={{ color: HNH.ink3, flexShrink: 0 }}>{k}</span>
+                  <span style={{ fontWeight: 600, color: HNH.ink, textAlign: 'right' }}>{v}</span>
+                </div>
+              ))}
+              {/* Chi tiết ngày/giờ */}
+              <div style={{ marginTop: 10, fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.3 }}>CHI TIẾT</div>
+              <div style={{ marginTop: 6, background: HNH.cream, borderRadius: 12, padding: '10px 12px' }}>
+                {mode === 'day' && days.map(d => (
+                  <div key={d.date} className="flex justify-between" style={{ fontSize: 12.5, padding: '3px 0' }}>
+                    <span style={{ color: HNH.ink }}>{fmtDate(d.date)}</span>
+                    <span style={{ fontWeight: 700, color: HNH.red }}>{bdLabel(d.bd)} ({coefOf(d.bd)})</span>
+                  </div>
+                ))}
+                {mode === 'hour' && hourDays.map((d, i) => (
+                  <div key={i} style={{ padding: '3px 0' }}>
+                    <div style={{ fontSize: 12.5, fontWeight: 700, color: HNH.ink }}>{fmtDate(d.date)} — {dayHours(d) % 1 === 0 ? dayHours(d) : dayHours(d).toFixed(1)}h</div>
+                    {d.frames.map((f, fi) => (
+                      <div key={fi} style={{ fontSize: 11.5, color: HNH.ink3, paddingLeft: 8 }}>• {f.from} → {f.to}</div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+              {error && <div style={{ marginTop: 10, fontSize: 12.5, color: HNH.red, fontWeight: 600 }}>{error}</div>}
+            </div>
+            <div className="flex gap-3" style={{ padding: '12px 16px', borderTop: `1px solid ${HNH.line}` }}>
+              <button onClick={() => setConfirmOpen(false)} disabled={submitting} className="border-none cursor-pointer"
+                style={{ flex: 1, height: 48, borderRadius: 13, background: '#fff', border: `1.5px solid ${HNH.line}`, color: HNH.ink3, fontWeight: 700, fontSize: 14 }}>
+                Huỷ
+              </button>
+              <button onClick={doSubmit} disabled={submitting} className="border-none cursor-pointer"
+                style={{ flex: 2, height: 48, borderRadius: 13, background: HNH.success, color: '#fff', fontWeight: 800, fontSize: 15 }}>
+                {submitting ? 'Đang gửi...' : 'Đồng ý gửi'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
