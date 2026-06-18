@@ -98,6 +98,8 @@ function MiniMap({ officeLat, officeLng, officeRadius, userLat, userLng }: {
     <div ref={containerRef} style={{ width: '100%', height: mapH, borderRadius: 14, overflow: 'hidden', border: `1px solid ${HNH.line}`, position: 'relative', background: '#e8e0d8' }}>
       {mapW > 0 && tiles.map(t => (
         <img key={t.key} src={`https://tile.openstreetmap.org/${MINIMAP_ZOOM}/${t.tx}/${t.ty}.png`} alt=""
+          referrerPolicy="origin" loading="eager" decoding="async"
+          onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
           style={{ position: 'absolute', left: t.sx, top: t.sy, width: TILE_SZ, height: TILE_SZ, display: 'block' }} />
       ))}
       {mapW > 0 && (
@@ -270,6 +272,19 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
   const selectedDist = selectedOffice?.dist ?? null
   const selectedRadius = selectedOffice?.radius ?? 200
   const isInsideSelected = selectedDist !== null ? selectedDist <= selectedRadius : null
+  const gpsReady = !!geo.position
+  const gpsOff = !geo.loading && !geo.position   // GPS tắt / chưa cấp quyền / lỗi
+
+  // Hệ thống TỰ xác định Trong/Ngoài VP theo GPS có nằm trong GeoFence của VP gần
+  // nhất (đã chọn) hay không. Trong → in_office; Ngoài → out_of_office (cần lý do).
+  useEffect(() => {
+    if (done) return
+    if (isInsideSelected === true) {
+      setWorkLocation('in_office'); setOofType(''); setOofNote('')
+    } else if (isInsideSelected === false) {
+      setWorkLocation('out_of_office')
+    }
+  }, [isInsideSelected, done])
 
   const capture = useCallback((): string | null => {
     const video = videoRef.current
@@ -403,6 +418,7 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
     : done === 'pending' ? 'Chờ xác nhận từ quản lý'
     : acting ? 'Đang xử lý...'
     : gpsBlocked ? 'Đang định vị GPS...'
+    : gpsOff ? 'Bật GPS để chấm công'
     : isOutside ? 'Chấm công (ngoài VP)'
     : 'Chấm công'
 
@@ -411,6 +427,7 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
     : done === 'pending' ? 'clock'
     : acting ? 'clock'
     : gpsBlocked ? 'pin'
+    : gpsOff ? 'pin'
     : 'stamp'
 
   // Chỉ enable nút khi: không đang xử lý/chưa xong, không phải máy tính,
@@ -419,9 +436,11 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
   const btnDisabled =
     acting || !!done || gpsBlocked || deviceKind === 'desktop'
     || !cameraReady || !!cameraError
-    || !geo.position
+    || !geo.position                       // GPS off / chưa định vị → không cho chấm
     || !workLocation
     || (workLocation === 'in_office' && isInsideSelected !== true)
+    || (workLocation === 'out_of_office' && !oofType)                          // Ngoài VP phải có lý do
+    || (workLocation === 'out_of_office' && oofType === 'other' && !oofNote.trim())
 
   // Confirm dialog summary helpers
   const oofTypeLabel = OOF_TYPES.find(t => t.id === oofType)?.label ?? ''
@@ -451,44 +470,128 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
             {blockMsg}
           </div>
         )}
-        {/* Office picker */}
-        {officesWithDist.length > 0 && (
-          <div style={{ marginBottom: 12 }}>
-            <div style={{ fontSize: 10.5, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 6 }}>
-              Địa điểm chấm công
+        {/* ===== TRÊN CÙNG: Trạng thái Trong/Ngoài VP (hệ thống TỰ xác định theo GPS) ===== */}
+        {!done && (
+          <>
+            {/* Card auto Trong/Ngoài VP */}
+            <div style={{
+              borderRadius: 16, padding: '12px 14px', marginBottom: 10,
+              background: !gpsReady ? HNH.cream2 : (isInsideSelected ? HNH.success50 : HNH.warn50),
+              border: `1.5px solid ${!gpsReady ? HNH.line : (isInsideSelected ? HNH.success : HNH.warn)}`,
+            }}>
+              <div className="flex items-center gap-2.5">
+                <div className="flex items-center justify-center" style={{
+                  width: 40, height: 40, borderRadius: 12, flexShrink: 0,
+                  background: !gpsReady ? '#fff' : (isInsideSelected ? HNH.success : HNH.warn),
+                }}>
+                  <Icon name={!gpsReady ? 'pin' : (isInsideSelected ? 'home' : 'map')} size={20} color={!gpsReady ? HNH.ink4 : '#fff'} stroke={2} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14.5, fontWeight: 800, color: !gpsReady ? HNH.ink3 : (isInsideSelected ? HNH.success : HNH.warn) }}>
+                    {!gpsReady ? (geo.loading ? 'ĐANG XÁC ĐỊNH VỊ TRÍ…' : 'CHƯA BẬT GPS') : (isInsideSelected ? 'TRONG VĂN PHÒNG' : 'NGOÀI VĂN PHÒNG')}
+                  </div>
+                  <div style={{ fontSize: 11.5, color: HNH.ink2, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {selectedOffice
+                      ? `${selectedOffice.name.replace(/^(Công ty|Cty)\s+/i, '')}${selectedDist != null ? ' · ' + fmtDist(selectedDist) : ''}${gpsReady ? ' · tự xác định' : ''}`
+                      : 'Chưa có văn phòng'}
+                  </div>
+                </div>
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
-              {officesWithDist.map(o => {
-                const isSelected = o.id === selectedOfficeId
-                const inside = o.dist !== null ? o.dist <= (o.radius ?? 200) : null
-                return (
-                  <button
-                    key={o.id}
-                    onClick={() => setSelectedOfficeId(o.id)}
-                    className="flex-shrink-0 border-none cursor-pointer text-left"
+
+            {/* Banner: GPS tắt / chưa cấp quyền → không cho chấm công */}
+            {gpsOff && (
+              <div className="flex items-center gap-2" style={{ background: '#fff1f2', border: '1px solid #fca5a5', borderRadius: 14, padding: '12px 14px', marginBottom: 12 }}>
+                <Icon name="pin" size={18} color="#be123c" stroke={2} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: '#be123c' }}>{geo.error || 'Chưa lấy được vị trí GPS'}</div>
+                  <div style={{ fontSize: 11, fontWeight: 500, color: HNH.ink2, marginTop: 2 }}>Hãy BẬT Định vị (GPS) và cấp quyền vị trí cho ứng dụng, rồi thử lại.</div>
+                </div>
+                <button onClick={() => geo.refresh()} className="border-none cursor-pointer" style={{ flexShrink: 0, padding: '7px 12px', borderRadius: 10, background: '#be123c', color: '#fff', fontSize: 12, fontWeight: 700 }}>Thử lại</button>
+              </div>
+            )}
+
+            {/* Chips văn phòng — VP gần nhất xếp đầu (bên trái). Cho chọn để đổi VP đối chiếu. */}
+            {officesWithDist.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 10.5, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 6 }}>
+                  Địa điểm gần bạn
+                </div>
+                <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+                  {officesWithDist.map(o => {
+                    const isSelected = o.id === selectedOfficeId
+                    const inside = o.dist !== null ? o.dist <= (o.radius ?? 200) : null
+                    return (
+                      <button
+                        key={o.id}
+                        onClick={() => setSelectedOfficeId(o.id)}
+                        className="flex-shrink-0 border-none cursor-pointer text-left"
+                        style={{
+                          borderRadius: 12, padding: '8px 12px',
+                          background: isSelected ? HNH.navy : '#fff',
+                          border: `1.5px solid ${isSelected ? HNH.navy : HNH.line}`,
+                          minWidth: 120, maxWidth: 180, transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <div style={{ fontSize: 11.5, fontWeight: 700, color: isSelected ? '#fff' : HNH.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {o.name.replace(/^(Công ty|Cty)\s+/i, '')}
+                        </div>
+                        <div style={{ fontSize: 10, marginTop: 2, color: isSelected ? 'rgba(255,255,255,0.7)' : HNH.ink3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {o.dist !== null
+                            ? <span style={{ color: inside ? (isSelected ? '#86efac' : HNH.success) : (isSelected ? '#fca5a5' : HNH.red), fontWeight: 700 }}>
+                                {fmtDist(o.dist)} {inside ? '· Trong VP' : '· Ngoài VP'}
+                              </span>
+                            : o.address.slice(0, 28)
+                          }
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Lý do khi Ngoài VP (bắt buộc) */}
+            {gpsReady && workLocation === 'out_of_office' && (
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 10.5, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.3, marginBottom: 6, textTransform: 'uppercase' }}>Lý do ngoài VP *</div>
+                <div className="flex flex-wrap gap-2" style={{ marginBottom: oofType === 'other' ? 8 : 0 }}>
+                  {OOF_TYPES.map(t => {
+                    const sel = oofType === t.id
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => { setOofType(t.id); if (t.id !== 'other') setOofNote('') }}
+                        className="border-none cursor-pointer"
+                        style={{
+                          padding: '7px 14px', borderRadius: 20,
+                          background: sel ? HNH.navy : '#fff',
+                          border: `1.5px solid ${sel ? HNH.navy : HNH.line}`,
+                          fontSize: 12.5, fontWeight: 700,
+                          color: sel ? '#fff' : HNH.ink3, transition: 'all 0.15s',
+                        }}
+                      >
+                        {t.label}
+                      </button>
+                    )
+                  })}
+                </div>
+                {oofType === 'other' && (
+                  <textarea
+                    value={oofNote}
+                    onChange={e => setOofNote(e.target.value)}
+                    placeholder="Mô tả thêm..."
+                    rows={2}
                     style={{
-                      borderRadius: 12, padding: '8px 12px',
-                      background: isSelected ? HNH.navy : '#fff',
-                      border: `1.5px solid ${isSelected ? HNH.navy : HNH.line}`,
-                      minWidth: 120, maxWidth: 180, transition: 'all 0.15s ease',
+                      width: '100%', borderRadius: 12, border: `1.5px solid ${HNH.navy}60`,
+                      padding: '10px 12px', fontSize: 13, fontFamily: 'inherit', color: HNH.ink,
+                      background: HNH.navy50, resize: 'none', outline: 'none', boxSizing: 'border-box',
                     }}
-                  >
-                    <div style={{ fontSize: 11.5, fontWeight: 700, color: isSelected ? '#fff' : HNH.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {o.name.replace(/^(Công ty|Cty)\s+/i, '')}
-                    </div>
-                    <div style={{ fontSize: 10, marginTop: 2, color: isSelected ? 'rgba(255,255,255,0.7)' : HNH.ink3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {o.dist !== null
-                        ? <span style={{ color: inside ? (isSelected ? '#86efac' : HNH.success) : (isSelected ? '#fca5a5' : HNH.red), fontWeight: 700 }}>
-                            {fmtDist(o.dist)} {inside ? '· Trong VP' : '· Ngoài VP'}
-                          </span>
-                        : o.address.slice(0, 28)
-                      }
-                    </div>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
+                  />
+                )}
+              </div>
+            )}
+          </>
         )}
 
         {/* Mini map */}
@@ -611,80 +714,7 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
           />
         </div>
 
-        {/* TT Bổ sung */}
-        {!done && (
-          <div style={{ marginTop: 12 }}>
-            <div style={{ fontSize: 10.5, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 8 }}>
-              TT Bổ sung
-            </div>
-            <div className="flex gap-2" style={{ marginBottom: workLocation === 'out_of_office' ? 10 : 0 }}>
-              {(['in_office', 'out_of_office'] as const).map(loc => {
-                const sel = workLocation === loc
-                const isOof = loc === 'out_of_office'
-                return (
-                  <button
-                    key={loc}
-                    onClick={() => { setWorkLocation(loc); if (loc === 'in_office') { setOofType(''); setOofNote('') } }}
-                    className="flex-1 flex items-center justify-center gap-1.5 border-none cursor-pointer"
-                    style={{
-                      padding: '10px 0', borderRadius: 12,
-                      background: sel ? (isOof ? HNH.warn50 : HNH.success50) : '#fff',
-                      border: `1.5px solid ${sel ? (isOof ? HNH.warn : HNH.success) : HNH.line}`,
-                      fontSize: 13, fontWeight: 700,
-                      color: sel ? (isOof ? HNH.warn : HNH.success) : HNH.ink3,
-                      transition: 'all 0.15s',
-                    }}
-                  >
-                    <Icon name={isOof ? 'pin' : 'home'} size={14} color={sel ? (isOof ? HNH.warn : HNH.success) : HNH.ink3} stroke={2} />
-                    {isOof ? 'Ngoài VP' : 'Trong VP'}
-                  </button>
-                )
-              })}
-            </div>
-            {workLocation === 'out_of_office' && (
-              <>
-                <div style={{ fontSize: 10.5, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.3, marginBottom: 6 }}>Phân loại</div>
-                <div className="flex flex-wrap gap-2" style={{ marginBottom: 8 }}>
-                  {OOF_TYPES.map(t => {
-                    const sel = oofType === t.id
-                    return (
-                      <button
-                        key={t.id}
-                        onClick={() => { setOofType(t.id); if (t.id !== 'other') setOofNote('') }}
-                        className="border-none cursor-pointer"
-                        style={{
-                          padding: '7px 14px', borderRadius: 20,
-                          background: sel ? HNH.navy : '#fff',
-                          border: `1.5px solid ${sel ? HNH.navy : HNH.line}`,
-                          fontSize: 12.5, fontWeight: 700,
-                          color: sel ? '#fff' : HNH.ink3, transition: 'all 0.15s',
-                        }}
-                      >
-                        {t.label}
-                      </button>
-                    )
-                  })}
-                </div>
-                {oofType === 'other' && (
-                  <textarea
-                    value={oofNote}
-                    onChange={e => setOofNote(e.target.value)}
-                    placeholder="Mô tả thêm..."
-                    rows={2}
-                    style={{
-                      width: '100%', borderRadius: 12,
-                      border: `1.5px solid ${HNH.navy}60`,
-                      padding: '10px 12px', fontSize: 13,
-                      fontFamily: 'inherit', color: HNH.ink,
-                      background: HNH.navy50, resize: 'none', outline: 'none',
-                      boxSizing: 'border-box',
-                    }}
-                  />
-                )}
-              </>
-            )}
-          </div>
-        )}
+        {/* (Trong/Ngoài VP + lý do đã chuyển lên TRÊN CÙNG, hệ thống tự xác định theo GPS) */}
 
         {/* GPS coordinates */}
         {geo.position && (
