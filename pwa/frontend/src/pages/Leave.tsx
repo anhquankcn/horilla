@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
@@ -44,6 +45,14 @@ interface LeaveRequestItem {
   end_date: string
   requested_days: number
   status: string
+  description?: string
+  reject_reason?: string | null
+  start_date_breakdown?: string
+  end_date_breakdown?: string
+  is_hourly?: boolean
+  requested_hours?: number | null
+  start_time?: string | null
+  end_time?: string | null
 }
 
 interface Paginated<T> { count: number; results: T[] }
@@ -81,8 +90,8 @@ function LeaveTypeCard({ icon, iconColor, iconBg, label, tag, available, total, 
   )
 }
 
-function LeaveRequestRow({ type, dates, days, status, last }: {
-  type: string; dates: string; days: string; status: 'approved' | 'pending' | 'rejected'; last?: boolean
+function LeaveRequestRow({ type, dates, days, status, last, onClick }: {
+  type: string; dates: string; days: string; status: 'approved' | 'pending' | 'rejected'; last?: boolean; onClick?: () => void
 }) {
   const statusMap = {
     approved: { label: 'Đã duyệt', tone: 'success' as const },
@@ -91,7 +100,7 @@ function LeaveRequestRow({ type, dates, days, status, last }: {
   }
   const s = statusMap[status]
   return (
-    <div className="flex items-center gap-3" style={{ padding: '12px 14px', borderBottom: last ? 'none' : `1px solid ${HNH.line}` }}>
+    <div onClick={onClick} className="flex items-center gap-3" style={{ padding: '12px 14px', borderBottom: last ? 'none' : `1px solid ${HNH.line}`, cursor: onClick ? 'pointer' : 'default' }}>
       <div
         className="flex items-center justify-center shrink-0"
         style={{ width: 38, height: 38, borderRadius: 12, background: HNH.cream }}
@@ -103,6 +112,7 @@ function LeaveRequestRow({ type, dates, days, status, last }: {
         <div style={{ fontSize: 11.5, color: HNH.ink3, marginTop: 1 }}>{dates}</div>
       </div>
       <Badge tone={s.tone} size="s">{s.label}</Badge>
+      {onClick && <Icon name="chev-r" size={16} color={HNH.ink4} stroke={2} />}
     </div>
   )
 }
@@ -114,6 +124,7 @@ export function LeavePage() {
   const { data: reqResp } = useApi<Paginated<LeaveRequestItem>>('/api/leave/user-request/')
 
   const requests = reqResp?.results ?? []
+  const [detailReq, setDetailReq] = useState<LeaveRequestItem | null>(null)
   const balances = balResp?.results ?? []
   const now = new Date()
 
@@ -276,11 +287,64 @@ export function LeavePage() {
                 days={days}
                 status={mapStatus(r.status)}
                 last={i === Math.min(requests.length, 8) - 1}
+                onClick={() => setDetailReq(r)}
               />
             )
           })}
         </div>
       </div>
+
+      {/* Chi tiết đơn đã chọn */}
+      {detailReq && (() => {
+        const r = detailReq
+        const st = mapStatus(r.status)
+        const stMeta = { approved: { label: 'Đã duyệt', c: HNH.success, bg: HNH.success50 }, pending: { label: 'Chờ duyệt', c: '#a87908', bg: '#faf1d6' }, rejected: { label: 'Từ chối', c: HNH.red, bg: HNH.red50 } }[st]
+        const bdLabel = (b?: string) => b === 'first_half' ? 'Sáng (0.5)' : b === 'second_half' ? 'Chiều (0.5)' : b === 'full_day' ? 'Cả ngày (1.0)' : '—'
+        const daysStr = r.requested_days % 1 === 0 ? `${r.requested_days} ngày` : `${r.requested_days.toFixed(2)} ngày`
+        const rows: [string, string][] = [
+          ['Loại nghỉ', r.leave_type_id.name],
+          ['Hình thức', r.is_hourly ? 'Theo giờ' : 'Theo ngày'],
+          ['Thời gian', r.start_date === r.end_date ? fmtDate(r.start_date) : `${fmtDate(r.start_date)} → ${fmtDate(r.end_date)}`],
+        ]
+        if (r.is_hourly && r.start_time && r.end_time) rows.push(['Khung giờ', `${r.start_time.slice(0, 5)} → ${r.end_time.slice(0, 5)}${r.requested_hours ? ` (${r.requested_hours}h)` : ''}`])
+        else if (r.start_date === r.end_date) rows.push(['Buổi', bdLabel(r.start_date_breakdown)])
+        rows.push(['Số ngày quy đổi', daysStr])
+        return (
+          <div className="fixed inset-0 flex items-end justify-center" style={{ zIndex: 300, background: 'rgba(0,0,0,0.45)' }} onClick={() => setDetailReq(null)}>
+            <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, maxHeight: '80vh', background: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <div className="flex items-center justify-between" style={{ padding: '16px 18px', borderBottom: `1px solid ${HNH.line}` }}>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: HNH.ink }}>Chi tiết đơn nghỉ</div>
+                  <span style={{ display: 'inline-block', marginTop: 4, fontSize: 11, fontWeight: 700, padding: '2px 9px', borderRadius: 20, background: stMeta.bg, color: stMeta.c }}>{stMeta.label}</span>
+                </div>
+                <button onClick={() => setDetailReq(null)} className="border-none cursor-pointer flex items-center justify-center" style={{ width: 34, height: 34, borderRadius: 10, background: HNH.cream }}>
+                  <Icon name="x" size={18} color={HNH.ink} stroke={2} />
+                </button>
+              </div>
+              <div style={{ flex: 1, overflowY: 'auto', padding: '12px 18px' }}>
+                {rows.map(([k, v]) => (
+                  <div key={k} className="flex justify-between gap-3" style={{ padding: '9px 0', borderBottom: `1px solid ${HNH.line}`, fontSize: 13 }}>
+                    <span style={{ color: HNH.ink3, flexShrink: 0 }}>{k}</span>
+                    <span style={{ fontWeight: 600, color: HNH.ink, textAlign: 'right' }}>{v}</span>
+                  </div>
+                ))}
+                {r.description && (
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.3 }}>NỘI DUNG / LÝ DO</div>
+                    <div style={{ marginTop: 6, background: HNH.cream, borderRadius: 12, padding: '10px 12px', fontSize: 13, color: HNH.ink, lineHeight: 1.5 }}>{r.description}</div>
+                  </div>
+                )}
+                {st === 'rejected' && r.reject_reason && (
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: HNH.red, letterSpacing: 0.3 }}>LÝ DO TỪ CHỐI</div>
+                    <div style={{ marginTop: 6, background: HNH.red50, borderRadius: 12, padding: '10px 12px', fontSize: 13, color: HNH.red, lineHeight: 1.5 }}>{r.reject_reason}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* FAB */}
       <button

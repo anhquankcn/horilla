@@ -144,15 +144,14 @@ class userLeaveRequestGetAllSerilaizer(serializers.ModelSerializer):
         model = LeaveRequest
         exclude = [
             "requested_date",
-            "description",
             "attachment",
             "approved_available_days",
             "approved_carryforward_days",
             "created_at",
-            "reject_reason",
             "employee_id",
             "created_by",
         ]
+        # Giữ description + reject_reason để màn chi tiết đơn hiển thị lý do / lý do từ chối.
 
     def get_leave_type_id(self, obj):
         if obj.leave_type_id:
