@@ -88,6 +88,82 @@ function leaveIcon(name: string) {
   return { icon: 'cal', color: HNH.navy, bg: HNH.navy50 }
 }
 
+function PersonPicker({ pool, selected, onChange, accent, accentBg, addLabel, emptyText }: {
+  pool: Person[]; selected: number[]; onChange: (ids: number[]) => void
+  accent: string; accentBg: string; addLabel: string; emptyText: string
+}) {
+  const [open, setOpen] = useState(false)
+  const [q, setQ] = useState('')
+  const chosen = pool.filter(p => selected.includes(p.id))
+  const kw = q.trim().toLowerCase()
+  const filtered = kw ? pool.filter(p => p.name.toLowerCase().includes(kw)) : pool
+  const toggle = (id: number) => onChange(selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id])
+  return (
+    <>
+      <div style={{ background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`, padding: 12 }}>
+        <div className="flex flex-wrap gap-2">
+          {chosen.length === 0 && <span style={{ fontSize: 12, color: HNH.ink3 }}>{emptyText}</span>}
+          {chosen.map(p => (
+            <span key={p.id} className="flex items-center gap-1" style={{ padding: '6px 8px 6px 12px', borderRadius: 20, fontSize: 12.5, fontWeight: 700, background: accentBg, color: accent, border: `1.5px solid ${accent}` }}>
+              {p.name}{p.is_direct ? ' (QLTT)' : ''}
+              <button onClick={() => toggle(p.id)} className="border-none bg-transparent cursor-pointer flex items-center" style={{ padding: 0, marginLeft: 2 }}>
+                <Icon name="x" size={13} color={accent} stroke={2.5} />
+              </button>
+            </span>
+          ))}
+          <button onClick={() => { setQ(''); setOpen(true) }} className="flex items-center gap-1 border-none cursor-pointer"
+            style={{ padding: '6px 12px', borderRadius: 20, fontSize: 12.5, fontWeight: 700, background: '#fff', border: `1.5px dashed ${HNH.line2}`, color: HNH.navy }}>
+            <Icon name="plus" size={13} color={HNH.navy} stroke={2.5} /> {addLabel}
+          </button>
+        </div>
+      </div>
+
+      {open && (
+        <div className="fixed inset-0 flex items-end justify-center" style={{ zIndex: 200, background: 'rgba(0,0,0,0.4)' }} onClick={() => setOpen(false)}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, maxHeight: '75vh', background: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div className="flex items-center justify-between" style={{ padding: '14px 16px', borderBottom: `1px solid ${HNH.line}` }}>
+              <span style={{ fontSize: 15, fontWeight: 800, color: HNH.ink }}>{addLabel}</span>
+              <button onClick={() => setOpen(false)} className="border-none cursor-pointer flex items-center justify-center" style={{ width: 34, height: 34, borderRadius: 10, background: HNH.cream }}>
+                <Icon name="x" size={18} color={HNH.ink} stroke={2} />
+              </button>
+            </div>
+            <div style={{ padding: '10px 16px' }}>
+              <div className="flex items-center gap-2" style={{ padding: '9px 12px', borderRadius: 12, background: HNH.cream, border: `1px solid ${HNH.line}` }}>
+                <Icon name="search" size={16} color={HNH.ink3} stroke={2} />
+                <input value={q} onChange={e => setQ(e.target.value)} placeholder="Tìm theo họ tên..." autoFocus
+                  style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 14, color: HNH.ink, fontFamily: 'inherit' }} />
+              </div>
+            </div>
+            <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px 16px' }}>
+              {filtered.length === 0 && <div style={{ textAlign: 'center', color: HNH.ink3, fontSize: 13, padding: 20 }}>Không tìm thấy</div>}
+              {filtered.map(p => {
+                const sel = selected.includes(p.id)
+                return (
+                  <button key={p.id} onClick={() => toggle(p.id)} className="flex items-center gap-3 w-full border-none cursor-pointer text-left"
+                    style={{ padding: '11px 10px', borderRadius: 12, background: sel ? accentBg : 'transparent', marginBottom: 2 }}>
+                    <div className="flex items-center justify-center shrink-0" style={{ width: 22, height: 22, borderRadius: 6, border: `1.5px solid ${sel ? accent : HNH.ink4}`, background: sel ? accent : '#fff' }}>
+                      {sel && <Icon name="check" size={13} color="#fff" stroke={3} />}
+                    </div>
+                    <div className="flex-1" style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: HNH.ink }}>{p.name}{p.is_direct ? ' · QLTT' : ''}</div>
+                      {(p.position || p.department) && <div style={{ fontSize: 11.5, color: HNH.ink3 }}>{[p.position, p.department].filter(Boolean).join(' · ')}</div>}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+            <div style={{ padding: '10px 16px', borderTop: `1px solid ${HNH.line}` }}>
+              <button onClick={() => setOpen(false)} className="w-full border-none cursor-pointer" style={{ padding: 12, borderRadius: 12, background: HNH.navy, color: '#fff', fontWeight: 800, fontSize: 14 }}>
+                Xong ({selected.length})
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
 export function LeaveNewPage() {
   const navigate = useNavigate()
   const { data: balResp } = useApi<Paginated<AvailableLeave>>('/api/leave/available-leave/?page_size=20')
@@ -401,41 +477,15 @@ export function LeaveNewPage() {
         )}
         </>)}
 
-        {/* Người duyệt / xác nhận */}
+        {/* Người duyệt / xác nhận — mặc định QLTT, thêm người khác qua modal tìm tên */}
         <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, padding: '14px 6px 6px' }}>NGƯỜI DUYỆT / XÁC NHẬN</div>
-        <div style={{ background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`, padding: 12 }}>
-          <div className="flex flex-wrap gap-2">
-            {(managers ?? []).map(m => {
-              const sel = approverIds.includes(m.id)
-              return (
-                <button key={m.id} onClick={() => setApproverIds(prev => sel ? prev.filter(x => x !== m.id) : [...prev, m.id])}
-                  className="border-none cursor-pointer"
-                  style={{ padding: '7px 12px', borderRadius: 20, fontSize: 12.5, fontWeight: 700, border: `1.5px solid ${sel ? HNH.navy : HNH.line}`, background: sel ? HNH.navy : '#fff', color: sel ? '#fff' : HNH.ink3 }}>
-                  {m.name}{m.is_direct ? ' (QLTT)' : ''}
-                </button>
-              )
-            })}
-            {(!managers || managers.length === 0) && <span style={{ fontSize: 12, color: HNH.ink3 }}>Đang tải...</span>}
-          </div>
-        </div>
+        <PersonPicker pool={managers ?? []} selected={approverIds} onChange={setApproverIds}
+          accent={HNH.navy} accentBg={HNH.navy50} addLabel="Thêm người duyệt" emptyText="Chưa chọn người duyệt" />
 
         {/* Người theo dõi */}
         <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, padding: '14px 6px 6px' }}>NGƯỜI THEO DÕI</div>
-        <div style={{ background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`, padding: 12 }}>
-          <div className="flex flex-wrap gap-2">
-            {(watchersData ?? []).map(w => {
-              const sel = watcherIds.includes(w.id)
-              return (
-                <button key={w.id} onClick={() => setWatcherIds(prev => sel ? prev.filter(x => x !== w.id) : [...prev, w.id])}
-                  className="border-none cursor-pointer"
-                  style={{ padding: '7px 12px', borderRadius: 20, fontSize: 12.5, fontWeight: 700, border: `1.5px solid ${sel ? HNH.gold : HNH.line}`, background: sel ? '#faf1d6' : '#fff', color: sel ? '#a87908' : HNH.ink3 }}>
-                  {w.name}
-                </button>
-              )
-            })}
-            {(!watchersData || watchersData.length === 0) && <span style={{ fontSize: 12, color: HNH.ink3 }}>Không có</span>}
-          </div>
-        </div>
+        <PersonPicker pool={watchersData ?? []} selected={watcherIds} onChange={setWatcherIds}
+          accent="#a87908" accentBg="#faf1d6" addLabel="Thêm người theo dõi" emptyText="Chưa chọn người theo dõi" />
 
         {/* Reason */}
         <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, padding: '14px 6px 6px' }}>LÝ DO</div>
