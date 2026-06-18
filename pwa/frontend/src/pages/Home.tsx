@@ -9,7 +9,6 @@ import { useClock } from '../lib/useClock'
 import { useLiveClock } from '../lib/useLiveClock'
 import { useApi } from '../lib/useApi'
 import { api } from '../lib/api'
-import { ClockModal } from '../components/ClockModal'
 import { useTablet, useSmallPhone } from '../lib/useTablet'
 import { useToast } from '../components/ui/Toast'
 import { AttendanceDetailModal } from '../components/AttendanceDetailModal'
@@ -886,9 +885,8 @@ function TodayShiftCard({ compact }: { compact?: boolean }) {
 export function HomePage() {
   const navigate = useNavigate()
   const { employee } = useAuth()
-  const { isClockedIn, duration, clockInTime, clockOutTime, clockIn, clockOut, acting } = useClock()
+  const { isClockedIn, duration, clockInTime, clockOutTime } = useClock()
   const { now, time } = useLiveClock()
-  const [clockModalOpen, setClockModalOpen] = useState(false)
   const { data: tasks, refresh: rTasks } = useApi<TaskSummary>('/api/eoffice/my-summary/')
   const { data: attendanceData, refresh: rAtt } = useApi<PaginatedResponse<AttendanceRecord>>(
     '/api/attendance/my-attendance/?page_size=50'
@@ -1288,7 +1286,7 @@ export function HomePage() {
             </div>
           </div>
           <button
-            onClick={() => setClockModalOpen(true)}
+            onClick={() => navigate('/attendance')}
             className="flex items-center justify-center border-none cursor-pointer shrink-0"
             style={{
               width: isSmall ? 34 : 40, height: isSmall ? 34 : 40, borderRadius: isSmall ? 10 : 12,
@@ -1340,17 +1338,6 @@ export function HomePage() {
         <TodayShiftCard compact={isSmall} />
       </div>
 
-      <ClockModal
-        open={clockModalOpen}
-        onClose={() => setClockModalOpen(false)}
-        isClockedIn={isClockedIn}
-        clockInTime={clockInTime}
-        duration={duration}
-        shiftName={employee?.shift_name ?? 'Ca hành chính'}
-        acting={acting}
-        onClockIn={clockIn}
-        onClockOut={clockOut}
-      />
     </div>
     </PullToRefresh>
   )
