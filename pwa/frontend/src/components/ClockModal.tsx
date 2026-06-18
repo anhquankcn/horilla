@@ -262,11 +262,15 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
     return a.dist - b.dist
   })
 
+  // Tự chọn VP GẦN NHẤT theo GPS. Phải chạy lại cả khi danh sách VP vừa tải xong
+  // (offices.length đổi) — nếu GPS định vị xong TRƯỚC khi offices về thì effect chỉ
+  // theo dõi lat/lng sẽ không chạy lại → kẹt ở VP đầu danh sách (bug quan.na thấy HCM
+  // dù đang ở Hà Nội).
   useEffect(() => {
     if (geo.position && officesWithDist.length > 0 && officesWithDist[0].dist !== null) {
       setSelectedOfficeId(officesWithDist[0].id)
     }
-  }, [geo.position?.lat, geo.position?.lng])   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [geo.position?.lat, geo.position?.lng, offices.length])   // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedOffice = officesWithDist.find(o => o.id === selectedOfficeId) ?? officesWithDist[0] ?? null
   const selectedDist = selectedOffice?.dist ?? null
