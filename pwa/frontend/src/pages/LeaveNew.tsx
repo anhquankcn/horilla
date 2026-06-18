@@ -50,13 +50,15 @@ const BD_OPTS: { id: Breakdown; label: string; coef: number }[] = [
 const coefOf = (bd: Breakdown) => (bd === 'full_day' ? 1 : 0.5)
 
 type Mode = 'day' | 'hour'
-interface HourEntry { date: string; from: string; to: string }
-const hoursOf = (e: HourEntry): number => {
-  if (!e.from || !e.to) return 0
-  const [fh, fm] = e.from.split(':').map(Number)
-  const [th, tm] = e.to.split(':').map(Number)
+interface HourFrame { from: string; to: string }
+interface HourDay { date: string; frames: HourFrame[] }
+const frameHours = (f: HourFrame): number => {
+  if (!f.from || !f.to) return 0
+  const [fh, fm] = f.from.split(':').map(Number)
+  const [th, tm] = f.to.split(':').map(Number)
   return Math.max(0, (th * 60 + tm - fh * 60 - fm) / 60)
 }
+const dayHours = (d: HourDay): number => d.frames.reduce((s, f) => s + frameHours(f), 0)
 const fmtDate = (s: string) => {
   const d = new Date(s)
   const wd = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][d.getDay()]
@@ -97,7 +99,7 @@ export function LeaveNewPage() {
   const [mode, setMode] = useState<Mode>('day')
   const [days, setDays] = useState<DayPick[]>([])
   const [addDate, setAddDate] = useState('')
-  const [hourEntries, setHourEntries] = useState<HourEntry[]>([])
+  const [hourDays, setHourDays] = useState<HourDay[]>([])
   const [reason, setReason] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -110,13 +112,13 @@ export function LeaveNewPage() {
   }, [leaveTypes, selectedTypeId])
 
   const selected = leaveTypes.find(t => t.leave_type_id.id === selectedTypeId)
-  const totalHours = hourEntries.reduce((s, e) => s + hoursOf(e), 0)
+  const totalHours = hourDays.reduce((s, d) => s + dayHours(d), 0)
   const totalDays = mode === 'day'
     ? days.reduce((s, d) => s + coefOf(d.bd), 0)
     : Math.round((totalHours / 8) * 100) / 100
   const canSubmit = !!selectedTypeId && reason.trim() && !submitting && (
     mode === 'day' ? days.length > 0
-      : hourEntries.length > 0 && hourEntries.every(e => e.date && hoursOf(e) > 0)
+      : hourDays.length > 0 && hourDays.every(d => d.date && d.frames.length > 0 && d.frames.every(f => frameHours(f) > 0))
   )
 
   const addDay = (ds: string) => {
@@ -140,9 +142,10 @@ export function LeaveNewPage() {
           description: reason,
         })
       } else {
+        const entries = hourDays.flatMap(d => d.frames.map(f => ({ date: d.date, start_time: f.from, end_time: f.to })))
         await api.post('/api/leave/user-request-hours/', {
           leave_type_id: selectedTypeId,
-          entries: hourEntries.map(e => ({ date: e.date, start_time: e.from, end_time: e.to })),
+          entries,
           description: reason,
         })
       }
@@ -301,64 +304,80 @@ export function LeaveNewPage() {
         </div>
         </>)}
 
-        {/* ===== THEO GIỜ ===== */}
+        {/* ===== THEO GIỜ (phân cấp Ngày → nhiều khung giờ) ===== */}
         {mode === 'hour' && (<>
         <div className="flex items-center justify-between" style={{ padding: '14px 6px 6px' }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4 }}>NGÀY &amp; GIỜ NGHỈ</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4 }}>NGÀY &amp; KHUNG GIỜ NGHỈ</span>
           <span style={{ fontSize: 10.5, color: HNH.ink3 }}>8 giờ = 1 ngày phép</span>
         </div>
-        <div style={{ background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`, padding: 12 }}>
-          <button onClick={() => setHourEntries(prev => [...prev, { date: '', from: '08:00', to: '12:00' }])}
-            className="flex items-center gap-2 w-full border-none cursor-pointer"
-            style={{ padding: '10px 12px', borderRadius: 12, background: HNH.cream, border: `1px dashed ${HNH.line2}` }}>
-            <Icon name="plus" size={16} color={HNH.red} stroke={2.5} />
-            <span style={{ fontSize: 13, fontWeight: 700, color: HNH.red }}>Thêm khoảng giờ</span>
-          </button>
 
-          {hourEntries.map((e, idx) => {
-            const h = hoursOf(e)
-            const upd = (patch: Partial<HourEntry>) => setHourEntries(prev => prev.map((x, i) => i === idx ? { ...x, ...patch } : x))
-            return (
-              <div key={idx} style={{ marginTop: 10, padding: '10px 12px', borderRadius: 12, background: HNH.cream, border: `1px solid ${HNH.line}` }}>
-                <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
-                  <input type="date" value={e.date} onChange={ev => upd({ date: ev.target.value })}
-                    style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: 13.5, fontWeight: 700, color: HNH.ink, fontFamily: 'inherit' }} />
-                  <button onClick={() => setHourEntries(prev => prev.filter((_, i) => i !== idx))} className="border-none bg-transparent cursor-pointer flex items-center" style={{ padding: 2 }}>
-                    <Icon name="x" size={16} color={HNH.ink3} stroke={2} />
-                  </button>
-                </div>
+        {hourDays.map((d, di) => {
+          const setDay = (patch: Partial<HourDay>) => setHourDays(prev => prev.map((x, i) => i === di ? { ...x, ...patch } : x))
+          const setFrame = (fi: number, patch: Partial<HourFrame>) => setDay({ frames: d.frames.map((f, i) => i === fi ? { ...f, ...patch } : f) })
+          return (
+            <div key={di} style={{ background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`, padding: 12, marginBottom: 10 }}>
+              {/* Day header: NGÀY 0x + thứ + date + remove */}
+              <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
                 <div className="flex items-center gap-2">
-                  <label className="flex-1" style={{ padding: '7px 10px', borderRadius: 9, background: '#fff', border: `1px solid ${HNH.line}` }}>
-                    <div style={{ fontSize: 9.5, color: HNH.ink3, fontWeight: 700 }}>TỪ GIỜ</div>
-                    <input type="time" value={e.from} onChange={ev => upd({ from: ev.target.value })}
-                      style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', fontSize: 14, fontWeight: 700, color: HNH.ink, fontFamily: 'inherit' }} />
-                  </label>
-                  <Icon name="arrow-r" size={14} color={HNH.ink3} stroke={2} />
-                  <label className="flex-1" style={{ padding: '7px 10px', borderRadius: 9, background: '#fff', border: `1px solid ${HNH.line}` }}>
-                    <div style={{ fontSize: 9.5, color: HNH.ink3, fontWeight: 700 }}>ĐẾN GIỜ</div>
-                    <input type="time" value={e.to} onChange={ev => upd({ to: ev.target.value })}
-                      style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', fontSize: 14, fontWeight: 700, color: HNH.ink, fontFamily: 'inherit' }} />
-                  </label>
-                  <span style={{ fontSize: 12.5, fontWeight: 700, color: h > 0 ? HNH.navy : HNH.ink4, minWidth: 42, textAlign: 'right' }}>
-                    {h > 0 ? `${h % 1 === 0 ? h : h.toFixed(1)}h` : '—'}
-                  </span>
+                  <span style={{ fontSize: 9.5, fontWeight: 800, color: HNH.ink3, background: HNH.cream, borderRadius: 6, padding: '2px 7px' }}>NGÀY {String(di + 1).padStart(2, '0')}</span>
+                  {d.date && <span style={{ fontSize: 12.5, fontWeight: 700, color: HNH.red }}>{fmtDate(d.date)}</span>}
                 </div>
+                <button onClick={() => setHourDays(prev => prev.filter((_, i) => i !== di))} className="border-none bg-transparent cursor-pointer flex items-center" style={{ padding: 2 }}>
+                  <Icon name="x" size={16} color={HNH.ink3} stroke={2} />
+                </button>
               </div>
-            )
-          })}
+              <input type="date" value={d.date} onChange={ev => setDay({ date: ev.target.value })}
+                style={{ width: '100%', boxSizing: 'border-box', padding: '9px 11px', borderRadius: 10, border: `1px solid ${HNH.line}`, background: HNH.cream, fontSize: 14, fontWeight: 700, color: HNH.ink, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }} />
 
-          {hourEntries.length > 0 && (
-            <div className="flex items-center justify-between" style={{ marginTop: 12, paddingTop: 12, borderTop: `1px dashed ${HNH.line2}` }}>
-              <span style={{ fontSize: 12.5, color: HNH.ink3, fontWeight: 600 }}>Tổng {totalHours % 1 === 0 ? totalHours : totalHours.toFixed(1)}h = quy đổi</span>
-              <span style={{ fontSize: 15, fontWeight: 700, color: HNH.red }}>{totalDays % 1 === 0 ? totalDays : totalDays.toFixed(2)} ngày</span>
+              {/* Frames */}
+              {d.frames.map((f, fi) => {
+                const h = frameHours(f)
+                return (
+                  <div key={fi} className="flex items-center gap-2" style={{ marginBottom: 6 }}>
+                    <span style={{ fontSize: 9.5, color: HNH.ink3, fontWeight: 700, minWidth: 30 }}>KG {fi + 1}</span>
+                    <label className="flex-1" style={{ padding: '6px 9px', borderRadius: 9, background: HNH.cream, border: `1px solid ${HNH.line}` }}>
+                      <input type="time" value={f.from} onChange={ev => setFrame(fi, { from: ev.target.value })}
+                        style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', fontSize: 13.5, fontWeight: 700, color: HNH.ink, fontFamily: 'inherit' }} />
+                    </label>
+                    <Icon name="arrow-r" size={13} color={HNH.ink3} stroke={2} />
+                    <label className="flex-1" style={{ padding: '6px 9px', borderRadius: 9, background: HNH.cream, border: `1px solid ${HNH.line}` }}>
+                      <input type="time" value={f.to} onChange={ev => setFrame(fi, { to: ev.target.value })}
+                        style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', fontSize: 13.5, fontWeight: 700, color: HNH.ink, fontFamily: 'inherit' }} />
+                    </label>
+                    <span style={{ fontSize: 11.5, fontWeight: 700, color: h > 0 ? HNH.navy : HNH.ink4, minWidth: 36, textAlign: 'right' }}>{h > 0 ? `${h % 1 === 0 ? h : h.toFixed(1)}h` : '—'}</span>
+                    {d.frames.length > 1 && (
+                      <button onClick={() => setDay({ frames: d.frames.filter((_, i) => i !== fi) })} className="border-none bg-transparent cursor-pointer flex items-center" style={{ padding: 0 }}>
+                        <Icon name="x" size={13} color={HNH.ink4} stroke={2} />
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+              <button onClick={() => setDay({ frames: [...d.frames, { from: '13:30', to: '17:30' }] })}
+                className="border-none bg-transparent cursor-pointer" style={{ fontSize: 11.5, fontWeight: 700, color: HNH.navy, padding: '4px 0' }}>
+                + Thêm khung giờ trong ngày
+              </button>
             </div>
-          )}
-          {overBalance && (
-            <div style={{ marginTop: 8, fontSize: 11.5, color: HNH.red, fontWeight: 600 }}>
-              Vượt quá số ngày phép còn lại ({selected?.total_leave_days} ngày)
-            </div>
-          )}
-        </div>
+          )
+        })}
+
+        <button onClick={() => setHourDays(prev => [...prev, { date: '', frames: [{ from: '08:00', to: '12:00' }] }])}
+          className="flex items-center justify-center gap-2 w-full border-none cursor-pointer"
+          style={{ padding: '11px 0', borderRadius: 12, background: '#fff', border: `1px dashed ${HNH.red}`, color: HNH.red, fontWeight: 700, fontSize: 13 }}>
+          <Icon name="plus" size={16} color={HNH.red} stroke={2.5} /> Thêm ngày nối tiếp
+        </button>
+
+        {hourDays.length > 0 && (
+          <div className="flex items-center justify-between" style={{ background: '#fff', borderRadius: 12, border: `1px solid ${HNH.line}`, padding: '10px 14px', marginTop: 10 }}>
+            <span style={{ fontSize: 12.5, color: HNH.ink3, fontWeight: 600 }}>Tổng {totalHours % 1 === 0 ? totalHours : totalHours.toFixed(1)}h = quy đổi</span>
+            <span style={{ fontSize: 15, fontWeight: 700, color: HNH.red }}>{totalDays % 1 === 0 ? totalDays : totalDays.toFixed(2)} ngày</span>
+          </div>
+        )}
+        {mode === 'hour' && overBalance && (
+          <div style={{ marginTop: 8, fontSize: 11.5, color: HNH.red, fontWeight: 600 }}>
+            Vượt quá số ngày phép còn lại ({selected?.total_leave_days} ngày)
+          </div>
+        )}
         </>)}
 
         {/* Reason */}
