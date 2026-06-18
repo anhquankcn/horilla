@@ -278,7 +278,7 @@ export function LeavePage() {
               : `${fmtDate(r.start_date)} → ${fmtDate(r.end_date)}`
             const days = r.requested_days % 1 === 0
               ? `${r.requested_days} ngày`
-              : `${r.requested_days.toFixed(1)} ngày`
+              : `${r.requested_days.toFixed(2)} ngày`
             return (
               <LeaveRequestRow
                 key={r.id}
@@ -310,8 +310,8 @@ export function LeavePage() {
         else if (r.start_date === r.end_date) rows.push(['Buổi', bdLabel(r.start_date_breakdown)])
         rows.push(['Số ngày quy đổi', daysStr])
         return (
-          <div className="fixed inset-0 flex items-end justify-center" style={{ zIndex: 300, background: 'rgba(0,0,0,0.45)' }} onClick={() => setDetailReq(null)}>
-            <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, maxHeight: '80vh', background: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div className="fixed inset-0 flex items-center justify-center" style={{ zIndex: 300, background: 'rgba(0,0,0,0.45)', padding: 16 }} onClick={() => setDetailReq(null)}>
+            <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 460, maxHeight: '82vh', background: '#fff', borderRadius: 20, display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 24px 48px rgba(0,0,0,0.25)' }}>
               <div className="flex items-center justify-between" style={{ padding: '16px 18px', borderBottom: `1px solid ${HNH.line}` }}>
                 <div>
                   <div style={{ fontSize: 16, fontWeight: 800, color: HNH.ink }}>Chi tiết đơn nghỉ</div>
