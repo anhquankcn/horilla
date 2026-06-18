@@ -61,21 +61,22 @@ def query_dict(data):
 
 
 def _is_clocked_in(employee):
-    """Clocked-in = the latest activity is still open (no clock_out) AND it started
-    within the last ~18h. An open activity older than that = a forgotten clock-out
-    (NCO, No Clock Out) — it does NOT block the next day's clock-in.
+    """Clocked-in = có activity MỞ (chưa clock_out) thuộc NGÀY HÔM NAY (giờ VN).
+
+    Phải khớp ĐÚNG với CheckingStatus.status (= any activity hôm nay còn mở) để
+    nút Chấm công của PWA quyết định in/out trùng với cổng chặn của server.
+
+    Activity mở từ ngày trước = quên clock-out (NCO, No Clock Out): KHÔNG chặn
+    clock-in hôm nay. Cách cũ dùng cửa sổ 18h khiến ca mở tối hôm trước (vd 15h)
+    vẫn chặn sáng hôm sau (<18h) trong khi client coi là chưa chấm → PWA gọi
+    clock-in lặp lại, server trả 400 'Already clocked-in', lượt chấm không được
+    ghi nhận.
     """
-    activity = (
-        AttendanceActivity.objects.filter(employee_id=employee)
-        .order_by("-id")
-        .first()
-    )
-    if activity is None or activity.clock_out_date is not None:
-        return False
-    indt = activity.in_datetime
-    if indt is None:
-        return activity.attendance_date == date.today()
-    return (django_tz.now() - indt) <= timedelta(hours=18)
+    return AttendanceActivity.objects.filter(
+        employee_id=employee,
+        attendance_date=django_tz.localdate(),
+        clock_out__isnull=True,
+    ).exists()
 
 
 def _parse_clock_device(request):
