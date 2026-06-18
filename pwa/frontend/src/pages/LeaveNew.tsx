@@ -172,7 +172,8 @@ export function LeaveNewPage() {
   const { data: watchersData } = useApi<Person[]>('/api/leave/watcher-candidates/')
 
   const rawTypes = balResp?.results ?? []
-  const leaveTypes = sortLeaveTypes(rawTypes)
+  // Bỏ "Nghỉ ốm" khỏi danh sách trừ phép (đã gộp vào Nghỉ không lương ở Nhóm 2)
+  const leaveTypes = sortLeaveTypes(rawTypes).filter(t => !/ốm|sick/i.test(t.leave_type_id.name))
   // Nhóm 2 — loại KHÔNG trừ phép (không có allocation). Lấy từ toàn bộ leave-type,
   // lọc theo tên đặc thù và loại trừ các loại đã có balance (Nhóm 1).
   const { data: allTypesResp } = useApi<Paginated<{ id: number; name: string }>>('/api/leave/leave-type/?page_size=50')
@@ -197,6 +198,15 @@ export function LeaveNewPage() {
       if (direct) setApproverIds([direct.id])
     }
   }, [managers, approverIds.length])
+
+  // Mặc định người theo dõi = tram.pvh (TRÂM PHẠM VÕ HUYỀN, emp id 221 — ổn định
+  // prod=stage do đồng bộ theo id). Chỉ set nếu có trong danh sách watcher.
+  const DEFAULT_WATCHER_ID = 221
+  useEffect(() => {
+    if (watcherIds.length === 0 && watchersData && watchersData.some(w => w.id === DEFAULT_WATCHER_ID)) {
+      setWatcherIds([DEFAULT_WATCHER_ID])
+    }
+  }, [watchersData, watcherIds.length])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -216,7 +226,7 @@ export function LeaveNewPage() {
   const totalDays = mode === 'day'
     ? days.reduce((s, d) => s + coefOf(d.bd), 0)
     : Math.round((totalHours / 8) * 100) / 100
-  const canSubmit = !!selectedTypeId && reason.trim() && !submitting && (
+  const canSubmit = !!selectedTypeId && title.trim() && reason.trim() && approverIds.length > 0 && !submitting && (
     mode === 'day' ? days.length > 0
       : hourDays.length > 0 && hourDays.every(d => d.date && d.frames.length > 0 && d.frames.every(f => frameHours(f) > 0))
   )
@@ -296,7 +306,7 @@ export function LeaveNewPage() {
         )}
 
         {/* Tiêu đề */}
-        <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, padding: '6px 6px 6px' }}>TIÊU ĐỀ</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, padding: '6px 6px 6px' }}>TIÊU ĐỀ <span style={{ color: HNH.red }}>*</span></div>
         <input value={title} onChange={e => setTitle(e.target.value)} placeholder="VD: Xin nghỉ phép năm"
           className="w-full"
           style={{ background: '#fff', borderRadius: 14, border: `1px solid ${HNH.line}`, padding: '11px 14px', fontSize: 14, color: HNH.ink, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
@@ -390,7 +400,7 @@ export function LeaveNewPage() {
         {/* ===== THEO NGÀY ===== */}
         {mode === 'day' && (<>
         <div className="flex items-center justify-between" style={{ padding: '14px 6px 6px' }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4 }}>NGÀY NGHỈ</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4 }}>NGÀY NGHỈ <span style={{ color: HNH.red }}>*</span></span>
           <span style={{ fontSize: 10.5, color: HNH.ink3 }}>Chọn nhiều ngày, mỗi ngày chọn buổi</span>
         </div>
         <div style={{ background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`, padding: 12 }}>
@@ -442,7 +452,7 @@ export function LeaveNewPage() {
         {/* ===== THEO GIỜ (phân cấp Ngày → nhiều khung giờ) ===== */}
         {mode === 'hour' && (<>
         <div className="flex items-center justify-between" style={{ padding: '14px 6px 6px' }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4 }}>NGÀY &amp; KHUNG GIỜ NGHỈ</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4 }}>NGÀY &amp; KHUNG GIỜ NGHỈ <span style={{ color: HNH.red }}>*</span></span>
           <span style={{ fontSize: 10.5, color: HNH.ink3 }}>8 giờ = 1 ngày phép</span>
         </div>
 
@@ -516,7 +526,7 @@ export function LeaveNewPage() {
         </>)}
 
         {/* Người duyệt / xác nhận — mặc định QLTT, thêm người khác qua modal tìm tên */}
-        <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, padding: '14px 6px 6px' }}>NGƯỜI DUYỆT / XÁC NHẬN</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, padding: '14px 6px 6px' }}>NGƯỜI DUYỆT / XÁC NHẬN <span style={{ color: HNH.red }}>*</span></div>
         <PersonPicker pool={managers ?? []} selected={approverIds} onChange={setApproverIds}
           accent={HNH.navy} accentBg={HNH.navy50} addLabel="Thêm người duyệt" emptyText="Chưa chọn người duyệt" />
 
@@ -526,7 +536,7 @@ export function LeaveNewPage() {
           accent="#a87908" accentBg="#faf1d6" addLabel="Thêm người theo dõi" emptyText="Chưa chọn người theo dõi" />
 
         {/* Reason */}
-        <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, padding: '14px 6px 6px' }}>LÝ DO</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, padding: '14px 6px 6px' }}>LÝ DO <span style={{ color: HNH.red }}>*</span></div>
         <textarea value={reason} onChange={e => setReason(e.target.value)} placeholder="Nhập lý do xin nghỉ..."
           className="w-full resize-none"
           style={{ background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`, padding: '12px 14px', fontSize: 14, color: HNH.ink, lineHeight: 1.4, minHeight: 90, fontFamily: 'inherit', outline: 'none' }} />
