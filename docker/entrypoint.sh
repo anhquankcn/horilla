@@ -10,8 +10,9 @@ while ! nc -z db 5432; do
 done
 echo "PostgreSQL is ready!"
 
-# Run migrations
-python manage.py migrate --noinput
+# NB: KHÔNG migrate ở đây — migrate được chạy MỘT lần ở bước deploy (deploy.sh /
+# deploy-prod.sh). Chạy cả 2 nơi gây race "duplicate ... already exists" khi tạo
+# bảng mới (migrate entrypoint + migrate deploy chạy song song).
 
 # Compile translations
 python manage.py compilemessages -l vi --ignore=node_modules --ignore=venv 2>/dev/null || true

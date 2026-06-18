@@ -33,9 +33,9 @@ echo "$CHANGED" | grep -qE '^pwa/frontend/' && REBUILD_PWA=true
 echo "$CHANGED" | grep -qE '^pwa/bff/' && REBUILD_BFF=true
 
 if $REBUILD_WEB; then
-  echo "→ Django code changed → rebuild web + autoclock"
+  echo "→ Django code changed → rebuild web"
   $COMPOSE build web
-  $COMPOSE up -d --no-deps web autoclock
+  $COMPOSE up -d --no-deps web
 fi
 
 if $REBUILD_PWA; then
