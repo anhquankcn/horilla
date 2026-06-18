@@ -31,9 +31,12 @@ def leave_Validations(self, data):
         else None
     )
 
-    # Nhóm 2 — loại nghỉ không trừ phép (total_days == 0, không có AvailableLeave).
+    # Nhóm 2 — loại nghỉ không trừ phép: không có AvailableLeave cho bất kỳ NV nào.
     # Chỉ kiểm tra ngày chồng lấp và attachment, bỏ qua balance.
-    is_no_balance_type = available_leave is None and (leave_type_id.total_days or 0) == 0
+    is_no_balance_type = (
+        available_leave is None
+        and not AvailableLeave.objects.filter(leave_type_id=leave_type_id).exists()
+    )
 
     if not available_leave and not is_no_balance_type:
         raise serializers.ValidationError(
