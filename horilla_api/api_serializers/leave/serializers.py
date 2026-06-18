@@ -30,24 +30,16 @@ def leave_Validations(self, data):
         ).exists()
         else None
     )
-    if not available_leave:
+
+    # Nhóm 2 — loại nghỉ không trừ phép (total_days == 0, không có AvailableLeave).
+    # Chỉ kiểm tra ngày chồng lấp và attachment, bỏ qua balance.
+    is_no_balance_type = available_leave is None and (leave_type_id.total_days or 0) == 0
+
+    if not available_leave and not is_no_balance_type:
         raise serializers.ValidationError(
             f"Employee is not assigned with leave type {leave_type_id}."
         )
 
-    requested_days = calculate_requested_days(
-        start_date, end_date, start_date_breakdown, end_date_breakdown
-    )
-    effective_requested_days = cal_effective_requested_days(
-        start_date=start_date,
-        end_date=end_date,
-        leave_type_id=leave_type_id,
-        requested_days=requested_days,
-    )
-
-    total_leave_days = (
-        available_leave.available_days + available_leave.carryforward_days
-    )
     errors = {}
     # checking if there is any requested days is overlapping with the existing leave request
     leave_requests = employee.leaverequest_set.filter(
@@ -69,8 +61,21 @@ def leave_Validations(self, data):
             "There is a mismatch in the breakdown of the start date and end date."
         )
 
-    if not effective_requested_days <= total_leave_days:
-        raise serializers.ValidationError("Employee doesn't have enough leave days..")
+    if not is_no_balance_type:
+        requested_days = calculate_requested_days(
+            start_date, end_date, start_date_breakdown, end_date_breakdown
+        )
+        effective_requested_days = cal_effective_requested_days(
+            start_date=start_date,
+            end_date=end_date,
+            leave_type_id=leave_type_id,
+            requested_days=requested_days,
+        )
+        total_leave_days = (
+            available_leave.available_days + available_leave.carryforward_days
+        )
+        if not effective_requested_days <= total_leave_days:
+            raise serializers.ValidationError("Employee doesn't have enough leave days..")
 
     if leave_type_id.require_attachment == "yes" and attachment == None:
         errors["attachment"] = ["This field is required."]
