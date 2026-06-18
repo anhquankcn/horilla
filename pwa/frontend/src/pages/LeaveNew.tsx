@@ -38,6 +38,7 @@ interface HNHSummary {
 }
 
 interface Paginated<T> { count: number; results: T[] }
+interface Person { id: number; name: string; position: string | null; is_direct?: boolean; department?: string | null }
 
 type Breakdown = 'full_day' | 'first_half' | 'second_half'
 interface DayPick { date: string; bd: Breakdown }
@@ -91,6 +92,8 @@ export function LeaveNewPage() {
   const navigate = useNavigate()
   const { data: balResp } = useApi<Paginated<AvailableLeave>>('/api/leave/available-leave/?page_size=20')
   const { data: summary } = useApi<HNHSummary>('/api/leave/hnh-leave-summary/')
+  const { data: managers } = useApi<Person[]>('/api/leave/available-managers/')
+  const { data: watchersData } = useApi<Person[]>('/api/leave/watcher-candidates/')
 
   const rawTypes = balResp?.results ?? []
   const leaveTypes = sortLeaveTypes(rawTypes)
@@ -100,7 +103,18 @@ export function LeaveNewPage() {
   const [days, setDays] = useState<DayPick[]>([])
   const [addDate, setAddDate] = useState('')
   const [hourDays, setHourDays] = useState<HourDay[]>([])
+  const [title, setTitle] = useState('')
+  const [approverIds, setApproverIds] = useState<number[]>([])
+  const [watcherIds, setWatcherIds] = useState<number[]>([])
   const [reason, setReason] = useState('')
+
+  // Mặc định chọn quản lý trực tiếp làm người duyệt
+  useEffect(() => {
+    if (approverIds.length === 0 && managers && managers.length > 0) {
+      const direct = managers.find(m => m.is_direct)
+      if (direct) setApproverIds([direct.id])
+    }
+  }, [managers, approverIds.length])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -134,19 +148,20 @@ export function LeaveNewPage() {
   const handleSubmit = async () => {
     if (!canSubmit) return
     setSubmitting(true); setError(null)
+    const desc = title.trim() ? `${title.trim()} — ${reason.trim()}` : reason.trim()
     try {
       if (mode === 'day') {
         await api.post('/api/leave/user-request-days/', {
           leave_type_id: selectedTypeId,
           days: days.map(d => ({ date: d.date, breakdown: d.bd })),
-          description: reason,
+          description: desc, approver_ids: approverIds, watcher_ids: watcherIds,
         })
       } else {
         const entries = hourDays.flatMap(d => d.frames.map(f => ({ date: d.date, start_time: f.from, end_time: f.to })))
         await api.post('/api/leave/user-request-hours/', {
           leave_type_id: selectedTypeId,
           entries,
-          description: reason,
+          description: desc, approver_ids: approverIds, watcher_ids: watcherIds,
         })
       }
       navigate('/leave')
@@ -197,8 +212,14 @@ export function LeaveNewPage() {
           </div>
         )}
 
+        {/* Tiêu đề */}
+        <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, padding: '6px 6px 6px' }}>TIÊU ĐỀ</div>
+        <input value={title} onChange={e => setTitle(e.target.value)} placeholder="VD: Xin nghỉ phép năm"
+          className="w-full"
+          style={{ background: '#fff', borderRadius: 14, border: `1px solid ${HNH.line}`, padding: '11px 14px', fontSize: 14, color: HNH.ink, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
+
         {/* Type selector */}
-        <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, padding: '6px 6px 6px' }}>LOẠI NGHỈ</div>
+        <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, padding: '14px 6px 6px' }}>LOẠI NGHỈ</div>
         <div style={{ background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`, overflow: 'hidden' }}>
           {leaveTypes.length === 0 && <div style={{ padding: 16, textAlign: 'center', color: HNH.ink3, fontSize: 13 }}>Đang tải...</div>}
           {leaveTypes.map((opt, i) => {
@@ -379,6 +400,42 @@ export function LeaveNewPage() {
           </div>
         )}
         </>)}
+
+        {/* Người duyệt / xác nhận */}
+        <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, padding: '14px 6px 6px' }}>NGƯỜI DUYỆT / XÁC NHẬN</div>
+        <div style={{ background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`, padding: 12 }}>
+          <div className="flex flex-wrap gap-2">
+            {(managers ?? []).map(m => {
+              const sel = approverIds.includes(m.id)
+              return (
+                <button key={m.id} onClick={() => setApproverIds(prev => sel ? prev.filter(x => x !== m.id) : [...prev, m.id])}
+                  className="border-none cursor-pointer"
+                  style={{ padding: '7px 12px', borderRadius: 20, fontSize: 12.5, fontWeight: 700, border: `1.5px solid ${sel ? HNH.navy : HNH.line}`, background: sel ? HNH.navy : '#fff', color: sel ? '#fff' : HNH.ink3 }}>
+                  {m.name}{m.is_direct ? ' (QLTT)' : ''}
+                </button>
+              )
+            })}
+            {(!managers || managers.length === 0) && <span style={{ fontSize: 12, color: HNH.ink3 }}>Đang tải...</span>}
+          </div>
+        </div>
+
+        {/* Người theo dõi */}
+        <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, padding: '14px 6px 6px' }}>NGƯỜI THEO DÕI</div>
+        <div style={{ background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`, padding: 12 }}>
+          <div className="flex flex-wrap gap-2">
+            {(watchersData ?? []).map(w => {
+              const sel = watcherIds.includes(w.id)
+              return (
+                <button key={w.id} onClick={() => setWatcherIds(prev => sel ? prev.filter(x => x !== w.id) : [...prev, w.id])}
+                  className="border-none cursor-pointer"
+                  style={{ padding: '7px 12px', borderRadius: 20, fontSize: 12.5, fontWeight: 700, border: `1.5px solid ${sel ? HNH.gold : HNH.line}`, background: sel ? '#faf1d6' : '#fff', color: sel ? '#a87908' : HNH.ink3 }}>
+                  {w.name}
+                </button>
+              )
+            })}
+            {(!watchersData || watchersData.length === 0) && <span style={{ fontSize: 12, color: HNH.ink3 }}>Không có</span>}
+          </div>
+        </div>
 
         {/* Reason */}
         <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, padding: '14px 6px 6px' }}>LÝ DO</div>
