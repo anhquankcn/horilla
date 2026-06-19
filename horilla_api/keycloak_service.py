@@ -133,6 +133,15 @@ def reset_password(user_id: str, password: str = "Hnh@1234", temporary: bool = F
     r.raise_for_status()
 
 
+def has_otp(user_id: str) -> bool:
+    """Return True if user has an OTP credential configured."""
+    r = requests.get(
+        f"{_KC}/admin/realms/{_REALM}/users/{user_id}/credentials",
+        headers=_h(), timeout=10,
+    )
+    return any(c.get("type") == "otp" for c in r.json()) if r.ok else False
+
+
 def get_required_actions(user_id: str) -> list[str]:
     r = requests.get(
         f"{_KC}/admin/realms/{_REALM}/users/{user_id}",
