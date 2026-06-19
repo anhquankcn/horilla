@@ -345,6 +345,145 @@ class HNHTeamEmployeesView(APIView):
         return Response(data)
 
 
+class LeaveExcelExportView(APIView):
+    """GET /api/leave/export-excel/?year=2026&month=6&status=approved&department_id=1
+    Scope: C&B/superuser → toàn cty; Manager → team trực tiếp; Employee → chỉ mình.
+    """
+    permission_classes = []  # dùng IsAuthenticated kế thừa từ APIView settings
+
+    def get(self, request):
+        from django.http import HttpResponse
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from leave.models import LeaveRequest
+
+        emp = _get_employee(request)
+        if emp is None:
+            return Response({"error": "No employee"}, status=403)
+
+        year = int(request.query_params.get("year") or date.today().year)
+        month = int(request.query_params.get("month") or date.today().month)
+        status_filter = request.query_params.get("status") or None
+        dept_id = request.query_params.get("department_id") or None
+
+        # Scope
+        qs = LeaveRequest.objects.select_related(
+            "employee_id", "employee_id__employee_work_info__department_id", "leave_type_id"
+        ).filter(
+            start_date__year=year, start_date__month=month,
+        )
+        if _is_cnb(request):
+            pass  # all
+        elif _is_manager(request):
+            sub_ids = Employee.objects.filter(
+                employee_work_info__reporting_manager_id=emp, is_active=True
+            ).values_list("id", flat=True)
+            qs = qs.filter(employee_id__in=sub_ids)
+        else:
+            qs = qs.filter(employee_id=emp)
+
+        if status_filter:
+            qs = qs.filter(status=status_filter)
+        if dept_id:
+            qs = qs.filter(employee_id__employee_work_info__department_id=dept_id)
+
+        qs = qs.order_by("employee_id__badge_id", "start_date")
+
+        STATUS_VI = {"requested": "Chờ duyệt", "approved": "Đã duyệt", "rejected": "Từ chối"}
+        BD_VI = {"full_day": "Cả ngày", "first_half": "Buổi sáng", "second_half": "Buổi chiều"}
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = f"NghiPhep T{month}-{year}"
+
+        headers = [
+            "STT", "Mã NV", "Tên nhân viên", "Phòng ban",
+            "Loại nghỉ", "Hình thức", "Từ ngày", "Đến ngày",
+            "Số ngày/giờ", "Buổi", "Trạng thái", "Lý do", "Ngày gửi",
+        ]
+        COL_W = [5, 10, 22, 18, 20, 10, 12, 12, 12, 14, 12, 30, 14]
+
+        hdr_font  = Font(bold=True, color="FFFFFF", size=10)
+        hdr_fill  = PatternFill(start_color="C0222B", end_color="C0222B", fill_type="solid")
+        thin = Border(
+            left=Side(style="thin"), right=Side(style="thin"),
+            top=Side(style="thin"), bottom=Side(style="thin"),
+        )
+        approved_fill = PatternFill(start_color="E8F5E9", end_color="E8F5E9", fill_type="solid")
+        rejected_fill = PatternFill(start_color="FFEBEE", end_color="FFEBEE", fill_type="solid")
+        pending_fill  = PatternFill(start_color="FFF8E1", end_color="FFF8E1", fill_type="solid")
+
+        for col, (h, w) in enumerate(zip(headers, COL_W), 1):
+            cell = ws.cell(row=1, column=col, value=h)
+            cell.font = hdr_font
+            cell.fill = hdr_fill
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            cell.border = thin
+            ws.column_dimensions[cell.column_letter].width = w
+        ws.row_dimensions[1].height = 26
+
+        for stt, lr in enumerate(qs, 1):
+            e = lr.employee_id
+            dept = ""
+            try:
+                dept = str(e.employee_work_info.department_id)
+            except Exception:
+                pass
+            lt = lr.leave_type_id
+
+            if lr.is_hourly and lr.requested_hours:
+                qty = f"{lr.requested_hours}h"
+                form = "Theo giờ"
+                buoi = (
+                    f"{lr.start_time.strftime('%H:%M') if lr.start_time else '?'}"
+                    f" – {lr.end_time.strftime('%H:%M') if lr.end_time else '?'}"
+                )
+            else:
+                d = lr.requested_days or 0
+                qty = f"{int(d) if d == int(d) else round(d, 2)} ngày"
+                form = "Theo ngày"
+                buoi = BD_VI.get(lr.start_date_breakdown or "", lr.start_date_breakdown or "")
+
+            vals = [
+                stt,
+                e.badge_id or "",
+                f"{e.employee_first_name} {e.employee_last_name or ''}".strip(),
+                dept,
+                lt.name if lt else "",
+                form,
+                lr.start_date.strftime("%d/%m/%Y") if lr.start_date else "",
+                lr.end_date.strftime("%d/%m/%Y") if lr.end_date else "",
+                qty,
+                buoi,
+                STATUS_VI.get(lr.status, lr.status),
+                lr.description or "",
+                lr.requested_date.strftime("%d/%m/%Y") if lr.requested_date else "",
+            ]
+            row_fill = (
+                approved_fill if lr.status == "approved" else
+                rejected_fill if lr.status == "rejected" else
+                pending_fill
+            )
+            for col, v in enumerate(vals, 1):
+                cell = ws.cell(row=stt + 1, column=col, value=v)
+                cell.border = thin
+                cell.fill = row_fill
+                cell.alignment = Alignment(vertical="center", wrap_text=(col == 12))
+            ws.row_dimensions[stt + 1].height = 18
+
+        import io
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        fname = f"NghiPhep_T{month:02d}-{year}.xlsx"
+        resp = HttpResponse(
+            buf.read(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        resp["Content-Disposition"] = f'attachment; filename="{fname}"'
+        return resp
+
+
 def _credit_bu_days(employee: Employee, days: float):
     """Add approved Phép Bù days to the employee's AvailableLeave for Phép Bù LeaveType."""
     from leave.models import AvailableLeave, LeaveType

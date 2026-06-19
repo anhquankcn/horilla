@@ -357,6 +357,125 @@ function RequestCard({ req, onClick, last }: { req: PendingRequest; onClick: () 
   )
 }
 
+// ── Export sheet ─────────────────────────────────────────────────────────────
+
+function ExportSheet({ onClose }: { onClose: () => void }) {
+  const now = new Date()
+  const [year, setYear] = useState(now.getFullYear())
+  const [month, setMonth] = useState(now.getMonth() + 1)
+  const [status, setStatus] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const STATUS_OPTS = [
+    { value: '', label: 'Tất cả trạng thái' },
+    { value: 'requested', label: 'Chờ duyệt' },
+    { value: 'approved', label: 'Đã duyệt' },
+    { value: 'rejected', label: 'Từ chối' },
+  ]
+  const MONTHS = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: `Tháng ${i + 1}` }))
+
+  async function handleExport() {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams({ year: String(year), month: String(month) })
+      if (status) params.set('status', status)
+      const url = `/api/leave/export-excel/?${params}`
+      // Fetch as blob to trigger download
+      const resp = await fetch(url, { credentials: 'include' })
+      if (!resp.ok) throw new Error('Lỗi xuất file')
+      const blob = await resp.blob()
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(blob)
+      link.download = `NghiPhep_T${String(month).padStart(2, '0')}-${year}.xlsx`
+      link.click()
+      URL.revokeObjectURL(link.href)
+      onClose()
+    } catch {
+      alert('Không thể xuất file. Vui lòng thử lại.')
+    } finally { setLoading(false) }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 flex items-end justify-center"
+      style={{ zIndex: 400, background: 'rgba(0,0,0,0.4)' }}
+      onClick={onClose}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: '100%', maxWidth: 480, background: '#fff',
+          borderRadius: '20px 20px 0 0', padding: '20px 20px 32px',
+        }}
+      >
+        <div className="flex items-center justify-between" style={{ marginBottom: 18 }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: HNH.ink }}>Xuất Excel nghỉ phép</div>
+          <button onClick={onClose} className="border-none cursor-pointer" style={{ background: 'none', padding: 4 }}>
+            <Icon name="x" size={20} color={HNH.ink2} stroke={2} />
+          </button>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, marginBottom: 4 }}>THÁNG</div>
+            <select
+              value={month}
+              onChange={e => setMonth(Number(e.target.value))}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 12, border: `1.5px solid ${HNH.line}`, fontSize: 14, color: HNH.ink, background: '#fff' }}
+            >
+              {MONTHS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, marginBottom: 4 }}>NĂM</div>
+            <select
+              value={year}
+              onChange={e => setYear(Number(e.target.value))}
+              style={{ width: '100%', padding: '10px 12px', borderRadius: 12, border: `1.5px solid ${HNH.line}`, fontSize: 14, color: HNH.ink, background: '#fff' }}
+            >
+              {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <div style={{ marginBottom: 18 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, marginBottom: 4 }}>TRẠNG THÁI</div>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {STATUS_OPTS.map(o => (
+              <button
+                key={o.value}
+                onClick={() => setStatus(o.value)}
+                style={{
+                  padding: '6px 12px', borderRadius: 20, fontSize: 12, fontWeight: 600,
+                  cursor: 'pointer', border: `1.5px solid ${status === o.value ? HNH.red : HNH.line}`,
+                  background: status === o.value ? HNH.red50 : '#fff',
+                  color: status === o.value ? HNH.red : HNH.ink2,
+                }}
+              >
+                {o.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <button
+          onClick={handleExport}
+          disabled={loading}
+          style={{
+            width: '100%', padding: '14px 0', borderRadius: 16, fontSize: 15, fontWeight: 700,
+            border: 'none', background: HNH.red, color: '#fff', cursor: 'pointer',
+            opacity: loading ? 0.7 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          }}
+        >
+          <Icon name="download" size={18} color="#fff" stroke={2} />
+          {loading ? 'Đang xuất...' : `Xuất Excel tháng ${month}/${year}`}
+        </button>
+      </div>
+    </div>
+  )
+}
+
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function LeaveApprovalPage() {
@@ -365,6 +484,7 @@ export function LeaveApprovalPage() {
   const [search, setSearch] = useState('')
   const [detail, setDetail] = useState<PendingRequest | null>(null)
   const [dismissed, setDismissed] = useState<Set<number>>(new Set())
+  const [showExport, setShowExport] = useState(false)
 
   const requests = useMemo(() => {
     const base = (rawRequests ?? []).filter(r => !dismissed.has(r.id))
@@ -393,6 +513,16 @@ export function LeaveApprovalPage() {
         onBack={() => navigate(-1)}
         title="Phê duyệt phép"
         sub={pendingCount > 0 ? `${pendingCount} ĐƠN CHỜ DUYỆT` : 'KHÔNG CÓ ĐƠN MỚI'}
+        trailing={
+          <button
+            onClick={() => setShowExport(true)}
+            className="flex items-center justify-center border-none cursor-pointer"
+            style={{ width: 38, height: 38, borderRadius: 12, background: '#fff', boxShadow: '0 1px 2px rgba(15,20,40,0.06)' }}
+            title="Xuất Excel"
+          >
+            <Icon name="download" size={18} color={HNH.ink} stroke={2} />
+          </button>
+        }
       />
 
       <div style={{ padding: '12px 16px 100px' }}>
@@ -460,6 +590,8 @@ export function LeaveApprovalPage() {
           </div>
         )}
       </div>
+
+      {showExport && <ExportSheet onClose={() => setShowExport(false)} />}
 
       {detail && (
         <DetailModal

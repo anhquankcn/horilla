@@ -63,4 +63,5 @@ urlpatterns = [
     path("hnh-compensatory/<int:pk>/reject/", lmv.HNHCompensatoryProposalRejectView.as_view(), name="api-leave-hnh-comp-reject"),
     path("hnh-compensatory/<int:pk>/", lmv.HNHCompensatoryProposalDeleteView.as_view(), name="api-leave-hnh-comp-delete"),
     path("hnh-team-employees/", lmv.HNHTeamEmployeesView.as_view(), name="api-leave-hnh-team"),
+    path("export-excel/", lmv.LeaveExcelExportView.as_view(), name="api-leave-export-excel"),
 ]
