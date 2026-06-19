@@ -31,16 +31,34 @@ class ChangePasswordView(APIView):
         if not kc_user:
             return Response({"error": "Không tìm thấy tài khoản Keycloak"}, status=404)
 
+        uid = kc_user["id"]
+        pending_actions = kc_user.get("requiredActions", [])
+        had_update_pw = "UPDATE_PASSWORD" in pending_actions
+
+        # KC blocks ROPC when UPDATE_PASSWORD is pending (temp password flow).
+        # Temporarily clear it so verify_password can work, restore on wrong pw.
+        if had_update_pw:
+            try:
+                kc.set_required_actions(uid, [a for a in pending_actions if a != "UPDATE_PASSWORD"])
+            except Exception as exc:
+                return Response({"error": f"Không thể xác thực: {exc}"}, status=503)
+
         try:
             valid = kc.verify_password(email, old_pw)
         except Exception:
+            if had_update_pw:
+                try: kc.set_required_actions(uid, pending_actions)
+                except Exception: pass
             return Response({"error": "Không thể xác thực với Keycloak, thử lại sau"}, status=503)
 
         if not valid:
+            if had_update_pw:
+                try: kc.set_required_actions(uid, pending_actions)
+                except Exception: pass
             return Response({"error": "Mật khẩu cũ không đúng"}, status=400)
 
         try:
-            kc.reset_password(kc_user["id"], new_pw)
+            kc.reset_password(uid, new_pw)
         except Exception as exc:
             return Response({"error": f"Không thể đổi mật khẩu: {exc}"}, status=500)
 
