@@ -908,6 +908,15 @@ export function HomePage() {
   const [chkPush, setChkPush] = useState(false)
   const [chkCache, setChkCache] = useState(false)
 
+  // Password change sub-view
+  const [pwView, setPwView] = useState(false)
+  const [pwOld, setPwOld] = useState('')
+  const [pwNew, setPwNew] = useState('')
+  const [pwConfirm, setPwConfirm] = useState('')
+  const [pwMsg, setPwMsg] = useState<{ type: 'error' | 'success'; text: string } | null>(null)
+  const [pwLoading, setPwLoading] = useState(false)
+  const [pwEmailSent, setPwEmailSent] = useState(false)
+
   const checkKcSession = useCallback(async () => {
     setKcChecking(true)
     try {
@@ -964,6 +973,7 @@ export function HomePage() {
 
   const openAvatarMenu = useCallback(() => {
     setChkKc(false); setChkPush(false); setChkCache(false)
+    setPwView(false); setPwOld(''); setPwNew(''); setPwConfirm(''); setPwMsg(null); setPwEmailSent(false)
     setAvatarMenuOpen(true)
   }, [])
 
@@ -986,6 +996,38 @@ export function HomePage() {
     if (chkPush) await enablePushNotif()
     if (chkCache) await clearCacheAndReload()
   }, [chkKc, chkPush, chkCache, refreshKcSession, enablePushNotif, clearCacheAndReload])
+
+  const handleSendResetEmail = useCallback(async () => {
+    setPwLoading(true); setPwMsg(null)
+    try {
+      await api.post('/api/base/send-password-reset-email/', {})
+      setPwEmailSent(true)
+      setPwMsg({ type: 'success', text: 'Đã gửi email đặt lại mật khẩu. Kiểm tra hộp thư của bạn.' })
+    } catch (e: unknown) {
+      const msg = (e as { data?: { error?: string } })?.data?.error || 'Không gửi được email'
+      setPwMsg({ type: 'error', text: msg })
+    } finally {
+      setPwLoading(false)
+    }
+  }, [])
+
+  const handleChangePassword = useCallback(async () => {
+    setPwMsg(null)
+    if (!pwOld) { setPwMsg({ type: 'error', text: 'Nhập mật khẩu cũ' }); return }
+    if (pwNew.length < 8) { setPwMsg({ type: 'error', text: 'Mật khẩu mới phải ít nhất 8 ký tự' }); return }
+    if (pwNew !== pwConfirm) { setPwMsg({ type: 'error', text: 'Xác nhận mật khẩu không khớp' }); return }
+    setPwLoading(true)
+    try {
+      await api.post('/api/base/change-password/', { old_password: pwOld, new_password: pwNew })
+      setPwMsg({ type: 'success', text: 'Đổi mật khẩu thành công!' })
+      setPwOld(''); setPwNew(''); setPwConfirm('')
+    } catch (e: unknown) {
+      const msg = (e as { data?: { error?: string } })?.data?.error || 'Đổi mật khẩu thất bại'
+      setPwMsg({ type: 'error', text: msg })
+    } finally {
+      setPwLoading(false)
+    }
+  }, [pwOld, pwNew, pwConfirm])
 
   const isTablet = useTablet()
   const isSmall = useSmallPhone()
@@ -1057,35 +1099,114 @@ export function HomePage() {
             onClick={e => e.stopPropagation()}
           >
             {/* Profile header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '16px 16px 14px', borderBottom: `1px solid ${HNH.line}` }}>
-              <div style={{ position: 'relative', flexShrink: 0 }}>
-                <Avatar src={employee?.employee_profile} initials={initials} bg={HNH.red} size={44} />
-                <div style={{
-                  position: 'absolute', bottom: -2, right: -2,
-                  width: 14, height: 14, borderRadius: '50%',
-                  background: kcValid === null ? HNH.ink4 : kcValid ? '#16a34a' : '#ef4444',
-                  border: '2px solid #fff',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 5, fontWeight: 900, color: '#fff',
-                }}>KC</div>
-              </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 14px 12px', borderBottom: `1px solid ${HNH.line}` }}>
+              {pwView && (
+                <button onClick={() => { setPwView(false); setPwMsg(null) }}
+                  style={{ width: 34, height: 34, borderRadius: 10, background: HNH.cream, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Icon name="chev-l" size={18} color={HNH.ink} stroke={2} />
+                </button>
+              )}
+              {!pwView && (
+                <div style={{ position: 'relative', flexShrink: 0 }}>
+                  <Avatar src={employee?.employee_profile} initials={initials} bg={HNH.red} size={44} />
+                  <div style={{
+                    position: 'absolute', bottom: -2, right: -2,
+                    width: 14, height: 14, borderRadius: '50%',
+                    background: kcValid === null ? HNH.ink4 : kcValid ? '#16a34a' : '#ef4444',
+                    border: '2px solid #fff',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: 5, fontWeight: 900, color: '#fff',
+                  }}>KC</div>
+                </div>
+              )}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: HNH.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {employee?.full_name ?? displayName}
+                  {pwView ? 'Đổi mật khẩu' : (employee?.full_name ?? displayName)}
                 </div>
-                <div style={{ fontSize: 11, color: HNH.ink3, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {employee?.email ?? ''}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: kcChecking ? HNH.ink4 : kcValid ? '#16a34a' : '#ef4444', flexShrink: 0 }} />
-                  <span style={{ fontSize: 10.5, fontWeight: 600, color: kcChecking ? HNH.ink3 : kcValid ? '#16a34a' : '#ef4444' }}>
-                    KC SSO — {kcChecking ? 'Đang kiểm tra...' : kcValid ? 'Online' : 'Offline'}
-                  </span>
-                </div>
+                {!pwView && (
+                  <>
+                    <div style={{ fontSize: 11, color: HNH.ink3, marginTop: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {employee?.email ?? ''}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                      <div style={{ width: 6, height: 6, borderRadius: '50%', background: kcChecking ? HNH.ink4 : kcValid ? '#16a34a' : '#ef4444', flexShrink: 0 }} />
+                      <span style={{ fontSize: 10.5, fontWeight: 600, color: kcChecking ? HNH.ink3 : kcValid ? '#16a34a' : '#ef4444' }}>
+                        KC SSO — {kcChecking ? 'Đang kiểm tra...' : kcValid ? 'Online' : 'Offline'}
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
+              {/* Door-out logout icon */}
+              {!pwView && (
+                <button
+                  onClick={() => { window.location.href = '/bff/auth/logout' }}
+                  title="Đăng xuất"
+                  style={{ width: 38, height: 38, borderRadius: 11, background: '#fff5f5', border: '1.5px solid #fca5a5', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Icon name="logout" size={18} color="#dc2626" stroke={2} />
+                </button>
+              )}
             </div>
 
-            {/* 3 Checkbox actions */}
+            {/* Password change form */}
+            {pwView && (
+              <div style={{ padding: '14px 16px 4px' }}>
+                {/* Mật khẩu cũ */}
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: HNH.ink3, marginBottom: 4 }}>Mật khẩu cũ</div>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <input
+                      type="password" value={pwOld} onChange={e => setPwOld(e.target.value)}
+                      placeholder="Nhập mật khẩu hiện tại"
+                      style={{ flex: 1, padding: '9px 12px', borderRadius: 10, border: `1.5px solid ${HNH.line}`, fontSize: 13, outline: 'none', background: HNH.cream }}
+                    />
+                    <button
+                      onClick={handleSendResetEmail}
+                      disabled={pwLoading || pwEmailSent}
+                      title={pwEmailSent ? 'Đã gửi email' : 'Gửi mật khẩu về email'}
+                      style={{ width: 38, height: 38, borderRadius: 10, border: `1.5px solid ${HNH.line}`, background: pwEmailSent ? HNH.success50 : '#fff', cursor: pwEmailSent ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Icon name="mail" size={16} color={pwEmailSent ? HNH.success : HNH.ink3} stroke={2} />
+                    </button>
+                  </div>
+                  <div style={{ fontSize: 10, color: HNH.ink4, marginTop: 3 }}>Quên mật khẩu? Bấm <Icon name="mail" size={10} color={HNH.ink4} stroke={2} /> để nhận qua email</div>
+                </div>
+                {/* Mật khẩu mới */}
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: HNH.ink3, marginBottom: 4 }}>Mật khẩu mới</div>
+                  <input
+                    type="password" value={pwNew} onChange={e => setPwNew(e.target.value)}
+                    placeholder="Ít nhất 8 ký tự"
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 10, border: `1.5px solid ${HNH.line}`, fontSize: 13, outline: 'none', background: HNH.cream }}
+                  />
+                </div>
+                {/* Xác nhận mật khẩu mới */}
+                <div style={{ marginBottom: 10 }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, color: HNH.ink3, marginBottom: 4 }}>Xác nhận mật khẩu mới</div>
+                  <input
+                    type="password" value={pwConfirm} onChange={e => setPwConfirm(e.target.value)}
+                    placeholder="Nhập lại mật khẩu mới"
+                    style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', borderRadius: 10, border: `1.5px solid ${HNH.line}`, fontSize: 13, outline: 'none', background: HNH.cream }}
+                  />
+                </div>
+                {/* Message */}
+                {pwMsg && (
+                  <div style={{ fontSize: 12, fontWeight: 600, color: pwMsg.type === 'error' ? '#dc2626' : HNH.success, background: pwMsg.type === 'error' ? '#fef2f2' : HNH.success50, borderRadius: 8, padding: '7px 10px', marginBottom: 8 }}>
+                    {pwMsg.text}
+                  </div>
+                )}
+                {/* Submit */}
+                <button
+                  onClick={handleChangePassword}
+                  disabled={pwLoading}
+                  style={{ width: '100%', padding: '11px 0', borderRadius: 12, background: HNH.navy, color: '#fff', border: 'none', cursor: 'pointer', fontSize: 13.5, fontWeight: 700, opacity: pwLoading ? 0.6 : 1, marginBottom: 14 }}
+                >
+                  {pwLoading ? 'Đang xử lý...' : 'Đổi mật khẩu'}
+                </button>
+              </div>
+            )}
+
+            {/* 3 Checkbox actions + Confirm + Change PW — hidden when pwView */}
+            {!pwView && (<>
             <div style={{ padding: '8px 12px 4px' }}>
               {([
                 {
@@ -1158,7 +1279,7 @@ export function HomePage() {
             </div>
 
             {/* Confirm button */}
-            <div style={{ padding: '4px 16px 10px' }}>
+            <div style={{ padding: '4px 16px 8px' }}>
               <button
                 onClick={handleAvatarConfirm}
                 style={{
@@ -1174,25 +1295,23 @@ export function HomePage() {
               </button>
             </div>
 
-            {/* Thoát Tài khoản KC — đăng xuất + đóng session Keycloak, về màn Login */}
+            {/* Đổi mật khẩu button */}
             <div style={{ padding: '0 16px 12px' }}>
               <button
-                onClick={() => { window.location.href = '/bff/auth/logout' }}
+                onClick={() => { setPwView(true); setPwMsg(null); setPwOld(''); setPwNew(''); setPwConfirm('') }}
                 className="flex items-center justify-center gap-2"
                 style={{
-                  width: '100%', padding: '11px 0', borderRadius: 13,
-                  background: '#fff', color: '#dc2626',
-                  border: '1.5px solid #fca5a5', cursor: 'pointer',
-                  fontSize: 14, fontWeight: 700,
+                  width: '100%', padding: '10px 0', borderRadius: 13,
+                  background: '#fff', color: HNH.ink2,
+                  border: `1.5px solid ${HNH.line}`, cursor: 'pointer',
+                  fontSize: 13.5, fontWeight: 700,
                 }}
               >
-                <Icon name="logout" size={16} color="#dc2626" stroke={2} />
-                Thoát Tài khoản KC
+                <Icon name="lock" size={15} color={HNH.ink2} stroke={2} />
+                Đổi mật khẩu
               </button>
-              <div style={{ fontSize: 10.5, color: HNH.ink4, marginTop: 5, textAlign: 'center' }}>
-                Đăng xuất & đóng session Keycloak, về màn hình đăng nhập
-              </div>
             </div>
+            </>)}
 
             {/* Version + build info */}
             <div style={{ padding: '0 16px 14px', borderTop: `1px solid ${HNH.line}`, paddingTop: 10 }}>

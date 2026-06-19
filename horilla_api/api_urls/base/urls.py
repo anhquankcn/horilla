@@ -2,6 +2,7 @@ from django.urls import path, re_path
 
 from ...api_views.base import views
 from ...api_views.base import job_mgmt_views as jmv
+from ...api_views.base import password_views as pwv
 
 urlpatterns = [
     path(
@@ -289,4 +290,6 @@ urlpatterns = [
     path("standby-sync/logs/", views.StandbySyncLogView.as_view(), name="api-standby-sync-logs"),
     path("job-mgmt/roles/", jmv.JobRoleListView.as_view(), name="api-job-mgmt-roles"),
     path("job-mgmt/roles/<int:pk>/", jmv.JobRoleDetailView.as_view(), name="api-job-mgmt-role-detail"),
+    path("change-password/", pwv.ChangePasswordView.as_view(), name="api-change-password"),
+    path("send-password-reset-email/", pwv.SendPasswordResetEmailView.as_view(), name="api-send-password-reset-email"),
 ]

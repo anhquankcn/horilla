@@ -150,3 +150,41 @@ def set_required_actions(user_id: str, actions: list[str]) -> None:
         timeout=10,
     )
     r.raise_for_status()
+
+
+def verify_password(email: str, password: str) -> bool:
+    """Verify user's current password via KC Resource Owner Password Grant.
+    Returns True if correct, False if wrong password, raises on other errors.
+    """
+    try:
+        resp = requests.post(
+            f"{_KC}/realms/{_REALM}/protocol/openid-connect/token",
+            data={
+                "client_id": settings.OIDC_RP_CLIENT_ID,
+                "client_secret": settings.OIDC_RP_CLIENT_SECRET or "",
+                "grant_type": "password",
+                "username": email,
+                "password": password,
+                "scope": "openid",
+            },
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            return True
+        if resp.status_code == 401:
+            return False
+        resp.raise_for_status()
+        return False
+    except requests.HTTPError:
+        raise
+
+
+def send_reset_password_email(user_id: str) -> None:
+    """Trigger KC to send 'Update Password' action email to the user."""
+    r = requests.post(
+        f"{_KC}/admin/realms/{_REALM}/users/{user_id}/execute-actions-email",
+        headers=_h(),
+        json=["UPDATE_PASSWORD"],
+        timeout=15,
+    )
+    r.raise_for_status()

@@ -58,6 +58,8 @@ export function Icon({ name, size = 18, color = HNH.ink, stroke: sw = 1.8 }: Ico
     case 'award': return <svg width={size} height={size} viewBox="0 0 24 24"><circle cx="12" cy="8" r="6" {...p}/><path d="M15.5 14.5 17 21l-5-3-5 3 1.5-6.5" {...p}/></svg>
     case 'log-in': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M15 12H3" {...p}/></svg>
     case 'log-out': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" {...p}/></svg>
+    case 'lock': return <svg width={size} height={size} viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" {...p}/><path d="M7 11V7a5 5 0 0 1 10 0v4" {...p}/></svg>
+    case 'mail': return <svg width={size} height={size} viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2" {...p}/><path d="m22 4-10 9L2 4" {...p}/></svg>
     case 'flash': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M13 2 4.5 13.5H12L11 22l8.5-11.5H12L13 2Z" {...p}/></svg>
     case 'checkmark-circle': return <svg width={size} height={size} viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" {...p}/><path d="m8 12 3 3 5-5" {...p}/></svg>
     case 'alert-circle': return <svg width={size} height={size} viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" {...p}/><path d="M12 8v4M12 16h.01" {...p}/></svg>
