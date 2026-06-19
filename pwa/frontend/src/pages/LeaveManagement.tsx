@@ -321,7 +321,21 @@ export function LeaveManagementPage() {
 
   return (
     <div style={{ background: HNH.cream, minHeight: '100%' }}>
-      <TopBar onBack={() => navigate(-1)} title="Quản lý Phép" sub="PHÉP BÙ · THÂM NIÊN" />
+      <TopBar
+        onBack={() => navigate(-1)}
+        title="Quản lý Phép"
+        sub="PHÉP BÙ · THÂM NIÊN"
+        trailing={
+          <button
+            onClick={() => navigate('/leave/overview')}
+            className="flex items-center justify-center border-none cursor-pointer"
+            style={{ width: 38, height: 38, borderRadius: 12, background: '#fff', boxShadow: '0 1px 2px rgba(15,20,40,0.06)' }}
+            title="Tổng quan tháng"
+          >
+            <Icon name="grid" size={18} color={HNH.ink} stroke={2} />
+          </button>
+        }
+      />
 
       <div style={{ padding: '0 20px 100px' }}>
         {/* Filter tabs */}

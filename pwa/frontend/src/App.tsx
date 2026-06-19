@@ -55,6 +55,7 @@ import { ShiftManagementPage } from './pages/ShiftManagement'
 import { ShiftPlannerPage } from './pages/ShiftPlanner'
 import { LeaveManagementPage } from './pages/LeaveManagement'
 import { LeaveApprovalPage } from './pages/LeaveApproval'
+import { LeaveOverviewPage } from './pages/LeaveOverview'
 import { HNHLifePage } from './pages/HNHLife'
 import { TaskBoardPage } from './pages/TaskBoard'
 import { DayDetailPage } from './pages/DayDetail'
@@ -132,6 +133,7 @@ export function App() {
         <Route path="/shift-planner" element={<ShiftPlannerPage />} />
         <Route path="/leave-management" element={<LeaveManagementPage />} />
         <Route path="/leave/approvals" element={<LeaveApprovalPage />} />
+        <Route path="/leave/overview" element={<LeaveOverviewPage />} />
         <Route path="/life" element={<HNHLifePage />} />
         <Route path="/task-board" element={<TaskBoardPage />} />
         <Route path="/day/:date" element={<DayDetailPage />} />

@@ -10,6 +10,7 @@ HNH Leave Management APIs:
 """
 
 import math
+from calendar import monthrange
 from datetime import date, timedelta
 
 from django.utils import timezone
@@ -482,6 +483,157 @@ class LeaveExcelExportView(APIView):
         )
         resp["Content-Disposition"] = f'attachment; filename="{fname}"'
         return resp
+
+
+class HNHLeaveOverviewView(APIView):
+    """
+    GET /api/leave/hnh-leave-overview/?year=&month=&dept_id=
+    Returns employees + leave cells for the monthly Gantt grid.
+    Scope: C&B → all active; Manager → direct reports; Employee → self only.
+    """
+
+    def get(self, request):
+        from leave.models import LeaveRequest
+
+        emp_user = _get_employee(request)
+        if emp_user is None:
+            return Response({"detail": "No employee"}, status=403)
+
+        today = date.today()
+        year = int(request.query_params.get("year") or today.year)
+        month = int(request.query_params.get("month") or today.month)
+        dept_filter = request.query_params.get("dept_id") or None
+
+        days_count = monthrange(year, month)[1]
+        month_start = date(year, month, 1)
+        month_end = date(year, month, days_count)
+        day_strs = [
+            (month_start + timedelta(days=i)).strftime("%Y-%m-%d")
+            for i in range(days_count)
+        ]
+
+        # Employee scope
+        base_qs = Employee.objects.filter(is_active=True).select_related(
+            "employee_work_info__department_id"
+        )
+        if _is_cnb(request):
+            emp_qs = base_qs.order_by("badge_id")
+        elif _is_manager(request):
+            emp_qs = base_qs.filter(
+                employee_work_info__reporting_manager_id=emp_user
+            ).order_by("badge_id")
+        else:
+            emp_qs = base_qs.filter(id=emp_user.id)
+
+        if dept_filter:
+            emp_qs = emp_qs.filter(employee_work_info__department_id=dept_filter)
+
+        employees = list(emp_qs[:400])
+
+        # Build employee data + collect department list
+        dept_map: dict = {}  # id → name
+        emp_data = []
+        for e in employees:
+            dept_name = ""
+            dept_id_val = None
+            try:
+                wi = e.employee_work_info
+                if wi and wi.department_id:
+                    dept_name = str(wi.department_id)
+                    dept_id_val = wi.department_id_id
+                    dept_map[str(dept_id_val)] = dept_name
+            except Exception:
+                pass
+            emp_data.append({
+                "id": e.id,
+                "name": str(e),
+                "badge_id": e.badge_id or "",
+                "department": dept_name,
+                "dept_id": dept_id_val,
+            })
+
+        departments = [{"id": k, "name": v} for k, v in dept_map.items()]
+        emp_ids = [e.id for e in employees]
+
+        # Fetch leave requests overlapping with the month
+        lr_qs = (
+            LeaveRequest.objects.filter(
+                employee_id__in=emp_ids,
+                start_date__lte=month_end,
+                end_date__gte=month_start,
+            )
+            .select_related("leave_type_id")
+            .order_by("start_date")
+        )
+
+        def _code(name: str) -> str:
+            """First letter of each word, max 4 chars, uppercase."""
+            if not name:
+                return "?"
+            # Strip leading "Đơn " prefix
+            n = name
+            if n.lower().startswith("đơn "):
+                n = n[4:]
+            words = [w for w in n.split() if w]
+            return ("".join(w[0].upper() for w in words))[:4] or "?"
+
+        cells: dict = {}
+
+        for lr in lr_qs:
+            emp_id = lr.employee_id_id
+            # Clamp to month
+            s = max(lr.start_date, month_start)
+            e_date = min(lr.end_date, month_end)
+            code = _code(lr.leave_type_id.name if lr.leave_type_id else "?")
+            is_single = lr.start_date == lr.end_date
+
+            time_range = None
+            if getattr(lr, "is_hourly", False) and getattr(lr, "start_time", None) and getattr(lr, "end_time", None):
+                time_range = f"{lr.start_time.strftime('%H:%M')}-{lr.end_time.strftime('%H:%M')}"
+
+            for offset in range((e_date - s).days + 1):
+                d = s + timedelta(days=offset)
+                is_first = d == lr.start_date
+                is_last = d == lr.end_date
+
+                is_morning = True
+                is_afternoon = True
+
+                if is_single:
+                    bd = (getattr(lr, "start_date_breakdown", None) or "full_day")
+                    if bd == "first_half":
+                        is_afternoon = False
+                    elif bd == "second_half":
+                        is_morning = False
+                elif is_first:
+                    bd = (getattr(lr, "start_date_breakdown", None) or "full_day")
+                    if bd == "second_half":
+                        is_morning = False
+                elif is_last:
+                    bd = (getattr(lr, "end_date_breakdown", None) or "full_day")
+                    if bd == "first_half":
+                        is_afternoon = False
+
+                key = f"{emp_id}_{d.strftime('%Y-%m-%d')}"
+                entry = {
+                    "id": lr.id,
+                    "code": code,
+                    "status": lr.status,
+                    "is_morning": is_morning,
+                    "is_afternoon": is_afternoon,
+                    "is_hourly": bool(getattr(lr, "is_hourly", False)),
+                    "time_range": time_range,
+                }
+                cells.setdefault(key, []).append(entry)
+
+        return Response({
+            "employees": emp_data,
+            "cells": cells,
+            "days": day_strs,
+            "departments": departments,
+            "year": year,
+            "month": month,
+        })
 
 
 def _credit_bu_days(employee: Employee, days: float):
