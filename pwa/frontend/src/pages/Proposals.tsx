@@ -7,7 +7,7 @@ import { PullToRefresh } from '../components/ui/PullToRefresh'
 import { api } from '../lib/api'
 
 /* ── Types ── */
-type ProposalKind = 'leave' | 'shift' | 'worktype' | 'attendance' | 'asset'
+type ProposalKind = 'shift' | 'worktype' | 'attendance' | 'asset'
 
 interface UnifiedItem {
   id: number
@@ -18,20 +18,6 @@ interface UnifiedItem {
   status: string
   date: string | null
   raw: unknown
-}
-
-interface LeaveProposal {
-  id: number
-  leave_type: string | null
-  start_date: string | null
-  end_date: string | null
-  start_date_breakdown: string
-  end_date_breakdown: string
-  requested_days: number | null
-  description: string
-  status: string
-  created_at: string | null
-  reject_reason: string
 }
 
 interface ShiftProposal {
@@ -75,7 +61,6 @@ interface AssetProposal {
 }
 
 const PROPOSAL_TYPES = [
-  { id: 'leave' as const, icon: 'palm', label: 'Nghỉ phép', desc: 'Xin nghỉ phép, nghỉ theo giờ', path: '/proposals/leave', tone: 'navy' },
   { id: 'shift' as const, icon: 'clock', label: 'Đổi Ca', desc: 'Đề xuất đổi ca làm việc', path: '/proposals/shift', tone: 'gold' },
   { id: 'attendance' as const, icon: 'cal', label: 'Ngày Công', desc: 'Điều chỉnh ngày công', path: '/proposals/attendance', tone: 'success' },
   { id: 'worktype' as const, icon: 'briefcase', label: 'Loại Hình LV', desc: 'Thay đổi loại hình làm việc', path: '/proposals/worktype', tone: 'navy' },
@@ -86,7 +71,6 @@ const toneBg: Record<string, string> = { navy: HNH.navy50, gold: '#faf1d6', succ
 const toneColor: Record<string, string> = { navy: HNH.navy, gold: '#a87908', success: HNH.success, red: HNH.red }
 
 const KIND_META: Record<ProposalKind, { icon: string; bg: string; color: string; label: string }> = {
-  leave: { icon: 'palm', bg: HNH.navy50, color: HNH.navy, label: 'Nghỉ phép' },
   shift: { icon: 'clock', bg: '#faf1d6', color: '#a87908', label: 'Đổi Ca' },
   worktype: { icon: 'briefcase', bg: HNH.navy50, color: HNH.navy, label: 'Loại CV' },
   attendance: { icon: 'cal', bg: HNH.success50, color: HNH.success, label: 'Ngày Công' },
@@ -117,34 +101,16 @@ const STATUS_OPTIONS = [
 
 const TYPE_OPTIONS: { value: ProposalKind | ''; label: string }[] = [
   { value: '', label: 'Tất cả' },
-  { value: 'leave', label: 'Nghỉ phép' },
   { value: 'shift', label: 'Đổi Ca' },
   { value: 'attendance', label: 'Ngày Công' },
   { value: 'worktype', label: 'Loại CV' },
   { value: 'asset', label: 'Tài sản' },
 ]
 
-const BREAKDOWN_VI: Record<string, string> = {
-  full_day: 'Cả ngày', first_half: 'Nửa sáng', second_half: 'Nửa chiều',
-}
-
 function fmtDate(iso: string | null) {
   if (!iso) return '—'
   const d = new Date(iso + 'T00:00:00')
   return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`
-}
-
-function normalizeLeave(items: LeaveProposal[]): UnifiedItem[] {
-  return items.map(r => ({
-    id: r.id,
-    kind: 'leave' as const,
-    title: r.leave_type || 'Nghỉ phép',
-    subtitle: `${fmtDate(r.start_date)}${r.end_date && r.end_date !== r.start_date ? ` → ${fmtDate(r.end_date)}` : ''}${r.requested_days ? ` · ${r.requested_days} ngày` : ''}`,
-    description: r.description || '',
-    status: STATUS_NORMALIZE[r.status] || 'requested',
-    date: r.start_date,
-    raw: r,
-  }))
 }
 
 function normalizeShift(items: ShiftProposal[]): UnifiedItem[] {
@@ -254,84 +220,6 @@ function UnifiedCard({ item }: { item: UnifiedItem }) {
   )
 }
 
-/* ── Leave Detail Modal ── */
-function LeaveDetailModal({ p, onClose, onEdit }: {
-  p: LeaveProposal; onClose: () => void; onEdit: () => void
-}) {
-  const st = STATUS_DISPLAY[STATUS_NORMALIZE[p.status] || 'requested'] || STATUS_DISPLAY.requested
-  const canEdit = p.status === 'requested' || p.status === 'rejected'
-  return (
-    <div
-      className="fixed inset-0 flex items-end justify-center"
-      style={{ zIndex: 9999, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
-      onClick={e => { if (e.target === e.currentTarget) onClose() }}
-    >
-      <div style={{
-        width: '100%', maxWidth: 540, maxHeight: '85vh', overflow: 'auto',
-        borderRadius: '24px 24px 0 0', background: HNH.cream,
-        boxShadow: '0 -10px 40px rgba(0,0,0,0.2)',
-      }}>
-        <div className="flex items-center justify-between" style={{
-          padding: '14px 16px', background: '#fff',
-          borderBottom: `1px solid ${HNH.line}`, borderRadius: '24px 24px 0 0',
-        }}>
-          <button onClick={onClose} className="flex items-center justify-center border-none cursor-pointer"
-            style={{ width: 34, height: 34, borderRadius: 10, background: HNH.cream }}>
-            <Icon name="x" size={17} color={HNH.ink} stroke={2} />
-          </button>
-          <div style={{ fontSize: 14, fontWeight: 700, color: HNH.ink }}>Chi tiết nghỉ phép</div>
-          <span style={{
-            fontSize: 10.5, fontWeight: 700, color: st.color,
-            background: st.bg, borderRadius: 6, padding: '3px 8px',
-          }}>{st.label}</span>
-        </div>
-        <div style={{ padding: 16 }}>
-          <div style={{
-            background: '#fff', borderRadius: 16, padding: 14,
-            border: `1px solid ${HNH.line}`,
-            display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 16px',
-          }}>
-            <DField label="Loại nghỉ" value={p.leave_type || '—'} />
-            <DField label="Số ngày" value={p.requested_days ? `${p.requested_days} ngày` : '—'} />
-            <DField label="Từ ngày" value={`${fmtDate(p.start_date)} (${BREAKDOWN_VI[p.start_date_breakdown] || ''})`} />
-            <DField label="Đến ngày" value={`${fmtDate(p.end_date)} (${BREAKDOWN_VI[p.end_date_breakdown] || ''})`} />
-            <div style={{ gridColumn: '1/-1' }}>
-              <DField label="Lý do" value={p.description || '—'} />
-            </div>
-            {p.reject_reason && (
-              <div style={{ gridColumn: '1/-1' }}>
-                <DField label="Lý do từ chối" value={p.reject_reason} isRed />
-              </div>
-            )}
-          </div>
-          {canEdit && (
-            <button
-              onClick={onEdit}
-              className="w-full flex items-center justify-center gap-2 border-none cursor-pointer"
-              style={{
-                marginTop: 16, padding: 13, borderRadius: 12,
-                background: HNH.navy, color: '#fff', fontSize: 13.5, fontWeight: 700,
-              }}
-            >
-              <Icon name="send" size={15} color="#fff" stroke={2} />
-              {p.status === 'rejected' ? 'Chỉnh sửa & Gửi lại' : 'Chỉnh sửa'}
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function DField({ label, value, isRed }: { label: string; value: string; isRed?: boolean }) {
-  return (
-    <div>
-      <div style={{ fontSize: 10.5, fontWeight: 600, color: isRed ? HNH.red : HNH.ink3, marginBottom: 2 }}>{label}</div>
-      <div style={{ fontSize: 13, fontWeight: 600, color: isRed ? HNH.red : HNH.ink }}>{value}</div>
-    </div>
-  )
-}
-
 /* ── Main Page ── */
 export function ProposalsPage() {
   const navigate = useNavigate()
@@ -339,20 +227,17 @@ export function ProposalsPage() {
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState<ProposalKind | ''>('')
-  const [selectedLeave, setSelectedLeave] = useState<LeaveProposal | null>(null)
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
     try {
-      const [leave, shift, wt, att, asset] = await Promise.all([
-        api.get<LeaveProposal[]>('/api/leave/my-proposals/').catch(() => [] as LeaveProposal[]),
+      const [shift, wt, att, asset] = await Promise.all([
         api.get<ShiftProposal[]>('/api/base/my-shift-requests/').catch(() => [] as ShiftProposal[]),
         api.get<WorkTypeProposal[]>('/api/base/my-worktype-requests/').catch(() => [] as WorkTypeProposal[]),
         api.get<AttendanceProposal[]>('/api/attendance/my-attendance-requests/').catch(() => [] as AttendanceProposal[]),
         api.get<AssetProposal[]>('/api/asset/my-asset-requests/').catch(() => [] as AssetProposal[]),
       ])
       const merged = [
-        ...normalizeLeave(leave),
         ...normalizeShift(shift),
         ...normalizeWorkType(wt),
         ...normalizeAttendance(att),
@@ -379,17 +264,6 @@ export function ProposalsPage() {
     if (typeFilter && item.kind !== typeFilter) return false
     return true
   })
-
-  const handleCardTap = (item: UnifiedItem) => {
-    if (item.kind === 'leave') {
-      setSelectedLeave(item.raw as LeaveProposal)
-    }
-  }
-
-  const handleEdit = (p: LeaveProposal) => {
-    setSelectedLeave(null)
-    navigate(`/proposals/leave?edit=${p.id}`)
-  }
 
   const statusCounts = allItems.reduce<Record<string, number>>((acc, i) => {
     acc[i.status] = (acc[i.status] || 0) + 1
@@ -518,8 +392,7 @@ export function ProposalsPage() {
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {filtered.map(item => (
-              <div key={`${item.kind}-${item.id}`} onClick={() => handleCardTap(item)}
-                style={{ cursor: item.kind === 'leave' ? 'pointer' : 'default' }}>
+              <div key={`${item.kind}-${item.id}`}>
                 <UnifiedCard item={item} />
               </div>
             ))}
@@ -527,14 +400,6 @@ export function ProposalsPage() {
         )}
       </div>
       </PullToRefresh>
-
-      {selectedLeave && (
-        <LeaveDetailModal
-          p={selectedLeave}
-          onClose={() => setSelectedLeave(null)}
-          onEdit={() => handleEdit(selectedLeave)}
-        />
-      )}
     </div>
   )
 }
