@@ -636,6 +636,330 @@ class HNHLeaveOverviewView(APIView):
         })
 
 
+class LeaveImportTemplateView(APIView):
+    """GET /api/leave/hnh-leave-import/template/?year= — export blank+prefilled Excel template."""
+
+    def get(self, request):
+        if not _is_cnb(request):
+            return Response({"detail": "Chỉ C&B mới có thể xuất mẫu."}, status=403)
+
+        from django.http import HttpResponse
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+        from leave.models import LeaveRequest, LeaveType
+        from django.db.models import Sum
+
+        year = int(request.query_params.get("year") or date.today().year)
+
+        def _find_type(*keywords):
+            for kw in keywords:
+                t = LeaveType.objects.filter(name__icontains=kw).first()
+                if t:
+                    return t
+            return None
+
+        annual_type = _find_type("phép năm", "annual")
+        bu_type = _find_type("phép bù")
+
+        emps = list(
+            Employee.objects.filter(is_active=True)
+            .select_related("employee_work_info__department_id")
+            .order_by("badge_id")
+        )
+        emp_ids = [e.id for e in emps]
+
+        # Used days this year for annual leave
+        used_map: dict[int, float] = {}
+        if annual_type:
+            for row in (
+                LeaveRequest.objects.filter(
+                    employee_id__in=emp_ids,
+                    leave_type_id=annual_type,
+                    status="approved",
+                    start_date__year=year,
+                )
+                .values("employee_id_id")
+                .annotate(total=Sum("requested_days"))
+            ):
+                used_map[row["employee_id_id"]] = float(row["total"] or 0)
+
+        # Current balances
+        annual_map: dict[int, AvailableLeave] = {}
+        if annual_type:
+            for av in AvailableLeave.objects.filter(leave_type_id=annual_type, employee_id__in=emp_ids):
+                annual_map[av.employee_id_id] = av
+
+        bu_map_av: dict[int, AvailableLeave] = {}
+        if bu_type:
+            for av in AvailableLeave.objects.filter(leave_type_id=bu_type, employee_id__in=emp_ids):
+                bu_map_av[av.employee_id_id] = av
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = f"PhepNam_{year}"
+
+        hdr_font  = Font(bold=True, color="FFFFFF", size=10)
+        hdr_fill  = PatternFill(start_color="C0222B", end_color="C0222B", fill_type="solid")
+        info_fill = PatternFill(start_color="F0F0F0", end_color="F0F0F0", fill_type="solid")
+        calc_fill = PatternFill(start_color="E0E0E0", end_color="E0E0E0", fill_type="solid")
+        edit_fill = PatternFill(start_color="FFFDE7", end_color="FFFDE7", fill_type="solid")
+        thin = Border(
+            left=Side(style="thin"), right=Side(style="thin"),
+            top=Side(style="thin"), bottom=Side(style="thin"),
+        )
+        center = Alignment(horizontal="center", vertical="center")
+        left   = Alignment(horizontal="left", vertical="center")
+
+        HEADERS = [
+            "STT", "Mã NV", "Họ tên", "Phòng ban",
+            "Phép đầu năm", "Phép đã dùng", "Phép bù", "Phép tồn",
+        ]
+        COL_W = [5, 10, 24, 18, 14, 14, 10, 10]
+
+        for col, (h, w) in enumerate(zip(HEADERS, COL_W), 1):
+            cell = ws.cell(row=1, column=col, value=h)
+            cell.font = hdr_font
+            cell.fill = hdr_fill
+            cell.alignment = center
+            cell.border = thin
+            ws.column_dimensions[get_column_letter(col)].width = w
+        ws.row_dimensions[1].height = 26
+
+        # Sub-header note row
+        note_row = ["", "", "", "",
+                    "Số ngày còn được dùng", "Tự động tính (bỏ qua khi nhập)",
+                    "Phép bù hiện có", "Ngày chuyển sang năm sau"]
+        ws.append(note_row)
+        for col in range(1, 9):
+            cell = ws.cell(row=2, column=col)
+            cell.font = Font(italic=True, color="888888", size=8)
+            cell.alignment = center
+            cell.fill = info_fill if col <= 4 else (calc_fill if col == 6 else edit_fill)
+            cell.border = thin
+        ws.row_dimensions[2].height = 14
+
+        for stt, emp in enumerate(emps, 1):
+            dept = ""
+            try:
+                dept = str(emp.employee_work_info.department_id)
+            except Exception:
+                pass
+
+            av   = annual_map.get(emp.id)
+            bu_a = bu_map_av.get(emp.id)
+            annual_avail = float(av.available_days or 0) if av else 0.0
+            annual_carry = float(av.carryforward_days or 0) if av else 0.0
+            used  = used_map.get(emp.id, 0.0)
+            bu_av = float(bu_a.available_days or 0) if bu_a else 0.0
+
+            row_vals = [
+                stt,
+                emp.badge_id or "",
+                f"{emp.employee_first_name} {emp.employee_last_name or ''}".strip(),
+                dept,
+                annual_avail,
+                used,
+                bu_av,
+                annual_carry,
+            ]
+            data_row = stt + 2  # rows 1-2 are header + note
+            for col, val in enumerate(row_vals, 1):
+                cell = ws.cell(row=data_row, column=col, value=val)
+                cell.border = thin
+                cell.alignment = center if col in (1, 2, 5, 6, 7, 8) else left
+                if col <= 4:
+                    cell.fill = info_fill
+                elif col == 6:
+                    cell.fill = calc_fill
+                    cell.font = Font(italic=True, color="888888", size=10)
+                else:
+                    cell.fill = edit_fill
+            ws.row_dimensions[data_row].height = 18
+
+        ws.freeze_panes = "E3"  # freeze cols A-D + rows 1-2
+
+        import io
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        fname = f"MauNhapPhep_{year}.xlsx"
+        resp = HttpResponse(
+            buf.read(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        resp["Content-Disposition"] = f'attachment; filename="{fname}"'
+        return resp
+
+
+class LeaveImportView(APIView):
+    """POST /api/leave/hnh-leave-import/?dry_run=true — parse+preview or import Excel."""
+
+    def post(self, request):
+        if not _is_cnb(request):
+            return Response({"detail": "Chỉ C&B mới có thể nhập dữ liệu."}, status=403)
+
+        from openpyxl import load_workbook
+        from leave.models import LeaveType
+        import io
+
+        dry_run = request.query_params.get("dry_run", "false").lower() == "true"
+
+        uploaded = request.FILES.get("file")
+        if not uploaded:
+            return Response({"detail": "Vui lòng upload file Excel (.xlsx)."}, status=400)
+
+        try:
+            wb = load_workbook(io.BytesIO(uploaded.read()), data_only=True)
+            ws = wb.active
+        except Exception:
+            return Response({"detail": "File không hợp lệ. Vui lòng dùng file .xlsx từ mẫu."}, status=400)
+
+        def _find_type(*keywords):
+            for kw in keywords:
+                t = LeaveType.objects.filter(name__icontains=kw).first()
+                if t:
+                    return t
+            return None
+
+        annual_type = _find_type("phép năm", "annual")
+        bu_type     = _find_type("phép bù")
+
+        emp_map = {
+            e.badge_id: e
+            for e in Employee.objects.filter(is_active=True)
+            if e.badge_id
+        }
+
+        errors: list[dict] = []
+        preview: list[dict] = []
+        updated = 0
+        skipped = 0
+
+        # Rows start at row 3 (row 1 = header, row 2 = note)
+        all_rows = list(ws.iter_rows(min_row=3, values_only=True))
+
+        def _parse_num(val, label):
+            if val is None or val == "":
+                return None, None
+            try:
+                n = float(val)
+                if n < 0:
+                    return None, f"{label} không thể âm"
+                return round(n, 2), None
+            except (ValueError, TypeError):
+                return None, f"{label} không hợp lệ: '{val}'"
+
+        for row_idx, row in enumerate(all_rows, 3):
+            if not row or not any(row):
+                continue
+
+            badge_id = str(row[1]).strip() if row[1] is not None else ""
+            if not badge_id:
+                skipped += 1
+                continue
+
+            emp = emp_map.get(badge_id)
+            if emp is None:
+                errors.append({"row": row_idx, "badge_id": badge_id, "message": f"Không tìm thấy NV mã '{badge_id}'"})
+                skipped += 1
+                continue
+
+            annual_new, err = _parse_num(row[4], "Phép đầu năm")
+            if err:
+                errors.append({"row": row_idx, "badge_id": badge_id, "message": err})
+                skipped += 1
+                continue
+
+            bu_new, err = _parse_num(row[6], "Phép bù")
+            if err:
+                errors.append({"row": row_idx, "badge_id": badge_id, "message": err})
+                skipped += 1
+                continue
+
+            carry_new, err = _parse_num(row[7], "Phép tồn")
+            if err:
+                errors.append({"row": row_idx, "badge_id": badge_id, "message": err})
+                skipped += 1
+                continue
+
+            # Read current values for diff preview
+            annual_before = 0.0
+            carry_before  = 0.0
+            bu_before     = 0.0
+
+            if annual_type:
+                av = AvailableLeave.objects.filter(employee_id=emp, leave_type_id=annual_type).first()
+                if av:
+                    annual_before = float(av.available_days or 0)
+                    carry_before  = float(av.carryforward_days or 0)
+
+            if bu_type:
+                bav = AvailableLeave.objects.filter(employee_id=emp, leave_type_id=bu_type).first()
+                if bav:
+                    bu_before = float(bav.available_days or 0)
+
+            annual_after = annual_new if annual_new is not None else annual_before
+            bu_after     = bu_new     if bu_new     is not None else bu_before
+            carry_after  = carry_new  if carry_new  is not None else carry_before
+
+            changed = (
+                annual_after != annual_before or
+                bu_after     != bu_before     or
+                carry_after  != carry_before
+            )
+
+            preview.append({
+                "row": row_idx,
+                "badge_id": badge_id,
+                "name": str(emp),
+                "annual_before": annual_before,
+                "annual_after": annual_after,
+                "bu_before": bu_before,
+                "bu_after": bu_after,
+                "carry_before": carry_before,
+                "carry_after": carry_after,
+                "changed": changed,
+            })
+
+            if not dry_run:
+                if annual_type and (annual_new is not None or carry_new is not None):
+                    av, _ = AvailableLeave.objects.get_or_create(
+                        employee_id=emp,
+                        leave_type_id=annual_type,
+                        defaults={"available_days": 0, "total_leave_days": 0, "carryforward_days": 0, "is_active": True},
+                    )
+                    if annual_new is not None:
+                        av.available_days = annual_new
+                        av.total_leave_days = annual_new
+                    if carry_new is not None:
+                        av.carryforward_days = carry_new
+                    av.is_active = True
+                    av.save()
+
+                if bu_type and bu_new is not None:
+                    bav, _ = AvailableLeave.objects.get_or_create(
+                        employee_id=emp,
+                        leave_type_id=bu_type,
+                        defaults={"available_days": 0, "total_leave_days": 0, "is_active": True},
+                    )
+                    bav.available_days = bu_new
+                    bav.total_leave_days = bu_new
+                    bav.is_active = True
+                    bav.save()
+
+            updated += 1
+
+        return Response({
+            "dry_run": dry_run,
+            "rows_processed": updated + skipped,
+            "updated": updated,
+            "skipped": skipped,
+            "errors": errors[:30],
+            "preview": preview[:200],
+        })
+
+
 def _credit_bu_days(employee: Employee, days: float):
     """Add approved Phép Bù days to the employee's AvailableLeave for Phép Bù LeaveType."""
     from leave.models import AvailableLeave, LeaveType

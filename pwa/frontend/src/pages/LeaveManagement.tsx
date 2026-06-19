@@ -326,14 +326,24 @@ export function LeaveManagementPage() {
         title="Quản lý Phép"
         sub="PHÉP BÙ · THÂM NIÊN"
         trailing={
-          <button
-            onClick={() => navigate('/leave/overview')}
-            className="flex items-center justify-center border-none cursor-pointer"
-            style={{ width: 38, height: 38, borderRadius: 12, background: '#fff', boxShadow: '0 1px 2px rgba(15,20,40,0.06)' }}
-            title="Tổng quan tháng"
-          >
-            <Icon name="grid" size={18} color={HNH.ink} stroke={2} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate('/leave/import')}
+              className="flex items-center justify-center border-none cursor-pointer"
+              style={{ width: 38, height: 38, borderRadius: 12, background: '#fff', boxShadow: '0 1px 2px rgba(15,20,40,0.06)' }}
+              title="Nhập dữ liệu nghỉ phép"
+            >
+              <Icon name="upload" size={18} color={HNH.ink} stroke={2} />
+            </button>
+            <button
+              onClick={() => navigate('/leave/overview')}
+              className="flex items-center justify-center border-none cursor-pointer"
+              style={{ width: 38, height: 38, borderRadius: 12, background: '#fff', boxShadow: '0 1px 2px rgba(15,20,40,0.06)' }}
+              title="Tổng quan tháng"
+            >
+              <Icon name="grid" size={18} color={HNH.ink} stroke={2} />
+            </button>
+          </div>
         }
       />
 

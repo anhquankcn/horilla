@@ -65,4 +65,6 @@ urlpatterns = [
     path("hnh-team-employees/", lmv.HNHTeamEmployeesView.as_view(), name="api-leave-hnh-team"),
     path("export-excel/", lmv.LeaveExcelExportView.as_view(), name="api-leave-export-excel"),
     path("hnh-leave-overview/", lmv.HNHLeaveOverviewView.as_view(), name="api-leave-hnh-overview"),
+    path("hnh-leave-import/template/", lmv.LeaveImportTemplateView.as_view(), name="api-leave-import-template"),
+    path("hnh-leave-import/", lmv.LeaveImportView.as_view(), name="api-leave-import"),
 ]
