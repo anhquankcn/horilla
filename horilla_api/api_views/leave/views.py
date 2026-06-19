@@ -1605,12 +1605,14 @@ class PendingApprovalsView(APIView):
         data = []
         for lr in all_requests:
             emp = lr.employee_id
+            lt = lr.leave_type_id
             data.append({
                 "id": lr.id,
                 "employee_id": emp.id,
                 "employee_name": f"{emp.employee_first_name} {emp.employee_last_name or ''}".strip(),
                 "badge_id": emp.badge_id,
-                "leave_type": lr.leave_type_id.name if lr.leave_type_id else None,
+                "leave_type": lt.name if lt else None,
+                "leave_payment": lt.payment if lt else None,
                 "start_date": lr.start_date.isoformat() if lr.start_date else None,
                 "end_date": lr.end_date.isoformat() if lr.end_date else None,
                 "requested_days": lr.requested_days,
@@ -1619,6 +1621,10 @@ class PendingApprovalsView(APIView):
                 "requested_date": lr.requested_date.isoformat() if lr.requested_date else None,
                 "start_date_breakdown": lr.start_date_breakdown,
                 "end_date_breakdown": lr.end_date_breakdown,
+                "is_hourly": getattr(lr, "is_hourly", False) or False,
+                "requested_hours": getattr(lr, "requested_hours", None),
+                "start_time": lr.start_time.isoformat() if getattr(lr, "start_time", None) else None,
+                "end_time": lr.end_time.isoformat() if getattr(lr, "end_time", None) else None,
             })
 
         return Response(data)

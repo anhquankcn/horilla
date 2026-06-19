@@ -122,6 +122,7 @@ export function LeavePage() {
   const { data: summary } = useApi<HNHSummary>('/api/leave/hnh-leave-summary/')
   const { data: balResp } = useApi<Paginated<AvailableLeave>>('/api/leave/available-leave/?page_size=20')
   const { data: reqResp } = useApi<Paginated<LeaveRequestItem>>('/api/leave/user-request/')
+  const { data: pendingApprovals } = useApi<{ id: number }[]>('/api/leave/pending-approvals/')
 
   const requests = reqResp?.results ?? []
   const [detailReq, setDetailReq] = useState<LeaveRequestItem | null>(null)
@@ -181,6 +182,29 @@ export function LeavePage() {
       />
 
       <div style={{ padding: '0 20px 100px' }}>
+        {/* Pending approvals banner — chỉ hiện nếu có đơn chờ duyệt */}
+        {(pendingApprovals ?? []).length > 0 && (
+          <button
+            onClick={() => navigate('/leave/approvals')}
+            className="flex items-center gap-3 w-full border-none cursor-pointer"
+            style={{
+              background: '#fff8e1', borderRadius: 16, padding: '12px 16px',
+              border: `1.5px solid ${HNH.gold}`, marginBottom: 12, textAlign: 'left',
+            }}
+          >
+            <div className="flex items-center justify-center shrink-0" style={{ width: 38, height: 38, borderRadius: 12, background: '#faf1d6' }}>
+              <Icon name="check-circle" size={20} color="#a87908" stroke={2} />
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: '#a87908' }}>
+                {(pendingApprovals ?? []).length} đơn nghỉ chờ bạn duyệt
+              </div>
+              <div style={{ fontSize: 11.5, color: '#c29010', marginTop: 1 }}>Nhấn để xem và phê duyệt</div>
+            </div>
+            <Icon name="chev-r" size={16} color="#a87908" stroke={2} />
+          </button>
+        )}
+
         {/* Big annual leave card */}
         {(annualTotal > 0 || annualAvail > 0) && (
           <div style={{
