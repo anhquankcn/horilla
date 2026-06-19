@@ -222,11 +222,24 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
       setBlockMsg('Không thể chấm công trên máy tính/laptop. Vui lòng dùng điện thoại có camera.')
     }
     let mounted = true
+    async function startWithConstraints(constraints: MediaStreamConstraints): Promise<MediaStream> {
+      return navigator.mediaDevices.getUserMedia(constraints)
+    }
     async function start() {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
-        })
+        let stream: MediaStream
+        try {
+          stream = await startWithConstraints({
+            video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+          })
+        } catch (err: unknown) {
+          // facingMode:'user' thất bại (OverconstrainedError) → thử lại không có constraint
+          if ((err as DOMException)?.name === 'OverconstrainedError') {
+            stream = await startWithConstraints({ video: true })
+          } else {
+            throw err
+          }
+        }
         if (!mounted) { stream.getTracks().forEach(t => t.stop()); return }
         streamRef.current = stream
         if (videoRef.current) {
@@ -234,8 +247,18 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
           await videoRef.current.play()
         }
         setCameraReady(true)
-      } catch {
-        if (mounted) setCameraError('Chưa cấp quyền Camera')
+      } catch (err: unknown) {
+        if (!mounted) return
+        const name = (err as DOMException)?.name
+        if (name === 'NotAllowedError') {
+          setCameraError('Chưa cấp quyền Camera — vào Cài đặt trình duyệt/điện thoại để cho phép')
+        } else if (name === 'NotFoundError') {
+          setCameraError('Thiết bị không có camera')
+        } else if (name === 'NotReadableError') {
+          setCameraError('Camera đang dùng bởi ứng dụng khác — tắt app khác rồi thử lại')
+        } else {
+          setCameraError('Không mở được camera')
+        }
       }
     }
     start()
