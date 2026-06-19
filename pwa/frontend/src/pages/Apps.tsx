@@ -62,7 +62,9 @@ const features: AppFeature[] = [
   { slug: 'leave',            icon: 'leaf',  label: 'Nghỉ phép',    desc: 'Số dư, lịch sử nghỉ phép, gửi đơn',  path: '/leave',            tone: 'success', group: 'leave', always: true },
   { slug: 'proposals',        icon: 'send',  label: 'Đề xuất',      desc: 'Nghỉ phép, đổi ca, ngày công',        path: '/proposals',        tone: 'success', group: 'leave', always: true },
   { slug: 'approvals',        icon: 'check', label: 'Phê duyệt',    desc: 'Duyệt đề xuất nhân viên',             path: '/approvals',        tone: 'gold',    group: 'leave', always: true },
-  { slug: 'leave-management', icon: 'leaf',  label: 'Quản lý Phép', desc: 'Phép bù, thâm niên, duyệt đề xuất',  path: '/leave-management', tone: 'success', group: 'leave' },
+  { slug: 'leave-management', icon: 'leaf',  label: 'Quản lý Phép',    desc: 'Phép bù, thâm niên, duyệt đề xuất',   path: '/leave-management', tone: 'success', group: 'leave' },
+  { slug: 'leave-overview',   icon: 'grid',  label: 'Tổng quan Tháng', desc: 'Lịch nghỉ toàn bộ nhân viên theo tháng', path: '/leave/overview',  tone: 'success', group: 'leave' },
+  { slug: 'leave-import',     icon: 'upload', label: 'Import Phép Năm', desc: 'Nhập số ngày phép đầu năm từ file Excel', path: '/leave/import',   tone: 'gold',    group: 'leave' },
 
   // ── Lương ──
   { slug: 'payslip',      icon: 'doc', label: 'Phiếu lương', desc: 'Xem chi tiết lương hàng tháng',    path: '/payslip',      tone: 'navy', group: 'payroll', always: true },
