@@ -1004,7 +1004,8 @@ export function HomePage() {
       setPwEmailSent(true)
       setPwMsg({ type: 'success', text: 'Đã gửi email đặt lại mật khẩu. Kiểm tra hộp thư của bạn.' })
     } catch (e: unknown) {
-      const msg = (e as { data?: { error?: string } })?.data?.error || 'Không gửi được email'
+      let msg = 'Không gửi được email'
+      try { msg = JSON.parse((e as Error).message)?.error || msg } catch { /* raw message */ }
       setPwMsg({ type: 'error', text: msg })
     } finally {
       setPwLoading(false)
@@ -1022,7 +1023,8 @@ export function HomePage() {
       setPwMsg({ type: 'success', text: 'Đổi mật khẩu thành công!' })
       setPwOld(''); setPwNew(''); setPwConfirm('')
     } catch (e: unknown) {
-      const msg = (e as { data?: { error?: string } })?.data?.error || 'Đổi mật khẩu thất bại'
+      let msg = 'Đổi mật khẩu thất bại'
+      try { msg = JSON.parse((e as Error).message)?.error || msg } catch { /* raw message */ }
       setPwMsg({ type: 'error', text: msg })
     } finally {
       setPwLoading(false)
