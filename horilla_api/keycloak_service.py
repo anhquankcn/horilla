@@ -123,11 +123,11 @@ def get_user_groups(user_id: str) -> list[str]:
     return [g["name"] for g in r.json()] if r.ok else []
 
 
-def reset_password(user_id: str, password: str = "Hnh@1234") -> None:
+def reset_password(user_id: str, password: str = "Hnh@1234", temporary: bool = False) -> None:
     r = requests.put(
         f"{_KC}/admin/realms/{_REALM}/users/{user_id}/reset-password",
         headers=_h(),
-        json={"type": "password", "value": password, "temporary": False},
+        json={"type": "password", "value": password, "temporary": temporary},
         timeout=10,
     )
     r.raise_for_status()

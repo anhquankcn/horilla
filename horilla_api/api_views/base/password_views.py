@@ -49,39 +49,43 @@ class ChangePasswordView(APIView):
 
 class SendPasswordResetEmailView(APIView):
     """POST /api/base/send-password-reset-email/
-    Triggers KC to send an 'Update Password' action email to the current user.
-    If the user has no KC account, auto-creates a random password and sends via Django email.
+    Generates a temporary password, sets it as temporary in KC (forces reset on
+    next login), then emails it via Django SMTP.  Works regardless of whether the
+    user already has a KC account.
     """
 
     def post(self, request):
+        from django.core.mail import send_mail
+        from employee.models import Employee
+
         email = request.user.email
         if not email:
             return Response({"error": "Tài khoản chưa có email"}, status=400)
 
-        kc_user = kc.get_user_by_email(email)
-        if kc_user:
-            try:
-                kc.send_reset_password_email(kc_user["id"])
-            except Exception as exc:
-                return Response({"error": f"Không thể gửi email: {exc}"}, status=500)
-            return Response({"success": True, "message": f"Đã gửi email đặt lại mật khẩu tới {email}"})
-
-        # Chưa có KC account — tự tạo mật khẩu tạm và gửi qua email HRM
-        chars = string.ascii_letters + string.digits + "!@#$%"
-        temp_pw = "".join(secrets.choice(chars) for _ in range(12))
-        from employee.models import Employee
         emp = Employee.objects.filter(employee_user_id=request.user).first()
         first = emp.employee_first_name if emp else ""
         last = emp.employee_last_name if emp else ""
-        try:
-            uid = kc.create_user(email, first, last, temp_pw)
-            if not uid:
-                return Response({"error": "Không thể tạo tài khoản KC"}, status=500)
-        except Exception as exc:
-            return Response({"error": f"Không thể tạo tài khoản KC: {exc}"}, status=500)
+
+        chars = string.ascii_letters + string.digits + "!@#$%"
+        temp_pw = "".join(secrets.choice(chars) for _ in range(12))
+
+        kc_user = kc.get_user_by_email(email)
+        if kc_user:
+            uid = kc_user["id"]
+        else:
+            try:
+                uid = kc.create_user(email, first, last, temp_pw)
+                if not uid:
+                    return Response({"error": "Không thể tạo tài khoản KC"}, status=500)
+            except Exception as exc:
+                return Response({"error": f"Không thể tạo tài khoản KC: {exc}"}, status=500)
 
         try:
-            from django.core.mail import send_mail
+            kc.reset_password(uid, temp_pw, temporary=True)
+        except Exception as exc:
+            return Response({"error": f"Không thể đặt mật khẩu tạm: {exc}"}, status=500)
+
+        try:
             send_mail(
                 subject="[HNH HRM] Mật khẩu tạm thời của bạn",
                 message=(
@@ -89,17 +93,17 @@ class SendPasswordResetEmailView(APIView):
                     f"Hệ thống HNH HRM đã tạo mật khẩu tạm thời cho tài khoản của bạn:\n\n"
                     f"  Tài khoản: {email}\n"
                     f"  Mật khẩu:  {temp_pw}\n\n"
-                    f"Vui lòng đăng nhập và đổi mật khẩu ngay.\n\n"
-                    f"HNH HRM System"
+                    f"Vui lòng đăng nhập và đổi mật khẩu ngay sau khi nhận được email này.\n\n"
+                    f"Hồng Ngọc Hà Travel HRM"
                 ),
                 from_email=None,
                 recipient_list=[email],
                 fail_silently=False,
             )
         except Exception as exc:
-            return Response({"error": f"Tạo tài khoản OK nhưng không gửi được email: {exc}"}, status=500)
+            return Response({"error": f"Đặt mật khẩu OK nhưng không gửi được email: {exc}"}, status=500)
 
         return Response({
             "success": True,
-            "message": f"Đã tạo tài khoản và gửi mật khẩu tạm tới {email}",
+            "message": f"Đã gửi mật khẩu tạm thời tới {email}",
         })
