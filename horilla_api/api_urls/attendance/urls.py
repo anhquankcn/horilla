@@ -89,6 +89,8 @@ urlpatterns = [
     path("my-month-calendar/", MyMonthCalendarView.as_view(), name="api-my-month-calendar"),
     path("auto-clockout-schedule/", AutoClockoutScheduleView.as_view(), name="api-auto-clockout-schedule"),
     path("my-today-shifts/", MyTodayShiftDetailView.as_view(), name="api-my-today-shifts"),
+    path("manager-punch-matrix/", ManagerPunchMatrixView.as_view(), name="api-manager-punch-matrix"),
+    path("manager-punch-detail/", ManagerPunchDetailView.as_view(), name="api-manager-punch-detail"),
     # Export
     path("export-monthly/", export_views.AttendanceExportPreviewView.as_view(), name="api-export-monthly"),
     path("export-monthly/xlsx/", export_views.AttendanceExportExcelView.as_view(), name="api-export-monthly-xlsx"),

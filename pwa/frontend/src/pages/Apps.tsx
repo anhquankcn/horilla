@@ -56,6 +56,7 @@ const features: AppFeature[] = [
   { slug: 'shift-management',    icon: 'clock', label: 'Quản lý Ca',    desc: 'Phân ca nhân viên, cấu hình ca theo phòng ban',        path: '/shift-management',          tone: 'red',  group: 'attendance' },
   { slug: 'shift-planner',      icon: 'cal',   label: 'Phân Ca NV',    desc: 'Lưới phân ca tháng theo phòng ban, quản lý, phê duyệt', path: '/shift-planner',             tone: 'red',  group: 'attendance', always: true },
   { slug: 'hrm-wds-labelday',    icon: 'cal',   label: 'Gán lịch bận',  desc: 'Tag Công tác / Sự kiện / Nghỉ ốm theo tuần',          path: '/labelday',                  tone: 'gold', group: 'attendance' },
+  { slug: 'attendance-manager',   icon: 'users', label: 'Quản lý Công NV', desc: 'Bảng First-Last chấm công NV dưới quyền theo tháng', path: '/attendance-manager',        tone: 'red',  group: 'attendance' },
   { slug: 'hrm-att-setting',     icon: 'gear',  label: 'Cài đặt CC',   desc: 'Cấu hình Chấm công, Geofence',                         path: '/attendance-settings',       tone: 'navy', group: 'attendance' },
 
   // ── Nghỉ phép ──

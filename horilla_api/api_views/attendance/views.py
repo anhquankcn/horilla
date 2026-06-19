@@ -3241,3 +3241,253 @@ class MyTodayShiftDetailView(APIView):
             "total_expected_minutes": round(total_expected),
             "progress_pct": min(100, progress),
         })
+
+
+# ── Manager Punch Matrix ──────────────────────────────────────────────────────
+
+def _get_subordinate_ids(manager_emp):
+    """BFS across the org tree; returns set of employee IDs under manager_emp."""
+    from employee.models import Employee
+    result = set()
+    frontier = [manager_emp.id]
+    while frontier:
+        direct = list(
+            Employee.objects.filter(
+                employee_work_info__reporting_manager_id__in=frontier,
+                is_active=True,
+            ).values_list("id", flat=True)
+        )
+        new = set(direct) - result
+        result |= new
+        frontier = list(new)
+    return result
+
+
+class ManagerPunchMatrixView(APIView):
+    """GET /api/attendance/manager-punch-matrix/
+
+    Returns first-in / last-out from AttendanceActivity per employee per day
+    for the requesting manager's org subtree (recursive).
+
+    Query params:
+      month        YYYY-MM  (default: current month)
+      department_id
+      company_id
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        import calendar as _cal
+        from employee.models import Employee
+
+        month_str = request.GET.get("month", "")
+        dept_filter = request.GET.get("department_id")
+        comp_filter = request.GET.get("company_id")
+
+        try:
+            year, month = map(int, month_str.split("-"))
+        except (ValueError, AttributeError):
+            _today = date.today()
+            year, month = _today.year, _today.month
+
+        days_in_month = _cal.monthrange(year, month)[1]
+        first_day = date(year, month, 1)
+        last_day  = date(year, month, days_in_month)
+        today_date = date.today()
+
+        try:
+            manager_emp = request.user.employee_get
+        except Exception:
+            return Response({"error": "Không tìm thấy thông tin nhân viên"}, status=400)
+
+        has_hr_perm = request.user.has_perm("attendance.view_attendance")
+        if has_hr_perm:
+            sub_ids = None  # HR sees everyone
+        else:
+            sub_ids = _get_subordinate_ids(manager_emp)
+            if not sub_ids:
+                weekday_vi = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
+                return Response({
+                    "year": year, "month": month,
+                    "days": [
+                        {"day": n, "weekday": weekday_vi[date(year, month, n).weekday()],
+                         "is_weekend": date(year, month, n).weekday() >= 5}
+                        for n in range(1, days_in_month + 1)
+                    ],
+                    "employees": [],
+                })
+
+        emp_qs = (
+            Employee.objects.filter(is_active=True)
+            .select_related(
+                "employee_work_info__department_id",
+                "employee_work_info__company_id",
+            )
+            .order_by(
+                "employee_work_info__department_id__department",
+                "employee_first_name", "employee_last_name",
+            )
+        )
+        if sub_ids is not None:
+            emp_qs = emp_qs.filter(id__in=sub_ids)
+        if dept_filter:
+            emp_qs = emp_qs.filter(employee_work_info__department_id=dept_filter)
+        if comp_filter:
+            emp_qs = emp_qs.filter(employee_work_info__company_id=comp_filter)
+
+        emp_ids = list(emp_qs.values_list("id", flat=True))
+
+        # Collect AttendanceActivity punches per (employee, date)
+        punch_map: dict = {}  # {emp_id: {date: [(type, time)]}}
+        for act in AttendanceActivity.objects.filter(
+            employee_id__in=emp_ids,
+            attendance_date__gte=first_day,
+            attendance_date__lte=last_day,
+        ).values("employee_id", "attendance_date", "clock_in", "clock_out").order_by(
+            "employee_id", "attendance_date", "clock_in"
+        ):
+            eid = act["employee_id"]
+            d   = act["attendance_date"]
+            punch_map.setdefault(eid, {}).setdefault(d, [])
+            if act["clock_in"]:
+                punch_map[eid][d].append(("in",  act["clock_in"]))
+            if act["clock_out"]:
+                punch_map[eid][d].append(("out", act["clock_out"]))
+
+        weekday_vi = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
+        days_header = [
+            {
+                "day": n,
+                "weekday": weekday_vi[date(year, month, n).weekday()],
+                "is_weekend": date(year, month, n).weekday() >= 5,
+            }
+            for n in range(1, days_in_month + 1)
+        ]
+
+        employees_data = []
+        for emp in emp_qs:
+            emp_punches = punch_map.get(emp.id, {})
+            days_data: dict = {}
+
+            for day_num in range(1, days_in_month + 1):
+                d = date(year, month, day_num)
+                is_weekend = d.weekday() >= 5
+                is_future  = d > today_date
+                punches    = emp_punches.get(d, [])
+
+                all_times = sorted(t for _, t in punches)
+                first_in  = all_times[0].strftime("%H:%M") if all_times else None
+                last_out  = all_times[-1].strftime("%H:%M") if len(all_times) >= 2 else None
+
+                days_data[str(day_num)] = {
+                    "first_in":    first_in,
+                    "last_out":    last_out,
+                    "punch_count": len(punches),
+                    "is_weekend":  is_weekend,
+                    "is_future":   is_future,
+                }
+
+            avatar = None
+            try:
+                if emp.employee_profile:
+                    avatar = emp.employee_profile.url
+            except Exception:
+                pass
+
+            dept_name = dept_id_val = comp_id_val = comp_name = ""
+            dept_id_val = comp_id_val = None
+            try:
+                wi = emp.employee_work_info
+                if wi:
+                    if wi.department_id:
+                        dept_name  = wi.department_id.department
+                        dept_id_val = wi.department_id.id
+                    if wi.company_id:
+                        comp_id_val = wi.company_id.id
+                        comp_name   = wi.company_id.company
+            except Exception:
+                pass
+
+            employees_data.append({
+                "id":             emp.id,
+                "name":           emp.get_full_name(),
+                "first_name":     emp.employee_first_name or "",
+                "last_name":      emp.employee_last_name  or "",
+                "badge_id":       emp.badge_id            or "",
+                "employee_code":  getattr(emp, "employee_code", "")  or "",
+                "accounting_code":getattr(emp, "accounting_code", "") or "",
+                "avatar":         avatar,
+                "department":     dept_name,
+                "department_id":  dept_id_val,
+                "company_id":     comp_id_val,
+                "company_name":   comp_name,
+                "days":           days_data,
+            })
+
+        return Response({
+            "year": year, "month": month,
+            "days": days_header,
+            "employees": employees_data,
+        })
+
+
+class ManagerPunchDetailView(APIView):
+    """GET /api/attendance/manager-punch-detail/?employee_id=&date=YYYY-MM-DD
+
+    Returns all punch events for one employee on one date.
+    Accessible by the employee's manager (any level) or HR.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from employee.models import Employee
+
+        employee_id = request.GET.get("employee_id")
+        date_str    = request.GET.get("date", "")
+
+        if not employee_id or not date_str:
+            return Response({"error": "employee_id và date là bắt buộc"}, status=400)
+
+        try:
+            target_date = date.fromisoformat(date_str)
+        except ValueError:
+            return Response({"error": "date không hợp lệ (YYYY-MM-DD)"}, status=400)
+
+        try:
+            manager_emp = request.user.employee_get
+        except Exception:
+            return Response({"error": "Không tìm thấy thông tin nhân viên"}, status=400)
+
+        eid = int(employee_id)
+        is_self = eid == getattr(manager_emp, "id", None)
+        if not is_self and not request.user.has_perm("attendance.view_attendance"):
+            sub_ids = _get_subordinate_ids(manager_emp)
+            if eid not in sub_ids:
+                return Response({"error": "Không có quyền xem nhân viên này"}, status=403)
+
+        emp = Employee.objects.filter(id=eid).first()
+        if not emp:
+            return Response({"error": "Không tìm thấy nhân viên"}, status=404)
+
+        activities = AttendanceActivity.objects.filter(
+            employee_id=emp,
+            attendance_date=target_date,
+        ).order_by("clock_in")
+
+        punches = []
+        for act in activities:
+            if act.clock_in:
+                punches.append({"time": act.clock_in.strftime("%H:%M"), "type": "in"})
+            if act.clock_out:
+                punches.append({"time": act.clock_out.strftime("%H:%M"), "type": "out"})
+        punches.sort(key=lambda x: x["time"])
+
+        return Response({
+            "employee_id":   emp.id,
+            "employee_name": emp.get_full_name(),
+            "badge_id":      emp.badge_id or "",
+            "date":          date_str,
+            "punches":       punches,
+        })
