@@ -3301,22 +3301,19 @@ class ManagerPunchMatrixView(APIView):
         except Exception:
             return Response({"error": "Không tìm thấy thông tin nhân viên"}, status=400)
 
-        has_hr_perm = request.user.has_perm("attendance.view_attendance")
-        if has_hr_perm:
-            sub_ids = None  # HR sees everyone
-        else:
-            sub_ids = _get_subordinate_ids(manager_emp)
-            if not sub_ids:
-                weekday_vi = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
-                return Response({
-                    "year": year, "month": month,
-                    "days": [
-                        {"day": n, "weekday": weekday_vi[date(year, month, n).weekday()],
-                         "is_weekend": date(year, month, n).weekday() >= 5}
-                        for n in range(1, days_in_month + 1)
-                    ],
-                    "employees": [],
-                })
+        # Always scope to org tree — this view is for managers, not HR.
+        sub_ids = _get_subordinate_ids(manager_emp)
+        if not sub_ids:
+            weekday_vi = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
+            return Response({
+                "year": year, "month": month,
+                "days": [
+                    {"day": n, "weekday": weekday_vi[date(year, month, n).weekday()],
+                     "is_weekend": date(year, month, n).weekday() >= 5}
+                    for n in range(1, days_in_month + 1)
+                ],
+                "employees": [],
+            })
 
         emp_qs = (
             Employee.objects.filter(is_active=True)
@@ -3462,7 +3459,7 @@ class ManagerPunchDetailView(APIView):
 
         eid = int(employee_id)
         is_self = eid == getattr(manager_emp, "id", None)
-        if not is_self and not request.user.has_perm("attendance.view_attendance"):
+        if not is_self:
             sub_ids = _get_subordinate_ids(manager_emp)
             if eid not in sub_ids:
                 return Response({"error": "Không có quyền xem nhân viên này"}, status=403)
