@@ -3,7 +3,6 @@ import { HNH } from '../lib/theme'
 import { Icon } from './ui/Icon'
 import { Badge } from './ui/Badge'
 import { useApi } from '../lib/useApi'
-import { useTablet } from '../lib/useTablet'
 import { api } from '../lib/api'
 import type { ActivityResp } from './AttendanceActivityDetail'
 
@@ -142,7 +141,6 @@ export function AttendanceDetailModal({ open, onClose, attendanceDate, clockIn, 
   const { data: resp, loading, refresh } = useApi<ActivityResp>(
     open && attendanceDate ? `/api/attendance/activity-detail/?date=${attendanceDate}` : null
   )
-  const isTablet = useTablet()
   const [ncoOut, setNcoOut] = useState('')
   const [ncoReason, setNcoReason] = useState('')
   const [ncoBusy, setNcoBusy] = useState(false)
@@ -172,18 +170,16 @@ export function AttendanceDetailModal({ open, onClose, attendanceDate, clockIn, 
 
   return (
     <div
-      className={isTablet ? 'fixed inset-0 flex items-center justify-center' : 'fixed inset-0 flex flex-col'}
+      className="fixed inset-0 flex items-center justify-center"
       style={{ zIndex: 10000, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}
+      onClick={onClose}
     >
       <div
-        className={isTablet ? '' : 'flex-1 overflow-y-auto'}
-        style={isTablet
-          ? { width: '100%', maxWidth: 520, maxHeight: '90vh', overflow: 'auto', borderRadius: 24, boxShadow: '0 24px 48px rgba(0,0,0,0.25)' }
-          : { WebkitOverflowScrolling: 'touch' as never }
-        }
+        onClick={e => e.stopPropagation()}
+        style={{ width: '100%', maxWidth: 520, maxHeight: '90vh', overflow: 'auto', borderRadius: 24, boxShadow: '0 24px 48px rgba(0,0,0,0.25)', margin: '0 16px' }}
       >
-        <div style={{ minHeight: isTablet ? undefined : '100%', background: HNH.cream, paddingBottom: isTablet ? 20 : 'calc(20px + env(safe-area-inset-bottom, 0px))', borderRadius: isTablet ? 24 : 0 }}>
-          <div className="flex items-center gap-3" style={{ padding: '10px 16px', paddingTop: 'calc(10px + env(safe-area-inset-top, 0px))', background: '#fff', borderBottom: `1px solid ${HNH.line}` }}>
+        <div style={{ background: HNH.cream, paddingBottom: 20, borderRadius: 24 }}>
+          <div className="flex items-center gap-3" style={{ padding: '10px 16px', background: '#fff', borderBottom: `1px solid ${HNH.line}`, borderRadius: '24px 24px 0 0' }}>
             <button onClick={onClose} className="flex items-center justify-center border-none cursor-pointer shrink-0" style={{ width: 44, height: 44, borderRadius: 14, background: '#fff', boxShadow: '0 1px 4px rgba(15,20,40,0.09)' }}>
               <svg width="9" height="16" viewBox="0 0 9 16"><path d="M7.5 1.5 1.5 8l6 6.5" stroke={HNH.ink} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
             </button>
