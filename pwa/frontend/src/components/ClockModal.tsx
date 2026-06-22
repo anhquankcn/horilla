@@ -187,6 +187,7 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
   const streamRef = useRef<MediaStream | null>(null)
   const [cameraReady, setCameraReady] = useState(false)
   const [cameraError, setCameraError] = useState<string | null>(null)
+  const [cameraRetry, setCameraRetry] = useState(0)
   const [selfie, setSelfie] = useState<string | null>(null)
   const [done, setDone] = useState<DoneState>(null)
   const wasClockedIn = useRef(false)
@@ -251,7 +252,12 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
         if (!mounted) return
         const name = (err as DOMException)?.name
         if (name === 'NotAllowedError') {
-          setCameraError('Chưa cấp quyền Camera — vào Cài đặt trình duyệt/điện thoại để cho phép')
+          const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+            (/Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 0)
+          setCameraError(isIOS
+            ? 'Chưa cấp quyền Camera cho ứng dụng này.\nVào Cài đặt iPhone → Quyền riêng tư & Bảo mật → Camera → bật Safari → sau đó nhấn Thử lại bên dưới.'
+            : 'Chưa cấp quyền Camera — vào Cài đặt trình duyệt để cho phép, rồi nhấn Thử lại.'
+          )
         } else if (name === 'NotFoundError') {
           setCameraError('Thiết bị không có camera')
         } else if (name === 'NotReadableError') {
@@ -273,7 +279,8 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
       streamRef.current?.getTracks().forEach(t => t.stop())
       streamRef.current = null
     }
-  }, [open])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, cameraRetry])
 
   const officesWithDist = offices.map(o => ({
     ...o,
@@ -313,6 +320,15 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
       setOofType(prev => prev || 'remote')   // mặc định "Làm từ xa" khi Ngoài VP
     }
   }, [isInsideSelected, done])
+
+  const retryCam = useCallback(() => {
+    streamRef.current?.getTracks().forEach(t => t.stop())
+    streamRef.current = null
+    setCameraError(null)
+    setCameraReady(false)
+    setSelfie(null)
+    setCameraRetry(c => c + 1)
+  }, [])
 
   const capture = useCallback((): string | null => {
     const video = videoRef.current
@@ -793,10 +809,21 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
             </div>
           )}
           {cameraError && !selfie && (
-            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2" style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13 }}>
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-3" style={{ padding: '20px 16px', textAlign: 'center' }}>
               <Icon name="shield" size={32} color="rgba(255,255,255,0.3)" />
-              <div>{cameraError}</div>
-              <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>Chấm công sẽ được ghi chú "nocam"</div>
+              <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12.5, fontWeight: 600, lineHeight: 1.55, whiteSpace: 'pre-line' }}>
+                {cameraError}
+              </div>
+              <button
+                onClick={retryCam}
+                style={{
+                  padding: '9px 22px', borderRadius: 12, border: 'none', cursor: 'pointer',
+                  background: 'rgba(255,255,255,0.18)', color: '#fff',
+                  fontSize: 13, fontWeight: 700, backdropFilter: 'blur(6px)',
+                }}
+              >
+                Thử lại
+              </button>
             </div>
           )}
           {/* GPS overlay on camera */}
