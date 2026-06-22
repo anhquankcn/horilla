@@ -45,9 +45,10 @@ def leave_Validations(self, data):
 
     errors = {}
     # checking if there is any requested days is overlapping with the existing leave request
+    # Exclude cancelled/rejected requests so employees can re-apply for rejected dates
     leave_requests = employee.leaverequest_set.filter(
         start_date__lte=end_date, end_date__gte=start_date
-    )
+    ).exclude(status__in=["cancelled", "rejected"])
     if self.instance:
         leave_requests = leave_requests.exclude(id=self.instance.id)
     if leave_requests:
