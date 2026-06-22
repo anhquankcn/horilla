@@ -155,8 +155,12 @@ const WMO: Record<number, { label: string; emoji: string }> = {
   99: { label: 'Bão mưa đá lớn', emoji: '⛈️' },
 }
 
-function getWmo(code: number) {
-  return WMO[code] ?? WMO[Math.floor(code / 10) * 10] ?? { label: 'Không xác định', emoji: '🌡️' }
+function getWmo(code: number, hour?: number) {
+  const base = WMO[code] ?? WMO[Math.floor(code / 10) * 10] ?? { label: 'Không xác định', emoji: '🌡️' }
+  // Ban đêm (20h–5h59): mã 0-2 (trời quang/ít mây) dùng trăng thay mặt trời
+  const isNight = hour !== undefined && (hour >= 20 || hour < 6)
+  if (isNight && code <= 2) return { ...base, emoji: '🌙' }
+  return base
 }
 
 function getGreeting(hour: number): string {
@@ -253,7 +257,7 @@ function WeatherWidget({ name, hour, liveTime, compact }: { name: string; hour: 
 
   const greeting = getGreeting(hour)
   const skyBg = getSkyBg(hour, wx?.code ?? 0)
-  const wmo = wx ? getWmo(wx.code) : null
+  const wmo = wx ? getWmo(wx.code, hour) : null
   const location = wx ? [wx.suburb, wx.city].filter(Boolean).join(' · ') : null
 
   useEffect(() => {
