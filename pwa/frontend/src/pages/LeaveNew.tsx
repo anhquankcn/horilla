@@ -1,9 +1,10 @@
 import { useNavigate } from 'react-router-dom'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { useApi } from '../lib/useApi'
 import { api } from '../lib/api'
+import { useAuth } from '../lib/auth'
 
 interface LeaveTypeInfo {
   id: number
@@ -61,11 +62,229 @@ const frameHours = (f: HourFrame): number => {
 }
 const dayHours = (d: HourDay): number => d.frames.reduce((s, f) => s + frameHours(f), 0)
 const fmtDate = (s: string) => {
-  const d = new Date(s)
+  const d = new Date(s + 'T00:00:00')
   const wd = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'][d.getDay()]
   return `${wd}, ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`
 }
+const pad2 = (n: number) => String(n).padStart(2, '0')
 
+// ───────── CalendarPicker ─────────
+const VN_MONTHS = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6','Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12']
+
+function CalendarPicker({ open, onClose, selectedDates, onToggle, singleSelect = false, onSelect }: {
+  open: boolean
+  onClose: () => void
+  selectedDates: string[]
+  onToggle?: (date: string) => void
+  singleSelect?: boolean
+  onSelect?: (date: string) => void
+}) {
+  const now = new Date()
+  const [year, setYear] = useState(now.getFullYear())
+  const [month, setMonth] = useState(now.getMonth())
+
+  // Reset to today's month on open; if single-select has a selected date, jump to that month
+  useEffect(() => {
+    if (!open) return
+    if (singleSelect && selectedDates.length === 1) {
+      const parts = selectedDates[0].split('-').map(Number)
+      setYear(parts[0])
+      setMonth(parts[1] - 1)
+    } else {
+      setYear(now.getFullYear())
+      setMonth(now.getMonth())
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open])
+
+  const todayStr = `${now.getFullYear()}-${pad2(now.getMonth() + 1)}-${pad2(now.getDate())}`
+
+  const prevMonth = () => {
+    if (month === 0) { setYear(y => y - 1); setMonth(11) }
+    else setMonth(m => m - 1)
+  }
+  const nextMonth = () => {
+    if (month === 11) { setYear(y => y + 1); setMonth(0) }
+    else setMonth(m => m + 1)
+  }
+
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const firstDow = new Date(year, month, 1).getDay() // 0=Sun
+  const offset = (firstDow + 6) % 7                 // Mon-first offset
+
+  const DOW = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']
+
+  if (!open) return null
+
+  const handleDate = (ds: string) => {
+    if (singleSelect && onSelect) { onSelect(ds); onClose() }
+    else onToggle?.(ds)
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 260, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+      onClick={onClose}>
+      <div onClick={e => e.stopPropagation()}
+        style={{ width: '100%', maxWidth: 520, background: '#fff', borderRadius: '20px 20px 0 0', paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))' }}>
+        {/* Handle */}
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 4px' }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: '#ddd' }} />
+        </div>
+        {/* Month nav */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '4px 16px 10px' }}>
+          <button onClick={prevMonth}
+            style={{ width: 36, height: 36, borderRadius: 10, border: `1px solid ${HNH.line}`, background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="chev-l" size={18} color={HNH.ink2} stroke={2} />
+          </button>
+          <span style={{ fontSize: 16, fontWeight: 800, color: HNH.ink }}>{VN_MONTHS[month]} {year}</span>
+          <button onClick={nextMonth}
+            style={{ width: 36, height: 36, borderRadius: 10, border: `1px solid ${HNH.line}`, background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Icon name="chev-r" size={18} color={HNH.ink2} stroke={2} />
+          </button>
+        </div>
+        {/* Day-of-week headers */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', padding: '0 10px' }}>
+          {DOW.map(d => (
+            <div key={d} style={{ textAlign: 'center', fontSize: 11, fontWeight: 700, color: d === 'CN' ? HNH.red : HNH.ink3, paddingBottom: 6 }}>{d}</div>
+          ))}
+        </div>
+        {/* Date grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', padding: '0 10px', gap: '3px 0' }}>
+          {Array.from({ length: offset }, (_, i) => <div key={`e${i}`} />)}
+          {Array.from({ length: daysInMonth }, (_, i) => {
+            const dayNum = i + 1
+            const ds = `${year}-${pad2(month + 1)}-${pad2(dayNum)}`
+            const isSel = selectedDates.includes(ds)
+            const isToday = ds === todayStr
+            const colIdx = (offset + i) % 7
+            const isWeekend = colIdx === 5 || colIdx === 6
+            return (
+              <button key={ds} onClick={() => handleDate(ds)}
+                style={{
+                  width: '100%', aspectRatio: '1', maxWidth: 44, margin: '0 auto',
+                  borderRadius: '50%', border: isToday && !isSel ? `1.5px solid ${HNH.red}` : 'none',
+                  background: isSel ? HNH.red : 'transparent',
+                  color: isSel ? '#fff' : isWeekend ? HNH.red : HNH.ink,
+                  fontWeight: isSel || isToday ? 700 : 400,
+                  fontSize: 15, cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                {dayNum}
+              </button>
+            )
+          })}
+        </div>
+        {/* Footer for multi-select */}
+        {!singleSelect && (
+          <div style={{ padding: '14px 16px 0' }}>
+            <button onClick={onClose}
+              style={{ width: '100%', height: 50, borderRadius: 14, background: HNH.red, color: '#fff', border: 'none', fontWeight: 800, fontSize: 15, cursor: 'pointer' }}>
+              Xong{selectedDates.length > 0 ? ` · ${selectedDates.length} ngày đã chọn` : ''}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+// ───────── TimePickerModal ─────────
+function TimePickerModal({ open, onClose, value, onChange }: {
+  open: boolean
+  onClose: () => void
+  value: string
+  onChange: (v: string) => void
+}) {
+  const [hh, setHh] = useState(8)
+  const [mm, setMm] = useState(0)
+  const hrRef = useRef<HTMLDivElement>(null)
+  const mnRef = useRef<HTMLDivElement>(null)
+  const ITEM_H = 48
+
+  useEffect(() => {
+    if (!open) return
+    const parts = value.split(':').map(Number)
+    const h = isNaN(parts[0]) ? 8 : parts[0]
+    const rawM = isNaN(parts[1]) ? 0 : parts[1]
+    const m = Math.round(rawM / 5) * 5 % 60
+    setHh(h)
+    setMm(m)
+    // Scroll to selected item
+    const timeout = setTimeout(() => {
+      if (hrRef.current) hrRef.current.scrollTop = h * ITEM_H - ITEM_H * 2
+      if (mnRef.current) mnRef.current.scrollTop = (m / 5) * ITEM_H - ITEM_H * 2
+    }, 60)
+    return () => clearTimeout(timeout)
+  }, [open, value])
+
+  if (!open) return null
+
+  const hours = Array.from({ length: 24 }, (_, i) => i)
+  const minutes = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]
+
+  const confirm = () => { onChange(`${pad2(hh)}:${pad2(mm)}`); onClose() }
+
+  const colStyle: React.CSSProperties = {
+    height: 240, overflowY: 'auto', width: 80,
+    scrollbarWidth: 'none', msOverflowStyle: 'none',
+  }
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 270, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+      onClick={onClose}>
+      <div onClick={e => e.stopPropagation()}
+        style={{ width: '100%', maxWidth: 420, background: '#fff', borderRadius: '20px 20px 0 0', paddingBottom: 'calc(16px + env(safe-area-inset-bottom, 0px))' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', padding: '10px 0 4px' }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: '#ddd' }} />
+        </div>
+        <div style={{ fontSize: 15, fontWeight: 800, color: HNH.ink, textAlign: 'center', padding: '6px 0 14px' }}>Chọn giờ</div>
+
+        {/* Drum columns */}
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
+          {/* Highlight bar at center */}
+          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 180, height: ITEM_H, background: HNH.red50, borderRadius: 12, pointerEvents: 'none' }} />
+
+          <div ref={hrRef} style={colStyle}>
+            <div style={{ height: ITEM_H * 2 }} />
+            {hours.map(h => (
+              <button key={h} onClick={() => setHh(h)}
+                style={{ height: ITEM_H, width: '100%', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: h === hh ? 22 : 17, fontWeight: h === hh ? 800 : 400, color: h === hh ? HNH.red : HNH.ink3 }}>
+                {pad2(h)}
+              </button>
+            ))}
+            <div style={{ height: ITEM_H * 2 }} />
+          </div>
+
+          <div style={{ fontSize: 24, fontWeight: 900, color: HNH.ink, padding: '0 4px', lineHeight: 1 }}>:</div>
+
+          <div ref={mnRef} style={colStyle}>
+            <div style={{ height: ITEM_H * 2 }} />
+            {minutes.map(m => (
+              <button key={m} onClick={() => setMm(m)}
+                style={{ height: ITEM_H, width: '100%', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: m === mm ? 22 : 17, fontWeight: m === mm ? 800 : 400, color: m === mm ? HNH.red : HNH.ink3 }}>
+                {pad2(m)}
+              </button>
+            ))}
+            <div style={{ height: ITEM_H * 2 }} />
+          </div>
+        </div>
+
+        <div style={{ padding: '14px 16px 0', display: 'flex', gap: 10 }}>
+          <button onClick={onClose}
+            style={{ flex: 1, height: 48, borderRadius: 13, border: `1.5px solid ${HNH.line}`, background: '#fff', fontWeight: 700, fontSize: 14, color: HNH.ink3, cursor: 'pointer' }}>
+            Huỷ
+          </button>
+          <button onClick={confirm}
+            style={{ flex: 2, height: 48, borderRadius: 13, border: 'none', background: HNH.red, color: '#fff', fontWeight: 800, fontSize: 16, cursor: 'pointer' }}>
+            {pad2(hh)}:{pad2(mm)} ✓
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ───────── PersonPicker ─────────
 function sortLeaveTypes(types: AvailableLeave[]): AvailableLeave[] {
   const priority = (name: string) => {
     const n = name.toLowerCase()
@@ -164,18 +383,17 @@ function PersonPicker({ pool, selected, onChange, accent, accentBg, addLabel, em
   )
 }
 
+// ───────── LeaveNewPage ─────────
 export function LeaveNewPage() {
   const navigate = useNavigate()
+  const { employee } = useAuth()
   const { data: balResp } = useApi<Paginated<AvailableLeave>>('/api/leave/available-leave/?page_size=20')
   const { data: summary } = useApi<HNHSummary>('/api/leave/hnh-leave-summary/')
   const { data: managers } = useApi<Person[]>('/api/leave/available-managers/')
   const { data: watchersData } = useApi<Person[]>('/api/leave/watcher-candidates/')
 
   const rawTypes = balResp?.results ?? []
-  // Bỏ "Nghỉ ốm" khỏi danh sách trừ phép (đã gộp vào Nghỉ không lương ở Nhóm 2)
   const leaveTypes = sortLeaveTypes(rawTypes).filter(t => !/ốm|sick/i.test(t.leave_type_id.name))
-  // Nhóm 2 — loại KHÔNG trừ phép (không có allocation). Lấy từ toàn bộ leave-type,
-  // lọc theo tên đặc thù và loại trừ các loại đã có balance (Nhóm 1).
   const { data: allTypesResp } = useApi<Paginated<{ id: number; name: string }>>('/api/leave/leave-type/?page_size=50')
   const deductingIds = new Set(leaveTypes.map(t => t.leave_type_id.id))
   const NHOM2_RE = /(công tác|hiếu|hỷ|phúc lợi|không lương)/i
@@ -184,12 +402,24 @@ export function LeaveNewPage() {
   const [selectedTypeId, setSelectedTypeId] = useState<number | null>(null)
   const [mode, setMode] = useState<Mode>('day')
   const [days, setDays] = useState<DayPick[]>([])
-  const [addDate, setAddDate] = useState('')
   const [hourDays, setHourDays] = useState<HourDay[]>([])
   const [title, setTitle] = useState('')
   const [approverIds, setApproverIds] = useState<number[]>([])
   const [watcherIds, setWatcherIds] = useState<number[]>([])
   const [reason, setReason] = useState('')
+
+  // Pre-fill title with employee name
+  useEffect(() => {
+    if (employee?.full_name && !title) {
+      setTitle(`Đơn nghỉ phép của ${employee.full_name}`)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [employee?.full_name])
+
+  // Calendar & time picker modal state
+  const [dayCalOpen, setDayCalOpen] = useState(false)
+  const [hourDayPickerIdx, setHourDayPickerIdx] = useState<number | null>(null)
+  const [timePicker, setTimePicker] = useState<{ di: number; fi: number; field: 'from' | 'to'; value: string } | null>(null)
 
   // Mặc định chọn quản lý trực tiếp làm người duyệt
   useEffect(() => {
@@ -199,8 +429,6 @@ export function LeaveNewPage() {
     }
   }, [managers, approverIds.length])
 
-  // Mặc định người theo dõi = tram.pvh (TRÂM PHẠM VÕ HUYỀN, emp id 221 — ổn định
-  // prod=stage do đồng bộ theo id). Chỉ set nếu có trong danh sách watcher.
   const DEFAULT_WATCHER_ID = 221
   useEffect(() => {
     if (watcherIds.length === 0 && watchersData && watchersData.some(w => w.id === DEFAULT_WATCHER_ID)) {
@@ -231,15 +459,25 @@ export function LeaveNewPage() {
       : hourDays.length > 0 && hourDays.every(d => d.date && d.frames.length > 0 && d.frames.every(f => frameHours(f) > 0))
   )
 
-  const addDay = (ds: string) => {
-    if (!ds) return
-    setDays(prev => prev.some(d => d.date === ds)
-      ? prev
-      : [...prev, { date: ds, bd: 'full_day' as Breakdown }].sort((a, b) => a.date.localeCompare(b.date)))
-    setAddDate('')
+  // Toggle a day in the multi-select calendar
+  const toggleDay = (ds: string) => {
+    setDays(prev => {
+      if (prev.some(d => d.date === ds)) return prev.filter(d => d.date !== ds)
+      return [...prev, { date: ds, bd: 'full_day' as Breakdown }].sort((a, b) => a.date.localeCompare(b.date))
+    })
   }
   const removeDay = (ds: string) => setDays(prev => prev.filter(d => d.date !== ds))
   const setBd = (ds: string, bd: Breakdown) => setDays(prev => prev.map(d => d.date === ds ? { ...d, bd } : d))
+
+  // Confirm time picker
+  const confirmTime = (v: string) => {
+    if (!timePicker) return
+    const { di, fi, field } = timePicker
+    setHourDays(prev => prev.map((d, i) => i === di ? {
+      ...d, frames: d.frames.map((f, j) => j === fi ? { ...f, [field]: v } : f)
+    } : d))
+    setTimePicker(null)
+  }
 
   const doSubmit = async () => {
     if (!canSubmit) return
@@ -307,7 +545,7 @@ export function LeaveNewPage() {
 
         {/* Tiêu đề */}
         <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, padding: '6px 6px 6px' }}>TIÊU ĐỀ <span style={{ color: HNH.red }}>*</span></div>
-        <input value={title} onChange={e => setTitle(e.target.value)} placeholder="VD: Xin nghỉ phép năm"
+        <input value={title} onChange={e => setTitle(e.target.value)} placeholder="VD: Đơn nghỉ phép của Nguyễn Văn A"
           className="w-full"
           style={{ background: '#fff', borderRadius: 14, border: `1px solid ${HNH.line}`, padding: '11px 14px', fontSize: 14, color: HNH.ink, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }} />
 
@@ -404,13 +642,16 @@ export function LeaveNewPage() {
           <span style={{ fontSize: 10.5, color: HNH.ink3 }}>Chọn nhiều ngày, mỗi ngày chọn buổi</span>
         </div>
         <div style={{ background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`, padding: 12 }}>
-          {/* Add a day */}
-          <label className="flex items-center gap-2" style={{ padding: '10px 12px', borderRadius: 12, background: HNH.cream, border: `1px dashed ${HNH.line2}`, cursor: 'pointer' }}>
-            <Icon name="plus" size={16} color={HNH.red} stroke={2.5} />
-            <span style={{ fontSize: 13, fontWeight: 700, color: HNH.red, flex: 1 }}>Thêm ngày nghỉ</span>
-            <input type="date" value={addDate} onChange={e => addDay(e.target.value)}
-              style={{ border: 'none', background: 'transparent', outline: 'none', fontSize: 13, fontWeight: 700, color: HNH.ink3, fontFamily: 'inherit' }} />
-          </label>
+          {/* Open calendar button */}
+          <button onClick={() => setDayCalOpen(true)}
+            className="flex items-center gap-2 w-full border-none cursor-pointer"
+            style={{ padding: '10px 12px', borderRadius: 12, background: HNH.cream, border: `1px dashed ${HNH.red}` }}>
+            <Icon name="cal" size={16} color={HNH.red} stroke={2} />
+            <span style={{ fontSize: 13, fontWeight: 700, color: HNH.red, flex: 1, textAlign: 'left' }}>
+              {days.length === 0 ? 'Chọn ngày nghỉ' : `Thêm / chỉnh ngày (${days.length} ngày)`}
+            </span>
+            <Icon name="chev-r" size={14} color={HNH.red} stroke={2} />
+          </button>
 
           {/* Selected days list */}
           {days.map(d => (
@@ -449,7 +690,7 @@ export function LeaveNewPage() {
         </div>
         </>)}
 
-        {/* ===== THEO GIỜ (phân cấp Ngày → nhiều khung giờ) ===== */}
+        {/* ===== THEO GIỜ ===== */}
         {mode === 'hour' && (<>
         <div className="flex items-center justify-between" style={{ padding: '14px 6px 6px' }}>
           <span style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4 }}>NGÀY &amp; KHUNG GIỜ NGHỈ <span style={{ color: HNH.red }}>*</span></span>
@@ -458,10 +699,9 @@ export function LeaveNewPage() {
 
         {hourDays.map((d, di) => {
           const setDay = (patch: Partial<HourDay>) => setHourDays(prev => prev.map((x, i) => i === di ? { ...x, ...patch } : x))
-          const setFrame = (fi: number, patch: Partial<HourFrame>) => setDay({ frames: d.frames.map((f, i) => i === fi ? { ...f, ...patch } : f) })
           return (
             <div key={di} style={{ background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`, padding: 12, marginBottom: 10 }}>
-              {/* Day header: NGÀY 0x + thứ + date + remove */}
+              {/* Day header */}
               <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
                 <div className="flex items-center gap-2">
                   <span style={{ fontSize: 9.5, fontWeight: 800, color: HNH.ink3, background: HNH.cream, borderRadius: 6, padding: '2px 7px' }}>NGÀY {String(di + 1).padStart(2, '0')}</span>
@@ -471,24 +711,37 @@ export function LeaveNewPage() {
                   <Icon name="x" size={16} color={HNH.ink3} stroke={2} />
                 </button>
               </div>
-              <input type="date" value={d.date} onChange={ev => setDay({ date: ev.target.value })}
-                style={{ width: '100%', boxSizing: 'border-box', padding: '9px 11px', borderRadius: 10, border: `1px solid ${HNH.line}`, background: HNH.cream, fontSize: 14, fontWeight: 700, color: HNH.ink, fontFamily: 'inherit', outline: 'none', marginBottom: 8 }} />
 
-              {/* Frames */}
+              {/* Date picker button */}
+              <button onClick={() => setHourDayPickerIdx(di)}
+                className="flex items-center gap-2 w-full border-none cursor-pointer"
+                style={{ padding: '9px 11px', borderRadius: 10, border: `1px solid ${d.date ? HNH.line : HNH.red}`, background: d.date ? HNH.cream : HNH.red50, marginBottom: 8 }}>
+                <Icon name="cal" size={15} color={d.date ? HNH.ink2 : HNH.red} stroke={2} />
+                <span style={{ flex: 1, textAlign: 'left', fontSize: 14, fontWeight: 700, color: d.date ? HNH.ink : HNH.red }}>
+                  {d.date ? fmtDate(d.date) : 'Chọn ngày'}
+                </span>
+                <Icon name="chev-d" size={13} color={d.date ? HNH.ink3 : HNH.red} stroke={2} />
+              </button>
+
+              {/* Time frames */}
               {d.frames.map((f, fi) => {
                 const h = frameHours(f)
                 return (
                   <div key={fi} className="flex items-center gap-2" style={{ marginBottom: 6 }}>
                     <span style={{ fontSize: 9.5, color: HNH.ink3, fontWeight: 700, minWidth: 30 }}>KG {fi + 1}</span>
-                    <label className="flex-1" style={{ padding: '6px 9px', borderRadius: 9, background: HNH.cream, border: `1px solid ${HNH.line}` }}>
-                      <input type="time" value={f.from} onChange={ev => setFrame(fi, { from: ev.target.value })}
-                        style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', fontSize: 13.5, fontWeight: 700, color: HNH.ink, fontFamily: 'inherit' }} />
-                    </label>
+                    {/* From time button */}
+                    <button onClick={() => setTimePicker({ di, fi, field: 'from', value: f.from })}
+                      className="flex-1 flex items-center justify-center border-none cursor-pointer"
+                      style={{ padding: '8px 6px', borderRadius: 9, background: f.from ? HNH.navy50 : HNH.cream, border: `1px solid ${f.from ? HNH.navy : HNH.line}` }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: f.from ? HNH.navy : HNH.ink3 }}>{f.from || '--:--'}</span>
+                    </button>
                     <Icon name="arrow-r" size={13} color={HNH.ink3} stroke={2} />
-                    <label className="flex-1" style={{ padding: '6px 9px', borderRadius: 9, background: HNH.cream, border: `1px solid ${HNH.line}` }}>
-                      <input type="time" value={f.to} onChange={ev => setFrame(fi, { to: ev.target.value })}
-                        style={{ width: '100%', border: 'none', background: 'transparent', outline: 'none', fontSize: 13.5, fontWeight: 700, color: HNH.ink, fontFamily: 'inherit' }} />
-                    </label>
+                    {/* To time button */}
+                    <button onClick={() => setTimePicker({ di, fi, field: 'to', value: f.to })}
+                      className="flex-1 flex items-center justify-center border-none cursor-pointer"
+                      style={{ padding: '8px 6px', borderRadius: 9, background: f.to ? HNH.navy50 : HNH.cream, border: `1px solid ${f.to ? HNH.navy : HNH.line}` }}>
+                      <span style={{ fontSize: 14, fontWeight: 700, color: f.to ? HNH.navy : HNH.ink3 }}>{f.to || '--:--'}</span>
+                    </button>
                     <span style={{ fontSize: 11.5, fontWeight: 700, color: h > 0 ? HNH.navy : HNH.ink4, minWidth: 36, textAlign: 'right' }}>{h > 0 ? `${h % 1 === 0 ? h : h.toFixed(1)}h` : '—'}</span>
                     {d.frames.length > 1 && (
                       <button onClick={() => setDay({ frames: d.frames.filter((_, i) => i !== fi) })} className="border-none bg-transparent cursor-pointer flex items-center" style={{ padding: 0 }}>
@@ -525,7 +778,7 @@ export function LeaveNewPage() {
         )}
         </>)}
 
-        {/* Người duyệt / xác nhận — mặc định QLTT, thêm người khác qua modal tìm tên */}
+        {/* Người duyệt */}
         <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, padding: '14px 6px 6px' }}>NGƯỜI DUYỆT / XÁC NHẬN <span style={{ color: HNH.red }}>*</span></div>
         <PersonPicker pool={managers ?? []} selected={approverIds} onChange={setApproverIds}
           accent={HNH.navy} accentBg={HNH.navy50} addLabel="Thêm người duyệt" emptyText="Chưa chọn người duyệt" />
@@ -542,7 +795,7 @@ export function LeaveNewPage() {
           style={{ background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`, padding: '12px 14px', fontSize: 14, color: HNH.ink, lineHeight: 1.4, minHeight: 90, fontFamily: 'inherit', outline: 'none' }} />
       </div>
 
-      {/* Bottom bar — nút Gửi đơn luôn hiện */}
+      {/* Bottom bar */}
       <div style={{ flexShrink: 0, background: '#fff', borderTop: `1px solid ${HNH.line}`, padding: '10px 16px', paddingBottom: 'calc(10px + env(safe-area-inset-bottom, 0px))' }}>
         <button onClick={() => { if (canSubmit) setConfirmOpen(true) }} disabled={!canSubmit}
           className="flex items-center justify-center gap-2 w-full border-none"
@@ -552,7 +805,7 @@ export function LeaveNewPage() {
         </button>
       </div>
 
-      {/* Màn xác nhận — tổng hợp thông tin */}
+      {/* Confirm sheet */}
       {confirmOpen && (
         <div className="fixed inset-0 flex items-end justify-center" style={{ zIndex: 300, background: 'rgba(0,0,0,0.45)' }} onClick={() => !submitting && setConfirmOpen(false)}>
           <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, maxHeight: '85vh', background: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -575,7 +828,6 @@ export function LeaveNewPage() {
                   <span style={{ fontWeight: 600, color: HNH.ink, textAlign: 'right' }}>{v}</span>
                 </div>
               ))}
-              {/* Chi tiết ngày/giờ */}
               <div style={{ marginTop: 10, fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.3 }}>CHI TIẾT</div>
               <div style={{ marginTop: 6, background: HNH.cream, borderRadius: 12, padding: '10px 12px' }}>
                 {mode === 'day' && days.map(d => (
@@ -608,6 +860,36 @@ export function LeaveNewPage() {
           </div>
         </div>
       )}
+
+      {/* CalendarPicker — multi-select for day mode */}
+      <CalendarPicker
+        open={dayCalOpen}
+        onClose={() => setDayCalOpen(false)}
+        selectedDates={days.map(d => d.date)}
+        onToggle={toggleDay}
+      />
+
+      {/* CalendarPicker — single-select for hourDay date */}
+      <CalendarPicker
+        open={hourDayPickerIdx !== null}
+        onClose={() => setHourDayPickerIdx(null)}
+        selectedDates={hourDayPickerIdx !== null && hourDays[hourDayPickerIdx]?.date ? [hourDays[hourDayPickerIdx].date] : []}
+        singleSelect
+        onSelect={ds => {
+          if (hourDayPickerIdx !== null) {
+            setHourDays(prev => prev.map((d, i) => i === hourDayPickerIdx ? { ...d, date: ds } : d))
+          }
+          setHourDayPickerIdx(null)
+        }}
+      />
+
+      {/* TimePickerModal */}
+      <TimePickerModal
+        open={timePicker !== null}
+        onClose={() => setTimePicker(null)}
+        value={timePicker?.value ?? '08:00'}
+        onChange={confirmTime}
+      />
     </div>
   )
 }
