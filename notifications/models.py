@@ -53,6 +53,7 @@ class Announcement(models.Model):
     )
     send_as_system = models.BooleanField(default=False)
     pinned = models.BooleanField(default=False, verbose_name="Ghim")
+    image = models.ImageField(upload_to="announcements/", null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

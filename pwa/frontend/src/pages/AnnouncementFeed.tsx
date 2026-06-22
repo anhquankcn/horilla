@@ -19,6 +19,7 @@ interface FeedItem {
   my_like: boolean
   read: boolean
   read_at: string | null
+  image_url: string | null
 }
 
 interface FeedResponse {
@@ -102,17 +103,32 @@ function FeedCard({
                 fontSize: 14, fontWeight: 700, color: HNH.ink, flex: 1,
                 overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               }}>{item.title}</span>
-              {!item.read && (
+              {item.read ? (
+                /* Double-check "đã xem" */
+                <svg width="18" height="12" viewBox="0 0 18 12" fill="none" style={{ flexShrink: 0 }}>
+                  <path d="M1 6l4 4L13 2" stroke="#4ade80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M5 6l4 4L17 2" stroke="#4ade80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              ) : (
                 <span style={{ width: 8, height: 8, borderRadius: '50%', background: HNH.red, flexShrink: 0 }} />
               )}
             </div>
             <div style={{
               fontSize: 13, color: HNH.ink2, marginTop: 4, lineHeight: 1.5,
-              display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical',
-              overflow: 'hidden',
+              display: '-webkit-box', WebkitLineClamp: item.image_url ? 2 : 3,
+              WebkitBoxOrient: 'vertical', overflow: 'hidden',
             }}>
               {item.body}
             </div>
+            {item.image_url && (
+              <div style={{ marginTop: 8, borderRadius: 10, overflow: 'hidden', maxHeight: 160 }}>
+                <img
+                  src={item.image_url}
+                  alt=""
+                  style={{ width: '100%', objectFit: 'cover', maxHeight: 160, display: 'block' }}
+                />
+              </div>
+            )}
             <div className="flex items-center gap-2" style={{ marginTop: 8, fontSize: 11.5, color: HNH.ink3 }}>
               <span style={{ fontWeight: 600 }}>{item.sender_name}</span>
               <span>·</span>
@@ -211,6 +227,15 @@ function DetailModal({
           }}>
             {item.body}
           </div>
+          {item.image_url && (
+            <div style={{ marginTop: 14, borderRadius: 14, overflow: 'hidden' }}>
+              <img
+                src={item.image_url}
+                alt=""
+                style={{ width: '100%', display: 'block', objectFit: 'contain', maxHeight: 360 }}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -231,6 +256,8 @@ function ComposeModal({
   const [targetType, setTargetType] = useState<'company' | 'department'>('company')
   const [deptId, setDeptId] = useState<number | ''>('')
   const [pinned, setPinned] = useState(false)
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
   const [departments, setDepartments] = useState<Department[]>([])
 
@@ -243,20 +270,36 @@ function ComposeModal({
   const canSend = title.trim().length > 0 && body.trim().length > 0 &&
     (targetType === 'company' || (targetType === 'department' && deptId !== ''))
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0] ?? null
+    setImageFile(file)
+    if (file) {
+      const url = URL.createObjectURL(file)
+      setImagePreview(url)
+    } else {
+      setImagePreview(null)
+    }
+  }
+
   const handleSend = async () => {
     if (!canSend || sending) return
     setSending(true)
     try {
-      const payload: Record<string, unknown> = {
-        title: title.trim(),
-        body: body.trim(),
-        target_type: targetType,
-        pinned,
-      }
+      const fd = new FormData()
+      fd.append('title', title.trim())
+      fd.append('body', body.trim())
+      fd.append('target_type', targetType)
+      fd.append('pinned', String(pinned))
       if (targetType === 'department' && deptId !== '') {
-        payload.department_id = deptId
+        fd.append('department_id', String(deptId))
       }
-      await api.post('/api/notifications/announcements/', payload)
+      if (imageFile) fd.append('image', imageFile)
+      await fetch('/api/notifications/announcements/', {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'X-CSRFToken': document.cookie.match(/csrftoken=([^;]+)/)?.[1] ?? '' },
+        body: fd,
+      }).then(async r => { if (!r.ok) throw new Error() })
       toast('Đã gửi tin nội bộ')
       onSent()
       onClose()
@@ -359,6 +402,43 @@ function ComposeModal({
                   <option key={d.id} value={d.id}>{d.department}</option>
                 ))}
               </select>
+            )}
+          </div>
+
+          {/* Image attachment */}
+          <div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: HNH.ink3, marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+              Ảnh đính kèm
+            </div>
+            <label style={{
+              display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer',
+              padding: '10px 14px', borderRadius: 12,
+              border: `1.5px dashed ${imageFile ? HNH.success : HNH.line}`,
+              background: imageFile ? HNH.success50 : HNH.cream2,
+            }}>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={imageFile ? HNH.success : HNH.ink3} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                <circle cx="8.5" cy="8.5" r="1.5"/>
+                <polyline points="21 15 16 10 5 21"/>
+              </svg>
+              <span style={{ fontSize: 13, color: imageFile ? HNH.success : HNH.ink2, fontWeight: 600 }}>
+                {imageFile ? imageFile.name : 'Chọn ảnh (JPG, PNG)'}
+              </span>
+              {imageFile && (
+                <button
+                  type="button"
+                  onClick={e => { e.preventDefault(); setImageFile(null); setImagePreview(null) }}
+                  style={{ marginLeft: 'auto', background: 'none', border: 'none', cursor: 'pointer', color: HNH.ink3 }}
+                >
+                  <Icon name="x" size={14} color={HNH.ink3} stroke={2} />
+                </button>
+              )}
+              <input type="file" accept="image/*" style={{ display: 'none' }} onChange={handleImageChange} />
+            </label>
+            {imagePreview && (
+              <div style={{ marginTop: 8, borderRadius: 10, overflow: 'hidden', maxHeight: 180 }}>
+                <img src={imagePreview} alt="" style={{ width: '100%', objectFit: 'cover', maxHeight: 180, display: 'block' }} />
+              </div>
             )}
           </div>
 

@@ -215,6 +215,7 @@ def _serialize_announcement(ann, include_feedback=False, *, like_count=None, my_
         "feedback_count": ann.feedbacks.count(),
         "like_count": like_count if like_count is not None else ann.likes.count(),
         "my_like": bool(my_like) if my_like is not None else False,
+        "image_url": ann.image.url if ann.image else None,
     }
     if include_feedback:
         result["feedbacks"] = [
@@ -283,6 +284,7 @@ class AnnouncementCreateView(APIView):
             target_type=target_type,
             send_as_system=send_as_system,
             pinned=pinned,
+            image=request.FILES.get("image") or None,
             target_department=(
                 Department.objects.filter(id=dept_id).first()
                 if dept_id
