@@ -182,8 +182,8 @@ export function AttendanceDetailModal({ open, onClose, attendanceDate, clockIn, 
           : { WebkitOverflowScrolling: 'touch' as never }
         }
       >
-        <div style={{ minHeight: isTablet ? undefined : '100%', background: HNH.cream, paddingBottom: 20, borderRadius: isTablet ? 24 : 0 }}>
-          <div className="flex items-center gap-3" style={{ padding: '10px 16px', background: '#fff', borderBottom: `1px solid ${HNH.line}` }}>
+        <div style={{ minHeight: isTablet ? undefined : '100%', background: HNH.cream, paddingBottom: isTablet ? 20 : 'calc(20px + env(safe-area-inset-bottom, 0px))', borderRadius: isTablet ? 24 : 0 }}>
+          <div className="flex items-center gap-3" style={{ padding: '10px 16px', paddingTop: 'calc(10px + env(safe-area-inset-top, 0px))', background: '#fff', borderBottom: `1px solid ${HNH.line}` }}>
             <button onClick={onClose} className="flex items-center justify-center border-none cursor-pointer shrink-0" style={{ width: 44, height: 44, borderRadius: 14, background: '#fff', boxShadow: '0 1px 4px rgba(15,20,40,0.09)' }}>
               <svg width="9" height="16" viewBox="0 0 9 16"><path d="M7.5 1.5 1.5 8l6 6.5" stroke={HNH.ink} strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/></svg>
             </button>
