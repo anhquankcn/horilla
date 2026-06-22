@@ -422,6 +422,17 @@ class EmployeeListAPIView(APIView):
                 | Q(employee_last_name__icontains=search)
             )
 
+        dept_id = request.query_params.get("department_id")
+        company_id = request.query_params.get("company_id")
+        if dept_id:
+            employees_queryset = employees_queryset.filter(
+                employee_work_info__department_id=dept_id
+            )
+        if company_id:
+            employees_queryset = employees_queryset.filter(
+                employee_work_info__company_id=company_id
+            )
+
         # Paginate
         paginator = PageNumberPagination()
         page = paginator.paginate_queryset(employees_queryset, request)

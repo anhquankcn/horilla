@@ -297,7 +297,18 @@ class AnnouncementCreateView(APIView):
             ),
         )
 
-        user_ids = list(_resolve_recipients(target_type, request.data))
+        # For multi_user, FormData sends repeated user_ids keys; getlist collects all values.
+        resolve_data = request.data
+        if target_type == Announcement.TARGET_MULTI:
+            raw = (
+                request.data.getlist("user_ids")
+                if hasattr(request.data, "getlist")
+                else request.data.get("user_ids", [])
+            )
+            if isinstance(raw, str):
+                raw = [raw]
+            resolve_data = {"user_ids": raw}
+        user_ids = list(_resolve_recipients(target_type, resolve_data))
         user_ids_set = {uid for uid in user_ids if uid is not None}
 
         from django.contrib.auth import get_user_model

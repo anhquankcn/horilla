@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
@@ -34,6 +34,18 @@ interface Department {
   department: string
 }
 
+interface Company {
+  id: number
+  company: string
+}
+
+interface EmployeeItem {
+  id: number
+  employee_first_name: string
+  employee_last_name: string
+  employee_profile: string | null
+}
+
 /* ── Helpers ── */
 function relTime(ts: string): string {
   const diff = Date.now() - new Date(ts).getTime()
@@ -45,6 +57,12 @@ function relTime(ts: string): string {
   const days = Math.floor(hrs / 24)
   if (days < 7) return `${days} ngày trước`
   return new Date(ts).toLocaleDateString('vi-VN')
+}
+
+function empInitials(emp: EmployeeItem): string {
+  const f = (emp.employee_first_name ?? '').trim()
+  const l = (emp.employee_last_name ?? '').trim()
+  return ((l?.[0] ?? '') + (f?.[0] ?? '')).toUpperCase() || '?'
 }
 
 /* ── Feed Card ── */
@@ -242,6 +260,182 @@ function DetailModal({
   )
 }
 
+/* ── Employee Picker (inside ComposeModal) ── */
+function EmployeePicker({
+  departments,
+  companies,
+  selected,
+  onToggle,
+}: {
+  departments: Department[]
+  companies: Company[]
+  selected: Set<number>
+  onToggle: (id: number) => void
+}) {
+  const [filterDept, setFilterDept] = useState<number | ''>('')
+  const [filterCompany, setFilterCompany] = useState<number | ''>('')
+  const [search, setSearch] = useState('')
+  const [employees, setEmployees] = useState<EmployeeItem[]>([])
+  const [loading, setLoading] = useState(false)
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const fetchEmployees = useCallback(async (dept: number | '', company: number | '', q: string) => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams({ page_size: '100' })
+      if (dept) params.set('department_id', String(dept))
+      if (company) params.set('company_id', String(company))
+      if (q.trim()) params.set('search', q.trim())
+      const data = await api.get<{ results: EmployeeItem[] }>(
+        `/api/employee/list/employees/?${params.toString()}`
+      )
+      setEmployees(data.results ?? [])
+    } catch {
+      setEmployees([])
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      fetchEmployees(filterDept, filterCompany, search)
+    }, 300)
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current) }
+  }, [filterDept, filterCompany, search, fetchEmployees])
+
+  const selectStyle: React.CSSProperties = {
+    flex: 1, borderRadius: 10, border: `1.5px solid ${HNH.line}`,
+    padding: '8px 10px', fontSize: 13, color: HNH.ink,
+    background: '#fff', outline: 'none', boxSizing: 'border-box',
+    fontFamily: 'inherit', appearance: 'none',
+  }
+
+  return (
+    <div>
+      {/* Filters */}
+      <div className="flex gap-2" style={{ marginBottom: 8 }}>
+        <select
+          style={selectStyle}
+          value={filterCompany}
+          onChange={e => { setFilterCompany(e.target.value === '' ? '' : Number(e.target.value)); setFilterDept('') }}
+        >
+          <option value="">Tất cả chi nhánh</option>
+          {companies.map(c => (
+            <option key={c.id} value={c.id}>{c.company}</option>
+          ))}
+        </select>
+        <select
+          style={selectStyle}
+          value={filterDept}
+          onChange={e => setFilterDept(e.target.value === '' ? '' : Number(e.target.value))}
+        >
+          <option value="">Tất cả phòng ban</option>
+          {departments.map(d => (
+            <option key={d.id} value={d.id}>{d.department}</option>
+          ))}
+        </select>
+      </div>
+
+      {/* Search */}
+      <div style={{ position: 'relative', marginBottom: 8 }}>
+        <div style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }}>
+          <Icon name="search" size={15} color={HNH.ink3} stroke={2} />
+        </div>
+        <input
+          style={{
+            width: '100%', borderRadius: 10, border: `1.5px solid ${HNH.line}`,
+            padding: '8px 12px 8px 32px', fontSize: 13, color: HNH.ink,
+            background: '#fff', outline: 'none', boxSizing: 'border-box',
+            fontFamily: 'inherit',
+          }}
+          placeholder="Tìm theo tên..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+      </div>
+
+      {/* Selected count */}
+      {selected.size > 0 && (
+        <div style={{
+          padding: '5px 10px', borderRadius: 8, marginBottom: 6,
+          background: HNH.navy50, display: 'inline-flex', alignItems: 'center', gap: 6,
+        }}>
+          <Icon name="check" size={13} color={HNH.navy} stroke={2.5} />
+          <span style={{ fontSize: 12, fontWeight: 700, color: HNH.navy }}>
+            Đã chọn {selected.size} người
+          </span>
+        </div>
+      )}
+
+      {/* Employee list */}
+      <div style={{
+        maxHeight: 240, overflowY: 'auto', borderRadius: 12,
+        border: `1.5px solid ${HNH.line}`, background: '#fff',
+      }}>
+        {loading ? (
+          <div style={{ padding: '20px', textAlign: 'center', fontSize: 13, color: HNH.ink3 }}>
+            Đang tải...
+          </div>
+        ) : employees.length === 0 ? (
+          <div style={{ padding: '20px', textAlign: 'center', fontSize: 13, color: HNH.ink3 }}>
+            Không tìm thấy nhân sự
+          </div>
+        ) : employees.map((emp, i) => {
+          const isSelected = selected.has(emp.id)
+          const fullName = `${emp.employee_last_name ?? ''} ${emp.employee_first_name ?? ''}`.trim()
+          return (
+            <div
+              key={emp.id}
+              onClick={() => onToggle(emp.id)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '9px 12px', cursor: 'pointer',
+                background: isSelected ? `${HNH.navy}0a` : 'transparent',
+                borderBottom: i < employees.length - 1 ? `1px solid ${HNH.line}` : 'none',
+              }}
+            >
+              {/* Avatar */}
+              {emp.employee_profile ? (
+                <img
+                  src={emp.employee_profile}
+                  alt=""
+                  style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                />
+              ) : (
+                <div style={{
+                  width: 32, height: 32, borderRadius: '50%', background: HNH.navy50,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 11, fontWeight: 800, color: HNH.navy, flexShrink: 0,
+                }}>
+                  {empInitials(emp)}
+                </div>
+              )}
+              <span style={{
+                flex: 1, fontSize: 13, fontWeight: isSelected ? 700 : 500,
+                color: HNH.ink,
+              }}>
+                {fullName}
+              </span>
+              {/* Checkbox */}
+              <div style={{
+                width: 20, height: 20, borderRadius: 6,
+                border: `2px solid ${isSelected ? HNH.navy : HNH.ink3}`,
+                background: isSelected ? HNH.navy : 'transparent',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                {isSelected && <Icon name="check" size={12} color="#fff" stroke={3} />}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 /* ── Compose Modal ── */
 function ComposeModal({
   onClose,
@@ -253,22 +447,40 @@ function ComposeModal({
   const { toast } = useToast()
   const [title, setTitle] = useState('')
   const [body, setBody] = useState('')
-  const [targetType, setTargetType] = useState<'company' | 'department'>('company')
+  type TargetType = 'company' | 'department' | 'individual'
+  const [targetType, setTargetType] = useState<TargetType>('company')
   const [deptId, setDeptId] = useState<number | ''>('')
   const [pinned, setPinned] = useState(false)
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
   const [departments, setDepartments] = useState<Department[]>([])
+  const [companies, setCompanies] = useState<Company[]>([])
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<Set<number>>(new Set())
 
   useEffect(() => {
-    api.get<{ departments: Department[] }>('/api/notifications/announcements/targets/')
-      .then(d => setDepartments(d.departments ?? []))
+    api.get<{ departments: Department[]; companies: Company[] }>('/api/notifications/announcements/targets/')
+      .then(d => {
+        setDepartments(d.departments ?? [])
+        setCompanies(d.companies ?? [])
+      })
       .catch(() => {})
   }, [])
 
-  const canSend = title.trim().length > 0 && body.trim().length > 0 &&
-    (targetType === 'company' || (targetType === 'department' && deptId !== ''))
+  const toggleEmployee = (id: number) => {
+    setSelectedEmployeeIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const canSend = title.trim().length > 0 && body.trim().length > 0 && (
+    targetType === 'company' ||
+    (targetType === 'department' && deptId !== '') ||
+    (targetType === 'individual' && selectedEmployeeIds.size > 0)
+  )
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] ?? null
@@ -288,10 +500,15 @@ function ComposeModal({
       const fd = new FormData()
       fd.append('title', title.trim())
       fd.append('body', body.trim())
-      fd.append('target_type', targetType)
       fd.append('pinned', String(pinned))
-      if (targetType === 'department' && deptId !== '') {
+      if (targetType === 'company') {
+        fd.append('target_type', 'company')
+      } else if (targetType === 'department' && deptId !== '') {
+        fd.append('target_type', 'department')
         fd.append('department_id', String(deptId))
+      } else if (targetType === 'individual') {
+        fd.append('target_type', 'multi_user')
+        selectedEmployeeIds.forEach(id => fd.append('user_ids', String(id)))
       }
       if (imageFile) fd.append('image', imageFile)
       await fetch('/api/notifications/announcements/', {
@@ -316,6 +533,12 @@ function ComposeModal({
     background: '#fff', outline: 'none', boxSizing: 'border-box',
     fontFamily: 'inherit',
   }
+
+  const TARGET_TABS: { key: TargetType; label: string }[] = [
+    { key: 'company', label: 'Toàn công ty' },
+    { key: 'department', label: 'Phòng ban' },
+    { key: 'individual', label: 'Cá nhân' },
+  ]
 
   return (
     <div
@@ -373,20 +596,20 @@ function ComposeModal({
             <div style={{ fontSize: 12, fontWeight: 700, color: HNH.ink3, marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.3 }}>
               Gửi đến
             </div>
-            <div className="flex gap-2">
-              {(['company', 'department'] as const).map(t => (
+            <div className="flex gap-2" style={{ flexWrap: 'wrap' }}>
+              {TARGET_TABS.map(t => (
                 <button
-                  key={t}
-                  onClick={() => setTargetType(t)}
+                  key={t.key}
+                  onClick={() => setTargetType(t.key)}
                   className="flex items-center gap-1.5 border-none cursor-pointer"
                   style={{
                     padding: '7px 14px', borderRadius: 10, fontSize: 13, fontWeight: 600,
-                    background: targetType === t ? HNH.red : HNH.cream2,
-                    color: targetType === t ? '#fff' : HNH.ink2,
-                    border: targetType === t ? `1.5px solid ${HNH.red}` : `1.5px solid ${HNH.line}`,
+                    background: targetType === t.key ? HNH.red : HNH.cream2,
+                    color: targetType === t.key ? '#fff' : HNH.ink2,
+                    border: targetType === t.key ? `1.5px solid ${HNH.red}` : `1.5px solid ${HNH.line}`,
                   }}
                 >
-                  {t === 'company' ? 'Toàn công ty' : 'Phòng ban'}
+                  {t.label}
                 </button>
               ))}
             </div>
@@ -402,6 +625,17 @@ function ComposeModal({
                   <option key={d.id} value={d.id}>{d.department}</option>
                 ))}
               </select>
+            )}
+
+            {targetType === 'individual' && (
+              <div style={{ marginTop: 10 }}>
+                <EmployeePicker
+                  departments={departments}
+                  companies={companies}
+                  selected={selectedEmployeeIds}
+                  onToggle={toggleEmployee}
+                />
+              </div>
             )}
           </div>
 

@@ -16,7 +16,7 @@ interface Notification {
   description: string | null
   timestamp: string
   deleted: boolean
-  data: string | null
+  data: Record<string, unknown> | string | null
   actor_name: string | null
 }
 
@@ -59,6 +59,11 @@ function relativeTime(ts: string): string {
   return `${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`
 }
 
+function fullTime(ts: string): string {
+  const d = new Date(ts)
+  return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')} · ${d.getDate()}/${d.getMonth() + 1}/${d.getFullYear()}`
+}
+
 function dateGroup(ts: string): string {
   const d = new Date(ts)
   const now = new Date()
@@ -72,12 +77,168 @@ function dateGroup(ts: string): string {
   return `Tháng ${d.getMonth() + 1}/${d.getFullYear()}`
 }
 
+/** Parse the data field and return an action route + label if applicable. */
+function parseNotifAction(n: Notification): { route: string; label: string } | null {
+  if (!n.data) return null
+  let d: Record<string, unknown>
+  if (typeof n.data === 'string') {
+    try { d = JSON.parse(n.data) } catch { return null }
+  } else {
+    d = n.data
+  }
+
+  const redirect = (d?.redirect as string) ?? ''
+  const icon = (d?.icon as string) ?? ''
+
+  if (!redirect && !icon) return null
+
+  const r = redirect.toLowerCase()
+
+  // Announcements
+  if (icon === 'chatbubbles' || r === '/' || r === '')
+    return { route: '/announcements', label: 'Xem tin nội bộ' }
+
+  // Approver views: leave request, allocation, attendance request-view
+  if (
+    (r.includes('/leave/request-view') && !r.includes('/user-request-view')) ||
+    r.includes('/leave/leave-allocation-request-view') ||
+    (r.includes('/attendance') && r.includes('request-view'))
+  ) return { route: '/approvals', label: 'Duyệt ngay' }
+
+  // Employee's own leave requests
+  if (r.includes('/leave/user-request-view') || r.includes('/leave'))
+    return { route: '/proposals/leave', label: 'Xem đơn của tôi' }
+
+  // Employee attendance
+  if (r.includes('/attendance/view-my-attendance') || r.includes('/attendance'))
+    return { route: '/attendance', label: 'Xem chấm công' }
+
+  return null
+}
+
 type Filter = 'all' | 'unread'
 
-/* ── Notification Card ── */
-function NotifCard({ n, onRead, onDelete }: {
+/* ── Notification Detail Sheet ── */
+function NotifDetailSheet({
+  n,
+  onClose,
+  onRead,
+}: {
   n: Notification
+  onClose: () => void
   onRead: () => void
+}) {
+  const navigate = useNavigate()
+  const meta = notifMeta(n.verb, n.level)
+  const action = parseNotifAction(n)
+
+  useEffect(() => {
+    if (n.unread) onRead()
+  }, [n.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleAction = () => {
+    if (!action) return
+    onClose()
+    navigate(action.route)
+  }
+
+  return (
+    <div
+      className="fixed inset-0 flex items-end justify-center"
+      style={{ zIndex: 100, background: 'rgba(0,0,0,0.45)' }}
+      onClick={onClose}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: '#fff', borderRadius: '24px 24px 0 0', width: '100%',
+          maxWidth: 600, maxHeight: '80vh', display: 'flex', flexDirection: 'column',
+        }}
+      >
+        {/* Handle */}
+        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 12 }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: HNH.line }} />
+        </div>
+
+        {/* Header */}
+        <div className="flex items-start gap-3" style={{ padding: '14px 20px 0' }}>
+          <div
+            className="flex items-center justify-center shrink-0"
+            style={{
+              width: 46, height: 46, borderRadius: 14,
+              background: `${meta.bg}18`,
+            }}
+          >
+            <Icon name={meta.icon} size={20} color={meta.bg} stroke={2} />
+          </div>
+          <div className="flex-1 min-w-0" style={{ paddingTop: 2 }}>
+            <div style={{ fontSize: 15, fontWeight: 800, color: HNH.ink, lineHeight: 1.4 }}>
+              {n.verb}
+            </div>
+            {n.actor_name && (
+              <div style={{ fontSize: 12, color: HNH.ink3, fontWeight: 500, marginTop: 2 }}>
+                {n.actor_name}
+              </div>
+            )}
+          </div>
+          <button onClick={onClose} className="border-none cursor-pointer bg-transparent shrink-0" style={{ padding: 4 }}>
+            <Icon name="x" size={18} color={HNH.ink3} stroke={2} />
+          </button>
+        </div>
+
+        {/* Body */}
+        <div style={{ padding: '12px 20px', overflowY: 'auto', flex: 1 }}>
+          {n.description && (
+            <div style={{
+              padding: '14px 16px', background: HNH.cream, borderRadius: 14,
+              fontSize: 14, color: HNH.ink, lineHeight: 1.7, whiteSpace: 'pre-wrap',
+            }}>
+              {n.description}
+            </div>
+          )}
+          <div style={{ fontSize: 11.5, color: HNH.ink3, fontWeight: 500, marginTop: 10 }}>
+            {fullTime(n.timestamp)}
+          </div>
+        </div>
+
+        {/* CTA */}
+        <div style={{ padding: '8px 20px calc(32px + env(safe-area-inset-bottom, 0px))' }}>
+          {action ? (
+            <button
+              onClick={handleAction}
+              className="flex items-center justify-center gap-2 w-full border-none cursor-pointer"
+              style={{
+                height: 50, borderRadius: 16, fontSize: 15, fontWeight: 800,
+                background: `linear-gradient(135deg, ${HNH.navy} 0%, #0a1e3d 100%)`,
+                color: '#fff',
+              }}
+            >
+              <Icon name="send" size={16} color="#fff" stroke={2.2} />
+              {action.label}
+            </button>
+          ) : (
+            <button
+              onClick={onClose}
+              className="flex items-center justify-center w-full border-none cursor-pointer"
+              style={{
+                height: 46, borderRadius: 14, fontSize: 14, fontWeight: 700,
+                background: HNH.cream2, color: HNH.ink2,
+                border: `1.5px solid ${HNH.line}`,
+              }}
+            >
+              Đóng
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* ── Notification Card ── */
+function NotifCard({ n, onOpen, onDelete }: {
+  n: Notification
+  onOpen: () => void
   onDelete: () => void
 }) {
   const meta = notifMeta(n.verb, n.level)
@@ -89,10 +250,10 @@ function NotifCard({ n, onRead, onDelete }: {
       style={{
         padding: '13px 14px',
         background: n.unread ? `${HNH.navy}08` : 'transparent',
-        cursor: n.unread ? 'pointer' : 'default',
+        cursor: 'pointer',
         position: 'relative',
       }}
-      onClick={() => n.unread && onRead()}
+      onClick={onOpen}
     >
       {/* Icon avatar */}
       <div
@@ -166,6 +327,7 @@ export function NotificationsPage() {
   const [nextPage, setNextPage] = useState<string | null>(null)
   const [loadingMore, setLoadingMore] = useState(false)
   const [markingAll, setMarkingAll] = useState(false)
+  const [detail, setDetail] = useState<Notification | null>(null)
 
   const fetchNotifications = useCallback(async (f: Filter) => {
     setLoading(true)
@@ -208,6 +370,7 @@ export function NotificationsPage() {
     await api.del(`/api/notifications/${id}/`)
     setNotifications(prev => prev.filter(n => n.id !== id))
     setTotal(prev => prev - 1)
+    if (detail?.id === id) setDetail(null)
   }
 
   const markAllRead = async () => {
@@ -327,7 +490,7 @@ export function NotificationsPage() {
                     }}>
                       <NotifCard
                         n={n}
-                        onRead={() => markRead(n.id)}
+                        onOpen={() => setDetail(n)}
                         onDelete={() => deleteNotif(n.id)}
                       />
                     </div>
@@ -357,6 +520,14 @@ export function NotificationsPage() {
         )}
       </div>
       </PullToRefresh>
+
+      {detail && (
+        <NotifDetailSheet
+          n={detail}
+          onClose={() => setDetail(null)}
+          onRead={() => markRead(detail.id)}
+        />
+      )}
     </div>
   )
 }
