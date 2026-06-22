@@ -480,7 +480,7 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
   const scrollContent = (
     <div style={{ background: HNH.cream, paddingBottom: 8 }}>
       {/* Header */}
-      <div className="flex items-center justify-between" style={{ padding: '12px 16px', background: '#fff', borderBottom: `1px solid ${HNH.line}` }}>
+      <div className="flex items-center justify-between" style={{ padding: '12px 16px', paddingTop: 'calc(12px + env(safe-area-inset-top, 0px))', background: '#fff', borderBottom: `1px solid ${HNH.line}` }}>
         <button onClick={onClose} className="flex items-center justify-center border-none cursor-pointer" style={{ width: 36, height: 36, borderRadius: 10, background: HNH.cream }}>
           <Icon name="x" size={18} color={HNH.ink} stroke={2} />
         </button>

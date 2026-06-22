@@ -64,7 +64,7 @@ function PhotoView({ src, label }: { src: string; label: string }) {
       {expanded && !err && (
         <div className="fixed inset-0 flex items-center justify-center" style={{ zIndex: 10001, background: 'rgba(0,0,0,0.85)' }} onClick={() => setExpanded(false)}>
           <img src={photoUrl} alt={label} onClick={e => e.stopPropagation()} style={{ maxWidth: '92%', maxHeight: '85vh', borderRadius: 12, objectFit: 'contain' }} />
-          <button onClick={() => setExpanded(false)} className="absolute border-none cursor-pointer" style={{ top: 16, right: 16, width: 40, height: 40, borderRadius: 20, background: 'rgba(255,255,255,0.2)', color: '#fff', fontSize: 22 }}>×</button>
+          <button onClick={() => setExpanded(false)} className="absolute border-none cursor-pointer" style={{ top: 'calc(16px + env(safe-area-inset-top, 0px))', right: 16, width: 40, height: 40, borderRadius: 20, background: 'rgba(255,255,255,0.2)', color: '#fff', fontSize: 22 }}>×</button>
         </div>
       )}
     </>
