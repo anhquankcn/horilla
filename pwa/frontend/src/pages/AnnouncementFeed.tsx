@@ -151,7 +151,24 @@ function FeedCard({
 }
 
 /* ── Detail Modal ── */
-function DetailModal({ item, onClose }: { item: FeedItem; onClose: () => void }) {
+function DetailModal({
+  item,
+  onClose,
+  onRead,
+}: {
+  item: FeedItem
+  onClose: () => void
+  onRead: (id: number) => void
+}) {
+  useEffect(() => {
+    // Mark as read via detail endpoint — this decrements announcements_unread badge
+    if (!item.read) {
+      api.get(`/api/notifications/announcements/${item.id}/`)
+        .then(() => onRead(item.id))
+        .catch(() => {})
+    }
+  }, [item.id, item.read, onRead])
+
   return (
     <div
       className="fixed inset-0 flex items-end justify-center"
@@ -174,7 +191,7 @@ function DetailModal({ item, onClose }: { item: FeedItem; onClose: () => void })
           </button>
         </div>
 
-        <div style={{ padding: '0 20px 32px', overflowY: 'auto', flex: 1 }}>
+        <div style={{ padding: '0 20px calc(32px + env(safe-area-inset-bottom, 0px))', overflowY: 'auto', flex: 1 }}>
           <div className="flex items-center gap-2 flex-wrap" style={{ marginTop: 10 }}>
             {item.pinned && (
               <span style={{
@@ -374,7 +391,7 @@ function ComposeModal({
         </div>
 
         {/* Send button */}
-        <div style={{ padding: '12px 20px 32px' }}>
+        <div style={{ padding: '12px 20px calc(32px + env(safe-area-inset-bottom, 0px))' }}>
           <button
             onClick={handleSend}
             disabled={!canSend || sending}
@@ -432,6 +449,10 @@ export function AnnouncementFeedPage() {
   }, [toast])
 
   useEffect(() => { loadFeed(1, true) }, [loadFeed])
+
+  const handleRead = (id: number) => {
+    setItems(prev => prev.map(it => it.id === id ? { ...it, read: true } : it))
+  }
 
   const handleLike = async (id: number) => {
     setItems(prev => prev.map(it =>
@@ -562,7 +583,7 @@ export function AnnouncementFeedPage() {
       )}
 
       {detail && (
-        <DetailModal item={detail} onClose={() => setDetail(null)} />
+        <DetailModal item={detail} onClose={() => setDetail(null)} onRead={handleRead} />
       )}
 
       {composeOpen && (

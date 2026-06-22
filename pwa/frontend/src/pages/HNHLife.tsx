@@ -121,7 +121,7 @@ export function HNHLifePage() {
 
     api.get<{ results: FeedItem[] }>('/api/notifications/announcements/feed/?page_size=10')
       .then(data => setFeedItems(data.results ?? []))
-      .catch(() => {})
+      .catch(() => setFeedItems([]))
       .finally(() => setFeedLoaded(true))
   }, [])
 
