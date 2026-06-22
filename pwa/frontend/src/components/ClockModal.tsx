@@ -349,15 +349,18 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
   // Countdown: tự đóng confirm sau 10s
   useEffect(() => {
     if (!showConfirm) return
+    let remaining = 10
     const id = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(id)
-          setShowConfirm(false)
-          return 10
-        }
-        return prev - 1
-      })
+      remaining -= 1
+      setCountdown(remaining)
+      if (remaining <= 0) {
+        clearInterval(id)
+        // Phải clear selfie + pendingBody để camera preview hoạt động lại
+        setShowConfirm(false)
+        setSelfie(null)
+        setPendingBody(null)
+        setCountdown(10)
+      }
     }, 1000)
     return () => clearInterval(id)
   }, [showConfirm])
@@ -392,6 +395,12 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
     setShowConfirm(true)
     setCountdown(10)
   }, [acting, done, geo.loading, isClockedIn, capture, geo.position, deviceKind, selectedOfficeId, workLocation, oofType, oofNote])
+
+  const dismissConfirm = useCallback(() => {
+    setShowConfirm(false)
+    setSelfie(null)
+    setPendingBody(null)
+  }, [])
 
   const confirmAndClock = useCallback(async () => {
     if (!pendingBody) return
@@ -880,7 +889,7 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
     <div
       className="absolute inset-0 flex items-end justify-center"
       style={{ zIndex: 100, background: 'rgba(0,0,0,0.4)' }}
-      onClick={() => setShowConfirm(false)}
+      onClick={dismissConfirm}
     >
       <div
         style={{
@@ -979,7 +988,7 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
         {/* Action buttons */}
         <div className="flex gap-3">
           <button
-            onClick={() => setShowConfirm(false)}
+            onClick={dismissConfirm}
             style={{
               flex: 1, height: 50, borderRadius: 14,
               border: `1.5px solid ${HNH.line}`, background: '#fff',
