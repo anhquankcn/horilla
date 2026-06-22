@@ -21,6 +21,17 @@ from notifications.signals import notify
 from ...api_decorators.base.decorators import manager_permission_required
 from ...api_methods.base.methods import groupby_queryset
 
+_LEAVE_ERR_VI = {
+    "there is already a leave request for this date range.": "Đã có đơn nghỉ phép trong khoảng thời gian này.",
+    "this date range is not within your shift.": "Ngày nghỉ nằm ngoài ca làm việc.",
+    "leave type is not found.": "Loại nghỉ phép không tồn tại.",
+    "leave balance is not sufficient.": "Số ngày phép không đủ.",
+    "maximum leave days exceeded.": "Đã vượt quá số ngày phép tối đa.",
+}
+
+def _translate_leave_err(msg: str) -> str:
+    return _LEAVE_ERR_VI.get(msg.strip().lower(), msg)
+
 
 class EmployeeAvailableLeaveGetAPIView(APIView):
     permission_classes = [IsAuthenticated]
@@ -226,7 +237,12 @@ class EmployeeLeaveRequestDaysAPIView(APIView):
                     }
                     ser = LeaveRequestCreateUpdateSerializer(data=data)
                     if not ser.is_valid():
-                        raise ValueError(str(ser.errors))
+                        # Extract human-readable text from DRF ErrorDetail objects
+                        msg = next(
+                            (str(e) for field_errs in ser.errors.values() for e in field_errs),
+                            "Dữ liệu không hợp lệ",
+                        )
+                        raise ValueError(_translate_leave_err(msg))
                     created.append(ser.save())
                 # Approvers (gắn cho mọi request vừa tạo)
                 from leave.models import LeaveRequestConditionApproval
@@ -239,9 +255,9 @@ class EmployeeLeaveRequestDaysAPIView(APIView):
                                 defaults={"sequence": seq, "is_approved": False, "is_rejected": False},
                             )
         except ValueError as e:
-            return Response({"error": f"Lỗi tạo đơn: {e}"}, status=400)
+            return Response({"error": str(e)}, status=400)
         except Exception as e:
-            return Response({"error": f"Lỗi tạo đơn: {e}"}, status=400)
+            return Response({"error": str(e)}, status=400)
 
         # Notify quản lý + approvers/watchers (1 lần, gộp)
         actor = employee
@@ -358,7 +374,7 @@ class EmployeeLeaveRequestHoursAPIView(APIView):
                                 defaults={"sequence": seq, "is_approved": False, "is_rejected": False},
                             )
         except Exception as e:
-            return Response({"error": f"Lỗi tạo đơn: {e}"}, status=400)
+            return Response({"error": _translate_leave_err(str(e))}, status=400)
 
         actor = employee
         emp_name = f"{actor.employee_first_name} {actor.employee_last_name or ''}".strip()
