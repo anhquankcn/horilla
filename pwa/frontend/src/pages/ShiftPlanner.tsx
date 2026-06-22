@@ -191,7 +191,7 @@ function AssignModal({
       <div
         style={{
           background: '#fff', borderRadius: '20px 20px 0 0', width: '100%',
-          maxHeight: '90vh', overflowY: 'auto', padding: '24px 20px 40px',
+          maxHeight: '90vh', overflowY: 'auto', padding: '24px 20px calc(40px + env(safe-area-inset-bottom, 0px))',
         }}
         onClick={e => e.stopPropagation()}
       >
@@ -372,7 +372,7 @@ function ApproveModal({ request, allShifts, onClose, onDone }: ApproveModalProps
       <div
         style={{
           background: '#fff', borderRadius: '20px 20px 0 0', width: '100%',
-          maxHeight: '85vh', overflowY: 'auto', padding: '24px 20px 40px',
+          maxHeight: '85vh', overflowY: 'auto', padding: '24px 20px calc(40px + env(safe-area-inset-bottom, 0px))',
         }}
         onClick={e => e.stopPropagation()}
       >

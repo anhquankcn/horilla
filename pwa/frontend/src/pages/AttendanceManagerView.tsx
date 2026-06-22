@@ -240,7 +240,7 @@ export function AttendanceManagerViewPage() {
       }}>
         <button
           onClick={() => navigate(-1)}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: HNH.ink2, padding: 4, display: 'flex' }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: HNH.ink2, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, borderRadius: 10, flexShrink: 0 }}
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
             <path d="M19 12H5M5 12l7-7M5 12l7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -526,7 +526,7 @@ function PunchDetailModal({
         </div>
 
         {/* Punch list */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px', paddingBottom: 'calc(20px + env(safe-area-inset-bottom, 0px))' }}>
           {loading ? (
             <div style={{ textAlign: 'center', color: HNH.ink3, padding: 24 }}>Đang tải...</div>
           ) : !detail || detail.punches.length === 0 ? (

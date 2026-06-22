@@ -200,7 +200,7 @@ export function MonthlyAttendanceDetailPage() {
       }}>
         <button
           onClick={() => navigate(-1)}
-          style={{ background: 'none', border: 'none', cursor: 'pointer', color: HNH.ink2, padding: 4, display: 'flex' }}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: HNH.ink2, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', width: 44, height: 44, borderRadius: 10, flexShrink: 0 }}
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
             <path d="M19 12H5M5 12l7-7M5 12l7 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -659,7 +659,7 @@ function CellDetailModal({
       <div
         style={{
           background: '#fff', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 480,
-          padding: '20px 20px 32px',
+          padding: '20px 20px calc(32px + env(safe-area-inset-bottom, 0px))',
         }}
         onClick={e => e.stopPropagation()}
       >
