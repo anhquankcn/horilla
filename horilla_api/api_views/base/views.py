@@ -2094,9 +2094,16 @@ def _get_service_group():
 
 
 class StandbySyncLogView(APIView):
-    """Lịch sử + kết quả job đồng bộ Standby→Stage (Quản trị Hệ thống)."""
+    """Lịch sử + kết quả job đồng bộ Standby→Stage (Quản trị Hệ thống).
 
-    permission_classes = [IsAuthenticated]
+    GET  — xem lịch sử (Admin Hệ thống, qua session JWT)
+    POST — nhận log từ stage server (auth: Bearer STANDBY_SYNC_PUSH_TOKEN)
+    """
+
+    def get_permissions(self):
+        if self.request.method == "POST":
+            return []  # POST tự xác thực bằng shared token trong view
+        return [IsAuthenticated()]
 
     def get(self, request):
         if not _is_api_admin(request.user):
@@ -2117,6 +2124,30 @@ class StandbySyncLogView(APIView):
             }
 
         return Response({"results": [row(l) for l in StandbySyncLog.objects.all()[:50]]})
+
+    def post(self, request):
+        """Nhận sync log từ stage server. Auth: Bearer <STANDBY_SYNC_PUSH_TOKEN>."""
+        import os
+        from django.utils import timezone
+
+        expected = os.environ.get("STANDBY_SYNC_PUSH_TOKEN", "")
+        auth = request.META.get("HTTP_AUTHORIZATION", "")
+        if not expected or auth != f"Bearer {expected}":
+            return Response({"error": "Unauthorized"}, status=401)
+
+        from base.models import StandbySyncLog
+
+        d = request.data
+        log = StandbySyncLog.objects.create(
+            finished_at=timezone.now(),
+            duration_seconds=d.get("duration_seconds"),
+            trigger=d.get("trigger", "scheduled"),
+            status=d.get("status", "success"),
+            tables=d.get("tables") or {},
+            reconciliation=d.get("reconciliation") or {},
+            message=d.get("message", ""),
+        )
+        return Response({"id": log.id, "status": log.status}, status=201)
 
 
 class ServiceAccountView(APIView):
