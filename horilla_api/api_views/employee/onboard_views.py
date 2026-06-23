@@ -175,7 +175,16 @@ class OnboardEmployeeView(APIView):
             return Response({"error": "Thiếu Email (bắt buộc để tạo tài khoản Keycloak)"}, status=400)
         if not badge_id:
             return Response({"error": "Thiếu Mã nhân viên (badge_id)"}, status=400)
-        if Employee.objects.filter(email=email).exists():
+        existing = Employee.objects.filter(email=email).first()
+        if existing:
+            if not existing.is_active:
+                return Response({
+                    "error": (
+                        f"Email {email} thuộc nhân viên {existing.get_full_name()} "
+                        f"({existing.badge_id}) đang bị vô hiệu hóa. "
+                        "Vào Django Admin → Employees → kích hoạt lại thay vì tạo mới."
+                    )
+                }, status=400)
             return Response({"error": f"Email {email} đã tồn tại"}, status=400)
         if Employee.objects.filter(badge_id=badge_id).exists():
             return Response({"error": f"Mã NV {badge_id} đã tồn tại"}, status=400)
