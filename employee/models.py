@@ -1421,6 +1421,15 @@ class HNHEmployeeProfile(models.Model):
     household_address = models.TextField(max_length=255, null=True, blank=True, verbose_name=_("Địa chỉ hộ khẩu thường trú"))
     household_relation = models.CharField(max_length=50, null=True, blank=True, verbose_name=_("Quan hệ với chủ hộ"))
 
+    # Tracking hỗ trợ đặt lại mật khẩu
+    last_password_reset_sent_at = models.DateTimeField(
+        null=True, blank=True, verbose_name=_("Lần gửi đặt lại mật khẩu gần nhất")
+    )
+    last_password_reset_sent_by = models.ForeignKey(
+        "auth.User", null=True, blank=True, on_delete=models.SET_NULL,
+        related_name="+", verbose_name=_("Người gửi đặt lại mật khẩu"),
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 

@@ -218,6 +218,35 @@ function CheckItem({ ok, label }: { ok: boolean; label: string }) {
   )
 }
 
+function PasswordResetInfo({ sentAt, sentBy }: { sentAt: string | null; sentBy: string | null }) {
+  if (!sentAt) return (
+    <div className="flex items-center gap-2" style={{ fontSize: 12.5, color: HNH.ink3 }}>
+      <div style={{
+        width: 18, height: 18, borderRadius: '50%', background: HNH.cream2,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+      }}>
+        <svg width="8" height="8" viewBox="0 0 8 8"><circle cx="4" cy="4" r="3" fill={HNH.ink4}/></svg>
+      </div>
+      Chưa từng gửi đặt lại mật khẩu
+    </div>
+  )
+  const d = new Date(sentAt)
+  const label = `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
+  return (
+    <div className="flex items-center gap-2" style={{ fontSize: 12.5, color: HNH.ink2 }}>
+      <div style={{
+        width: 18, height: 18, borderRadius: '50%', background: HNH.navy50,
+        display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+      }}>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={HNH.navy} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M22 2L11 13"/><path d="M22 2L15 22 11 13 2 9l20-7z"/>
+        </svg>
+      </div>
+      <span>Gửi reset mật khẩu: <b>{label}</b>{sentBy ? ` (${sentBy})` : ''}</span>
+    </div>
+  )
+}
+
 /* ── Tab: Overview ── */
 export function OverviewTab({ data }: { data: ProfileData }) {
   const p = data.personal
@@ -445,6 +474,8 @@ interface KcAccount {
   exists: boolean; kc_id: string | null; username: string | null
   enabled?: boolean; roles: string[]; groups: string[]
   required_actions?: string[]
+  last_password_reset_sent_at?: string | null
+  last_password_reset_sent_by_name?: string | null
 }
 
 function extractDept(desc?: string): string {
@@ -571,6 +602,10 @@ export function AppAccountTab({ employeeId, employeeEmail, can_edit, department 
               <CheckItem ok={account.enabled !== false} label="Tài khoản đang hoạt động" />
               <CheckItem ok={account.roles.length > 0} label={`Vai trò: ${account.roles.filter(r => r !== 'default-roles-hnh').join(', ') || 'Chưa gán'}`} />
               <CheckItem ok={account.groups.length > 0} label={`Nhóm: ${account.groups.join(', ') || 'Chưa gán'}`} />
+              <PasswordResetInfo
+                sentAt={account.last_password_reset_sent_at ?? null}
+                sentBy={account.last_password_reset_sent_by_name ?? null}
+              />
             </div>
           )}
         </div>

@@ -68,8 +68,17 @@ class KcAccountView(APIView):
             user = kc.get_user_by_email(email)
             if not user:
                 return Response({"exists": False, "kc_id": None, "username": None,
-                                 "roles": [], "groups": []})
+                                 "roles": [], "groups": [],
+                                 "last_password_reset_sent_at": None,
+                                 "last_password_reset_sent_by_name": None})
             uid = user["id"]
+            from employee.models import HNHEmployeeProfile
+            prof = getattr(emp, "hnh_profile", None)
+            reset_at = prof.last_password_reset_sent_at.isoformat() if prof and prof.last_password_reset_sent_at else None
+            reset_by = None
+            if prof and prof.last_password_reset_sent_by_id:
+                u = prof.last_password_reset_sent_by
+                reset_by = getattr(u, "get_full_name", lambda: u.username)() or u.username
             return Response({
                 "exists": True,
                 "kc_id": uid,
@@ -78,6 +87,8 @@ class KcAccountView(APIView):
                 "roles": kc.get_user_roles(uid),
                 "groups": kc.get_user_groups(uid),
                 "required_actions": user.get("requiredActions", []),
+                "last_password_reset_sent_at": reset_at,
+                "last_password_reset_sent_by_name": reset_by,
             })
         except Exception as e:
             return Response({"error": str(e)}, status=502)
@@ -147,6 +158,12 @@ class KcAccountView(APIView):
             elif action == "reset_password":
                 kc.reset_password(uid, DEFAULT_PASSWORD)
                 _send_welcome_email(emp, email, first, last)
+                from django.utils import timezone
+                from employee.models import HNHEmployeeProfile
+                prof, _ = HNHEmployeeProfile.objects.get_or_create(employee_id=emp)
+                prof.last_password_reset_sent_at = timezone.now()
+                prof.last_password_reset_sent_by = request.user
+                prof.save(update_fields=["last_password_reset_sent_at", "last_password_reset_sent_by"])
                 return Response({
                     "success": True,
                     "message": f"Đã reset mật khẩu về {DEFAULT_PASSWORD} và gửi email tới {email}",
