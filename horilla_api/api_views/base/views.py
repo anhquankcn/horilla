@@ -2131,8 +2131,9 @@ class StandbySyncLogView(APIView):
         from django.utils import timezone
 
         expected = os.environ.get("STANDBY_SYNC_PUSH_TOKEN", "")
-        auth = request.META.get("HTTP_AUTHORIZATION", "")
-        if not expected or auth != f"Bearer {expected}":
+        # Dùng X-Sync-Token thay vì Authorization để tránh SimpleJWT intercept
+        auth = request.META.get("HTTP_X_SYNC_TOKEN", "")
+        if not expected or auth != expected:
             return Response({"error": "Unauthorized"}, status=401)
 
         from base.models import StandbySyncLog
