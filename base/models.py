@@ -3272,3 +3272,32 @@ class StandbySyncLog(models.Model):
 
     def __str__(self):
         return f"StandbySync {self.started_at:%Y-%m-%d %H:%M} {self.status}"
+
+
+class SystemHealthLog(models.Model):
+    """Lịch sử kiểm tra định kỳ: replication Prod↔Standby + backup SSO."""
+
+    CHECK_PROD_STANDBY = "prod_standby"
+    CHECK_SSO_BACKUP = "sso_backup"
+    CHECK_TYPE_CHOICES = [
+        (CHECK_PROD_STANDBY, "Prod → Standby Replication"),
+        (CHECK_SSO_BACKUP, "Backup SSO"),
+    ]
+    STATUS_CHOICES = [
+        ("ok", "OK"),
+        ("warn", "Cảnh báo"),
+        ("error", "Lỗi"),
+    ]
+
+    check_type = models.CharField(max_length=30, choices=CHECK_TYPE_CHOICES)
+    checked_at = models.DateTimeField(auto_now_add=True)
+    status = models.CharField(max_length=10, choices=STATUS_CHOICES, default="ok")
+    details = models.JSONField(default=dict, blank=True)
+    message = models.TextField(blank=True, default="")
+
+    class Meta:
+        verbose_name = _("System Health Log")
+        ordering = ["-checked_at"]
+
+    def __str__(self):
+        return f"{self.check_type} {self.checked_at:%Y-%m-%d %H:%M} {self.status}"

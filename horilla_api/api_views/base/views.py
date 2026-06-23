@@ -2151,6 +2151,59 @@ class StandbySyncLogView(APIView):
         return Response({"id": log.id, "status": log.status}, status=201)
 
 
+class SystemHealthLogView(APIView):
+    """Lịch sử kiểm tra sức khỏe hệ thống: Prod↔Standby replication + Backup SSO.
+
+    GET  /api/base/system-health/?type=prod_standby|sso_backup  — xem lịch sử
+    POST /api/base/system-health/  — nhận kết quả check từ stage (X-Sync-Token)
+    """
+
+    def get_permissions(self):
+        if self.request.method == "POST":
+            return []
+        return [IsAuthenticated()]
+
+    def get(self, request):
+        if not _is_api_admin(request.user):
+            return Response({"error": "Chỉ Quản trị Hệ thống"}, status=403)
+        from base.models import SystemHealthLog
+
+        check_type = request.query_params.get("type")
+        qs = SystemHealthLog.objects.all()
+        if check_type:
+            qs = qs.filter(check_type=check_type)
+
+        def row(l):
+            return {
+                "id": l.id,
+                "check_type": l.check_type,
+                "checked_at": l.checked_at.isoformat(),
+                "status": l.status,
+                "details": l.details,
+                "message": l.message,
+            }
+
+        return Response({"results": [row(l) for l in qs[:72]]})  # 72 = 3 ngày hourly
+
+    def post(self, request):
+        import os
+        expected = os.environ.get("STANDBY_SYNC_PUSH_TOKEN", "")
+        token = request.META.get("HTTP_X_SYNC_TOKEN", "")
+        if not expected or token != expected:
+            return Response({"error": "Unauthorized"}, status=401)
+
+        from base.models import SystemHealthLog
+
+        d = request.data
+        log = SystemHealthLog.objects.create(
+            check_type=d.get("check_type", "prod_standby"),
+            status=d.get("status", "ok"),
+            details=d.get("details") or {},
+            message=d.get("message", ""),
+        )
+        return Response({"id": log.id, "status": log.status}, status=201)
+
+
 class ServiceAccountView(APIView):
     """
     GET  /api/base/service-accounts/  — danh sách service accounts
