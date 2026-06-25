@@ -27,13 +27,31 @@ def _is_cnb(user):
     )
 
 
-def _build_rows(year, month, company_id=None, department_id=None, search=None):
+def _parse_d(s):
+    """Parse 'YYYY-MM-DD' → date, hoặc None nếu rỗng/sai định dạng."""
+    if not s:
+        return None
+    try:
+        return date.fromisoformat(s.strip())
+    except (ValueError, AttributeError):
+        return None
+
+
+def _build_rows(year, month, company_id=None, department_id=None, search=None,
+                from_date=None, to_date=None):
     import calendar
     from django.db.models import Q, F, Value, CharField
     from django.db.models.functions import Concat
 
-    first = date(year, month, 1)
-    last = date(year, month, calendar.monthrange(year, month)[1])
+    # Khoảng ngày: mặc định cả tháng; nếu có from/to thì kẹp trong phạm vi tháng.
+    month_first = date(year, month, 1)
+    month_last = date(year, month, calendar.monthrange(year, month)[1])
+    first = from_date or month_first
+    last = to_date or month_last
+    if first < month_first:
+        first = month_first
+    if last > month_last:
+        last = month_last
 
     employees = Employee.objects.filter(is_active=True).select_related(
         "employee_work_info__shift_id"
@@ -221,12 +239,44 @@ class AttendanceExportPreviewView(APIView):
         department_id = request.query_params.get("department_id") or None
         search = request.query_params.get("q") or None
 
-        rows = _build_rows(year, month, company_id, department_id, search)
+        import calendar
+        month_first = date(year, month, 1)
+        month_last = date(year, month, calendar.monthrange(year, month)[1])
+        from_date = _parse_d(request.query_params.get("from_date")) or month_first
+        to_date = _parse_d(request.query_params.get("to_date")) or month_last
+        from_date = max(from_date, month_first)
+        to_date = min(to_date, month_last)
+
+        try:
+            page = max(1, int(request.query_params.get("page", 1) or 1))
+        except (TypeError, ValueError):
+            page = 1
+        try:
+            page_size = int(request.query_params.get("page_size", 50) or 50)
+        except (TypeError, ValueError):
+            page_size = 50
+        if page_size not in (20, 50, 100, 200):
+            page_size = 50
+
+        rows = _build_rows(year, month, company_id, department_id, search, from_date, to_date)
+        total = len(rows)
+        total_pages = max(1, (total + page_size - 1) // page_size)
+        page = min(page, total_pages)
+        start = (page - 1) * page_size
+        page_rows = rows[start:start + page_size]
+
         return Response({
             "year": year,
             "month": month,
-            "count": len(rows),
-            "results": rows,
+            "from_date": from_date.isoformat(),
+            "to_date": to_date.isoformat(),
+            "month_first": month_first.isoformat(),
+            "month_last": month_last.isoformat(),
+            "count": total,
+            "page": page,
+            "page_size": page_size,
+            "total_pages": total_pages,
+            "results": page_rows,
         })
 
 
@@ -247,7 +297,15 @@ class AttendanceExportExcelView(APIView):
         department_id = request.query_params.get("department_id") or None
         search = request.query_params.get("q") or None
 
-        rows = _build_rows(year, month, company_id, department_id, search)
+        import calendar
+        month_first = date(year, month, 1)
+        month_last = date(year, month, calendar.monthrange(year, month)[1])
+        from_date = _parse_d(request.query_params.get("from_date")) or month_first
+        to_date = _parse_d(request.query_params.get("to_date")) or month_last
+        from_date = max(from_date, month_first)
+        to_date = min(to_date, month_last)
+
+        rows = _build_rows(year, month, company_id, department_id, search, from_date, to_date)
 
         wb = Workbook()
         ws = wb.active

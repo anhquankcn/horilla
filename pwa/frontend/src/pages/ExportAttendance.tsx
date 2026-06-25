@@ -29,6 +29,11 @@ interface Row {
 interface Opt { id: number; name: string }
 
 const MONTH_NAMES = ['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6','Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12']
+const PAGE_SIZES = [20, 50, 100, 200]
+
+const _ymd = (y: number, m: number, d: number) => `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+const firstOfMonth = (y: number, m: number) => _ymd(y, m, 1)
+const lastOfMonth = (y: number, m: number) => _ymd(y, m, new Date(y, m, 0).getDate())
 
 function Chip({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
@@ -56,6 +61,25 @@ export function ExportAttendancePage() {
   const [deptId, setDeptId] = useState<number | null>(null)
   const [q, setQ] = useState('')
   const [qApplied, setQApplied] = useState('')
+  const [fromDate, setFromDate] = useState(() => firstOfMonth(now.getFullYear(), now.getMonth() + 1))
+  const [toDate, setToDate] = useState(() => lastOfMonth(now.getFullYear(), now.getMonth() + 1))
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(50)
+  const [total, setTotal] = useState(0)
+  const [totalPages, setTotalPages] = useState(1)
+
+  const monthFirst = firstOfMonth(year, month)
+  const monthLast = lastOfMonth(year, month)
+
+  // Đổi tháng → reset khoảng ngày về đầu/cuối tháng + về trang 1
+  useEffect(() => {
+    setFromDate(firstOfMonth(year, month))
+    setToDate(lastOfMonth(year, month))
+    setPage(1)
+  }, [year, month])
+
+  // Đổi bộ lọc / khoảng ngày / số dòng/trang → về trang 1
+  useEffect(() => { setPage(1) }, [companyId, deptId, qApplied, fromDate, toDate, pageSize])
 
   // Debounce ô tìm kiếm (Tên / Mã NV / Mã KT) — tránh gọi API mỗi ký tự
   useEffect(() => {
@@ -80,27 +104,29 @@ export function ExportAttendancePage() {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch(`/bff/api/attendance/export-monthly/?year=${year}&month=${month}${filterQS}`, { credentials: 'include' })
+      const res = await fetch(`/bff/api/attendance/export-monthly/?year=${year}&month=${month}&from_date=${fromDate}&to_date=${toDate}&page=${page}&page_size=${pageSize}${filterQS}`, { credentials: 'include' })
       if (!res.ok) {
         const d = await res.json().catch(() => ({}))
         setError(d.error || `Lỗi ${res.status}`)
-        setRows([])
+        setRows([]); setTotal(0); setTotalPages(1)
       } else {
         const data = await res.json()
         setRows(data.results || [])
+        setTotal(data.count ?? 0)
+        setTotalPages(data.total_pages ?? 1)
       }
     } catch (e: any) {
       setError(e.message || 'Lỗi')
     }
     setLoading(false)
-  }, [year, month, filterQS])
+  }, [year, month, fromDate, toDate, page, pageSize, filterQS])
 
   useEffect(() => { load() }, [load])
 
   const handleDownload = async () => {
     setDownloading(true)
     try {
-      const res = await fetch(`/bff/api/attendance/export-monthly/xlsx/?year=${year}&month=${month}${filterQS}`, { credentials: 'include' })
+      const res = await fetch(`/bff/api/attendance/export-monthly/xlsx/?year=${year}&month=${month}&from_date=${fromDate}&to_date=${toDate}${filterQS}`, { credentials: 'include' })
       if (!res.ok) throw new Error('Download failed')
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
@@ -141,6 +167,22 @@ export function ExportAttendancePage() {
           </button>
         </div>
 
+        {/* Từ ngày – Đến ngày (trong tháng đang chọn) */}
+        <div className="flex items-end gap-2" style={{ marginBottom: 10 }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: 10.5, fontWeight: 700, color: HNH.ink3, display: 'block', marginBottom: 3 }}>TỪ NGÀY</label>
+            <input type="date" value={fromDate} min={monthFirst} max={monthLast}
+              onChange={e => setFromDate(e.target.value)}
+              style={{ width: '100%', padding: '8px 10px', borderRadius: 10, border: `1px solid ${HNH.line}`, fontSize: 13, boxSizing: 'border-box', color: HNH.ink, background: '#fff', fontFamily: 'inherit' }} />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={{ fontSize: 10.5, fontWeight: 700, color: HNH.ink3, display: 'block', marginBottom: 3 }}>ĐẾN NGÀY</label>
+            <input type="date" value={toDate} min={fromDate || monthFirst} max={monthLast}
+              onChange={e => setToDate(e.target.value)}
+              style={{ width: '100%', padding: '8px 10px', borderRadius: 10, border: `1px solid ${HNH.line}`, fontSize: 13, boxSizing: 'border-box', color: HNH.ink, background: '#fff', fontFamily: 'inherit' }} />
+          </div>
+        </div>
+
         {/* Ô lọc theo Tên / Mã NV / Mã KT (nhiều NV: cách nhau dấu phẩy) */}
         <div style={{ position: 'relative', marginBottom: 10 }}>
           <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)' }}>
@@ -174,7 +216,7 @@ export function ExportAttendancePage() {
         {/* Stats + download */}
         <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
           <span style={{ fontSize: 13, color: HNH.ink2 }}>
-            {loading ? 'Đang tải...' : `${rows.length} dòng`}
+            {loading ? 'Đang tải...' : `${total} dòng`}
           </span>
           <button
             onClick={handleDownload}
@@ -196,6 +238,18 @@ export function ExportAttendancePage() {
             <span style={{ fontSize: 12, color: HNH.red }}>{error}</span>
           </div>
         )}
+
+        {/* Thanh trên bảng: trang hiện tại + số dòng/trang (góc phải) */}
+        <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
+          <span style={{ fontSize: 12, color: HNH.ink3 }}>{total > 0 ? `Trang ${page}/${totalPages}` : ''}</span>
+          <div className="flex items-center gap-2">
+            <span style={{ fontSize: 12, color: HNH.ink3 }}>Số dòng/trang</span>
+            <select value={pageSize} onChange={e => setPageSize(Number(e.target.value))}
+              style={{ padding: '5px 8px', borderRadius: 8, border: `1px solid ${HNH.line}`, fontSize: 12, fontWeight: 600, color: HNH.ink, background: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}>
+              {PAGE_SIZES.map(n => <option key={n} value={n}>{n}</option>)}
+            </select>
+          </div>
+        </div>
 
         {/* Data table */}
         <div style={{ overflowX: 'auto', borderRadius: 14, border: `1px solid ${HNH.line}` }}>
@@ -248,6 +302,17 @@ export function ExportAttendancePage() {
             </tbody>
           </table>
         </div>
+
+        {/* Phân trang */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-3" style={{ marginTop: 14 }}>
+            <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
+              style={{ padding: '8px 16px', borderRadius: 10, border: `1px solid ${HNH.line}`, background: '#fff', color: page <= 1 ? HNH.ink4 : HNH.navy, fontSize: 13, fontWeight: 700, cursor: page <= 1 ? 'not-allowed' : 'pointer' }}>‹ Trước</button>
+            <span style={{ fontSize: 13, fontWeight: 700, color: HNH.ink }}>{page} / {totalPages}</span>
+            <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
+              style={{ padding: '8px 16px', borderRadius: 10, border: `1px solid ${HNH.line}`, background: '#fff', color: page >= totalPages ? HNH.ink4 : HNH.navy, fontSize: 13, fontWeight: 700, cursor: page >= totalPages ? 'not-allowed' : 'pointer' }}>Sau ›</button>
+          </div>
+        )}
 
         {!loading && rows.length === 0 && !error && (
           <div style={{ textAlign: 'center', padding: 40, color: HNH.ink3, fontSize: 13 }}>
