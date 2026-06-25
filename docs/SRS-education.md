@@ -55,17 +55,21 @@ Số hóa quản trị nhân sự cho **Trường Đại học Quảng Nam** —
 ### 2.1 Bối cảnh sản phẩm
 Hệ thống là **instance riêng** của ĐHQN trên core Horilla dùng chung, bật `HRM_SECTOR=education`. Kiến trúc kỹ thuật (Django + PWA + Keycloak + Postgres + Docker) như [TDD.md](./TDD.md); phần đặc thù giáo dục nằm trong app `academic` / `teaching_hours` / payroll strategy viên chức.
 
-### 2.2 Cơ cấu tổ chức ĐHQN (CXN — cần lấy sơ đồ chính thức)
-Mô hình phân cấp:
-```
-Trường ĐH Quảng Nam
- ├── Ban Giám hiệu
- ├── Khoa  ──< Bộ môn        (đơn vị đào tạo, có giảng viên)
- ├── Phòng / Ban             (TCCB, Đào tạo, KH-TC, CTSV, QLKH&HTQT...)
- ├── Trung tâm               (Tin học – Ngoại ngữ, Học liệu...)
- └── Cơ sở / địa điểm         (Tam Kỳ + cơ sở khác nếu có)
-```
-→ Hệ thống cần **phân cấp đơn vị** (Trường→Khoa→Bộ môn; Phòng/Ban/Trung tâm song song), không phẳng như mô hình "phòng ban du lịch".
+### 2.2 Cơ cấu tổ chức ĐHQN (từ thông tin public — vẫn cần trường xác nhận bản hiện hành)
+
+**Thông tin chung** (nguồn: qnamuni.edu.vn, Wikipedia):
+- Thành lập **1997** (CĐSP Quảng Nam), nâng cấp **Trường ĐH Quảng Nam 2007**. Mã trường **DQU**.
+- Địa chỉ: **102 Hùng Vương, TP Tam Kỳ, Quảng Nam**. Trường công lập, đa ngành.
+- Quy mô: **~180 cán bộ, giảng viên, nhân viên** (số liệu công bố — CXN số hiện tại).
+
+**Đơn vị trực thuộc** (cổng trường công bố: ~15 đơn vị = 05 Phòng + 06 Khoa + 03 Trung tâm + 01 Trường Mầm non Thực hành). Danh sách chi tiết (tham khảo Wikipedia, có thể khác do tái cơ cấu — **CXN sơ đồ chính thức**):
+- **Khoa:** Ngoại ngữ; Toán – Tin; Văn hóa – Du lịch; Tiểu học – Mầm non & Nghệ thuật; Khoa học Xã hội; Kinh tế; Khoa học Tự nhiên; Lý luận Chính trị (+ bộ môn Tâm lý – Giáo dục, GD Thể chất – Quốc phòng).
+- **Phòng/Ban:** Tổ chức – Hành chính (TCCB); Đào tạo & Công tác Sinh viên; Quản lý Khoa học & Hợp tác Quốc tế (QLKH&HTQT); Kế hoạch – Tài chính; Quản trị; Quản lý Xây dựng.
+- **Trung tâm:** Học liệu; Hỗ trợ Sinh viên; Tin học – Ngoại ngữ; Phát triển Giáo dục.
+
+**Mô hình phân cấp cần hỗ trợ:** Trường → **Khoa → Bộ môn** (đơn vị đào tạo, có giảng viên); **Phòng/Ban/Trung tâm** song song; **đa cơ sở** (campus). → Phân cấp đơn vị, không phẳng như "phòng ban du lịch".
+
+> **Đồng bộ với QLĐT:** Cơ cấu Khoa/Bộ môn được quản lý làm "system-of-record" trong phần mềm QLĐT đang xây (`anhquankcn/QLDT_QNU`, service CoreService: model `Faculty`, `Department` có `FacultyId` phân cấp, `CampusId` đa cơ sở, `HeadId` = Keycloak sub của trưởng đơn vị). HRM **tham chiếu/đồng bộ** từ QLĐT thay vì tự nhập trùng (xem mục 5).
 
 ### 2.3 Ràng buộc
 - Tuân thủ **Luật Viên chức**, **Bộ luật Lao động** (với người lao động hợp đồng), quy định **Bộ GD&ĐT** về định mức giờ chuẩn & chức danh giảng viên, quy định **Bộ Nội vụ/Bộ Tài chính** về lương/phụ cấp.
@@ -154,15 +158,29 @@ Trường ĐH Quảng Nam
 
 ---
 
-## 5. Giao diện ngoài (CXN)
+## 5. Giao diện ngoài
 
-| Hệ thống | Mục đích | Ghi chú |
-|----------|----------|---------|
-| Phần mềm Quản lý đào tạo (QLĐT) của trường | Lấy phân công lớp/học phần để quy đổi giờ giảng | M2M (pha 2, CXN phần mềm đang dùng) |
-| Hệ thống NCKH (nếu có) | Đồng bộ đề tài → quy đổi giờ | M2M (pha 2) |
-| Máy chấm công | Cán bộ hành chính | M2M |
+| Hệ thống | Mục đích | Cơ chế |
+|----------|----------|--------|
+| **QLĐT** (`anhquankcn/QLDT_QNU`) | Nguồn cơ cấu Khoa/Bộ môn + **khối lượng giảng dạy** để quy đổi giờ chuẩn → định mức/vượt giờ/lương | M2M qua Gateway/event bus (xem 5.1) |
+| Máy chấm công | Cán bộ hành chính | M2M `attendance:write` |
 | Email trường | Thông báo, phiếu lương | SMTP |
-| Cổng dịch vụ công / BHXH (nếu yêu cầu) | Báo cáo (CXN) | tương lai |
+| HEMIS / LGSP (Bộ/Tỉnh) | Báo cáo nhân sự (nếu yêu cầu) | Qua module INT của QLĐT hoặc trực tiếp (CXN) |
+| Cổng dịch vụ công / BHXH | Báo cáo (CXN) | tương lai |
+
+### 5.1 Tích hợp HRM ↔ QLĐT (then chốt)
+
+QLĐT là hệ thống **.NET 9 microservices** (CoreService, KqService — chương trình/học phần, TkbService — thời khóa biểu/khối lượng, SvService — sinh viên...) + API Gateway (YARP) + event bus, **dùng chung Keycloak** với HRM.
+
+**Khóa nối: Keycloak `sub`.** Cả QLĐT (`TeacherWorkload.TeacherId`, `Faculty.HeadId`, `Department.HeadId`) và HRM đều định danh người theo Keycloak → HRM map `Employee` ↔ giảng viên QLĐT qua cùng KC sub, **không cần đồng bộ thủ công**.
+
+**Phân vai system-of-record:**
+- **QLĐT làm chủ:** cơ cấu Khoa/Bộ môn (`Faculty`, `Department`), phân công & **khối lượng giảng dạy** (`TeacherWorkload`: TeacherId, Semester, SectionId, `AssignedPeriods` = số tiết, WorkloadType PRIMARY/SUBSTITUTE), học phần (`Subject`, `CourseSection`).
+- **HRM làm chủ:** hồ sơ viên chức, ngạch/bậc/hệ số, hợp đồng, lương, nghỉ phép, **định mức giờ chuẩn** + **bảng quy đổi tiết→giờ chuẩn** + **vượt giờ**.
+
+**Luồng dữ liệu chính:** mỗi học kỳ, HRM **kéo `TeacherWorkload` theo giảng viên** từ QLĐT (M2M qua Gateway, hoặc subscribe event khi QLĐT chốt phân công) → quy đổi `AssignedPeriods` ra giờ chuẩn (theo bảng quy đổi của HRM) → đối chiếu **định mức** → tính **vượt giờ** → đưa vào **lương** (FR-E2, FR-E6). Cơ cấu Khoa/Bộ môn đồng bộ 1 chiều QLĐT → HRM (tham chiếu).
+
+> **Lưu ý:** QLĐT hiện **chưa có** API "expose workload cho HRM" sẵn (module INT của QLĐT đang hướng HEMIS/LGSP/LMS). → cần **bổ sung 1 contract M2M** (REST qua Gateway hoặc event) phía QLĐT để HRM tiêu thụ `TeacherWorkload`. Đây là hạng mục phối hợp 2 đội. (CXN: REST pull hay event push; chốt phân công khi nào trong học kỳ.)
 
 ---
 
@@ -174,14 +192,14 @@ Bổ sung mới: app `academic` (chức danh/ngạch/bậc, năm học, định 
 
 ## 7. Giả định & Câu hỏi mở cần chốt với ĐHQN (CXN)
 
-1. **Sơ đồ tổ chức chính thức** (danh sách Khoa/Bộ môn/Phòng/Ban/Trung tâm, số cơ sở).
-2. **Quy mô**: số viên chức/giảng viên/người lao động hiện tại.
+1. **Sơ đồ tổ chức chính thức** — *đã có khung từ public* (05 phòng + 06 khoa + 03 trung tâm + trường MN thực hành). **Còn cần:** danh sách **Bộ môn** trong từng Khoa, số cơ sở/campus, bản hiện hành. → Tốt nhất **lấy trực tiếp từ QLĐT** (Faculty/Department).
+2. **Quy mô** — *~180 CBGV (công bố)*. **Còn cần:** phân tách giảng viên / cán bộ HC / hợp đồng + số theo ngạch.
 3. **Định mức giờ chuẩn** áp dụng (số giờ/năm theo chức danh) + **bảng quy đổi giờ** (lý thuyết/thực hành/hướng dẫn/lớp đông) + chế độ miễn giảm.
 4. **Chính sách lương**: hệ số áp dụng, mức lương cơ sở hiện hành, các loại phụ cấp + tỷ lệ, **đơn giá vượt giờ** theo chức danh.
 5. **Chế độ nghỉ** đặc thù (nghỉ hè giảng viên, lịch năm học).
 6. **Phạm vi pha 1**: có gồm NCKH/đào tạo bồi dưỡng/thi đua không, hay tập trung nhân sự + giờ giảng + lương?
 7. **SSO**: dùng email trường (Microsoft/Google) hay KC-local? Realm riêng hay client riêng?
-8. **Tích hợp**: phần mềm QLĐT/NCKH hiện dùng (để lấy phân công giảng dạy) — tên & khả năng API?
+8. **Tích hợp QLĐT** — *đã xác định: `anhquankcn/QLDT_QNU`* (.NET microservices, dùng chung Keycloak, có `TeacherWorkload`). **Còn cần chốt:** QLĐT bổ sung contract M2M (REST pull qua Gateway hay event push) để HRM lấy khối lượng giảng dạy; thời điểm chốt phân công trong học kỳ; bảng quy đổi tiết→giờ chuẩn (HRM giữ).
 9. **Dữ liệu chuyển đổi**: nguồn dữ liệu nhân sự/lương hiện tại để import (Excel/PMIS/phần mềm cũ)?
 
 ---
