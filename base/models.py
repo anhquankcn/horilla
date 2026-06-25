@@ -1148,6 +1148,23 @@ class EmployeeShiftSchedule(HorillaModel):
         verbose_name=_("Lấy GPS khi auto Clock Out"),
         help_text=_("Tự động lấy vị trí GPS khi hệ thống auto Clock Out."),
     )
+    core_start_time = models.TimeField(
+        null=True,
+        blank=True,
+        verbose_name=_("Giờ lõi tính trễ"),
+        help_text=_(
+            "Giờ chuẩn để tính ĐI TRỄ (vd 08:00). Để trống = dùng start_time của ca. "
+            "Dùng cho ca khung rộng như ALD26 (00:00–23:58) để không tính trễ từ đầu ca."
+        ),
+    )
+    core_end_time = models.TimeField(
+        null=True,
+        blank=True,
+        verbose_name=_("Giờ lõi tính về sớm"),
+        help_text=_(
+            "Giờ chuẩn để tính VỀ SỚM (vd 17:30). Để trống = dùng end_time của ca."
+        ),
+    )
 
     work_day_coefficient = models.DecimalField(
         max_digits=3, decimal_places=2, default=1.00,

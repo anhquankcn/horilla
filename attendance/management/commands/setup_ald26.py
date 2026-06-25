@@ -44,6 +44,8 @@ class Command(BaseCommand):
                     defaults={
                         "start_time": time(0, 0, 0),
                         "end_time": time(23, 58, 0),
+                        "core_start_time": time(8, 0, 0),
+                        "core_end_time": time(17, 30, 0),
                         "minimum_working_hour": "09:35",
                         "check_mode": "both",
                         "is_auto_punch_in_enabled": False,

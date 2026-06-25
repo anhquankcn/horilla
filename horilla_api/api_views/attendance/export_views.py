@@ -135,18 +135,23 @@ def _build_rows(year, month, company_id=None, department_id=None, search=None):
                         if shift.grace_time_id:
                             grace_secs = shift.grace_time_id.allowed_time_in_secs or 0
 
-                        if sched.start_time and earliest_in:
+                        # Giờ chuẩn tính trễ/sớm: ưu tiên giờ lõi (core_*) nếu được
+                        # khai báo (vd ALD26: 08:00/17:30), nếu không dùng khung ca.
+                        late_ref = sched.core_start_time or sched.start_time
+                        early_ref = sched.core_end_time or sched.end_time
+
+                        if late_ref and earliest_in:
                             from datetime import datetime as _dt, timedelta as _td
-                            shift_start_dt = _dt.combine(d, sched.start_time) + _td(seconds=grace_secs)
+                            shift_start_dt = _dt.combine(d, late_ref) + _td(seconds=grace_secs)
                             check_in_dt = _dt.combine(d, earliest_in)
                             if check_in_dt > shift_start_dt:
                                 is_late = True
                                 late_mins = int((check_in_dt - shift_start_dt).total_seconds() / 60)
                                 notes.append(f"Trễ {late_mins} phút")
 
-                        if sched.end_time and latest_out:
+                        if early_ref and latest_out:
                             from datetime import datetime as _dt
-                            shift_end_dt = _dt.combine(d, sched.end_time)
+                            shift_end_dt = _dt.combine(d, early_ref)
                             check_out_dt = _dt.combine(d, latest_out)
                             if check_out_dt < shift_end_dt:
                                 is_early = True
