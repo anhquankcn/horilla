@@ -337,3 +337,27 @@ AUTHENTICATION_BACKENDS = [
     "django.contrib.auth.backends.ModelBackend",
 ]
 AUTH_LDAP_ALWAYS_UPDATE_USER = True
+
+# Logger chẩn đoán chấm công (device/UA, chặn camera/desktop, chấm lặp).
+# Xuất INFO ra stdout để xem qua `docker logs` và grep "CLOCK". disable_existing_
+# loggers=False để không phá cấu hình logging mặc định của Django.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "clock": {"format": "[%(asctime)s] %(message)s"},
+    },
+    "handlers": {
+        "clock_console": {
+            "class": "logging.StreamHandler",
+            "formatter": "clock",
+        },
+    },
+    "loggers": {
+        "hnh.clock": {
+            "handlers": ["clock_console"],
+            "level": "INFO",
+            "propagate": False,
+        },
+    },
+}

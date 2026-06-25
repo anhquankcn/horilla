@@ -168,6 +168,11 @@ const OOF_TYPES = [
 
 type DoneState = null | 'valid' | 'pending'
 
+// Lưu thời điểm chấm công gần nhất qua localStorage để chống chấm lặp NGAY CẢ khi
+// app bị thoát/reload ("văng") — state in-memory mất khi reload, localStorage thì không.
+const LAST_CLOCK_KEY = 'hnh_last_clock_ts'
+const RAPID_WINDOW_MS = 45000
+
 // Phân loại thiết bị để cấm chấm công trên laptop/máy tính. Dùng cảm ứng để
 // không chặn nhầm iPad (Safari iPad giả lập UA macOS).
 function detectDeviceKind(): 'mobile' | 'tablet' | 'desktop' {
@@ -200,6 +205,7 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
   const [countdown, setCountdown] = useState(10)
   const [pendingBody, setPendingBody] = useState<Record<string, unknown> | null>(null)
   const [blockMsg, setBlockMsg] = useState<string | null>(null)
+  const [rapidConfirm, setRapidConfirm] = useState(false)  // đã cảnh báo chấm lặp, lần bấm sau bỏ qua
   const deviceKind = detectDeviceKind()
 
   useEffect(() => {
@@ -334,15 +340,25 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
     const video = videoRef.current
     const canvas = canvasRef.current
     if (!video || !canvas || video.videoWidth === 0) return null
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
+    // Giảm RAM (tránh iOS PWA reload/"văng"): chụp tối đa 720px cạnh dài — selfie
+    // chấm công không cần full-res. Full-res + toDataURL base64 spike RAM mỗi lần.
+    const MAX = 720
+    const vw = video.videoWidth, vh = video.videoHeight
+    const scale = Math.min(1, MAX / Math.max(vw, vh))
+    const w = Math.max(1, Math.round(vw * scale))
+    const h = Math.max(1, Math.round(vh * scale))
+    canvas.width = w
+    canvas.height = h
     const ctx = canvas.getContext('2d')
     if (!ctx) return null
-    ctx.translate(canvas.width, 0)
+    ctx.translate(w, 0)
     ctx.scale(-1, 1)
-    ctx.drawImage(video, 0, 0)
-    const data = canvas.toDataURL('image/jpeg', 0.8)
+    ctx.drawImage(video, 0, 0, w, h)
+    const data = canvas.toDataURL('image/jpeg', 0.7)
     setSelfie(data)
+    // Giải phóng buffer canvas ngay sau khi lấy data (giảm giữ RAM trên iOS)
+    canvas.width = 0
+    canvas.height = 0
     return data
   }, [])
 
@@ -368,6 +384,15 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
   const openConfirm = useCallback(() => {
     const gpsBlocked = geo.loading && !isClockedIn
     if (acting || !!done || gpsBlocked) return
+    // Chống chấm lặp sau khi văng/reload: vừa chấm < 45s và chưa xác nhận lại → cảnh báo.
+    // Dùng localStorage nên sống sót qua reload (in-memory state mất khi app bị thoát).
+    const lastTs = Number(localStorage.getItem(LAST_CLOCK_KEY) || 0)
+    const agoMs = lastTs ? Date.now() - lastTs : Infinity
+    if (agoMs < RAPID_WINDOW_MS && !rapidConfirm) {
+      setBlockMsg(`Bạn vừa chấm công ${Math.round(agoMs / 1000)} giây trước. Nếu app bị thoát rồi mở lại thì KHÔNG cần chấm lại. Bấm lần nữa nếu chắc chắn muốn chấm tiếp.`)
+      setRapidConfirm(true)
+      return
+    }
     // Cấm chấm công trên laptop/máy tính
     if (deviceKind === 'desktop') {
       setBlockMsg('Không thể chấm công trên máy tính/laptop. Vui lòng dùng điện thoại có camera.')
@@ -394,7 +419,7 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
     setPendingBody(body)
     setShowConfirm(true)
     setCountdown(10)
-  }, [acting, done, geo.loading, isClockedIn, capture, geo.position, deviceKind, selectedOfficeId, workLocation, oofType, oofNote])
+  }, [acting, done, geo.loading, isClockedIn, capture, geo.position, deviceKind, selectedOfficeId, workLocation, oofType, oofNote, rapidConfirm])
 
   const dismissConfirm = useCallback(() => {
     setShowConfirm(false)
@@ -409,6 +434,8 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
       let res: { geo_valid: boolean | null } | null = null
       if (isClockedIn) res = await onClockOut(pendingBody)
       else res = await onClockIn(pendingBody)
+      try { localStorage.setItem(LAST_CLOCK_KEY, String(Date.now())) } catch { /* ignore */ }
+      setRapidConfirm(false)
       const geoValid = res?.geo_valid
       setDone(geoValid === false ? 'pending' : 'valid')
       setTimeout(() => onClose(), geoValid === false ? 2500 : 1200)

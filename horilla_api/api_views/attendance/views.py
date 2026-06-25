@@ -47,6 +47,9 @@ from ...api_serializers.attendance.serializers import (
 )
 
 logger = logging.getLogger(__name__)
+# Logger riêng cho chẩn đoán chấm công (device/UA, chặn, lặp) — cấu hình ở
+# settings.LOGGING để xuất INFO ra stdout (docker logs), dễ grep "CLOCK".
+clock_logger = logging.getLogger("hnh.clock")
 
 
 def query_dict(data):
@@ -116,7 +119,9 @@ def _clock_device_guard(request):
     """Block a clock punch on laptop/desktop and when no camera photo is attached.
     Returns (error_response_or_None, kind, label, user_agent)."""
     kind, label, ua = _parse_clock_device(request)
+    user = getattr(request.user, "username", "?")
     if kind == "desktop":
+        clock_logger.warning("CLOCK BLOCKED user=%s reason=desktop device=%s ua=%s", user, label, ua[:200])
         return (
             Response(
                 {"error": "Chấm công không được thực hiện trên máy tính/laptop. Vui lòng dùng điện thoại."},
@@ -126,6 +131,7 @@ def _clock_device_guard(request):
         )
     photo = request.data.get("photo")
     if not (isinstance(photo, str) and photo.startswith("data:image")):
+        clock_logger.warning("CLOCK BLOCKED user=%s reason=no_camera device=%s ua=%s", user, label, ua[:200])
         return (
             Response(
                 {"error": "Bắt buộc bật camera và chụp ảnh để chấm công."},
@@ -205,6 +211,10 @@ class ClockInAPIView(APIView):
             self._save_clock_in_extras(request, employee, datetime_now)
             geo_valid = self._check_geofence(request, employee, attendance)
 
+            clock_logger.info(
+                "CLOCK IN ok user=%s emp=%s device=%s geo_valid=%s ua=%s",
+                request.user.username, employee.id, _dl, geo_valid, _ua[:200],
+            )
             return Response(
                 {"message": "Clocked-In", "geo_valid": geo_valid},
                 status=200,
@@ -332,6 +342,10 @@ class ClockOutAPIView(APIView):
                 self._save_clock_out_extras(request, employee)
                 geo_valid = self._check_geofence(request)
 
+                clock_logger.info(
+                    "CLOCK OUT ok user=%s emp=%s device=%s geo_valid=%s ua=%s",
+                    request.user.username, employee.id, _dl, geo_valid, _ua[:200],
+                )
                 return Response(
                     {"message": "Clocked-Out", "geo_valid": geo_valid},
                     status=200,
