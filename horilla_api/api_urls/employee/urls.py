@@ -304,6 +304,7 @@ urlpatterns = [
     path("attendance-config/", smv.AttendanceConfigView.as_view(), name="api-attendance-config"),
     # ── Keycloak Account Management ──
     path("kc-options/", kav.KcOptionsView.as_view(), name="api-kc-options"),
+    path("<int:pk>/kc-account/identity/", kav.KcIdentityView.as_view(), name="api-kc-identity"),
     path("<int:pk>/kc-account/", kav.KcAccountView.as_view(), name="api-kc-account"),
     path("kc-dept-preview/", kav.KcDeptPreviewView.as_view(), name="api-kc-dept-preview"),
     path("kc-bulk-create/", kav.KcBulkCreateView.as_view(), name="api-kc-bulk-create"),

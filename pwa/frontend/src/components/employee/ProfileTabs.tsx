@@ -484,6 +484,213 @@ function extractDept(desc?: string): string {
   return parts.length >= 2 ? parts[parts.length - 1].trim().toUpperCase() : ''
 }
 
+/* ── Đổi email / username đăng nhập (HRM + Keycloak) ── */
+
+function IdField({ label, value, onChange, placeholder, type = 'text' }: {
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string
+}) {
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <label style={{ fontSize: 11.5, fontWeight: 700, color: HNH.ink3, display: 'block', marginBottom: 5 }}>{label}</label>
+      <input
+        value={value} type={type} placeholder={placeholder}
+        autoCapitalize="off" autoCorrect="off" spellCheck={false}
+        onChange={e => onChange(e.target.value)}
+        style={{ width: '100%', padding: '10px 12px', borderRadius: 12, boxSizing: 'border-box',
+          border: `1.5px solid ${HNH.line}`, fontSize: 14, fontWeight: 600, color: HNH.ink, outline: 'none' }}
+        onFocus={e => { e.target.style.borderColor = HNH.navy }}
+        onBlur={e => { e.target.style.borderColor = HNH.line }}
+      />
+    </div>
+  )
+}
+
+interface IdentityAnalysis {
+  old_email: string
+  new_email: string
+  new_username: string
+  plan: 'rename' | 'link_existing' | 'create' | 'noop' | 'kc_unreachable'
+  hrm_changes: { field: string; from: string; to: string }[]
+  kc_old: { kc_id: string; username: string; email: string; enabled: boolean; federated: boolean } | null
+  kc_new: { kc_id: string; username: string; email: string; enabled: boolean; federated: boolean } | null
+  kc_error: string | null
+  warnings: string[]
+  errors: string[]
+  can_apply: boolean
+}
+
+const PLAN_LABEL: Record<IdentityAnalysis['plan'], string> = {
+  rename: 'Đổi tên tài khoản KC tại chỗ (giữ mật khẩu)',
+  link_existing: 'Trỏ HRM sang tài khoản KC đã tồn tại + vô hiệu hóa tài khoản cũ',
+  create: 'Tạo tài khoản KC mới (mật khẩu mặc định)',
+  noop: 'Không thay đổi Keycloak',
+  kc_unreachable: 'Không kết nối được Keycloak',
+}
+
+function IdentityChangeSection({ employeeId, currentEmail, onChanged }: {
+  employeeId: number; currentEmail: string; onChanged: () => Promise<unknown>
+}) {
+  const [open, setOpen] = useState(false)
+  const [newEmail, setNewEmail] = useState('')
+  const [newUsername, setNewUsername] = useState('')
+  const [preview, setPreview] = useState<IdentityAnalysis | null>(null)
+  const [checking, setChecking] = useState(false)
+  const [applying, setApplying] = useState(false)
+  const [err, setErr] = useState('')
+  const [done, setDone] = useState('')
+
+  const reset = () => {
+    setNewEmail(''); setNewUsername(''); setPreview(null)
+    setErr(''); setDone(''); setChecking(false); setApplying(false)
+  }
+  const close = () => { setOpen(false); reset() }
+
+  const check = async () => {
+    setChecking(true); setErr(''); setPreview(null); setDone('')
+    try {
+      const u = newUsername.trim()
+      const url = `/api/employee/${employeeId}/kc-account/identity/?new_email=${encodeURIComponent(newEmail.trim())}`
+        + (u ? `&new_username=${encodeURIComponent(u)}` : '')
+      setPreview(await api.get<IdentityAnalysis>(url))
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : 'Lỗi kiểm tra')
+    } finally { setChecking(false) }
+  }
+
+  const apply = async () => {
+    if (!preview) return
+    setApplying(true); setErr('')
+    try {
+      const res = await api.post<{ message?: string }>(
+        `/api/employee/${employeeId}/kc-account/identity/`,
+        {
+          new_email: newEmail.trim(),
+          new_username: newUsername.trim() || undefined,
+          expected_plan: preview.plan,
+          disable_old: true,
+        },
+      )
+      setDone(res.message || 'Đã đổi thành công')
+      setPreview(null)
+      await onChanged()
+    } catch (e: unknown) {
+      setErr(e instanceof Error ? e.message : 'Lỗi áp dụng')
+    } finally { setApplying(false) }
+  }
+
+  // email mới đổi → preview cũ không còn đúng
+  const onEmailChange = (v: string) => { setNewEmail(v); setPreview(null); setDone('') }
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="flex items-center gap-3 w-full border-none cursor-pointer text-left"
+        style={{ padding: '12px 16px', background: '#fff', borderRadius: 14, border: `1px solid ${HNH.line}` }}
+      >
+        <div style={{ width: 34, height: 34, borderRadius: 10, background: HNH.red50,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Icon name="mail" size={15} color={HNH.red} stroke={2} />
+        </div>
+        <div className="flex-1">
+          <div style={{ fontSize: 13.5, fontWeight: 700, color: HNH.ink }}>Đổi email / username đăng nhập</div>
+          <div style={{ fontSize: 11.5, color: HNH.ink3, marginTop: 1 }}>Đồng bộ HRM + Keycloak, có bước kiểm tra trước</div>
+        </div>
+        <Icon name="chev-r" size={16} color={HNH.ink4} stroke={2} />
+      </button>
+
+      {open && (
+        <div onClick={close} style={{ position: 'fixed', inset: 0, zIndex: 100,
+          background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end' }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', width: '100%',
+            borderRadius: '20px 20px 0 0', maxWidth: 520, margin: '0 auto',
+            padding: '20px 20px 32px', maxHeight: '88vh', overflowY: 'auto' }}>
+
+            <div className="flex items-center justify-between" style={{ marginBottom: 4 }}>
+              <span style={{ fontSize: 16, fontWeight: 800, color: HNH.ink }}>Đổi email / username</span>
+              <button onClick={close} className="border-none cursor-pointer" style={{ background: 'transparent' }}>
+                <Icon name="x" size={20} color={HNH.ink3} />
+              </button>
+            </div>
+            <div style={{ fontSize: 12, color: HNH.ink3, marginBottom: 16 }}>
+              Email hiện tại: <strong style={{ color: HNH.ink }}>{currentEmail}</strong>
+            </div>
+
+            <IdField label="Email mới" value={newEmail} onChange={onEmailChange}
+              placeholder="vd: ten.nv@hongngocha.com" type="email" />
+            <IdField label="Username KC (tùy chọn — mặc định = email mới)" value={newUsername}
+              onChange={(v: string) => { setNewUsername(v); setPreview(null) }}
+              placeholder="để trống = dùng email mới" type="text" />
+
+            <button onClick={check} disabled={checking || !newEmail.trim()}
+              style={{ width: '100%', padding: '12px', borderRadius: 12, marginTop: 4,
+                border: `1.5px solid ${HNH.navy}`, background: HNH.navy50, color: HNH.navy,
+                fontSize: 14, fontWeight: 700, cursor: checking || !newEmail.trim() ? 'not-allowed' : 'pointer',
+                opacity: checking || !newEmail.trim() ? 0.5 : 1 }}>
+              {checking ? 'Đang kiểm tra...' : '1. Kiểm tra'}
+            </button>
+
+            {err && (
+              <div style={{ background: HNH.red50, border: `1px solid ${HNH.red}`, borderRadius: 12,
+                padding: '10px 14px', fontSize: 12.5, color: HNH.red, marginTop: 12 }}>{err}</div>
+            )}
+            {done && (
+              <div style={{ background: HNH.success50, border: `1px solid ${HNH.success}`, borderRadius: 12,
+                padding: '10px 14px', fontSize: 12.5, color: HNH.success, fontWeight: 600, marginTop: 12 }}>
+                ✓ {done}
+              </div>
+            )}
+
+            {preview && (
+              <div style={{ marginTop: 14, border: `1px solid ${HNH.line}`, borderRadius: 14, overflow: 'hidden' }}>
+                <div style={{ padding: '10px 14px', background: HNH.cream, borderBottom: `1px solid ${HNH.line}` }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, textTransform: 'uppercase' }}>Kế hoạch Keycloak</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: HNH.ink, marginTop: 2 }}>{PLAN_LABEL[preview.plan]}</div>
+                </div>
+
+                <div style={{ padding: '10px 14px', borderBottom: `1px solid ${HNH.line}` }}>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, textTransform: 'uppercase', marginBottom: 6 }}>
+                    HRM sẽ đổi ({preview.hrm_changes.length} cột)
+                  </div>
+                  {preview.hrm_changes.length === 0
+                    ? <div style={{ fontSize: 12, color: HNH.ink3 }}>Không có cột HRM nào giữ email cũ.</div>
+                    : preview.hrm_changes.map(c => (
+                      <div key={c.field} style={{ fontSize: 12, color: HNH.ink2, marginBottom: 3 }}>
+                        <code style={{ color: HNH.navy }}>{c.field}</code>: {c.from} → <strong style={{ color: HNH.ink }}>{c.to}</strong>
+                      </div>
+                    ))}
+                </div>
+
+                {(preview.kc_old || preview.kc_new) && (
+                  <div style={{ padding: '10px 14px', borderBottom: `1px solid ${HNH.line}`, fontSize: 12, color: HNH.ink2 }}>
+                    {preview.kc_old && <div>KC cũ: <strong>{preview.kc_old.username}</strong>{preview.kc_old.federated ? ' · Microsoft' : ''}{preview.kc_old.enabled ? '' : ' · đã tắt'}</div>}
+                    {preview.kc_new && <div style={{ marginTop: 2 }}>KC mới: <strong>{preview.kc_new.username}</strong>{preview.kc_new.federated ? ' · Microsoft' : ''}</div>}
+                  </div>
+                )}
+
+                {preview.warnings.map((w, i) => (
+                  <div key={i} style={{ padding: '8px 14px', fontSize: 12, color: HNH.warn, background: HNH.warn50, borderBottom: `1px solid ${HNH.line}` }}>⚠️ {w}</div>
+                ))}
+                {preview.errors.map((e, i) => (
+                  <div key={i} style={{ padding: '8px 14px', fontSize: 12, color: HNH.red, background: HNH.red50 }}>✕ {e}</div>
+                ))}
+
+                <button onClick={apply} disabled={applying || !preview.can_apply}
+                  style={{ width: '100%', padding: '13px', border: 'none',
+                    background: preview.can_apply ? HNH.red : HNH.ink4, color: '#fff',
+                    fontSize: 14, fontWeight: 700, cursor: applying || !preview.can_apply ? 'not-allowed' : 'pointer',
+                    opacity: applying ? 0.6 : 1 }}>
+                  {applying ? 'Đang áp dụng...' : preview.can_apply ? '2. Áp dụng đổi email' : 'Không thể áp dụng'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </>
+  )
+}
+
 export function AppAccountTab({ employeeId, employeeEmail, can_edit, department }: {
   employeeId: number; employeeEmail: string; can_edit: boolean; department?: string
 }) {
@@ -735,6 +942,10 @@ export function AppAccountTab({ employeeId, employeeEmail, can_edit, department 
             </div>
           </div>
         </ProfileCard>
+      )}
+
+      {account?.exists && can_edit && (
+        <IdentityChangeSection employeeId={employeeId} currentEmail={employeeEmail} onChanged={refreshAccount} />
       )}
 
       {!account?.exists && options && (() => {

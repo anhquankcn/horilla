@@ -197,3 +197,82 @@ def send_reset_password_email(user_id: str) -> None:
         timeout=15,
     )
     r.raise_for_status()
+
+
+# ── Identity (đổi username/email) ─────────────────────────────────────
+
+def get_user(user_id: str) -> dict:
+    r = requests.get(
+        f"{_KC}/admin/realms/{_REALM}/users/{user_id}", headers=_h(), timeout=10
+    )
+    r.raise_for_status()
+    return r.json()
+
+
+def get_user_by_username(username: str) -> dict | None:
+    r = requests.get(
+        f"{_KC}/admin/realms/{_REALM}/users",
+        params={"username": username, "exact": "true"},
+        headers=_h(), timeout=10,
+    )
+    r.raise_for_status()
+    users = r.json()
+    return users[0] if users else None
+
+
+def get_federated_identities(user_id: str) -> list:
+    r = requests.get(
+        f"{_KC}/admin/realms/{_REALM}/users/{user_id}/federated-identity",
+        headers=_h(), timeout=10,
+    )
+    return r.json() if r.ok else []
+
+
+def update_user(user_id: str, payload: dict) -> None:
+    r = requests.put(
+        f"{_KC}/admin/realms/{_REALM}/users/{user_id}",
+        headers=_h(), json=payload, timeout=10,
+    )
+    r.raise_for_status()
+
+
+def set_enabled(user_id: str, enabled: bool) -> None:
+    update_user(user_id, {"enabled": enabled})
+
+
+def _realm_edit_username() -> bool:
+    r = requests.get(f"{_KC}/admin/realms/{_REALM}", headers=_h(), timeout=10)
+    r.raise_for_status()
+    return bool(r.json().get("editUsernameAllowed", False))
+
+
+def _set_realm_edit_username(value: bool) -> None:
+    """GET-modify-PUT toàn bộ realm rep (giống kcadm) để không vô tình null
+    các thiết lập khác của realm khi chỉ đổi 1 cờ."""
+    h = _h()
+    r = requests.get(f"{_KC}/admin/realms/{_REALM}", headers=h, timeout=10)
+    r.raise_for_status()
+    realm = r.json()
+    realm["editUsernameAllowed"] = value
+    r2 = requests.put(
+        f"{_KC}/admin/realms/{_REALM}", headers=h, json=realm, timeout=15
+    )
+    r2.raise_for_status()
+
+
+def rename_user(user_id: str, new_username: str, new_email: str) -> None:
+    """Đổi username + email của 1 user KC.
+
+    Realm dùng email-as-username với editUsernameAllowed=false nên username bị
+    khóa. Hàm bật tạm cờ này để ghi username rồi LUÔN khôi phục giá trị gốc
+    trong finally (kể cả khi lỗi)."""
+    original = _realm_edit_username()
+    toggled = False
+    try:
+        if not original:
+            _set_realm_edit_username(True)
+            toggled = True
+        update_user(user_id, {"username": new_username, "email": new_email})
+    finally:
+        if toggled:
+            _set_realm_edit_username(original)

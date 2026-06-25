@@ -1,7 +1,13 @@
 """API endpoints for creating/managing employee Keycloak SSO accounts."""
+import logging
+
 from django.conf import settings
+from django.contrib.auth.models import User
 from django.core.mail import EmailMultiAlternatives
 from django.core.mail.backends.smtp import EmailBackend as SmtpBackend
+from django.db import transaction
+from django.db.models import Q
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -10,7 +16,13 @@ from employee.models import Employee
 from horilla_api import keycloak_service as kc
 
 
+logger = logging.getLogger(__name__)
+
 DEFAULT_PASSWORD = "Hnh@1234"
+
+
+def _norm(s) -> str:
+    return (s or "").strip()
 
 
 # ── Options ──────────────────────────────────────────────────────────
@@ -184,6 +196,223 @@ class KcAccountView(APIView):
 
         except Exception as e:
             return Response({"error": str(e)}, status=502)
+
+
+class KcIdentityView(APIView):
+    """Đổi email/username đăng nhập của nhân viên — đồng bộ HRM + Keycloak.
+
+    GET  /api/employee/<pk>/kc-account/identity/?new_email=&new_username=
+         → preview kế hoạch (rename | link_existing | create | noop), cột HRM
+           sẽ đổi, tình trạng KC cũ/mới, cảnh báo, xung đột. Không thay đổi gì.
+    POST /api/employee/<pk>/kc-account/identity/
+         body {new_email, new_username?, expected_plan?, disable_old?}
+         → thực thi (KC trước, HRM sau trong transaction).
+
+    Chỉ C&B / admin hệ thống (giống quyền onboard) được dùng.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def _guard(self, pk, request):
+        from horilla_api.api_views.employee.onboard_views import _can_onboard
+
+        if not _can_onboard(request.user):
+            return None, Response({"error": "Không có quyền"}, status=403)
+        try:
+            emp = Employee.objects.select_related("employee_user_id").get(pk=pk)
+        except Employee.DoesNotExist:
+            return None, Response({"error": "Không tìm thấy nhân viên"}, status=404)
+        return emp, None
+
+    def _hrm_targets(self, emp, old_email, new_email, new_username):
+        """Chỉ những cột HRM đang giữ ĐÚNG email đăng nhập cũ mới bị đổi.
+        (vd workinfo.email có thể là email khác như 'trung.ld@' → giữ nguyên)."""
+        old = old_email.lower()
+        items = []
+        u = emp.employee_user_id
+        if u:
+            if _norm(u.username).lower() == old:
+                items.append(("auth_user.username", u.username, new_username))
+            if _norm(u.email).lower() == old:
+                items.append(("auth_user.email", u.email, new_email))
+        if _norm(emp.email).lower() == old:
+            items.append(("employee.email", emp.email, new_email))
+        wi = getattr(emp, "employee_work_info", None)
+        if wi and _norm(wi.email).lower() == old:
+            items.append(("workinfo.email", wi.email, new_email))
+        return items
+
+    def _analyze(self, emp, new_email, new_username):
+        old_email = _norm(emp.email)
+        new_email = _norm(new_email).lower()
+        new_username = _norm(new_username).lower() or new_email
+        warnings, errors = [], []
+
+        if not new_email or "@" not in new_email:
+            errors.append("Email mới không hợp lệ")
+        if new_email and new_email == old_email.lower():
+            errors.append("Email mới trùng email hiện tại")
+
+        # Xung đột phía HRM
+        u = emp.employee_user_id
+        if new_email:
+            qs = User.objects.filter(Q(email__iexact=new_email) | Q(username__iexact=new_username))
+            if u:
+                qs = qs.exclude(pk=u.pk)
+            other = qs.first()
+            if other:
+                errors.append(f"HRM: '{new_email}' đã thuộc tài khoản khác (user #{other.pk})")
+            emp_other = Employee.objects.filter(email__iexact=new_email).exclude(pk=emp.pk).first()
+            if emp_other:
+                errors.append(f"HRM: '{new_email}' đã thuộc nhân viên khác (#{emp_other.pk})")
+
+        hrm_changes = [
+            {"field": f, "from": frm, "to": to}
+            for (f, frm, to) in self._hrm_targets(emp, old_email, new_email, new_username)
+        ]
+
+        # Phía Keycloak
+        kc_old = kc_new = None
+        kc_error = None
+        try:
+            kc_old = kc.get_user_by_email(old_email) if old_email else None
+            kc_new = kc.get_user_by_email(new_email) if new_email else None
+        except Exception as e:  # KC không truy cập được
+            kc_error = str(e)
+
+        def block(u):
+            return None if not u else {
+                "kc_id": u["id"], "username": u.get("username"), "email": u.get("email"),
+                "enabled": u.get("enabled", True), "federated": bool(u.get("federatedIdentities")),
+            }
+
+        old_block, new_block = block(kc_old), block(kc_new)
+
+        if kc_error:
+            plan = "kc_unreachable"
+            warnings.append(f"Không kết nối được Keycloak: {kc_error}")
+        elif kc_new and (not kc_old or kc_new["id"] != kc_old["id"]):
+            plan = "link_existing"
+            if new_block["federated"]:
+                warnings.append("Tài khoản KC mới đã liên kết Microsoft — chỉ trỏ HRM sang, không sửa KC.")
+            if kc_old:
+                warnings.append(f"Tài khoản KC cũ '{old_block['username']}' sẽ bị vô hiệu hóa.")
+        elif kc_old:
+            plan = "rename"
+            warnings.append("Đổi username KC cần bật tạm 'editUsernameAllowed' của realm rồi khôi phục.")
+            if old_block["federated"]:
+                warnings.append("Tài khoản KC cũ có liên kết federated — rename có thể ảnh hưởng SSO ngoài.")
+        else:
+            plan = "create"
+            warnings.append("Chưa có tài khoản KC — sẽ tạo mới với mật khẩu mặc định.")
+
+        return {
+            "old_email": old_email, "new_email": new_email, "new_username": new_username,
+            "plan": plan, "hrm_changes": hrm_changes,
+            "kc_old": old_block, "kc_new": new_block, "kc_error": kc_error,
+            "warnings": warnings, "errors": errors,
+            "can_apply": not errors and plan != "kc_unreachable",
+        }
+
+    def get(self, request, pk):
+        emp, err = self._guard(pk, request)
+        if err:
+            return err
+        new_email = request.query_params.get("new_email", "")
+        if not _norm(new_email):
+            return Response({"error": "Thiếu new_email"}, status=400)
+        new_username = request.query_params.get("new_username", "")
+        try:
+            return Response(self._analyze(emp, new_email, new_username))
+        except Exception as e:
+            return Response({"error": str(e)}, status=502)
+
+    def _apply_kc(self, plan, a, emp, new_email, new_username, disable_old):
+        if plan == "rename":
+            kc.rename_user(a["kc_old"]["kc_id"], new_username, new_email)
+            return {"action": "renamed", "kc_id": a["kc_old"]["kc_id"]}
+        if plan == "link_existing":
+            disabled = False
+            if disable_old and a["kc_old"]:
+                kc.set_enabled(a["kc_old"]["kc_id"], False)
+                disabled = True
+            return {"action": "linked_existing", "kc_id": a["kc_new"]["kc_id"], "disabled_old": disabled}
+        if plan == "create":
+            uid = kc.create_user(
+                new_email, emp.employee_first_name or "", emp.employee_last_name or "", DEFAULT_PASSWORD
+            )
+            return {"action": "created", "kc_id": uid}
+        return {"action": "noop"}
+
+    def post(self, request, pk):
+        emp, err = self._guard(pk, request)
+        if err:
+            return err
+
+        new_email = _norm(request.data.get("new_email")).lower()
+        new_username = _norm(request.data.get("new_username")).lower() or new_email
+        expected_plan = request.data.get("expected_plan")
+        disable_old = bool(request.data.get("disable_old", True))
+
+        try:
+            a = self._analyze(emp, new_email, new_username)
+        except Exception as e:
+            return Response({"error": str(e)}, status=502)
+
+        if a["errors"]:
+            return Response({"error": "; ".join(a["errors"]), "analysis": a}, status=400)
+        if not a["can_apply"]:
+            return Response({"error": "Không thể áp dụng", "analysis": a}, status=400)
+        if expected_plan and expected_plan != a["plan"]:
+            return Response({
+                "error": f"Kế hoạch đã đổi (preview={expected_plan}, hiện tại={a['plan']}). Hãy Kiểm tra lại.",
+                "analysis": a,
+            }, status=409)
+
+        old_email = a["old_email"]
+        plan = a["plan"]
+
+        # 1) Keycloak trước — nếu lỗi thì chưa đụng HRM, thoát sạch.
+        try:
+            kc_result = self._apply_kc(plan, a, emp, new_email, new_username, disable_old)
+        except Exception as e:
+            logger.exception("KC identity change — KC step failed")
+            return Response({"error": f"Lỗi Keycloak: {e}. HRM chưa thay đổi."}, status=502)
+
+        # 2) HRM (atomic). Nếu lỗi: KC đã đổi → báo rõ để xử lý tay.
+        try:
+            with transaction.atomic():
+                u = emp.employee_user_id
+                if u:
+                    fields = []
+                    if _norm(u.username).lower() == old_email.lower():
+                        u.username = new_username; fields.append("username")
+                    if _norm(u.email).lower() == old_email.lower():
+                        u.email = new_email; fields.append("email")
+                    if fields:
+                        u.save(update_fields=fields)
+                if _norm(emp.email).lower() == old_email.lower():
+                    emp.email = new_email
+                    emp.save(update_fields=["email"])
+                wi = getattr(emp, "employee_work_info", None)
+                if wi and _norm(wi.email).lower() == old_email.lower():
+                    wi.email = new_email
+                    wi.save(update_fields=["email"])
+        except Exception as e:
+            logger.exception("KC identity change — HRM step failed AFTER KC change")
+            return Response({
+                "error": f"KC đã đổi ({plan}) nhưng cập nhật HRM thất bại: {e}. Cần xử lý tay để đồng bộ.",
+                "kc": kc_result,
+            }, status=500)
+
+        logger.warning(
+            "KC identity change by user=%s emp=%s '%s' -> '%s' plan=%s",
+            request.user.pk, emp.pk, old_email, new_email, plan,
+        )
+        return Response({
+            "success": True, "plan": plan, "kc": kc_result,
+            "message": f"Đã đổi {old_email} → {new_email} ({plan}).",
+        })
 
 
 class KcBulkCreateView(APIView):
