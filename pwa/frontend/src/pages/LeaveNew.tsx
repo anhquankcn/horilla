@@ -39,7 +39,10 @@ interface HNHSummary {
 }
 
 interface Paginated<T> { count: number; results: T[] }
-interface Person { id: number; name: string; position: string | null; is_direct?: boolean; department?: string | null }
+interface Person { id: number; name: string; position: string | null; is_direct?: boolean; department?: string | null; company?: string | null; locked?: boolean }
+interface PickCompany { id: number; name: string }
+interface PickDept { id: number; name: string; company_id: number | null }
+interface CandidatesResp { results: Person[]; companies: PickCompany[]; departments: PickDept[] }
 
 type Breakdown = 'full_day' | 'first_half' | 'second_half'
 interface DayPick { date: string; bd: Breakdown }
@@ -307,30 +310,65 @@ function leaveIcon(name: string) {
   return { icon: 'cal', color: HNH.navy, bg: HNH.navy50 }
 }
 
-function PersonPicker({ pool, selected, onChange, accent, accentBg, addLabel, emptyText }: {
-  pool: Person[]; selected: number[]; onChange: (ids: number[]) => void
+function PersonPicker({ selectedIds, knownPeople, onChange, onLearnPeople, lockedIds, accent, accentBg, addLabel, emptyText }: {
+  selectedIds: number[]; knownPeople: Person[]; onChange: (ids: number[]) => void
+  onLearnPeople: (p: Person[]) => void; lockedIds: number[]
   accent: string; accentBg: string; addLabel: string; emptyText: string
 }) {
   const [open, setOpen] = useState(false)
+  const [company, setCompany] = useState<number | ''>('')
+  const [department, setDepartment] = useState<number | ''>('')
   const [q, setQ] = useState('')
-  const chosen = pool.filter(p => selected.includes(p.id))
-  const kw = q.trim().toLowerCase()
-  const filtered = kw ? pool.filter(p => p.name.toLowerCase().includes(kw)) : pool
-  const toggle = (id: number) => onChange(selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id])
+  const [resp, setResp] = useState<CandidatesResp | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  // Lọc theo công ty/phòng/từ khóa — fetch có debounce 250ms
+  useEffect(() => {
+    if (!open) return
+    setLoading(true)
+    const t = setTimeout(() => {
+      const p = new URLSearchParams()
+      if (company) p.set('company', String(company))
+      if (department) p.set('department', String(department))
+      if (q.trim()) p.set('search', q.trim())
+      api.get<CandidatesResp>(`/api/leave/select-candidates/?${p.toString()}`)
+        .then(r => { setResp(r); onLearnPeople(r.results) })
+        .catch(() => {})
+        .finally(() => setLoading(false))
+    }, 250)
+    return () => clearTimeout(t)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, company, department, q])
+
+  const isLocked = (id: number) => lockedIds.includes(id)
+  const isSel = (id: number) => selectedIds.includes(id)
+  const chosen = knownPeople.filter(p => selectedIds.includes(p.id))
+  const toggle = (p: Person) => {
+    if (isLocked(p.id)) return
+    onLearnPeople([p])
+    onChange(isSel(p.id) ? selectedIds.filter(x => x !== p.id) : [...selectedIds, p.id])
+  }
+  const remove = (id: number) => { if (!isLocked(id)) onChange(selectedIds.filter(x => x !== id)) }
+  const deptOptions = (resp?.departments ?? []).filter(d => !company || d.company_id === company)
+
+  const inputStyle = { padding: '8px 10px', borderRadius: 10, border: `1px solid ${HNH.line}`, fontSize: 13, color: HNH.ink, background: '#fff', fontFamily: 'inherit', outline: 'none' } as const
+
   return (
     <>
       <div style={{ background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`, padding: 12 }}>
         <div className="flex flex-wrap gap-2">
           {chosen.length === 0 && <span style={{ fontSize: 12, color: HNH.ink3 }}>{emptyText}</span>}
           {chosen.map(p => (
-            <span key={p.id} className="flex items-center gap-1" style={{ padding: '6px 8px 6px 12px', borderRadius: 20, fontSize: 12.5, fontWeight: 700, background: accentBg, color: accent, border: `1.5px solid ${accent}` }}>
-              {p.name}{p.is_direct ? ' (QLTT)' : ''}
-              <button onClick={() => toggle(p.id)} className="border-none bg-transparent cursor-pointer flex items-center" style={{ padding: 0, marginLeft: 2 }}>
-                <Icon name="x" size={13} color={accent} stroke={2.5} />
-              </button>
+            <span key={p.id} className="flex items-center gap-1" style={{ padding: isLocked(p.id) ? '6px 12px' : '6px 8px 6px 12px', borderRadius: 20, fontSize: 12.5, fontWeight: 700, background: accentBg, color: accent, border: `1.5px solid ${accent}` }}>
+              {p.name}{p.is_direct ? ' (QLTT)' : ''}{isLocked(p.id) ? ' · C&B cố định' : ''}
+              {!isLocked(p.id) && (
+                <button onClick={() => remove(p.id)} className="border-none bg-transparent cursor-pointer flex items-center" style={{ padding: 0, marginLeft: 2 }}>
+                  <Icon name="x" size={13} color={accent} stroke={2.5} />
+                </button>
+              )}
             </span>
           ))}
-          <button onClick={() => { setQ(''); setOpen(true) }} className="flex items-center gap-1 border-none cursor-pointer"
+          <button onClick={() => { setQ(''); setCompany(''); setDepartment(''); setOpen(true) }} className="flex items-center gap-1 border-none cursor-pointer"
             style={{ padding: '6px 12px', borderRadius: 20, fontSize: 12.5, fontWeight: 700, background: '#fff', border: `1.5px dashed ${HNH.line2}`, color: HNH.navy }}>
             <Icon name="plus" size={13} color={HNH.navy} stroke={2.5} /> {addLabel}
           </button>
@@ -339,33 +377,46 @@ function PersonPicker({ pool, selected, onChange, accent, accentBg, addLabel, em
 
       {open && (
         <div className="fixed inset-0 flex items-end justify-center" style={{ zIndex: 200, background: 'rgba(0,0,0,0.4)' }} onClick={() => setOpen(false)}>
-          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, maxHeight: '75vh', background: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 520, maxHeight: '82vh', background: '#fff', borderTopLeftRadius: 20, borderTopRightRadius: 20, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div className="flex items-center justify-between" style={{ padding: '14px 16px', borderBottom: `1px solid ${HNH.line}` }}>
               <span style={{ fontSize: 15, fontWeight: 800, color: HNH.ink }}>{addLabel}</span>
               <button onClick={() => setOpen(false)} className="border-none cursor-pointer flex items-center justify-center" style={{ width: 34, height: 34, borderRadius: 10, background: HNH.cream }}>
                 <Icon name="x" size={18} color={HNH.ink} stroke={2} />
               </button>
             </div>
-            <div style={{ padding: '10px 16px' }}>
+            {/* Bộ lọc công ty + phòng ban */}
+            <div className="flex gap-2" style={{ padding: '10px 16px 6px' }}>
+              <select value={company} onChange={e => { setCompany(e.target.value ? Number(e.target.value) : ''); setDepartment('') }} style={{ ...inputStyle, flex: 1 }}>
+                <option value="">Tất cả công ty</option>
+                {(resp?.companies ?? []).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <select value={department} onChange={e => setDepartment(e.target.value ? Number(e.target.value) : '')} style={{ ...inputStyle, flex: 1 }}>
+                <option value="">Tất cả phòng ban</option>
+                {deptOptions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+            </div>
+            <div style={{ padding: '4px 16px 10px' }}>
               <div className="flex items-center gap-2" style={{ padding: '9px 12px', borderRadius: 12, background: HNH.cream, border: `1px solid ${HNH.line}` }}>
                 <Icon name="search" size={16} color={HNH.ink3} stroke={2} />
-                <input value={q} onChange={e => setQ(e.target.value)} placeholder="Tìm theo họ tên..." autoFocus
+                <input value={q} onChange={e => setQ(e.target.value)} placeholder="Tìm theo họ tên / email..." autoFocus
                   style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 14, color: HNH.ink, fontFamily: 'inherit' }} />
               </div>
             </div>
             <div style={{ flex: 1, overflowY: 'auto', padding: '0 12px 16px' }}>
-              {filtered.length === 0 && <div style={{ textAlign: 'center', color: HNH.ink3, fontSize: 13, padding: 20 }}>Không tìm thấy</div>}
-              {filtered.map(p => {
-                const sel = selected.includes(p.id)
+              {loading && <div style={{ textAlign: 'center', color: HNH.ink3, fontSize: 13, padding: 20 }}>Đang tải...</div>}
+              {!loading && (resp?.results.length ?? 0) === 0 && <div style={{ textAlign: 'center', color: HNH.ink3, fontSize: 13, padding: 20 }}>Không tìm thấy</div>}
+              {!loading && (resp?.results ?? []).map(p => {
+                const sel = isSel(p.id)
+                const locked = isLocked(p.id)
                 return (
-                  <button key={p.id} onClick={() => toggle(p.id)} className="flex items-center gap-3 w-full border-none cursor-pointer text-left"
-                    style={{ padding: '11px 10px', borderRadius: 12, background: sel ? accentBg : 'transparent', marginBottom: 2 }}>
+                  <button key={p.id} onClick={() => toggle(p)} disabled={locked} className="flex items-center gap-3 w-full border-none text-left"
+                    style={{ padding: '11px 10px', borderRadius: 12, background: sel ? accentBg : 'transparent', marginBottom: 2, cursor: locked ? 'not-allowed' : 'pointer', opacity: locked ? 0.65 : 1 }}>
                     <div className="flex items-center justify-center shrink-0" style={{ width: 22, height: 22, borderRadius: 6, border: `1.5px solid ${sel ? accent : HNH.ink4}`, background: sel ? accent : '#fff' }}>
                       {sel && <Icon name="check" size={13} color="#fff" stroke={3} />}
                     </div>
                     <div className="flex-1" style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: HNH.ink }}>{p.name}{p.is_direct ? ' · QLTT' : ''}</div>
-                      {(p.position || p.department) && <div style={{ fontSize: 11.5, color: HNH.ink3 }}>{[p.position, p.department].filter(Boolean).join(' · ')}</div>}
+                      <div style={{ fontSize: 14, fontWeight: 600, color: HNH.ink }}>{p.name}{locked ? ' · C&B cố định' : ''}</div>
+                      {(p.position || p.department || p.company) && <div style={{ fontSize: 11.5, color: HNH.ink3 }}>{[p.position, p.department, p.company].filter(Boolean).join(' · ')}</div>}
                     </div>
                   </button>
                 )
@@ -373,7 +424,7 @@ function PersonPicker({ pool, selected, onChange, accent, accentBg, addLabel, em
             </div>
             <div style={{ padding: '10px 16px', borderTop: `1px solid ${HNH.line}` }}>
               <button onClick={() => setOpen(false)} className="w-full border-none cursor-pointer" style={{ padding: 12, borderRadius: 12, background: HNH.navy, color: '#fff', fontWeight: 800, fontSize: 14 }}>
-                Xong ({selected.length})
+                Xong ({selectedIds.length})
               </button>
             </div>
           </div>
@@ -391,6 +442,19 @@ export function LeaveNewPage() {
   const { data: summary } = useApi<HNHSummary>('/api/leave/hnh-leave-summary/')
   const { data: managers } = useApi<Person[]>('/api/leave/available-managers/')
   const { data: watchersData } = useApi<Person[]>('/api/leave/watcher-candidates/')
+  const { data: cbManagers } = useApi<Person[]>('/api/leave/cb-managers/')
+
+  // Cache tên người (để render chip) gom từ mọi nguồn + lựa chọn trong modal
+  const [peopleCache, setPeopleCache] = useState<Record<number, Person>>({})
+  const learnPeople = (ps: Person[]) => setPeopleCache(prev => {
+    const next = { ...prev }
+    ps.forEach(p => { next[p.id] = { ...next[p.id], ...p } })
+    return next
+  })
+  useEffect(() => { if (managers) learnPeople(managers) }, [managers])
+  useEffect(() => { if (watchersData) learnPeople(watchersData) }, [watchersData])
+  useEffect(() => { if (cbManagers) learnPeople(cbManagers) }, [cbManagers])
+  const lockedIds = (cbManagers ?? []).map(c => c.id)
 
   const rawTypes = balResp?.results ?? []
   const leaveTypes = sortLeaveTypes(rawTypes).filter(t => !/ốm|sick/i.test(t.leave_type_id.name))
@@ -421,20 +485,28 @@ export function LeaveNewPage() {
   const [hourDayPickerIdx, setHourDayPickerIdx] = useState<number | null>(null)
   const [timePicker, setTimePicker] = useState<{ di: number; fi: number; field: 'from' | 'to'; value: string } | null>(null)
 
-  // Mặc định chọn quản lý trực tiếp làm người duyệt
+  // Mặc định: quản lý trực tiếp là người duyệt đầu tiên + C&B cố định (khóa)
   useEffect(() => {
-    if (approverIds.length === 0 && managers && managers.length > 0) {
+    if (!managers || !cbManagers) return
+    setApproverIds(prev => {
+      if (prev.length > 0) return prev
+      const ids: number[] = []
       const direct = managers.find(m => m.is_direct)
-      if (direct) setApproverIds([direct.id])
-    }
-  }, [managers, approverIds.length])
+      if (direct) ids.push(direct.id)
+      cbManagers.forEach(c => { if (!ids.includes(c.id)) ids.push(c.id) })
+      return ids
+    })
+  }, [managers, cbManagers])
 
-  const DEFAULT_WATCHER_ID = 221
+  // C&B luôn được pin vào Người theo dõi (không bỏ chọn được)
   useEffect(() => {
-    if (watcherIds.length === 0 && watchersData && watchersData.some(w => w.id === DEFAULT_WATCHER_ID)) {
-      setWatcherIds([DEFAULT_WATCHER_ID])
-    }
-  }, [watchersData, watcherIds.length])
+    if (!cbManagers || cbManagers.length === 0) return
+    setWatcherIds(prev => {
+      const ids = [...prev]
+      cbManagers.forEach(c => { if (!ids.includes(c.id)) ids.push(c.id) })
+      return ids
+    })
+  }, [cbManagers])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
@@ -512,8 +584,8 @@ export function LeaveNewPage() {
   const seniorityDays = summary?.seniority_days ?? 0
   const overBalance = !!selected && totalDays > selected.total_leave_days && selected.leave_type_id.total_days > 1
   const bdLabel = (bd: Breakdown) => BD_OPTS.find(o => o.id === bd)?.label ?? ''
-  const approverNames = (managers ?? []).filter(m => approverIds.includes(m.id)).map(m => m.name)
-  const watcherNames = (watchersData ?? []).filter(w => watcherIds.includes(w.id)).map(w => w.name)
+  const approverNames = approverIds.map(id => peopleCache[id]?.name).filter(Boolean) as string[]
+  const watcherNames = watcherIds.map(id => peopleCache[id]?.name).filter(Boolean) as string[]
 
   return (
     <div className="flex flex-col" style={{ background: HNH.cream, height: '100dvh' }}>
@@ -780,12 +852,14 @@ export function LeaveNewPage() {
 
         {/* Người duyệt */}
         <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, padding: '14px 6px 6px' }}>NGƯỜI DUYỆT / XÁC NHẬN <span style={{ color: HNH.red }}>*</span></div>
-        <PersonPicker pool={managers ?? []} selected={approverIds} onChange={setApproverIds}
+        <PersonPicker selectedIds={approverIds} knownPeople={Object.values(peopleCache)} onChange={setApproverIds}
+          onLearnPeople={learnPeople} lockedIds={lockedIds}
           accent={HNH.navy} accentBg={HNH.navy50} addLabel="Thêm người duyệt" emptyText="Chưa chọn người duyệt" />
 
         {/* Người theo dõi */}
         <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, padding: '14px 6px 6px' }}>NGƯỜI THEO DÕI</div>
-        <PersonPicker pool={watchersData ?? []} selected={watcherIds} onChange={setWatcherIds}
+        <PersonPicker selectedIds={watcherIds} knownPeople={Object.values(peopleCache)} onChange={setWatcherIds}
+          onLearnPeople={learnPeople} lockedIds={lockedIds}
           accent="#a87908" accentBg="#faf1d6" addLabel="Thêm người theo dõi" emptyText="Chưa chọn người theo dõi" />
 
         {/* Reason */}

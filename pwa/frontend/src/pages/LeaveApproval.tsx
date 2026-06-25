@@ -28,6 +28,23 @@ interface PendingRequest {
   end_time: string | null
 }
 
+interface WatchItem {
+  id: number
+  employee_name: string
+  leave_type: string | null
+  start_date: string | null
+  end_date: string | null
+  requested_days: number
+  status: string
+  description: string | null
+}
+
+const WATCH_ST: Record<string, { label: string; tone: 'warn' | 'success' | 'red' }> = {
+  requested: { label: 'Chờ duyệt', tone: 'warn' },
+  approved: { label: 'Đã duyệt', tone: 'success' },
+  rejected: { label: 'Từ chối', tone: 'red' },
+}
+
 function fmtDate(s: string | null) {
   if (!s) return ''
   const d = new Date(s)
@@ -476,6 +493,41 @@ function ExportSheet({ onClose }: { onClose: () => void }) {
 }
 
 
+// ── Watching list (đơn đang theo dõi) ──────────────────────────────────────────
+
+function WatchingList({ items }: { items: WatchItem[] | null }) {
+  if (items === null) return <div style={{ textAlign: 'center', padding: 40, color: HNH.ink3, fontSize: 13 }}>Đang tải...</div>
+  if (items.length === 0) return (
+    <div style={{ background: '#fff', borderRadius: 18, padding: '32px 20px', textAlign: 'center', border: `1px solid ${HNH.line}` }}>
+      <div style={{ fontSize: 36 }}>👀</div>
+      <div style={{ fontSize: 15, fontWeight: 700, color: HNH.ink, marginTop: 10 }}>Chưa theo dõi đơn nào</div>
+      <div style={{ fontSize: 13, color: HNH.ink3, marginTop: 4 }}>Các đơn bạn được thêm làm người theo dõi sẽ hiện ở đây</div>
+    </div>
+  )
+  return (
+    <div style={{ background: '#fff', borderRadius: 18, border: `1px solid ${HNH.line}`, overflow: 'hidden' }}>
+      {items.map((r, i) => {
+        const st = WATCH_ST[r.status] ?? WATCH_ST.requested
+        const range = r.start_date === r.end_date ? fmtDateShort(r.start_date) : `${fmtDateShort(r.start_date)} → ${fmtDateShort(r.end_date)}`
+        const days = r.requested_days % 1 === 0 ? `${r.requested_days} ngày` : `${r.requested_days.toFixed(2)} ngày`
+        return (
+          <div key={r.id} className="flex items-center gap-3" style={{ padding: '13px 16px', borderBottom: i === items.length - 1 ? 'none' : `1px solid ${HNH.line}` }}>
+            <div className="flex items-center justify-center shrink-0" style={{ width: 42, height: 42, borderRadius: 14, background: avatarColor(r.id), color: '#fff', fontSize: 14, fontWeight: 700 }}>
+              {initials(r.employee_name)}
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 700, color: HNH.ink, marginBottom: 2 }}>{r.employee_name}</div>
+              <div style={{ fontSize: 12.5, color: HNH.ink2 }}>{r.leave_type}</div>
+              <div style={{ fontSize: 11.5, color: HNH.ink3 }}>{range} · {days}</div>
+            </div>
+            <Badge tone={st.tone} size="s">{st.label}</Badge>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export function LeaveApprovalPage() {
@@ -485,6 +537,8 @@ export function LeaveApprovalPage() {
   const [detail, setDetail] = useState<PendingRequest | null>(null)
   const [dismissed, setDismissed] = useState<Set<number>>(new Set())
   const [showExport, setShowExport] = useState(false)
+  const [tab, setTab] = useState<'pending' | 'watching'>('pending')
+  const { data: watching } = useApi<WatchItem[]>('/api/leave/watching/')
 
   const requests = useMemo(() => {
     const base = (rawRequests ?? []).filter(r => !dismissed.has(r.id))
@@ -536,6 +590,20 @@ export function LeaveApprovalPage() {
       />
 
       <div style={{ padding: '12px 16px 100px' }}>
+        {/* Tab bar */}
+        <div className="flex gap-2" style={{ marginBottom: 14 }}>
+          {([['pending', 'Chờ duyệt'], ['watching', 'Đang theo dõi']] as const).map(([k, label]) => (
+            <button key={k} onClick={() => setTab(k)} className="border-none cursor-pointer"
+              style={{ flex: 1, padding: '9px 0', borderRadius: 12, fontSize: 13, fontWeight: 700,
+                background: tab === k ? HNH.red : '#fff', color: tab === k ? '#fff' : HNH.ink2,
+                border: `1px solid ${tab === k ? HNH.red : HNH.line}` }}>
+              {label}{k === 'watching' && watching && watching.length > 0 ? ` (${watching.length})` : ''}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'watching' ? <WatchingList items={watching} /> : (
+        <>
         {/* Search */}
         <div
           className="flex items-center gap-2"
@@ -598,6 +666,8 @@ export function LeaveApprovalPage() {
               Tải lại danh sách
             </button>
           </div>
+        )}
+        </>
         )}
       </div>
 

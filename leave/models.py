@@ -2451,3 +2451,82 @@ class HNHCompensatoryProposal(HorillaModel):
 
     def __str__(self):
         return f"{self.employee_id} | {self.days} ngày | {self.status}"
+
+
+# ── HNH: C&B cố định duyệt + theo dõi đơn nghỉ phép theo công ty/phòng ban ──
+
+class CBLeaveManager(models.Model):
+    """User C&B cố định làm Người duyệt + Người theo dõi đơn nghỉ phép, phân
+    theo công ty/phòng ban. Match cụ thể nhất thắng:
+    (công ty + phòng) > (công ty) > (phòng) > toàn cục (cả hai null).
+    Dòng toàn cục (company=null, department=null) = mặc định cho mọi nhân viên.
+    """
+
+    company_id = models.ForeignKey(
+        Company, on_delete=models.CASCADE, null=True, blank=True,
+        related_name="cb_leave_managers", verbose_name=_("Công ty"),
+    )
+    department_id = models.ForeignKey(
+        Department, on_delete=models.CASCADE, null=True, blank=True,
+        related_name="cb_leave_managers", verbose_name=_("Phòng ban"),
+    )
+    manager_id = models.ForeignKey(
+        Employee, on_delete=models.CASCADE,
+        related_name="cb_leave_manager_for", verbose_name=_("Người C&B duyệt"),
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "leave_cb_manager"
+        unique_together = ("company_id", "department_id")
+        verbose_name = "C&B duyệt nghỉ phép"
+        verbose_name_plural = "C&B duyệt nghỉ phép"
+
+    def __str__(self):
+        scope = []
+        if self.company_id_id:
+            scope.append(str(self.company_id))
+        if self.department_id_id:
+            scope.append(str(self.department_id))
+        return f"{self.manager_id} @ {' / '.join(scope) or 'Toàn công ty'}"
+
+
+def resolve_cb_manager(employee):
+    """Trả về Employee C&B cố định cho 1 nhân viên (match cụ thể nhất), hoặc None."""
+    wi = getattr(employee, "employee_work_info", None)
+    company_id = wi.company_id_id if wi and wi.company_id_id else None
+    department_id = wi.department_id_id if wi and wi.department_id_id else None
+    best, best_score = None, -1
+    for c in CBLeaveManager.objects.select_related("manager_id").all():
+        if c.company_id_id and c.company_id_id != company_id:
+            continue
+        if c.department_id_id and c.department_id_id != department_id:
+            continue
+        score = (2 if c.company_id_id else 0) + (1 if c.department_id_id else 0)
+        if score > best_score and c.manager_id_id and c.manager_id.is_active:
+            best, best_score = c.manager_id, score
+    return best
+
+
+class LeaveRequestWatcher(models.Model):
+    """Người theo dõi 1 đơn nghỉ phép — được thông báo khi tạo và khi đơn được
+    duyệt/từ chối; xem được trong danh sách 'Đang theo dõi'."""
+
+    leave_request_id = models.ForeignKey(
+        LeaveRequest, on_delete=models.CASCADE,
+        related_name="watcher_links", verbose_name=_("Đơn nghỉ phép"),
+    )
+    employee_id = models.ForeignKey(
+        Employee, on_delete=models.CASCADE,
+        related_name="watching_leave_requests", verbose_name=_("Người theo dõi"),
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "leave_request_watcher"
+        unique_together = ("leave_request_id", "employee_id")
+        verbose_name = "Người theo dõi đơn nghỉ phép"
+        verbose_name_plural = "Người theo dõi đơn nghỉ phép"
+
+    def __str__(self):
+        return f"{self.employee_id} theo dõi #{self.leave_request_id_id}"

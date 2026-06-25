@@ -33,6 +33,86 @@ def _translate_leave_err(msg: str) -> str:
     return _LEAVE_ERR_VI.get(msg.strip().lower(), msg)
 
 
+# ── HNH: C&B cố định + người theo dõi (watcher) ───────────────────────
+
+def _augment_with_cb(employee, approver_ids, watcher_ids):
+    """Luôn chèn C&B cố định vào CẢ Người duyệt + Người theo dõi (server-side
+    enforce — client không thể bỏ chọn)."""
+    from leave.models import resolve_cb_manager
+
+    approver_ids = list(approver_ids or [])
+    watcher_ids = list(watcher_ids or [])
+    cb = resolve_cb_manager(employee)
+    if cb:
+        if cb.id not in approver_ids:
+            approver_ids.append(cb.id)
+        if cb.id not in watcher_ids:
+            watcher_ids.append(cb.id)
+    return approver_ids, watcher_ids
+
+
+def _persist_watchers(created_requests, watcher_ids):
+    """Lưu watcher vào DB cho từng đơn vừa tạo."""
+    from employee.models import Employee
+    from leave.models import LeaveRequestWatcher
+
+    for lr in created_requests:
+        for wid in watcher_ids or []:
+            with contextlib.suppress(Exception):
+                w = Employee.objects.get(id=wid, is_active=True)
+                LeaveRequestWatcher.objects.get_or_create(
+                    leave_request_id=lr, employee_id=w
+                )
+
+
+def _notify_watchers(lr, actor, verb):
+    """Thông báo cho mọi người theo dõi đơn (trừ chính actor)."""
+    from leave.models import LeaveRequestWatcher
+
+    with contextlib.suppress(Exception):
+        links = LeaveRequestWatcher.objects.filter(
+            leave_request_id=lr
+        ).select_related("employee_id__employee_user_id")
+        for link in links:
+            emp = link.employee_id
+            if emp and emp.employee_user_id_id and emp.id != actor.id:
+                with contextlib.suppress(Exception):
+                    notify.send(actor, recipient=emp.employee_user_id, verb=verb,
+                                icon="eye", redirect=f"/leave/user-request-view?id={lr.id}")
+
+
+def _can_approve_leave(user, lr):
+    """Ai được duyệt: superuser/staff, reporting manager của người xin, hoặc có
+    dòng ConditionApproval cho đơn (gồm cả C&B đã pin). Củng cố quy tắc 'chỉ cần
+    1 người duyệt' — chỉ đúng người trong danh sách duyệt mới bấm được."""
+    if user.is_superuser or user.is_staff:
+        return True
+    emp = getattr(user, "employee_get", None)
+    if not emp:
+        return False
+    wi = getattr(lr.employee_id, "employee_work_info", None)
+    if wi and wi.reporting_manager_id_id == emp.id:
+        return True
+    from leave.models import LeaveRequestConditionApproval
+
+    return LeaveRequestConditionApproval.objects.filter(
+        leave_request_id=lr, manager_id=emp
+    ).exists()
+
+
+def _person_dict(emp, is_direct=False, locked=False):
+    wi = getattr(emp, "employee_work_info", None)
+    return {
+        "id": emp.id,
+        "name": f"{emp.employee_first_name} {emp.employee_last_name or ''}".strip(),
+        "position": wi.job_position_id.job_position if wi and wi.job_position_id else None,
+        "department": wi.department_id.department if wi and wi.department_id else None,
+        "company": wi.company_id.company if wi and wi.company_id else None,
+        "is_direct": is_direct,
+        "locked": locked,
+    }
+
+
 class EmployeeAvailableLeaveGetAPIView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -70,6 +150,9 @@ class EmployeeLeaveRequestGetCreateAPIView(APIView):
             data = data.dict()
         approver_ids = data.pop("approver_ids", None) or []
         watcher_ids = data.pop("watcher_ids", None) or []
+        approver_ids, watcher_ids = _augment_with_cb(
+            request.user.employee_get, approver_ids, watcher_ids
+        )
         data.pop("approval_mode", None)
         data["employee_id"] = employee_id
         data["end_date"] = (
@@ -78,6 +161,7 @@ class EmployeeLeaveRequestGetCreateAPIView(APIView):
         serializer = LeaveRequestCreateUpdateSerializer(data=data)
         if serializer.is_valid():
             leave_request = serializer.save()
+            _persist_watchers([leave_request], watcher_ids)
             actor = request.user.employee_get
             emp_name = f"{actor.employee_first_name} {actor.employee_last_name or ''}".strip()
 
@@ -164,6 +248,7 @@ class EmployeeLeaveRequestDaysAPIView(APIView):
         days_in = d.get("days") or []
         approver_ids = d.get("approver_ids") or []
         watcher_ids = d.get("watcher_ids") or []
+        approver_ids, watcher_ids = _augment_with_cb(employee, approver_ids, watcher_ids)
 
         if not leave_type_id:
             return Response({"error": "Thiếu loại nghỉ phép"}, status=400)
@@ -259,6 +344,8 @@ class EmployeeLeaveRequestDaysAPIView(APIView):
         except Exception as e:
             return Response({"error": str(e)}, status=400)
 
+        _persist_watchers(created, watcher_ids)
+
         # Notify quản lý + approvers/watchers (1 lần, gộp)
         actor = employee
         emp_name = f"{actor.employee_first_name} {actor.employee_last_name or ''}".strip()
@@ -308,6 +395,7 @@ class EmployeeLeaveRequestHoursAPIView(APIView):
         entries_in = d.get("entries") or []
         approver_ids = d.get("approver_ids") or []
         watcher_ids = d.get("watcher_ids") or []
+        approver_ids, watcher_ids = _augment_with_cb(employee, approver_ids, watcher_ids)
 
         if not leave_type_id:
             return Response({"error": "Thiếu loại nghỉ phép"}, status=400)
@@ -375,6 +463,8 @@ class EmployeeLeaveRequestHoursAPIView(APIView):
                             )
         except Exception as e:
             return Response({"error": _translate_leave_err(str(e))}, status=400)
+
+        _persist_watchers(created, watcher_ids)
 
         actor = employee
         emp_name = f"{actor.employee_first_name} {actor.employee_last_name or ''}".strip()
@@ -1660,6 +1750,9 @@ class ApproveLeaveView(APIView):
         if lr.status != "requested":
             return Response({"error": "Already processed"}, status=400)
 
+        if not _can_approve_leave(request.user, lr):
+            return Response({"error": "Bạn không có quyền duyệt đơn này"}, status=403)
+
         available_leave = AvailableLeave.objects.filter(
             employee_id=lr.employee_id,
             leave_type_id=lr.leave_type_id,
@@ -1691,6 +1784,10 @@ class ApproveLeaveView(APIView):
                 redirect=f"/leave/user-request-view?id={lr.id}",
             )
 
+        _notify_watchers(
+            lr, request.user.employee_get,
+            f"Đơn nghỉ phép của {lr.employee_id.employee_first_name} đã được duyệt",
+        )
         return Response({"status": "approved"})
 
 
@@ -1724,4 +1821,96 @@ class RejectLeaveView(APIView):
                 redirect=f"/leave/user-request-view?id={lr.id}",
             )
 
+        _notify_watchers(
+            lr, request.user.employee_get,
+            f"Đơn nghỉ phép của {lr.employee_id.employee_first_name} đã bị từ chối",
+        )
         return Response({"status": "rejected"})
+
+
+class CBLeaveManagersView(APIView):
+    """C&B cố định (Người duyệt + theo dõi) cho user hiện tại — luôn pin, khóa,
+    client không cho bỏ chọn. Resolve theo công ty/phòng ban của user."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from leave.models import resolve_cb_manager
+
+        cb = resolve_cb_manager(request.user.employee_get)
+        if not cb:
+            return Response([])
+        return Response([_person_dict(cb, locked=True)])
+
+
+class LeaveSelectCandidatesView(APIView):
+    """Nhân viên active để chọn Người duyệt/theo dõi — lọc theo công ty/phòng/từ
+    khóa. Kèm danh sách công ty + phòng ban để dựng dropdown của modal."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from django.db.models import Q
+        from base.models import Company, Department
+        from employee.models import Employee
+
+        company_id = request.query_params.get("company")
+        department_id = request.query_params.get("department")
+        search = (request.query_params.get("search") or "").strip()
+
+        qs = Employee.objects.filter(is_active=True).select_related(
+            "employee_work_info__job_position_id",
+            "employee_work_info__department_id",
+            "employee_work_info__company_id",
+        )
+        if company_id:
+            qs = qs.filter(employee_work_info__company_id=company_id)
+        if department_id:
+            qs = qs.filter(employee_work_info__department_id=department_id)
+        if search:
+            qs = qs.filter(
+                Q(employee_first_name__icontains=search)
+                | Q(employee_last_name__icontains=search)
+                | Q(email__icontains=search)
+            )
+        people = [_person_dict(e) for e in qs.order_by("employee_first_name")[:100]]
+        companies = [{"id": c.id, "name": c.company} for c in Company.objects.all()]
+        departments = [
+            {"id": d.id, "name": d.department, "company_id": d.company_id_id}
+            for d in Department.objects.all()
+        ]
+        return Response({"results": people, "companies": companies, "departments": departments})
+
+
+class WatchingLeaveRequestsView(APIView):
+    """Danh sách đơn nghỉ phép mà user hiện tại đang theo dõi."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from leave.models import LeaveRequestWatcher
+
+        links = LeaveRequestWatcher.objects.filter(
+            employee_id=request.user.employee_get
+        ).select_related(
+            "leave_request_id__employee_id", "leave_request_id__leave_type_id"
+        ).order_by("-leave_request_id__id")
+
+        data = []
+        for link in links:
+            lr = link.leave_request_id
+            if not lr:
+                continue
+            emp = lr.employee_id
+            lt = lr.leave_type_id
+            data.append({
+                "id": lr.id,
+                "employee_name": f"{emp.employee_first_name} {emp.employee_last_name or ''}".strip(),
+                "leave_type": lt.name if lt else None,
+                "start_date": lr.start_date.isoformat() if lr.start_date else None,
+                "end_date": lr.end_date.isoformat() if lr.end_date else None,
+                "requested_days": lr.requested_days,
+                "status": lr.status,
+                "description": lr.description,
+            })
+        return Response(data)
