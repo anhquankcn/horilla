@@ -58,6 +58,10 @@ replace_load() {  # load (after deletes done) — full replace
 
 echo "== sync_standby_to_stage (dry=$DRY) =="
 echo "-- UPSERT employee + shifts --"
+# auth_user PHẢI sync trước employee_employee + attendance: employee_user_id và
+# attendance.created_by_id đều FK tới auth_user. User mới onboard ở prod mà stage
+# chưa có sẽ làm gãy toàn bộ chuỗi load (attendance bị truncate rồi load 0 row).
+upsert_table auth_user id
 upsert_table base_employeeshift id
 upsert_table base_employeeshiftschedule id
 upsert_table employee_employee id
@@ -77,7 +81,7 @@ replace_load attendance_attendancelatecomeearlyout
 # sequence của stage KHÔNG tự nhảy → INSERT mới của app (chấm công, late/early-out…)
 # đụng PK đã tồn tại → "duplicate key ... _pkey" → 500. Bắt buộc reset sau mỗi sync.
 if [ "$DRY" = 0 ]; then
-  for t in base_employeeshift base_employeeshiftschedule employee_employee \
+  for t in auth_user base_employeeshift base_employeeshiftschedule employee_employee \
            employee_employeeworkinformation attendance_employeeshiftplan \
            attendance_attendance attendance_attendanceactivity \
            attendance_attendancelatecomeearlyout; do
@@ -106,5 +110,18 @@ echo "RECON: $RECON"
 if [ "$DRY" = 0 ]; then
   PAYLOAD="{\"status\":\"$STATUS\",\"trigger\":\"$TRIGGER\",\"duration_seconds\":$DUR,\"tables\":$TABLES_JSON,\"reconciliation\":$RECON,\"message\":\"$MSG\"}"
   echo "$PAYLOAD" | docker exec -i horilla-web-1 python manage.py record_standby_sync --payload "$(cat)"
+fi
+
+# Push log sang Prod (nếu có cấu hình PROD_SYNC_URL + PROD_SYNC_TOKEN)
+PUSH_ENV='/opt/horilla/deploy/.sync_push_env'
+[ -f "$PUSH_ENV" ] && source "$PUSH_ENV"
+if [ "$DRY" = 0 ] && [ -n "${PROD_SYNC_URL:-}" ] && [ -n "${PROD_SYNC_TOKEN:-}" ]; then
+  PUSH_PAYLOAD="{\"status\":\"$STATUS\",\"trigger\":\"$TRIGGER\",\"duration_seconds\":$DUR,\"tables\":$TABLES_JSON,\"reconciliation\":$RECON,\"message\":\"$MSG\"}"
+  HTTP_CODE=$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PROD_SYNC_URL/api/base/standby-sync/logs/" \
+    -H "X-Sync-Token: $PROD_SYNC_TOKEN" \
+    -H 'Content-Type: application/json' \
+    -d "$PUSH_PAYLOAD" 2>/dev/null)
+  if [ "$HTTP_CODE" = '201' ]; then echo '  ✓ log pushed sang prod'
+  else echo "  ! push prod failed (HTTP $HTTP_CODE) — ignored"; fi
 fi
 echo "== done (dur ${DUR}s, match=$MATCH) =="
