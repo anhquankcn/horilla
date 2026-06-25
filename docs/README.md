@@ -5,8 +5,12 @@ Tài liệu kỹ thuật cho hệ thống HRM của Công ty Du lịch Hồng Ng
 ### Tài liệu tổng quan
 | Tài liệu | Mô tả |
 |----------|-------|
-| [SRS.md](./SRS.md) | **Software Requirements Specification** — yêu cầu nghiệp vụ: phạm vi, đối tượng, yêu cầu chức năng (FR) & phi chức năng (NFR), giao diện ngoài |
-| [TDD.md](./TDD.md) | **Technical Design Document** — kiến trúc, tech stack, mô hình dữ liệu, API, thuật toán (chấm công/lương/duyệt nghỉ), bảo mật, triển khai, vận hành |
+| [SRS.md](./SRS.md) | **Software Requirements Specification** — baseline yêu cầu: phạm vi, đối tượng, chức năng (FR) **+ phi chức năng (NFR)** + giao diện ngoài |
+| [FRD.md](./FRD.md) | **Functional Requirements Document** — đặc tả **chi tiết từng chức năng** (luồng chính/ngoại lệ, business rules, validation, endpoint), truy vết về FR của SRS |
+| [TDD.md](./TDD.md) | **Technical Design Document** — kiến trúc, tech stack, mô hình dữ liệu, API, thuật toán, bảo mật, triển khai, vận hành |
+| [edu-hrm-architecture-plan.md](./edu-hrm-architecture-plan.md) | Kế hoạch kiến trúc mở rộng sang vertical HRM giáo dục ĐH/CĐ |
+
+**Quan hệ:** SRS (yêu cầu trọn gói gồm NFR) ⊃ phần functional → **FRD** đào sâu thành đặc tả chức năng → **TDD** mô tả cách hiện thực. SRS↔FRD↔TDD truy vết lẫn nhau.
 
 ### Tài liệu chuyên đề (có sẵn)
 | Tài liệu | Mô tả |
