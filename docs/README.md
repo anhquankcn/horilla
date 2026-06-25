@@ -9,6 +9,7 @@ Tài liệu kỹ thuật cho hệ thống HRM của Công ty Du lịch Hồng Ng
 | [FRD.md](./FRD.md) | **Functional Requirements Document** — đặc tả **chi tiết từng chức năng** (luồng chính/ngoại lệ, business rules, validation, endpoint), truy vết về FR của SRS |
 | [TDD.md](./TDD.md) | **Technical Design Document** — kiến trúc, tech stack, mô hình dữ liệu, API, thuật toán, bảo mật, triển khai, vận hành |
 | [edu-hrm-architecture-plan.md](./edu-hrm-architecture-plan.md) | Kế hoạch kiến trúc mở rộng sang vertical HRM giáo dục ĐH/CĐ |
+| [SRS-education.md](./SRS-education.md) | SRS vertical giáo dục — case pilot **Trường ĐH Quảng Nam** (viên chức, giờ giảng, lương hệ số) |
 
 **Quan hệ:** SRS (yêu cầu trọn gói gồm NFR) ⊃ phần functional → **FRD** đào sâu thành đặc tả chức năng → **TDD** mô tả cách hiện thực. SRS↔FRD↔TDD truy vết lẫn nhau.
 
