@@ -208,8 +208,8 @@ class ClockInAPIView(APIView):
                 in_datetime=datetime_now,
             )
 
-            self._save_clock_in_extras(request, employee, datetime_now)
-            geo_valid = self._check_geofence(request, employee, attendance)
+            activity = self._save_clock_in_extras(request, employee, datetime_now)
+            geo_valid = self._check_geofence(request, employee, attendance, activity)
 
             clock_logger.info(
                 "CLOCK IN ok user=%s emp=%s device=%s geo_valid=%s ua=%s",
@@ -230,7 +230,7 @@ class ClockInAPIView(APIView):
             .first()
         )
         if not activity:
-            return
+            return None
         updates = []
         lat = request.data.get("latitude")
         lng = request.data.get("longitude")
@@ -278,10 +278,17 @@ class ClockInAPIView(APIView):
             updates.append("out_of_office_note")
         if updates:
             activity.save(update_fields=updates)
+        return activity
 
     @staticmethod
-    def _check_geofence(request, employee, attendance):
-        """Check GPS against geofence of selected office (or employee's company). Returns True/False/None."""
+    def _check_geofence(request, employee, attendance, activity=None):
+        """Check GPS against geofence of selected office (or employee's company). Returns True/False/None.
+
+        Geofence là nguồn sự thật: nếu GPS nằm NGOÀI khu vực nhưng client khai
+        ``work_location='in_office'`` thì server sửa lại thành ``out_of_office``
+        và đánh dấu ``attendance_outside_geofence`` để HR rà soát — không tin
+        giá trị client gửi lên.
+        """
         lat = request.data.get("latitude")
         lng = request.data.get("longitude")
         if lat is None or lng is None:
@@ -301,6 +308,14 @@ class ClockInAPIView(APIView):
 
             inside, distance_m, _ = check_geofence(lat, lng, company)
             geo_approval = HRMConfig.get_value("geo_approval_required", True)
+
+            # GPS ngoài geofence nhưng khai 'in_office' → sửa về sự thật + flag.
+            if inside is False and activity is not None and activity.work_location == "in_office":
+                activity.work_location = "out_of_office"
+                activity.save(update_fields=["work_location"])
+                attendance.attendance_outside_geofence = True
+                attendance.save(update_fields=["attendance_outside_geofence"])
+
             if inside:
                 attendance.attendance_validated = True
                 attendance.save(update_fields=["attendance_validated"])
@@ -2417,10 +2432,28 @@ class AttendanceActivityDetailView(APIView):
             employee_id=emp, attendance_date=the_date
         ).order_by("clock_in", "in_datetime", "id")
 
+        from geofencing.utils import check_geofence
+
         activities = []
         for a in acts:
             wl = a.work_location or ""
             oot = a.out_of_office_type or ""
+            # Geofence là nguồn sự thật: tính lại từ GPS clock-in thay vì tin
+            # work_location đã lưu. Nếu lệch (lưu 'in_office' nhưng GPS ngoài
+            # khu vực) thì hiển thị đúng 'Ngoài văn phòng' + cờ geofence_mismatch.
+            clock_in_distance_m = None
+            geofence_mismatch = False
+            if (a.clock_in_latitude is not None and a.clock_in_longitude is not None
+                    and company is not None):
+                try:
+                    inside, clock_in_distance_m, _ = check_geofence(
+                        float(a.clock_in_latitude), float(a.clock_in_longitude), company
+                    )
+                    if inside is False and wl == "in_office":
+                        wl = "out_of_office"
+                        geofence_mismatch = True
+                except Exception:
+                    pass
             activities.append({
                 "id": a.id,
                 "clock_in": hhmm(a.clock_in),
@@ -2431,6 +2464,8 @@ class AttendanceActivityDetailView(APIView):
                 "clock_in_lng": str(a.clock_in_longitude) if a.clock_in_longitude is not None else None,
                 "work_location": wl,
                 "work_location_label": self._WORK_LOCATION_VI.get(wl, ""),
+                "geofence_mismatch": geofence_mismatch,
+                "clock_in_distance_m": clock_in_distance_m,
                 "out_of_office_type": oot,
                 "out_of_office_label": self._OUT_TYPE_VI.get(oot, ""),
                 "out_of_office_note": a.out_of_office_note or "",
