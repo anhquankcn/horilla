@@ -5,6 +5,7 @@ import { Badge } from './ui/Badge'
 import { useApi } from '../lib/useApi'
 import { api } from '../lib/api'
 import type { ActivityResp } from './AttendanceActivityDetail'
+import { fmtDistance, legInside } from './AttendanceActivityDetail'
 
 interface Props {
   open: boolean
@@ -25,6 +26,8 @@ interface Punch {
   workLocation: string    // in_office | out_of_office | ''
   oofLabel: string        // loại lý do (ngoài VP)
   oofNote: string         // chi tiết khi loại "Khác"
+  inside: boolean | null  // trong/ngoài VP theo GPS thực của LƯỢT này
+  distanceM: number | null
 }
 
 function flattenPunches(resp: ActivityResp | null): Punch[] {
@@ -34,11 +37,14 @@ function flattenPunches(resp: ActivityResp | null): Punch[] {
     const note = a.out_of_office_type === 'other' ? (a.out_of_office_note || '') : ''
     if (a.clock_in) {
       out.push({ key: `${a.id}-in`, time: a.clock_in, photo: a.clock_in_photo, address: a.clock_in_address,
-        workLocation: a.work_location, oofLabel: a.out_of_office_label, oofNote: note })
+        workLocation: a.work_location, oofLabel: a.out_of_office_label, oofNote: note,
+        inside: legInside(a.clock_in_inside, a.work_location), distanceM: a.clock_in_distance_m ?? null })
     }
     if (a.clock_out) {
+      // Lượt RA dùng GPS RA của chính nó (không inherit work_location của activity).
       out.push({ key: `${a.id}-out`, time: a.clock_out, photo: a.clock_out_photo, address: a.clock_out_address,
-        workLocation: a.work_location, oofLabel: a.out_of_office_label, oofNote: note })
+        workLocation: a.work_location, oofLabel: a.out_of_office_label, oofNote: note,
+        inside: legInside(a.clock_out_inside, a.work_location), distanceM: a.clock_out_distance_m ?? null })
     }
   }
   out.sort((x, y) => (x.time < y.time ? -1 : x.time > y.time ? 1 : 0))
@@ -73,8 +79,9 @@ function PhotoView({ src, label }: { src: string; label: string }) {
 function PunchCard({ punch, index, total, role, officeName }: {
   punch: Punch; index: number; total: number; role: 'in' | 'out' | 'mid'; officeName: string
 }) {
-  const isOut = punch.workLocation === 'out_of_office'
-  const isIn = punch.workLocation === 'in_office'
+  const isOut = punch.inside === false
+  const isIn = punch.inside === true
+  const distLabel = fmtDistance(punch.distanceM)
   const roleLabel = role === 'in' ? 'Giờ vào ca' : role === 'out' ? 'Giờ ra ca' : 'Giờ chấm'
   const accent = role === 'in' ? HNH.success : role === 'out' ? HNH.navy : HNH.ink2
   const accentBg = role === 'in' ? HNH.success50 : role === 'out' ? HNH.navy50 : HNH.cream2
@@ -94,6 +101,16 @@ function PunchCard({ punch, index, total, role, officeName }: {
             {isOut && <Badge tone="warn" size="s">Ngoài VP</Badge>}
           </div>
           <div style={{ fontSize: 17, fontWeight: 800, color: HNH.ink, fontFamily: "'Plus Jakarta Sans', monospace", marginTop: 2 }}>{punch.time?.slice(0, 5) || '--:--'}</div>
+
+          {/* Khoảng cách GPS thực của lượt này tới VP */}
+          {distLabel && (
+            <div className="flex items-center gap-1" style={{ marginTop: 4 }}>
+              <Icon name="pin" size={11} color={isIn ? HNH.success : isOut ? HNH.warn : HNH.ink3} stroke={1.5} />
+              <span style={{ fontSize: 10.5, color: HNH.ink2, fontWeight: 600 }}>
+                {distLabel}{isIn ? ' · trong khu vực' : isOut ? ' · ngoài khu vực' : ''}
+              </span>
+            </div>
+          )}
 
           {/* Trong VP: tên địa điểm VP (chữ nhỏ) */}
           {isIn && officeName && (

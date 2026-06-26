@@ -12,6 +12,8 @@ export interface ActivityDetail {
   clock_out_address: string
   clock_in_lat: string | null
   clock_in_lng: string | null
+  clock_out_lat?: string | null
+  clock_out_lng?: string | null
   work_location: string
   work_location_label: string
   out_of_office_type: string
@@ -19,6 +21,26 @@ export interface ActivityDetail {
   out_of_office_note: string
   clock_in_photo: string | null
   clock_out_photo: string | null
+  // Geofence tính theo GPS thực của TỪNG lượt (backend trả). inside=null khi
+  // thiếu GPS/geofence → fallback work_location.
+  clock_in_inside?: boolean | null
+  clock_in_distance_m?: number | null
+  clock_out_inside?: boolean | null
+  clock_out_distance_m?: number | null
+}
+
+// "Cách VP 12m" / "Cách VP 2.0km". Trả '' khi không có khoảng cách.
+export function fmtDistance(m: number | null | undefined): string {
+  if (m == null) return ''
+  return m < 1000 ? `Cách VP ${Math.round(m)}m` : `Cách VP ${(m / 1000).toFixed(1)}km`
+}
+
+// Quy ra trong/ngoài VP cho 1 lượt: ưu tiên GPS thực, fallback work_location.
+export function legInside(inside: boolean | null | undefined, workLocation: string): boolean | null {
+  if (inside === true || inside === false) return inside
+  if (workLocation === 'in_office') return true
+  if (workLocation === 'out_of_office') return false
+  return null
 }
 
 export interface ActivityResp {
@@ -166,6 +188,8 @@ interface Punch {
   workLocation: string
   oofLabel: string
   oofNote: string
+  inside: boolean | null   // trong/ngoài VP theo GPS thực của LƯỢT này
+  distanceM: number | null // khoảng cách tới VP (m)
 }
 
 export function flattenPunches(resp: ActivityResp | null): Punch[] {
@@ -175,11 +199,14 @@ export function flattenPunches(resp: ActivityResp | null): Punch[] {
     const note = a.out_of_office_type === 'other' ? (a.out_of_office_note || '') : ''
     if (a.clock_in) {
       out.push({ key: `${a.id}-in`, time: a.clock_in, photo: a.clock_in_photo, address: a.clock_in_address,
-        workLocation: a.work_location, oofLabel: a.out_of_office_label, oofNote: note })
+        workLocation: a.work_location, oofLabel: a.out_of_office_label, oofNote: note,
+        inside: legInside(a.clock_in_inside, a.work_location), distanceM: a.clock_in_distance_m ?? null })
     }
     if (a.clock_out) {
+      // Lượt RA dùng GPS RA của chính nó (không inherit work_location của activity).
       out.push({ key: `${a.id}-out`, time: a.clock_out, photo: a.clock_out_photo, address: a.clock_out_address,
-        workLocation: a.work_location, oofLabel: a.out_of_office_label, oofNote: note })
+        workLocation: a.work_location, oofLabel: a.out_of_office_label, oofNote: note,
+        inside: legInside(a.clock_out_inside, a.work_location), distanceM: a.clock_out_distance_m ?? null })
     }
   }
   out.sort((x, y) => (x.time < y.time ? -1 : x.time > y.time ? 1 : 0))
@@ -190,8 +217,9 @@ function PunchCard({ punch, index, total, role, officeName }: {
   punch: Punch; index: number; total: number; role: 'in' | 'out' | 'mid'; officeName: string
 }) {
   const [zoom, setZoom] = useState<string | null>(null)
-  const isOut = punch.workLocation === 'out_of_office'
-  const isIn = punch.workLocation === 'in_office'
+  const isOut = punch.inside === false
+  const isIn = punch.inside === true
+  const distLabel = fmtDistance(punch.distanceM)
   const roleLabel = role === 'in' ? 'Giờ vào ca' : role === 'out' ? 'Giờ ra ca' : 'Giờ chấm'
   const accent = role === 'in' ? HNH.success : role === 'out' ? HNH.navy : HNH.ink2
   const accentBg = role === 'in' ? HNH.success50 : role === 'out' ? HNH.navy50 : HNH.cream2
@@ -210,6 +238,7 @@ function PunchCard({ punch, index, total, role, officeName }: {
             {isOut && <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 6, padding: '1px 7px', background: '#fef3c7', color: '#92400e' }}>Ngoài VP</span>}
           </div>
           <div style={{ fontSize: 16, fontWeight: 800, color: HNH.ink, fontFamily: "'Plus Jakarta Sans', monospace", marginTop: 2 }}>{punch.time?.slice(0, 5) || '--:--'}</div>
+          {distLabel && <InfoLine icon="📏" text={`${distLabel}${isIn ? ' · trong khu vực' : isOut ? ' · ngoài khu vực' : ''}`} />}
           {isIn && officeName && <InfoLine icon="🏢" text={officeName} />}
           {isOut && punch.oofLabel && <InfoLine icon="🚩" text={punch.oofNote ? `${punch.oofLabel}: ${punch.oofNote}` : punch.oofLabel} />}
           {isOut && punch.address && <InfoLine icon="📍" text={punch.address} />}
