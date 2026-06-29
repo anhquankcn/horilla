@@ -45,6 +45,13 @@ function secToHHMM(sec: number): string {
   return `${h}:${String(m).padStart(2, '0')}`
 }
 
+// YYYY-MM-DD theo giờ ĐỊA PHƯƠNG (khớp attendance_date backend, UTC+7).
+// KHÔNG dùng toISOString() vì nó đổi sang UTC → nửa đêm local thành ngày hôm
+// trước → lệch cột trạng thái tuần (thứ 2 hiện nhầm thành thứ 3).
+function ymd(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
 function getWeekMonday(d: Date): Date {
   const date = new Date(d)
   const day = date.getDay() // 0=Sun
@@ -151,7 +158,7 @@ export function AttendancePage() {
   const dateStr = `${dayName} · ${String(now.getDate()).padStart(2, '0')} / ${String(now.getMonth() + 1).padStart(2, '0')} / ${now.getFullYear()}`
 
   /* ── Weekly chart (real data) ── */
-  const todayStr = useMemo(() => now.toISOString().slice(0, 10), [now])
+  const todayStr = useMemo(() => ymd(now), [now])
 
   const weekData = useMemo(() => {
     const monday = getWeekMonday(now)
@@ -161,7 +168,7 @@ export function AttendancePage() {
     return DAY_LABELS.map((label, i) => {
       const d = new Date(monday)
       d.setDate(monday.getDate() + i)
-      const dStr = d.toISOString().slice(0, 10)
+      const dStr = ymd(d)
       const att = attByDate.get(dStr)
       const isWeekend = i >= 5
       const isToday = dStr === todayStr
