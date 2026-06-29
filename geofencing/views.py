@@ -112,28 +112,25 @@ class GeoFencingEmployeeLocationCheckAPIView(APIView):
 
     def post(self, request):
         serializer = EmployeeLocationSerializer(data=request.data)
-        company_location = self.get_company_location(request)
-        if company_location.start:
-            if serializer.is_valid():
-                geofence_center = (
-                    company_location.latitude,
-                    company_location.longitude,
-                )
-                employee_location = (
-                    request.data.get("latitude"),
-                    request.data.get("longitude"),
-                )
-                distance = geodesic(geofence_center, employee_location).meters
-                if distance <= company_location.radius_in_meters:
-                    return Response(
-                        {"message": "Inside the geofence"}, status=status.HTTP_200_OK
-                    )
+        company = self.get_company(request)
+        if not GeoFencing.objects.filter(start=True).exists():
+            raise serializers.ValidationError("Geofencing is not yet started..")
+        if serializer.is_valid():
+            # "Trong VP" nếu nằm trong BẤT KỲ văn phòng nào của tổ chức.
+            from geofencing.utils import check_geofence
+
+            inside, _distance, _ = check_geofence(
+                request.data.get("latitude"), request.data.get("longitude"), company
+            )
+            if inside:
                 return Response(
-                    {"message": "Outside the geofence"},
-                    status=status.HTTP_400_BAD_REQUEST,
+                    {"message": "Inside the geofence"}, status=status.HTTP_200_OK
                 )
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        raise serializers.ValidationError("Geofencing is not yet started..")
+            return Response(
+                {"message": "Outside the geofence"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class GeoFencingSetUpPermissionCheck(APIView):
