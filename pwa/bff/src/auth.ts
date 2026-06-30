@@ -5,6 +5,59 @@ import { generateCodeVerifier, generateCodeChallenge, generateState } from "./pk
 import { createSession, getSession, destroySession } from "./session.js";
 
 const COOKIE_NAME = "hnh_sid";
+
+// Làm mới Horilla JWT khi nó hết hạn: dùng KC refresh_token (nếu có) lấy KC
+// access_token mới rồi đổi lấy Horilla JWT mới. Trả true nếu session.horillaJwt
+// được cập nhật. Nhờ đó user không bị signout giữa chừng chỉ vì JWT hết hạn
+// trong khi phiên KC vẫn còn hiệu lực.
+async function refreshHorillaJwt(session: {
+  kcAccessToken?: string;
+  kcRefreshToken?: string;
+  kcIdToken?: string;
+  horillaJwt?: string;
+}): Promise<boolean> {
+  try {
+    // 1) Nếu có refresh_token KC → lấy KC access_token mới.
+    if (session.kcRefreshToken) {
+      const tokenRes = await fetch(
+        `${env.KC_BASE}/protocol/openid-connect/token`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: new URLSearchParams({
+            grant_type: "refresh_token",
+            client_id: env.KC_CLIENT_ID,
+            refresh_token: session.kcRefreshToken,
+          }).toString(),
+        }
+      );
+      if (tokenRes.statusCode === 200) {
+        const t = (await tokenRes.body.json()) as {
+          access_token: string;
+          refresh_token?: string;
+          id_token?: string;
+        };
+        session.kcAccessToken = t.access_token;
+        if (t.refresh_token) session.kcRefreshToken = t.refresh_token;
+        if (t.id_token) session.kcIdToken = t.id_token;
+      }
+    }
+    if (!session.kcAccessToken) return false;
+
+    // 2) Đổi KC access_token → Horilla JWT mới.
+    const horillaRes = await fetch(`${env.HORILLA_API}/api/auth/oidc-login/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ access_token: session.kcAccessToken }),
+    });
+    if (horillaRes.statusCode !== 200) return false;
+    const data = (await horillaRes.body.json()) as { access: string };
+    session.horillaJwt = data.access;
+    return true;
+  } catch {
+    return false;
+  }
+}
 const COOKIE_OPTS = {
   path: "/",
   httpOnly: true,
@@ -210,12 +263,33 @@ export async function authRoutes(app: FastifyInstance) {
     if (!sessionId) return reply.status(401).send({ authenticated: false });
 
     const session = getSession(sessionId);
-    if (!session?.horillaJwt) return reply.status(401).send({ authenticated: false });
+    if (!session) return reply.status(401).send({ authenticated: false });
 
-    // Proxy to /api/employee/me/ with the stored JWT
-    const res = await fetch(`${env.HORILLA_API}/api/employee/me/`, {
-      headers: { Authorization: `Bearer ${session.horillaJwt}` },
-    });
+    // Nếu JWT đã mất (hết hạn được dọn) nhưng còn KC token → thử khôi phục.
+    if (!session.horillaJwt) {
+      const ok = await refreshHorillaJwt(session);
+      if (!ok) {
+        destroySession(sessionId);
+        reply.clearCookie(COOKIE_NAME, { path: "/" });
+        return reply.status(401).send({ authenticated: false });
+      }
+    }
+
+    const callMe = (jwt: string) =>
+      fetch(`${env.HORILLA_API}/api/employee/me/`, {
+        headers: { Authorization: `Bearer ${jwt}` },
+      });
+
+    let res = await callMe(session.horillaJwt!);
+
+    // JWT hết hạn → thử refresh 1 lần (KC refresh_token còn hạn thì user KHÔNG
+    // bị signout). Chỉ khi refresh thất bại mới huỷ phiên.
+    if (res.statusCode === 401) {
+      const ok = await refreshHorillaJwt(session);
+      if (ok && session.horillaJwt) {
+        res = await callMe(session.horillaJwt);
+      }
+    }
 
     if (res.statusCode === 401) {
       destroySession(sessionId);

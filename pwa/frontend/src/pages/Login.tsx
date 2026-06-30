@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Navigate, useSearchParams } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { LogoMark } from '../components/ui/Logo'
@@ -11,13 +12,60 @@ const ERROR_MESSAGES: Record<string, string> = {
   server_error: 'Lỗi hệ thống, vui lòng thử lại sau.',
 }
 
+// Lỗi SSO TẠM THỜI (mất phiên / token hỏng) → tự động đăng nhập lại qua Keycloak.
+// 'login_failed' (KC ok nhưng không có tài khoản Horilla) KHÔNG nằm đây vì
+// re-auth không giải quyết được — phải liên hệ IT.
+const RETRYABLE_ERRORS = new Set(['session_expired', 'token_failed', 'server_error'])
+const RETRY_GUARD = 'hnh_sso_retry'
+const SSO_LOGIN_URL = '/bff/auth/login'
+
 export function LoginPage() {
   const { loading, authenticated } = useAuth()
   const [searchParams] = useSearchParams()
   const errorCode = searchParams.get('error')
-  const errorMsg = errorCode ? (ERROR_MESSAGES[errorCode] ?? 'Đã có lỗi xảy ra.') : null
 
-  if (loading) {
+  // Sẽ tự thử lại nếu: lỗi tạm thời + chưa thử lại lần nào (tránh lặp vô hạn).
+  const willAutoRetry =
+    !!errorCode && RETRYABLE_ERRORS.has(errorCode) &&
+    sessionStorage.getItem(RETRY_GUARD) !== '1'
+
+  // redirecting: đang chuyển sang Keycloak (bấm login HOẶC tự thử lại) → hiện
+  // màn loading, chặn bấm tiếp.
+  const [redirecting, setRedirecting] = useState(willAutoRetry)
+
+  const goToSSO = () => {
+    if (redirecting) return
+    setRedirecting(true)
+    window.location.href = SSO_LOGIN_URL
+  }
+
+  // #3 — tự fallback về đăng nhập KC khi gặp lỗi tạm thời (1 lần).
+  useEffect(() => {
+    if (!errorCode) {
+      sessionStorage.removeItem(RETRY_GUARD)
+      return
+    }
+    if (willAutoRetry) {
+      sessionStorage.setItem(RETRY_GUARD, '1')
+      window.location.replace(SSO_LOGIN_URL)
+    } else {
+      // Đã thử lại mà vẫn lỗi → reset để lần sự cố sau còn tự thử lại được,
+      // và hiển thị thông báo lỗi cho user.
+      sessionStorage.removeItem(RETRY_GUARD)
+    }
+  }, [errorCode, willAutoRetry])
+
+  // Đăng nhập thành công → xoá cờ retry.
+  useEffect(() => {
+    if (authenticated) sessionStorage.removeItem(RETRY_GUARD)
+  }, [authenticated])
+
+  // Chỉ hiện thông báo lỗi khi KHÔNG đang tự chuyển hướng (tránh nháy lỗi).
+  const errorMsg = errorCode && !redirecting
+    ? (ERROR_MESSAGES[errorCode] ?? 'Đã có lỗi xảy ra.')
+    : null
+
+  if (loading || redirecting) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[100dvh]" style={{
         background: `linear-gradient(180deg, #0d1f4f 0%, ${HNH.navy} 40%, #1a3a7a 100%)`,
@@ -61,16 +109,20 @@ export function LoginPage() {
           border: '3px solid rgba(255,255,255,0.15)', borderTopColor: HNH.gold,
           animation: 'spin 0.8s linear infinite, hnh-pulse-glow 2s ease-in-out infinite',
         }} />
+        {redirecting && (
+          <div style={{
+            marginTop: 18, color: 'rgba(255,255,255,0.85)', fontSize: 13.5,
+            fontWeight: 600, letterSpacing: 0.2,
+          }}>
+            Đang chuyển đến trang đăng nhập…
+          </div>
+        )}
       </div>
     )
   }
 
   if (authenticated) {
     return <Navigate to="/" replace />
-  }
-
-  const handleSSO = () => {
-    window.location.href = '/bff/auth/login'
   }
 
   return (
@@ -141,13 +193,15 @@ export function LoginPage() {
 
         {/* SSO — primary action */}
         <button
-          onClick={handleSSO}
+          onClick={goToSSO}
+          disabled={redirecting}
           className="flex items-center justify-center gap-3 cursor-pointer border-none"
           style={{
             height: 54, borderRadius: 14,
             background: HNH.red, color: '#fff', fontWeight: 700, fontSize: 15.5,
             letterSpacing: 0.2,
             boxShadow: '0 8px 18px rgba(192,34,43,0.28)',
+            opacity: redirecting ? 0.7 : 1,
           }}
         >
           <span
