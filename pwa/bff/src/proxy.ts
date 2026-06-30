@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { request as fetch } from "undici";
 import { env } from "./env.js";
 import { getSession, destroySession } from "./session.js";
+import { refreshHorillaJwt } from "./tokens.js";
 
 const COOKIE_NAME = "hnh_sid";
 
@@ -44,11 +45,27 @@ export async function proxyRoutes(app: FastifyInstance) {
       }
     }
 
-    const res = await fetch(targetUrl, {
+    let res = await fetch(targetUrl, {
       method: req.method as any,
       headers,
       body: bodyToSend,
     });
+
+    // Horilla JWT hết hạn (SimpleJWT mặc định 5 phút) → KHÔNG đá user ra ngay.
+    // Thử refresh JWT bằng phiên KC còn hạn rồi gọi lại. Chỉ huỷ phiên khi
+    // refresh thất bại (phiên KC cũng đã hết). Đây là chỗ user bị "đăng nhập
+    // 1 lúc lại bị out" khi đang dùng app.
+    if (res.statusCode === 401) {
+      const ok = await refreshHorillaJwt(session);
+      if (ok && session.horillaJwt) {
+        headers.Authorization = `Bearer ${session.horillaJwt}`;
+        res = await fetch(targetUrl, {
+          method: req.method as any,
+          headers,
+          body: bodyToSend,
+        });
+      }
+    }
 
     if (res.statusCode === 401) {
       destroySession(sessionId);
