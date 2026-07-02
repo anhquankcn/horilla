@@ -1,5 +1,6 @@
 """Export attendance activity data as JSON preview or Excel (.xlsx)."""
 import io
+import math
 from datetime import date, timedelta
 
 from django.db.models import Min, Max
@@ -15,6 +16,12 @@ from employee.models import Employee
 DAY_NAMES_VI = {
     0: "T2", 1: "T3", 2: "T4", 3: "T5", 4: "T6", 5: "T7", 6: "CN",
 }
+
+
+def _round_cong(x) -> float:
+    """Làm tròn công 1 chữ số kiểu CHẶN XUỐNG mốc .x5 (0.96→1.0, 0.95→0.9).
+    Khớp roundCong frontend (lib/cong.ts) + _round_cong payroll."""
+    return math.floor(float(x) * 10 + 0.4) / 10
 
 
 def _is_cnb(user):
@@ -192,7 +199,7 @@ def _build_rows(year, month, company_id=None, department_id=None, search=None,
             standard_secs = int(min_secs * coefficient) if coefficient else min_secs
 
             pct = round((worked_secs / standard_secs * 100), 1) if standard_secs > 0 else 0
-            cong = round(min(1.0, worked_secs / standard_secs), 2) if standard_secs > 0 else 0.0
+            cong = _round_cong(min(1.0, worked_secs / standard_secs)) if standard_secs > 0 else 0.0
             if pct < 100 and worked_secs > 0:
                 notes.append(f"Đạt {pct}% ngày công")
             elif pct > 100:

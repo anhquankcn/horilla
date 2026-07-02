@@ -11,7 +11,7 @@ import io
 import json
 import logging
 from datetime import date, timedelta
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import Decimal, ROUND_HALF_UP, ROUND_FLOOR
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -804,10 +804,20 @@ def _tncn_progressive(taxable: Decimal) -> Decimal:
     return tax.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
 
 
+def _round_cong(x) -> Decimal:
+    """Làm tròn số công về 1 chữ số thập phân kiểu CHẶN XUỐNG ở mốc .x5:
+    chữ số thập phân thứ 2 >= 6 → lên, <= 5 → xuống. Ví dụ 0.96→1.0, 0.95→0.9.
+    Áp cho actual_days (ngày công thực) — số này NHÂN đơn giá ra tiền (J=G×F/E)."""
+    d = Decimal(str(x))
+    return (d * 10 + Decimal("0.4")).to_integral_value(rounding=ROUND_FLOOR) / 10
+
+
 def _compute_entry_formulas(e: MonthlyPayrollEntry, bhxh_cap: Decimal, bhtn_cap: Decimal) -> dict:
     """Compute all formula columns for one payroll entry."""
     E = Decimal(str(e.standard_days))
-    F = Decimal(str(e.actual_days))
+    # F (ngày công thực) làm tròn 1 chữ số chặn-xuống trước khi tính tiền → J,
+    # AB, AK dùng công đã làm tròn (nhất quán với CC Tháng/Trang chủ/Export).
+    F = _round_cong(e.actual_days)
     G = Decimal(str(e.lcb_bhxh))
     H = Decimal(str(e.total_gross))
     I = Decimal(str(e.pc_chuc_vu))
@@ -939,7 +949,8 @@ def _actual_cong(employee, year: int, month: int) -> Decimal:
                 leave_dates.add(d)
             d += timedelta(days=1)
     total += len(leave_dates)
-    return Decimal(str(round(total, 2)))
+    # Làm tròn 1 chữ số chặn-xuống ngay tại nguồn → actual_days lưu = số hiển thị.
+    return _round_cong(total)
 
 
 def _build_entry_stub(contract, year: int, month: int, company=None) -> MonthlyPayrollEntry:

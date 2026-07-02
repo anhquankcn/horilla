@@ -4,6 +4,7 @@ import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { TopBar } from '../components/layout/TopBar'
 import { api } from '../lib/api'
+import { fmtCong } from '../lib/cong'
 
 /* ── Types ── */
 interface PayrollEntry {
@@ -217,7 +218,7 @@ export function PayslipPage() {
                     {entry.contract_type}
                   </span>
                   <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.45)', fontWeight: 500 }}>
-                    {entry.actual_days}/{entry.standard_days} ngày công
+                    {fmtCong(entry.actual_days)}/{entry.standard_days} ngày công
                   </span>
                 </div>
               </div>
@@ -227,7 +228,7 @@ export function PayslipPage() {
             <SectionHeader icon="briefcase" label="Lương cơ bản" color={HNH.navy} />
             <Card>
               <Row label="Ngày công chuẩn (E)" value={`${entry.standard_days} ngày`} />
-              <Row label="Ngày công thực tế (F)" value={`${entry.actual_days} ngày`} />
+              <Row label="Ngày công thực tế (F)" value={`${fmtCong(entry.actual_days)} ngày`} />
               <Row label="LCB đóng BHXH (G)" value={`${fmt(entry.lcb_bhxh)}₫`} />
               <Row label="Tổng Gross TT (H)" value={`${fmt(entry.total_gross)}₫`} />
               <Row label="LCB thực tế (J)" value={`${fmt(entry.J)}₫`} bold accent={HNH.navy} last />

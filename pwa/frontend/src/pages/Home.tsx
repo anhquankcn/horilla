@@ -10,6 +10,7 @@ import { useLiveClock } from '../lib/useLiveClock'
 import { useApi } from '../lib/useApi'
 import { api } from '../lib/api'
 import { useTablet, useSmallPhone } from '../lib/useTablet'
+import { roundCong } from '../lib/cong'
 import { useToast } from '../components/ui/Toast'
 import { AttendanceDetailModal } from '../components/AttendanceDetailModal'
 
@@ -1048,8 +1049,10 @@ export function HomePage() {
       const d = new Date(r.attendance_date)
       return d.getMonth() === currentMonth && d.getFullYear() === currentYear
     }) ?? []
-    const sum = recs.reduce((acc, r) => acc + Math.min(1, (r.at_work_second ?? 0) / 34500), 0)
-    return Math.round(sum * 10) / 10
+    // Tổng công = CỘNG các ngày ĐÃ làm tròn (khớp CC Tháng): mỗi ngày làm tròn
+    // 1 chữ số chặn-xuống mốc .x5 rồi mới cộng.
+    const sum = recs.reduce((acc, r) => acc + roundCong(Math.min(1, (r.at_work_second ?? 0) / 34500)), 0)
+    return roundCong(sum)
   })()
   const totalWorkDaysInMonth = (() => {
     const year = now.getFullYear()

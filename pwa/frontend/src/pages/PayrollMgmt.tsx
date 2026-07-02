@@ -5,6 +5,7 @@ import { Icon } from '../components/ui/Icon'
 import { TopBar } from '../components/layout/TopBar'
 import { PullToRefresh } from '../components/ui/PullToRefresh'
 import { api } from '../lib/api'
+import { fmtCong } from '../lib/cong'
 
 /* ── Types ── */
 interface Dept { id: number; name: string }
@@ -279,7 +280,7 @@ function PayrollCard({ row, onTap, isOpen }: { row: PayrollRow; onTap: () => voi
           <div style={{ width: 1, height: 20, background: HNH.line }} />
           <div>
             <div style={{ fontSize: 9, fontWeight: 600, color: HNH.ink3 }}>Ngày</div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: HNH.ink }}>{row.actual_days}/{row.standard_days}</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: HNH.ink }}>{fmtCong(row.actual_days)}/{row.standard_days}</div>
           </div>
         </div>
       </div>

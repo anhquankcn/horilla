@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { HNH } from '../lib/theme'
 import { PunchList, type ActivityResp } from '../components/AttendanceActivityDetail'
+import { roundCong, fmtCong } from '../lib/cong'
 
 type DayStatus = 'present' | 'late' | 'leave' | 'unpaid' | 'absent' | 'nco' | 'weekend' | 'future' | ''
 
@@ -49,16 +50,6 @@ interface MonthlyData {
 
 interface Dept  { id: number; name: string }
 interface Company { id: number; name: string }
-
-// Làm tròn công về 1 chữ số thập phân kiểu CHẶN XUỐNG ở mốc .x5:
-// chữ số thập phân thứ 2 >= 6 → làm tròn lên; <= 5 → làm tròn xuống.
-// Ví dụ: 0.96 → 1.0, 0.95 → 0.9. (Chỉ áp cho HIỂN THỊ màn CC Tháng.)
-function roundCong(x: number): number {
-  return Math.floor(x * 10 + 0.4) / 10
-}
-function fmtCong(x: number): string {
-  return roundCong(x).toFixed(1)
-}
 
 interface CellDetailState {
   emp: EmployeeRow

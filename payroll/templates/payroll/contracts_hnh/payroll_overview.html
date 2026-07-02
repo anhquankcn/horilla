@@ -728,7 +728,10 @@ function recalcRow(id) {
   };
 
   const E  = q('E') || 1;  // avoid div/0
-  const F  = q('F');
+  // F (ngày công thực) làm tròn 1 chữ số chặn-xuống mốc .x5 (0.96→1.0, 0.95→0.9)
+  // trước khi tính tiền — khớp backend _round_cong. J=G×F/E dùng F đã làm tròn.
+  const roundCong = (x) => Math.floor(x * 10 + 0.4) / 10;
+  const F  = roundCong(q('F'));
   const G  = q('G');
   const H  = q('H');
   const I  = q('I');
