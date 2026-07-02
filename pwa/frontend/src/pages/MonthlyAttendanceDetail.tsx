@@ -50,6 +50,16 @@ interface MonthlyData {
 interface Dept  { id: number; name: string }
 interface Company { id: number; name: string }
 
+// Làm tròn công về 1 chữ số thập phân kiểu CHẶN XUỐNG ở mốc .x5:
+// chữ số thập phân thứ 2 >= 6 → làm tròn lên; <= 5 → làm tròn xuống.
+// Ví dụ: 0.96 → 1.0, 0.95 → 0.9. (Chỉ áp cho HIỂN THỊ màn CC Tháng.)
+function roundCong(x: number): number {
+  return Math.floor(x * 10 + 0.4) / 10
+}
+function fmtCong(x: number): string {
+  return roundCong(x).toFixed(1)
+}
+
 interface CellDetailState {
   emp: EmployeeRow
   day: number
@@ -448,13 +458,15 @@ export function MonthlyAttendanceDetailPage() {
                 const { emp, ri } = item
                 const rowBg = ri % 2 === 0 ? '#ffffff' : '#f8fafc'
 
-                let wd = 0, whSec = 0, otSec = 0
+                let wd = 0, whSec = 0, otSec = 0, totalCong = 0
                 Object.values(emp.days).forEach(cell => {
                   if (cell.status === 'present' || cell.status === 'late') {
                     wd++
                     whSec += cell.at_work_second ?? 0
                     otSec += cell.overtime_second ?? 0
                   }
+                  // Tổng công = CỘNG các ngày ĐÃ làm tròn (khớp số hiển thị từng ô).
+                  if (cell.cong != null) totalCong += roundCong(cell.cong)
                 })
 
                 return (
@@ -505,7 +517,7 @@ export function MonthlyAttendanceDetailPage() {
                       textAlign: 'center',
                       verticalAlign: 'middle',
                     }}>
-                      <div style={{ fontSize: 11, fontWeight: 700, color: HNH.navy }}>{(emp.total_cong ?? wd)} công</div>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: HNH.navy }}>{fmtCong(totalCong)} công</div>
                       <div style={{ fontSize: 10, color: HNH.ink2 }}>{fmtSecs(whSec)}</div>
                       {otSec > 0 && <div style={{ fontSize: 10, color: '#d97706', fontWeight: 600 }}>{fmtSecs(otSec)}</div>}
                     </td>
@@ -585,11 +597,11 @@ function CellContent({
           <div style={{
             display: 'inline-block', marginTop: 1,
             fontSize: 8.5, fontWeight: 800,
-            color: cong >= 1 ? '#15803d' : '#c2410c',
-            background: cong >= 1 ? '#dcfce7' : '#ffedd5',
+            color: roundCong(cong) >= 1 ? '#15803d' : '#c2410c',
+            background: roundCong(cong) >= 1 ? '#dcfce7' : '#ffedd5',
             borderRadius: 3, padding: '0px 3px',
           }}>
-            {cong} công
+            {fmtCong(cong)} công
           </div>
         )}
       </div>
@@ -699,7 +711,7 @@ function CellDetailModal({
               <DetailRow icon="🕔" label="Giờ ra" value={cell.check_out ?? '—'} />
               <DetailRow icon="⏱️" label="Giờ làm việc" value={fmtSecs(cell.at_work_second ?? 0)} valueColor={HNH.success} />
               {cell.cong != null && (
-                <DetailRow icon="📊" label="Công ngày" value={`${cell.cong} (tối thiểu 9h35 = 1.0)`} valueColor={cell.cong >= 1 ? HNH.success : '#c2410c'} />
+                <DetailRow icon="📊" label="Công ngày" value={`${fmtCong(cell.cong)} (tối thiểu 9h35 = 1.0)`} valueColor={roundCong(cell.cong) >= 1 ? HNH.success : '#c2410c'} />
               )}
               {(cell.overtime_second ?? 0) > 0 && (
                 <DetailRow icon="🔥" label="Giờ tăng ca" value={fmtSecs(cell.overtime_second ?? 0)} valueColor="#d97706" />
