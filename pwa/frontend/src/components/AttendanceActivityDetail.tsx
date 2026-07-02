@@ -27,6 +27,8 @@ export interface ActivityDetail {
   clock_in_distance_m?: number | null
   clock_out_inside?: boolean | null
   clock_out_distance_m?: number | null
+  // Lượt chấm không ảnh (camera lỗi) — chờ HR duyệt.
+  no_camera?: boolean
 }
 
 // "Cách VP 12m" / "Cách VP 2.0km". Trả '' khi không có khoảng cách.
@@ -190,6 +192,7 @@ interface Punch {
   oofNote: string
   inside: boolean | null   // trong/ngoài VP theo GPS thực của LƯỢT này
   distanceM: number | null // khoảng cách tới VP (m)
+  noCamera: boolean        // lượt chấm không ảnh (camera lỗi) — chờ HR duyệt
 }
 
 export function flattenPunches(resp: ActivityResp | null): Punch[] {
@@ -197,16 +200,17 @@ export function flattenPunches(resp: ActivityResp | null): Punch[] {
   const out: Punch[] = []
   for (const a of resp.activities) {
     const note = a.out_of_office_type === 'other' ? (a.out_of_office_note || '') : ''
+    const noCam = !!a.no_camera
     if (a.clock_in) {
       out.push({ key: `${a.id}-in`, time: a.clock_in, photo: a.clock_in_photo, address: a.clock_in_address,
         workLocation: a.work_location, oofLabel: a.out_of_office_label, oofNote: note,
-        inside: legInside(a.clock_in_inside, a.work_location), distanceM: a.clock_in_distance_m ?? null })
+        inside: legInside(a.clock_in_inside, a.work_location), distanceM: a.clock_in_distance_m ?? null, noCamera: noCam })
     }
     if (a.clock_out) {
       // Lượt RA dùng GPS RA của chính nó (không inherit work_location của activity).
       out.push({ key: `${a.id}-out`, time: a.clock_out, photo: a.clock_out_photo, address: a.clock_out_address,
         workLocation: a.work_location, oofLabel: a.out_of_office_label, oofNote: note,
-        inside: legInside(a.clock_out_inside, a.work_location), distanceM: a.clock_out_distance_m ?? null })
+        inside: legInside(a.clock_out_inside, a.work_location), distanceM: a.clock_out_distance_m ?? null, noCamera: noCam })
     }
   }
   out.sort((x, y) => (x.time < y.time ? -1 : x.time > y.time ? 1 : 0))
@@ -236,6 +240,7 @@ function PunchCard({ punch, index, total, role, officeName }: {
             <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 6, padding: '1px 7px', background: role === 'in' ? '#dcfce7' : role === 'out' ? HNH.navy50 : HNH.cream2, color: accent }}>{roleLabel}</span>
             {isIn && <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 6, padding: '1px 7px', background: '#dcfce7', color: '#15803d' }}>Trong VP</span>}
             {isOut && <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 6, padding: '1px 7px', background: '#fef3c7', color: '#92400e' }}>Ngoài VP</span>}
+            {punch.noCamera && <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 6, padding: '1px 7px', background: '#fee2e2', color: '#b91c1c' }}>⚠ Không ảnh</span>}
           </div>
           <div style={{ fontSize: 16, fontWeight: 800, color: HNH.ink, fontFamily: "'Plus Jakarta Sans', monospace", marginTop: 2 }}>{punch.time?.slice(0, 5) || '--:--'}</div>
           {distLabel && <InfoLine icon="📏" text={`${distLabel}${isIn ? ' · trong khu vực' : isOut ? ' · ngoài khu vực' : ''}`} />}

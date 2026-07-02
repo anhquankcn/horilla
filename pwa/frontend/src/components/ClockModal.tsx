@@ -251,7 +251,10 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
         streamRef.current = stream
         if (videoRef.current) {
           videoRef.current.srcObject = stream
-          await videoRef.current.play()
+          // play() có thể bị autoplay-policy reject dù stream OK (iOS PWA). Video
+          // đã có thuộc tính autoPlay/playsInline/muted nên KHÔNG để reject phá
+          // luồng — nuốt lỗi, camera vẫn hiển thị.
+          await videoRef.current.play().catch(() => {})
         }
         setCameraReady(true)
       } catch (err: unknown) {
@@ -381,7 +384,9 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
     return () => clearInterval(id)
   }, [showConfirm])
 
-  const openConfirm = useCallback(() => {
+  // noCamera=true: đường fallback khi camera thực sự hỏng — chấm KHÔNG ảnh,
+  // bắt buộc đang trong VP (chống chấm hộ), server đánh dấu chờ HR duyệt.
+  const openConfirm = useCallback((noCamera = false) => {
     const gpsBlocked = geo.loading && !isClockedIn
     if (acting || !!done || gpsBlocked) return
     // Chống chấm lặp sau khi văng/reload: vừa chấm < 45s và chưa xác nhận lại → cảnh báo.
@@ -398,16 +403,25 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
       setBlockMsg('Không thể chấm công trên máy tính/laptop. Vui lòng dùng điện thoại có camera.')
       return
     }
-    // Bắt buộc bật camera + chụp ảnh
-    const dataUrl = capture()
-    if (!dataUrl) {
-      setBlockMsg('Bắt buộc bật camera và chụp ảnh để chấm công. Hãy cấp quyền Camera rồi thử lại.')
-      return
+    const body: Record<string, unknown> = {}
+    if (noCamera) {
+      // Fallback: chỉ cho khi ĐANG trong VP.
+      if (isInsideSelected !== true) {
+        setBlockMsg('Camera lỗi: chỉ chấm công không ảnh được khi bạn đang ở trong văn phòng.')
+        return
+      }
+      body.no_camera = true
+    } else {
+      // Bắt buộc bật camera + chụp ảnh
+      const dataUrl = capture()
+      if (!dataUrl) {
+        setBlockMsg('Bắt buộc bật camera và chụp ảnh để chấm công. Hãy cấp quyền Camera rồi thử lại.')
+        return
+      }
+      body.photo = dataUrl
     }
     setBlockMsg(null)
-    const body: Record<string, unknown> = {}
     if (geo.position) { body.latitude = geo.position.lat; body.longitude = geo.position.lng }
-    body.photo = dataUrl
     body.client_ua = navigator.userAgent
     body.device_kind = deviceKind
     if (selectedOfficeId !== null) body.office_id = selectedOfficeId
@@ -419,7 +433,7 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
     setPendingBody(body)
     setShowConfirm(true)
     setCountdown(10)
-  }, [acting, done, geo.loading, isClockedIn, capture, geo.position, deviceKind, selectedOfficeId, workLocation, oofType, oofNote, rapidConfirm])
+  }, [acting, done, geo.loading, isClockedIn, capture, geo.position, deviceKind, selectedOfficeId, workLocation, oofType, oofNote, rapidConfirm, isInsideSelected])
 
   const dismissConfirm = useCallback(() => {
     setShowConfirm(false)
@@ -850,16 +864,36 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
               <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: 12.5, fontWeight: 600, lineHeight: 1.55, whiteSpace: 'pre-line' }}>
                 {cameraError}
               </div>
-              <button
-                onClick={retryCam}
-                style={{
-                  padding: '9px 22px', borderRadius: 12, border: 'none', cursor: 'pointer',
-                  background: 'rgba(255,255,255,0.18)', color: '#fff',
-                  fontSize: 13, fontWeight: 700, backdropFilter: 'blur(6px)',
-                }}
-              >
-                Thử lại
-              </button>
+              <div className="flex items-center gap-2" style={{ flexWrap: 'wrap', justifyContent: 'center' }}>
+                <button
+                  onClick={retryCam}
+                  style={{
+                    padding: '9px 22px', borderRadius: 12, border: 'none', cursor: 'pointer',
+                    background: 'rgba(255,255,255,0.18)', color: '#fff',
+                    fontSize: 13, fontWeight: 700, backdropFilter: 'blur(6px)',
+                  }}
+                >
+                  Thử lại
+                </button>
+                {/* Fallback: chỉ hiện khi ĐANG trong VP — chấm không ảnh, chờ HR duyệt */}
+                {isInsideSelected === true && !acting && !done && (
+                  <button
+                    onClick={() => openConfirm(true)}
+                    style={{
+                      padding: '9px 18px', borderRadius: 12, border: '1px solid rgba(255,255,255,0.4)',
+                      cursor: 'pointer', background: 'transparent', color: '#fff',
+                      fontSize: 12.5, fontWeight: 700,
+                    }}
+                  >
+                    Camera lỗi — chấm không ảnh
+                  </button>
+                )}
+              </div>
+              {isInsideSelected === true && (
+                <div style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11, marginTop: 2, lineHeight: 1.4 }}>
+                  Lượt chấm không ảnh sẽ được gửi cho HR duyệt.
+                </div>
+              )}
             </div>
           )}
           {/* GPS overlay on camera */}
@@ -887,7 +921,7 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
       flexShrink: 0,
     }}>
       <button
-        onClick={openConfirm}
+        onClick={() => openConfirm(false)}
         disabled={btnDisabled}
         className="flex items-center justify-center gap-2.5 w-full border-none"
         style={{

@@ -115,8 +115,43 @@ def _parse_clock_device(request):
     return kind, label, ua
 
 
+def _has_clock_photo(request):
+    """True nếu request có ảnh selfie hợp lệ."""
+    photo = request.data.get("photo")
+    return isinstance(photo, str) and photo.startswith("data:image")
+
+
+def _clock_inside_geofence(request, employee):
+    """Trả True/False/None: GPS của lượt chấm có nằm trong 1 văn phòng nào không.
+    Dùng cho fallback 'camera lỗi' — chỉ cho chấm không ảnh khi ĐANG trong VP."""
+    lat = request.data.get("latitude")
+    lng = request.data.get("longitude")
+    if lat is None or lng is None:
+        return None
+    try:
+        from geofencing.utils import check_geofence
+        from base.models import Company
+
+        office_id = request.data.get("office_id")
+        if office_id:
+            try:
+                company = Company.objects.get(id=office_id)
+            except Company.DoesNotExist:
+                company = employee.get_company()
+        else:
+            company = employee.get_company()
+        inside, _distance, _ = check_geofence(lat, lng, company)
+        return inside
+    except Exception:
+        return None
+
+
 def _clock_device_guard(request):
     """Block a clock punch on laptop/desktop and when no camera photo is attached.
+
+    Ảnh selfie là bắt buộc để chống chấm hộ. NGOẠI LỆ: khi camera thực sự hỏng,
+    client gửi cờ ``no_camera=true`` để đi đường fallback (được kiểm soát chặt ở
+    lớp view: bắt buộc GPS trong văn phòng + đánh dấu chờ HR duyệt).
     Returns (error_response_or_None, kind, label, user_agent)."""
     kind, label, ua = _parse_clock_device(request)
     user = getattr(request.user, "username", "?")
@@ -129,8 +164,8 @@ def _clock_device_guard(request):
             ),
             kind, label, ua,
         )
-    photo = request.data.get("photo")
-    if not (isinstance(photo, str) and photo.startswith("data:image")):
+    no_camera = bool(request.data.get("no_camera"))
+    if not _has_clock_photo(request) and not no_camera:
         clock_logger.warning("CLOCK BLOCKED user=%s reason=no_camera device=%s ua=%s", user, label, ua[:200])
         return (
             Response(
@@ -161,6 +196,19 @@ class ClockInAPIView(APIView):
             if not employee:
                 return Response(
                     {"error": "Employee record not found"}, status=400
+                )
+            # Fallback camera lỗi (không ảnh): CHỈ cho chấm khi GPS đang trong
+            # văn phòng — chống chấm hộ từ xa. Ngoài VP mà không ảnh → chặn.
+            is_no_camera = not _has_clock_photo(request)
+            if is_no_camera and _clock_inside_geofence(request, employee) is not True:
+                clock_logger.warning(
+                    "CLOCK BLOCKED user=%s reason=no_camera_outside_office",
+                    request.user.username,
+                )
+                return Response(
+                    {"error": "Camera lỗi: chỉ chấm công được khi bạn đang ở trong văn "
+                               "phòng. Vui lòng thử lại camera, hoặc liên hệ HR nếu ở ngoài."},
+                    status=400,
                 )
             datetime_now = django_tz.localtime(django_tz.now())
             if request.__dict__.get("datetime"):
@@ -210,6 +258,15 @@ class ClockInAPIView(APIView):
 
             activity = self._save_clock_in_extras(request, employee, datetime_now)
             geo_valid = self._check_geofence(request, employee, attendance, activity)
+
+            # Chấm không ảnh (camera lỗi) → luôn cần HR duyệt, dù trong VP.
+            if is_no_camera:
+                attendance.attendance_validated = False
+                attendance.save(update_fields=["attendance_validated"])
+                clock_logger.warning(
+                    "CLOCK IN no_camera user=%s emp=%s (chờ HR duyệt)",
+                    request.user.username, employee.id,
+                )
 
             clock_logger.info(
                 "CLOCK IN ok user=%s emp=%s device=%s geo_valid=%s ua=%s",
@@ -345,6 +402,19 @@ class ClockOutAPIView(APIView):
             employee = request.user.employee_get
             local_now = django_tz.localtime(django_tz.now())
 
+            # Fallback camera lỗi (không ảnh): chỉ chấm-ra được khi đang trong VP.
+            is_no_camera = not _has_clock_photo(request)
+            if is_no_camera and _clock_inside_geofence(request, employee) is not True:
+                clock_logger.warning(
+                    "CLOCK OUT BLOCKED user=%s reason=no_camera_outside_office",
+                    request.user.username,
+                )
+                return Response(
+                    {"error": "Camera lỗi: chỉ chấm công được khi bạn đang ở trong văn "
+                               "phòng. Vui lòng thử lại camera, hoặc liên hệ HR nếu ở ngoài."},
+                    status=400,
+                )
+
             # 23:59 is reserved for auto-close (NCO). Real clock-out → 23:58
             if local_now.hour == 23 and local_now.minute == 59:
                 local_now = local_now.replace(minute=58, second=0, microsecond=0)
@@ -356,6 +426,13 @@ class ClockOutAPIView(APIView):
 
                 self._save_clock_out_extras(request, employee)
                 geo_valid = self._check_geofence(request)
+                if is_no_camera and attendance is not None:
+                    attendance.attendance_validated = False
+                    attendance.save(update_fields=["attendance_validated"])
+                    clock_logger.warning(
+                        "CLOCK OUT no_camera user=%s emp=%s (chờ HR duyệt)",
+                        request.user.username, employee.id,
+                    )
 
                 clock_logger.info(
                     "CLOCK OUT ok user=%s emp=%s device=%s geo_valid=%s ua=%s",
@@ -2479,6 +2556,7 @@ class AttendanceActivityDetailView(APIView):
                 "out_of_office_note": a.out_of_office_note or "",
                 "clock_in_photo": photo_url(a.clock_in_photo),
                 "clock_out_photo": photo_url(a.clock_out_photo),
+                "no_camera": bool(a.no_camera),
             })
 
         # Trạng thái NCO + đơn khai báo cho ngày này

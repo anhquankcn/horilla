@@ -28,6 +28,7 @@ interface Punch {
   oofNote: string         // chi tiết khi loại "Khác"
   inside: boolean | null  // trong/ngoài VP theo GPS thực của LƯỢT này
   distanceM: number | null
+  noCamera: boolean       // lượt chấm không ảnh (camera lỗi) — chờ HR duyệt
 }
 
 function flattenPunches(resp: ActivityResp | null): Punch[] {
@@ -35,16 +36,17 @@ function flattenPunches(resp: ActivityResp | null): Punch[] {
   const out: Punch[] = []
   for (const a of resp.activities) {
     const note = a.out_of_office_type === 'other' ? (a.out_of_office_note || '') : ''
+    const noCam = !!a.no_camera
     if (a.clock_in) {
       out.push({ key: `${a.id}-in`, time: a.clock_in, photo: a.clock_in_photo, address: a.clock_in_address,
         workLocation: a.work_location, oofLabel: a.out_of_office_label, oofNote: note,
-        inside: legInside(a.clock_in_inside, a.work_location), distanceM: a.clock_in_distance_m ?? null })
+        inside: legInside(a.clock_in_inside, a.work_location), distanceM: a.clock_in_distance_m ?? null, noCamera: noCam })
     }
     if (a.clock_out) {
       // Lượt RA dùng GPS RA của chính nó (không inherit work_location của activity).
       out.push({ key: `${a.id}-out`, time: a.clock_out, photo: a.clock_out_photo, address: a.clock_out_address,
         workLocation: a.work_location, oofLabel: a.out_of_office_label, oofNote: note,
-        inside: legInside(a.clock_out_inside, a.work_location), distanceM: a.clock_out_distance_m ?? null })
+        inside: legInside(a.clock_out_inside, a.work_location), distanceM: a.clock_out_distance_m ?? null, noCamera: noCam })
     }
   }
   out.sort((x, y) => (x.time < y.time ? -1 : x.time > y.time ? 1 : 0))
@@ -99,6 +101,7 @@ function PunchCard({ punch, index, total, role, officeName }: {
             {/* Card badge Trong/Ngoài VP */}
             {isIn && <Badge tone="success" size="s">Trong VP</Badge>}
             {isOut && <Badge tone="warn" size="s">Ngoài VP</Badge>}
+            {punch.noCamera && <Badge tone="red" size="s">⚠ Không ảnh</Badge>}
           </div>
           <div style={{ fontSize: 17, fontWeight: 800, color: HNH.ink, fontFamily: "'Plus Jakarta Sans', monospace", marginTop: 2 }}>{punch.time?.slice(0, 5) || '--:--'}</div>
 
