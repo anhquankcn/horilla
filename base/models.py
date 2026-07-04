@@ -3318,3 +3318,45 @@ class SystemHealthLog(models.Model):
 
     def __str__(self):
         return f"{self.check_type} {self.checked_at:%Y-%m-%d %H:%M} {self.status}"
+
+
+class CalendarToken(models.Model):
+    """Token cá nhân để đăng ký (subscribe) lịch HRM vào Outlook/Google/Apple.
+
+    Feed .ics công khai theo token (Outlook không gửi cookie/JWT khi refresh),
+    nên xác thực bằng token khó đoán trong URL + có thể thu hồi/tạo lại."""
+
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name="calendar_token"
+    )
+    token = models.CharField(max_length=64, unique=True, db_index=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    revoked = models.BooleanField(default=False)
+
+    class Meta:
+        verbose_name = _("Calendar Token")
+
+    @staticmethod
+    def _new_token() -> str:
+        import secrets
+        return secrets.token_urlsafe(32)
+
+    @classmethod
+    def get_or_create_for(cls, user) -> "CalendarToken":
+        obj, _created = cls.objects.get_or_create(
+            user=user, defaults={"token": cls._new_token()}
+        )
+        if obj.revoked or not obj.token:
+            obj.token = cls._new_token()
+            obj.revoked = False
+            obj.save(update_fields=["token", "revoked"])
+        return obj
+
+    def regenerate(self) -> str:
+        self.token = self._new_token()
+        self.revoked = False
+        self.save(update_fields=["token", "revoked"])
+        return self.token
+
+    def __str__(self):
+        return f"CalendarToken({self.user_id})"

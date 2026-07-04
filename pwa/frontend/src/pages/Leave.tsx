@@ -5,6 +5,7 @@ import { Icon } from '../components/ui/Icon'
 import { Badge } from '../components/ui/Badge'
 import { TopBar } from '../components/layout/TopBar'
 import { useApi } from '../lib/useApi'
+import { downloadEventIcs } from '../lib/calendar'
 
 interface LeaveTypeInfo {
   id: number
@@ -365,6 +366,14 @@ export function LeavePage() {
                   </div>
                 )}
               </div>
+              {/* Đơn đã duyệt → cho tải .ics thêm vào lịch cá nhân (PA3) */}
+              {st === 'approved' && (
+                <div style={{ padding: '12px 18px', borderTop: `1px solid ${HNH.line}` }}>
+                  <button onClick={() => downloadEventIcs('leave', r.id, `nghi-phep-${r.id}`)} className="flex items-center justify-center gap-2 w-full border-none cursor-pointer" style={{ height: 46, borderRadius: 12, background: HNH.navy, color: '#fff', fontWeight: 700, fontSize: 14 }}>
+                    <Icon name="cal" size={16} color="#fff" /> Thêm vào lịch
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )

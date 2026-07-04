@@ -4,6 +4,7 @@ import cors from "@fastify/cors";
 import { env } from "./env.js";
 import { authRoutes } from "./auth.js";
 import { proxyRoutes } from "./proxy.js";
+import { calendarRoutes } from "./calendar.js";
 
 // bodyLimit 15MB: ảnh CCCD/selfie base64 (Fastify mặc định chỉ 1MB → 413).
 const app = Fastify({ logger: true, bodyLimit: 15 * 1024 * 1024 });
@@ -15,6 +16,7 @@ await app.register(cors, {
 });
 
 await app.register(authRoutes);
+await app.register(calendarRoutes);
 await app.register(proxyRoutes);
 
 app.get("/bff/health", async () => ({ status: "ok" }));
