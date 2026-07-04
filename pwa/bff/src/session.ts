@@ -7,6 +7,14 @@ interface Session {
   kcIdToken?: string;
   codeVerifier?: string;
   oauthState?: string;
+  // Microsoft Graph (đọc lịch Outlook — Cách B). Lưu refresh_token để đọc lịch
+  // lâu dài; access_token cache tới msExpiresAt. Mất khi BFF restart → user bấm
+  // "Kết nối Outlook" lại (tech debt: chưa lưu DB).
+  msRefreshToken?: string;
+  msAccessToken?: string;
+  msExpiresAt?: number;
+  msVerifier?: string;
+  msState?: string;
 }
 
 const store = new Map<string, Session>();

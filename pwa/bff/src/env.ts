@@ -14,4 +14,10 @@ export const env = {
   COOKIE_SECRET: process.env.COOKIE_SECRET ?? "dev-secret-change-in-production-please",
   ARKON_BFF_URL: process.env.ARKON_BFF_URL ?? "https://arkonbff.hnhtravel.work",
   ARKON_SERVICE_TOKEN: process.env.ARKON_SERVICE_TOKEN ?? "",
+  // Microsoft Graph (đọc lịch Outlook — Cách B, OAuth riêng). Tính năng chỉ bật
+  // khi có đủ CLIENT_ID + CLIENT_SECRET (IT cấp). Thiếu → endpoint trả 503.
+  MS_TENANT_ID: process.env.MS_TENANT_ID ?? "5938771f-e4e8-4dac-8250-75f302cd4073",
+  MS_CLIENT_ID: process.env.MS_CLIENT_ID ?? "",
+  MS_CLIENT_SECRET: process.env.MS_CLIENT_SECRET ?? "",
+  MS_REDIRECT_URI: process.env.MS_REDIRECT_URI ?? "https://qlns.hnhtravel.work/bff/outlook/callback",
 } as const;

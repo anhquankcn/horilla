@@ -11,19 +11,21 @@ import { api } from '../lib/api'
 
 interface CalEvent {
   id: string
-  kind: 'leave' | 'holiday' | 'announcement'
+  kind: 'leave' | 'holiday' | 'announcement' | 'outlook'
   title: string
   start: string   // YYYY-MM-DD
   end: string     // YYYY-MM-DD (inclusive)
   description?: string
   source: string
+  start_time?: string | null
+  end_time?: string | null
 }
 
 const KIND_COLOR: Record<string, string> = {
-  leave: HNH.success, holiday: HNH.red, announcement: HNH.gold,
+  leave: HNH.success, holiday: HNH.red, announcement: HNH.gold, outlook: HNH.navy,
 }
 const KIND_LABEL: Record<string, string> = {
-  leave: 'Nghỉ phép', holiday: 'Ngày lễ', announcement: 'Sự kiện',
+  leave: 'Nghỉ phép', holiday: 'Ngày lễ', announcement: 'Sự kiện', outlook: 'Outlook (họp)',
 }
 const DOW = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']
 
@@ -39,6 +41,7 @@ export function CalendarViewPage() {
   const [events, setEvents] = useState<CalEvent[]>([])
   const [loading, setLoading] = useState(true)
   const [selDay, setSelDay] = useState<string | null>(null)
+  const [outlook, setOutlook] = useState<{ configured: boolean; connected: boolean }>({ configured: false, connected: false })
 
   // Lưới 6 tuần bắt đầu từ Thứ 2 của tuần chứa ngày 1.
   const grid = useMemo(() => {
@@ -54,14 +57,41 @@ export function CalendarViewPage() {
 
   const load = useCallback(async () => {
     setLoading(true)
+    const from = ymd(grid[0]); const to = ymd(grid[41])
     try {
-      const from = ymd(grid[0]); const to = ymd(grid[41])
       const r = await api.get<{ events: CalEvent[] }>(`/api/calendar/events/?from=${from}&to=${to}`)
-      setEvents(r.events ?? [])
+      let all = r.events ?? []
+      // Lớp Outlook (nếu đã kết nối) — gộp vào cùng lưới.
+      try {
+        const o = await fetch(`/bff/api/calendar/outlook?from=${from}&to=${to}`, { credentials: 'include' })
+        if (o.ok) {
+          const od = await o.json() as { connected?: boolean; events?: CalEvent[] }
+          setOutlook(s => ({ ...s, connected: !!od.connected }))
+          if (od.events?.length) all = [...all, ...od.events]
+        }
+      } catch { /* Outlook lỗi không chặn lịch HRM */ }
+      setEvents(all)
     } catch { setEvents([]) } finally { setLoading(false) }
   }, [grid])
 
+  // Trạng thái kết nối Outlook + thông báo sau khi quay lại từ consent.
+  useEffect(() => {
+    fetch('/bff/outlook/status', { credentials: 'include' })
+      .then(r => r.json()).then((s) => setOutlook({ configured: !!s.configured, connected: !!s.connected }))
+      .catch(() => {})
+    const q = new URLSearchParams(window.location.search).get('outlook')
+    if (q === 'connected' || q === 'error') {
+      window.history.replaceState({}, '', '/calendar')
+    }
+  }, [])
+
   useEffect(() => { load() }, [load])
+
+  const disconnectOutlook = async () => {
+    try { await fetch('/bff/outlook/disconnect', { method: 'POST', credentials: 'include' }) } catch { /* noop */ }
+    setOutlook(s => ({ ...s, connected: false }))
+    load()
+  }
 
   // map ngày -> sự kiện (mọi ngày trong khoảng start..end)
   const byDay = useMemo(() => {
@@ -143,11 +173,27 @@ export function CalendarViewPage() {
           {loading && <span style={{ fontSize: 11.5, color: HNH.ink3 }}>Đang tải…</span>}
         </div>
 
-        {/* Gợi ý Outlook (giai đoạn 2) */}
-        <button onClick={() => navigate('/calendar-sync')} className="flex items-center gap-2 w-full border-none cursor-pointer" style={{ marginTop: 12, background: '#fff', border: `1px dashed ${HNH.line}`, borderRadius: 14, padding: '12px 14px', textAlign: 'left' }}>
+        {/* Kết nối Outlook (Cách B) — chỉ hiện khi máy chủ đã cấu hình */}
+        {outlook.configured && (
+          outlook.connected ? (
+            <div className="flex items-center gap-2 w-full" style={{ marginTop: 12, background: '#fff', border: `1px solid ${HNH.line}`, borderRadius: 14, padding: '12px 14px' }}>
+              <span style={{ width: 8, height: 8, borderRadius: 4, background: HNH.navy }} />
+              <span style={{ flex: 1, fontSize: 12.5, color: HNH.ink2 }}>Đã kết nối <b>Outlook</b> — họp/sự kiện hiện màu xanh navy.</span>
+              <button onClick={disconnectOutlook} style={{ border: 'none', background: 'none', color: HNH.red, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>Ngắt</button>
+            </div>
+          ) : (
+            <a href="/bff/outlook/connect" className="flex items-center gap-2 w-full" style={{ marginTop: 12, background: HNH.navy, borderRadius: 14, padding: '13px 14px', textDecoration: 'none' }}>
+              <Icon name="link" size={16} color="#fff" />
+              <span style={{ fontSize: 13, color: '#fff', fontWeight: 700 }}>Kết nối Outlook để xem lịch họp tại đây</span>
+            </a>
+          )
+        )}
+
+        {/* Đưa lịch HRM RA Outlook (Cách feed .ics — luôn có) */}
+        <button onClick={() => navigate('/calendar-sync')} className="flex items-center gap-2 w-full border-none cursor-pointer" style={{ marginTop: 10, background: '#fff', border: `1px dashed ${HNH.line}`, borderRadius: 14, padding: '12px 14px', textAlign: 'left' }}>
           <Icon name="link" size={16} color={HNH.navy} />
           <span style={{ fontSize: 12.5, color: HNH.ink2, lineHeight: 1.4 }}>
-            Muốn xem lịch này trong Outlook? Bấm để lấy link <b>Đồng bộ lịch</b>.
+            Muốn xem lịch HRM này TRONG Outlook? Bấm để lấy link <b>Đồng bộ lịch</b>.
           </span>
         </button>
       </div>
@@ -166,6 +212,9 @@ export function CalendarViewPage() {
                 <span style={{ width: 8, height: 8, borderRadius: 4, background: KIND_COLOR[e.kind] ?? HNH.ink3, marginTop: 5, flexShrink: 0 }} />
                 <div>
                   <div style={{ fontSize: 13.5, fontWeight: 700, color: HNH.ink }}>{e.title}</div>
+                  {e.start_time && (
+                    <div style={{ fontSize: 12, color: HNH.navy, fontWeight: 600, marginTop: 1 }}>🕐 {e.start_time}{e.end_time ? `–${e.end_time}` : ''}</div>
+                  )}
                   {e.description && <div style={{ fontSize: 12, color: HNH.ink3, marginTop: 2, lineHeight: 1.4 }}>{e.description}</div>}
                 </div>
               </div>
