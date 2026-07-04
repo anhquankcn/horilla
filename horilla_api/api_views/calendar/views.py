@@ -6,7 +6,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from base.models import CalendarToken
+from base.models import CalendarToken, OutlookToken
 from . import ics
 
 logger = logging.getLogger(__name__)
@@ -144,3 +144,31 @@ class CalendarTokenView(APIView):
             ct.revoked = True
             ct.save(update_fields=["revoked"])
         return Response({"revoked": True})
+
+
+class OutlookTokenView(APIView):
+    """Lưu/đọc/xoá refresh_token Outlook cho user (BFF gọi bằng JWT của user).
+
+    Persist refresh_token (mã hoá) để sống qua BFF restart — thay session in-memory.
+    GET → {connected, refresh_token}; POST {refresh_token} → lưu; DELETE → xoá.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        ot = OutlookToken.objects.filter(user=request.user).first()
+        rt = ot.get_refresh_token() if ot else None
+        return Response({"connected": bool(rt), "refresh_token": rt})
+
+    def post(self, request):
+        rt = (request.data.get("refresh_token") or "").strip()
+        if not rt:
+            return Response({"error": "refresh_token bắt buộc"}, status=400)
+        ot, _ = OutlookToken.objects.get_or_create(user=request.user)
+        ot.set_refresh_token(rt)
+        ot.save()
+        return Response({"connected": True})
+
+    def delete(self, request):
+        OutlookToken.objects.filter(user=request.user).delete()
+        return Response({"connected": False})

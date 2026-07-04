@@ -3360,3 +3360,45 @@ class CalendarToken(models.Model):
 
     def __str__(self):
         return f"CalendarToken({self.user_id})"
+
+
+class OutlookToken(models.Model):
+    """Refresh token Outlook (Cách B) lưu lâu dài để sống qua BFF restart.
+
+    BFF giữ access_token in-memory (ngắn hạn); refresh_token dài hạn lưu ở đây,
+    MÃ HOÁ bằng Fernet (key dẫn xuất từ SECRET_KEY). Chỉ BFF — dùng JWT của chính
+    user — mới đọc/ghi được (endpoint IsAuthenticated). Trước đây giữ in-memory
+    ở session BFF → mất khi restart, phải kết nối lại (tech debt, nay đã xử lý)."""
+
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name="outlook_token"
+    )
+    refresh_token_enc = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = _("Outlook Token")
+
+    @staticmethod
+    def _fernet():
+        import base64
+        import hashlib
+
+        from cryptography.fernet import Fernet
+        from django.conf import settings
+
+        key = base64.urlsafe_b64encode(hashlib.sha256(settings.SECRET_KEY.encode()).digest())
+        return Fernet(key)
+
+    def set_refresh_token(self, raw: str) -> None:
+        self.refresh_token_enc = self._fernet().encrypt(raw.encode()).decode()
+
+    def get_refresh_token(self):
+        try:
+            return self._fernet().decrypt(self.refresh_token_enc.encode()).decode()
+        except Exception:
+            return None
+
+    def __str__(self):
+        return f"OutlookToken({self.user_id})"

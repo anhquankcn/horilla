@@ -43,6 +43,47 @@ async function getAccessToken(session: {
   return t.access_token;
 }
 
+// ── Persist refresh_token ở DB Django (sống qua BFF restart) ──────────────────
+// BFF gọi API Django bằng JWT của chính user; Django lưu MÃ HOÁ.
+async function djangoLoadToken(jwt: string): Promise<string | null> {
+  try {
+    const r = await fetch(`${env.HORILLA_API}/api/calendar/outlook-token/`, {
+      headers: { Authorization: `Bearer ${jwt}` },
+    });
+    if (r.statusCode !== 200) return null;
+    const d = (await r.body.json()) as { connected: boolean; refresh_token: string | null };
+    return d.refresh_token ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function djangoSaveToken(jwt: string, refreshToken: string): Promise<void> {
+  try {
+    await fetch(`${env.HORILLA_API}/api/calendar/outlook-token/`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${jwt}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+  } catch { /* không chặn luồng nếu persist lỗi */ }
+}
+
+async function djangoDeleteToken(jwt: string): Promise<void> {
+  try {
+    await fetch(`${env.HORILLA_API}/api/calendar/outlook-token/`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${jwt}` },
+    });
+  } catch { /* bỏ qua */ }
+}
+
+// Nạp refresh_token từ DB vào session nếu session trống (sau BFF restart).
+async function ensureRefreshToken(session: { msRefreshToken?: string; horillaJwt?: string }): Promise<void> {
+  if (session.msRefreshToken || !session.horillaJwt) return;
+  const rt = await djangoLoadToken(session.horillaJwt);
+  if (rt) session.msRefreshToken = rt;
+}
+
 export async function outlookRoutes(app: FastifyInstance) {
   // Bắt đầu kết nối: chuyển hướng tới Microsoft consent.
   app.get("/bff/outlook/connect", async (req, reply) => {
@@ -98,6 +139,10 @@ export async function outlookRoutes(app: FastifyInstance) {
       session.msExpiresAt = Date.now() + t.expires_in * 1000;
       session.msRefreshToken = t.refresh_token;
       delete session.msVerifier; delete session.msState;
+      // Persist refresh_token vào DB để sống qua BFF restart.
+      if (t.refresh_token && session.horillaJwt) {
+        await djangoSaveToken(session.horillaJwt, t.refresh_token);
+      }
       return back("?outlook=connected");
     } catch (err) {
       app.log.error(err, "Outlook callback error");
@@ -109,6 +154,7 @@ export async function outlookRoutes(app: FastifyInstance) {
   app.get("/bff/outlook/status", async (req, reply) => {
     const sessionId = req.cookies[COOKIE_NAME];
     const session = sessionId ? getSession(sessionId) : undefined;
+    if (session) await ensureRefreshToken(session);   // khôi phục sau restart
     return reply.send({ configured: configured(), connected: !!session?.msRefreshToken });
   });
 
@@ -117,6 +163,7 @@ export async function outlookRoutes(app: FastifyInstance) {
     const sessionId = req.cookies[COOKIE_NAME];
     const session = sessionId ? getSession(sessionId) : undefined;
     if (session) {
+      if (session.horillaJwt) await djangoDeleteToken(session.horillaJwt);
       delete session.msRefreshToken; delete session.msAccessToken; delete session.msExpiresAt;
     }
     return reply.send({ connected: false });
@@ -128,6 +175,7 @@ export async function outlookRoutes(app: FastifyInstance) {
     const session = sessionId ? getSession(sessionId) : undefined;
     if (!session?.horillaJwt) return reply.status(401).send({ error: "Not authenticated" });
     if (!configured()) return reply.status(503).send({ error: "not_configured", events: [] });
+    await ensureRefreshToken(session);   // khôi phục refresh_token từ DB sau restart
     if (!session.msRefreshToken) return reply.send({ connected: false, events: [] });
 
     const token = await getAccessToken(session);

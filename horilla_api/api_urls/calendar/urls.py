@@ -11,4 +11,6 @@ urlpatterns = [
     path("events/", views.CalendarEventsView.as_view(), name="calendar-events"),
     # Quản lý token feed cá nhân.
     path("token/", views.CalendarTokenView.as_view(), name="calendar-token"),
+    # Lưu/đọc refresh_token Outlook (BFF gọi bằng JWT) — persist qua restart.
+    path("outlook-token/", views.OutlookTokenView.as_view(), name="outlook-token"),
 ]
