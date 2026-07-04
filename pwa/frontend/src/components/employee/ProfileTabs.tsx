@@ -281,6 +281,20 @@ export function OverviewTab({ data }: { data: ProfileData }) {
         <ProfileInfoRow icon="users" label="Quản lý" value={w.reporting_manager} last />
       </ProfileCard>
 
+      {(p.badge_id || p.employee_code || p.master_data_code || p.accounting_code || p.attendance_code) && (
+        <>
+          <ProfileSectionTitle title="Mã hệ thống" />
+          <ProfileCard>
+            {p.badge_id && <ProfileInfoRow icon="shield" label="Mã HRM" value={p.badge_id} />}
+            {p.master_data_code && <ProfileInfoRow icon="clock" label="Mã Chấm Công (MasterData)" value={p.master_data_code} />}
+            {p.accounting_code && <ProfileInfoRow icon="doc" label="Mã Kế toán" value={p.accounting_code} />}
+            {p.employee_code && <ProfileInfoRow icon="briefcase" label="Mã Nhân viên HRM" value={p.employee_code} />}
+            {p.attendance_code && <ProfileInfoRow icon="doc" label="Mã công" value={p.attendance_code} />}
+            {p.stt != null && <ProfileInfoRow icon="flag" label="STT" value={String(p.stt)} last />}
+          </ProfileCard>
+        </>
+      )}
+
       {wl && (
         <>
           <ProfileSectionTitle title="Cấp bậc" />

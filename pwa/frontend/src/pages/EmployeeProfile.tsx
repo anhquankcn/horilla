@@ -323,8 +323,8 @@ export function EmployeeProfilePage() {
               { key: 'stt', label: 'STT (Thứ tự)', type: 'number' },
               { key: 'attendance_code', label: 'Mã công', type: 'text' },
               { key: 'employee_code', label: 'Mã Nhân viên HRM', type: 'text' },
-              { key: 'accounting_code', label: 'Mã Kế Toán', type: 'text' },
-              { key: 'master_data_code', label: 'Mã MasterData', type: 'text' },
+              { key: 'accounting_code', label: 'Mã Kế toán', type: 'text' },
+              { key: 'master_data_code', label: 'Mã Chấm Công (MasterData)', type: 'text' },
             ].map(f => (
               <div key={f.key} style={{ marginBottom: 12 }}>
                 <label style={{ fontSize: 12, fontWeight: 600, color: HNH.ink2, display: 'block', marginBottom: 4 }}>{f.label}</label>
