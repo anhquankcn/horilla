@@ -583,12 +583,14 @@ class HNHLeaveOverviewView(APIView):
         employees = list(emp_qs[:400])
         emp_ids = [e.id for e in employees]
 
-        # Số dư phép CHỈ tính Phép năm + Phép bù (không thâm niên, không ốm):
-        #   Phép đầu = số dư THỰC TẾ hôm nay (available + carryforward) của 2 loại này.
-        #   Phép cuối = Phép đầu − số ngày 2 loại này ĐÃ DUYỆT có start_date trong tháng.
+        # Số dư phép tính Phép năm + Phép bù + Phép thâm niên (KHÔNG ốm):
+        #   Phép đầu = số dư THỰC TẾ hôm nay (available + carryforward) của các loại này.
+        #   Phép cuối = Phép đầu − số ngày các loại này ĐÃ DUYỆT có start_date trong tháng.
         from leave.models import AvailableLeave, LeaveType
         lc_ids = list(
-            LeaveType.objects.filter(name__in=["Nghỉ phép năm", "Phép Bù"]).values_list("id", flat=True)
+            LeaveType.objects.filter(
+                name__in=["Nghỉ phép năm", "Phép Bù", "Phép Thâm Niên"]
+            ).values_list("id", flat=True)
         )
         bal_start: dict = {}
         for al in AvailableLeave.objects.filter(employee_id__in=emp_ids, leave_type_id__in=lc_ids):
