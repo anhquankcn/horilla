@@ -70,7 +70,7 @@ export async function outlookRoutes(app: FastifyInstance) {
 
   // Callback: đổi code lấy token, lưu refresh_token, quay về màn Lịch.
   app.get("/bff/outlook/callback", async (req, reply) => {
-    const back = (q: string) => reply.redirect(`${env.PWA_PATH}calendar${q}`);
+    const back = (q: string) => reply.redirect(`${env.PWA_PATH}outlook${q}`);
     const { code, state } = req.query as { code?: string; state?: string };
     const sessionId = req.cookies[COOKIE_NAME];
     const session = sessionId ? getSession(sessionId) : undefined;

@@ -87,12 +87,6 @@ export function CalendarViewPage() {
 
   useEffect(() => { load() }, [load])
 
-  const disconnectOutlook = async () => {
-    try { await fetch('/bff/outlook/disconnect', { method: 'POST', credentials: 'include' }) } catch { /* noop */ }
-    setOutlook(s => ({ ...s, connected: false }))
-    load()
-  }
-
   // map ngày -> sự kiện (mọi ngày trong khoảng start..end)
   const byDay = useMemo(() => {
     const m: Record<string, CalEvent[]> = {}
@@ -173,20 +167,18 @@ export function CalendarViewPage() {
           {loading && <span style={{ fontSize: 11.5, color: HNH.ink3 }}>Đang tải…</span>}
         </div>
 
-        {/* Kết nối Outlook (Cách B) — chỉ hiện khi máy chủ đã cấu hình */}
-        {outlook.configured && (
-          outlook.connected ? (
-            <div className="flex items-center gap-2 w-full" style={{ marginTop: 12, background: '#fff', border: `1px solid ${HNH.line}`, borderRadius: 14, padding: '12px 14px' }}>
-              <span style={{ width: 8, height: 8, borderRadius: 4, background: HNH.navy }} />
-              <span style={{ flex: 1, fontSize: 12.5, color: HNH.ink2 }}>Đã kết nối <b>Outlook</b> — họp/sự kiện hiện màu xanh navy.</span>
-              <button onClick={disconnectOutlook} style={{ border: 'none', background: 'none', color: HNH.red, fontSize: 12.5, fontWeight: 700, cursor: 'pointer' }}>Ngắt</button>
-            </div>
-          ) : (
-            <a href="/bff/outlook/connect" className="flex items-center gap-2 w-full" style={{ marginTop: 12, background: HNH.navy, borderRadius: 14, padding: '13px 14px', textDecoration: 'none' }}>
-              <Icon name="link" size={16} color="#fff" />
-              <span style={{ fontSize: 13, color: '#fff', fontWeight: 700 }}>Kết nối Outlook để xem lịch họp tại đây</span>
-            </a>
-          )
+        {/* Trạng thái Outlook — quản lý kết nối ở Hỗ trợ > "Kết nối Outlook" */}
+        {outlook.configured && !outlook.connected && (
+          <button onClick={() => navigate('/outlook')} className="flex items-center gap-2 w-full border-none cursor-pointer" style={{ marginTop: 12, background: HNH.navy, borderRadius: 14, padding: '13px 14px', textAlign: 'left' }}>
+            <Icon name="mail" size={16} color="#fff" />
+            <span style={{ fontSize: 13, color: '#fff', fontWeight: 700 }}>Kết nối Outlook để xem lịch họp</span>
+          </button>
+        )}
+        {outlook.configured && outlook.connected && (
+          <div className="flex items-center gap-2 w-full" style={{ marginTop: 12, background: '#fff', border: `1px solid ${HNH.line}`, borderRadius: 14, padding: '12px 14px' }}>
+            <span style={{ width: 8, height: 8, borderRadius: 4, background: HNH.navy }} />
+            <span style={{ flex: 1, fontSize: 12.5, color: HNH.ink2 }}>Đã kết nối <b>Outlook</b> — họp hiện màu xanh navy.</span>
+          </div>
         )}
 
         {/* Đưa lịch HRM RA Outlook (Cách feed .ics — luôn có) */}
