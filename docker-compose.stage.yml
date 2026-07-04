@@ -25,6 +25,10 @@ services:
       COOKIE_SECRET: ${BFF_COOKIE_SECRET}
       ARKON_BFF_URL: ${ARKON_BFF_URL:-https://arkonbff.hnhtravel.work}
       ARKON_SERVICE_TOKEN: ${ARKON_SERVICE_TOKEN}
+      MS_TENANT_ID: ${MS_TENANT_ID:-5938771f-e4e8-4dac-8250-75f302cd4073}
+      MS_CLIENT_ID: ${MS_CLIENT_ID:-}
+      MS_CLIENT_SECRET: ${MS_CLIENT_SECRET:-}
+      MS_REDIRECT_URI: ${MS_REDIRECT_URI:-https://qlns-stage.hnhtravel.work/bff/outlook/callback}
     restart: always
     depends_on:
       - web
