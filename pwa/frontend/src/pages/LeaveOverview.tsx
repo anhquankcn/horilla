@@ -35,6 +35,14 @@ function companyColor(id: number | null): string {
   return COMPANY_COLORS[(id - 1) % COMPANY_COLORS.length]
 }
 
+// Bỏ dấu tiếng Việt để tìm không dấu ra tên có dấu (gõ "nguyen" ra "NGUYỄN").
+function noAccent(s: string): string {
+  return (s || '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/đ/g, 'd').replace(/Đ/g, 'D')
+    .toLowerCase()
+}
+
 interface CellEntry {
   id: number
   code: string
@@ -164,6 +172,7 @@ export function LeaveOverviewPage() {
   const [companyFilter, setCompanyFilter] = useState('')
   const [deptFilter, setDeptFilter] = useState('')
   const [search, setSearch] = useState('')
+  const [arisingFilter, setArisingFilter] = useState<'all' | 'yes' | 'no'>('all')
   const [data, setData] = useState<OverviewData | null>(null)
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
@@ -225,12 +234,16 @@ export function LeaveOverviewPage() {
   }
 
   const employees = (data?.employees ?? []).filter(e => {
-    const q = search.trim().toLowerCase()
+    // Lọc theo điều kiện Phát sinh nghỉ phép trong tháng
+    if (arisingFilter === 'yes' && !((e.leave_taken ?? 0) > 0)) return false
+    if (arisingFilter === 'no' && (e.leave_taken ?? 0) > 0) return false
+    const q = search.trim()
     if (!q) return true
-    // Tìm theo Họ tên, Mã HRM (badge_id), Mã Kế toán (accounting_code)
-    return e.name.toLowerCase().includes(q)
-      || (e.badge_id || '').toLowerCase().includes(q)
-      || (e.accounting_code || '').toLowerCase().includes(q)
+    const qn = noAccent(q)
+    // Tìm theo Họ tên (không dấu ra có dấu), Mã HRM (badge_id), Mã Kế toán (accounting_code)
+    return noAccent(e.name).includes(qn)
+      || (e.badge_id || '').toLowerCase().includes(qn)
+      || (e.accounting_code || '').toLowerCase().includes(qn)
   })
 
   const days = data?.days ?? []
@@ -349,6 +362,35 @@ export function LeaveOverviewPage() {
               <Icon name="x" size={13} color={HNH.ink3} stroke={2} />
             </button>
           )}
+        </div>
+
+        {/* Lọc theo điều kiện Phát sinh nghỉ phép trong tháng */}
+        <div className="flex items-center gap-2">
+          <span style={{ fontSize: 12, color: HNH.ink3, whiteSpace: 'nowrap' }}>Phát sinh:</span>
+          <div className="flex items-center gap-1" style={{ flex: 1 }}>
+            {([
+              { k: 'all', label: 'Tất cả' },
+              { k: 'yes', label: 'Có' },
+              { k: 'no', label: 'Không' },
+            ] as const).map(opt => {
+              const on = arisingFilter === opt.k
+              return (
+                <button
+                  key={opt.k}
+                  onClick={() => setArisingFilter(opt.k)}
+                  style={{
+                    flex: 1, padding: '6px 10px', borderRadius: 8, cursor: 'pointer',
+                    fontSize: 12.5, fontWeight: on ? 700 : 500, fontFamily: 'inherit',
+                    border: `1px solid ${on ? HNH.red : HNH.line}`,
+                    background: on ? HNH.red : '#fff',
+                    color: on ? '#fff' : HNH.ink2,
+                  }}
+                >
+                  {opt.label}
+                </button>
+              )
+            })}
+          </div>
         </div>
       </div>
 
@@ -481,7 +523,7 @@ export function LeaveOverviewPage() {
 
             {employees.length === 0 && (
               <div style={{ padding: 40, textAlign: 'center', color: HNH.ink3, fontSize: 13 }}>
-                {search ? 'Không tìm thấy nhân viên phù hợp' : 'Không có dữ liệu'}
+                {search || arisingFilter !== 'all' ? 'Không tìm thấy nhân viên phù hợp' : 'Không có dữ liệu'}
               </div>
             )}
           </div>
