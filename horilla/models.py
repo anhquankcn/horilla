@@ -143,17 +143,19 @@ class HorillaModel(models.Model):
         if request:
             user = request.user
 
-            if (
-                hasattr(self, "created_by")
-                and hasattr(self._meta.get_field("created_by"), "related_model")
-                and self._meta.get_field("created_by").related_model == User
-            ):
-                if request and not self.pk:
-                    if user.is_authenticated:
+            # Request M2M/không có phiên đăng nhập → request.user có thể là None.
+            # Bỏ qua gán created_by/modified_by thay vì nổ AttributeError.
+            if user is not None:
+                if (
+                    hasattr(self, "created_by")
+                    and hasattr(self._meta.get_field("created_by"), "related_model")
+                    and self._meta.get_field("created_by").related_model == User
+                ):
+                    if not self.pk and user.is_authenticated:
                         self.created_by = user
 
-            if request and not request.user.is_anonymous:
-                self.modified_by = user
+                if not user.is_anonymous:
+                    self.modified_by = user
 
         super(HorillaModel, self).save(*args, **kwargs)
 
