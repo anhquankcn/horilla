@@ -39,9 +39,9 @@ interface HNHSummary {
 }
 
 interface Paginated<T> { count: number; results: T[] }
-interface Person { id: number; name: string; position: string | null; is_direct?: boolean; department?: string | null; company?: string | null; locked?: boolean }
+interface Person { id: number; name: string; position: string | null; is_direct?: boolean; department?: string | null; company?: string | null; locked?: boolean; badge_id?: string | null; accounting_code?: string | null }
 interface PickCompany { id: number; name: string }
-interface PickDept { id: number; name: string; company_id: number | null }
+interface PickDept { id: number; name: string; company_ids: number[] }
 interface CandidatesResp { results: Person[]; companies: PickCompany[]; departments: PickDept[] }
 
 type Breakdown = 'full_day' | 'first_half' | 'second_half'
@@ -349,7 +349,7 @@ function PersonPicker({ selectedIds, knownPeople, onChange, onLearnPeople, locke
     onChange(isSel(p.id) ? selectedIds.filter(x => x !== p.id) : [...selectedIds, p.id])
   }
   const remove = (id: number) => { if (!isLocked(id)) onChange(selectedIds.filter(x => x !== id)) }
-  const deptOptions = (resp?.departments ?? []).filter(d => !company || d.company_id === company)
+  const deptOptions = (resp?.departments ?? []).filter(d => !company || (d.company_ids ?? []).includes(company))
 
   const inputStyle = { padding: '8px 10px', borderRadius: 10, border: `1px solid ${HNH.line}`, fontSize: 13, color: HNH.ink, background: '#fff', fontFamily: 'inherit', outline: 'none' } as const
 
@@ -398,7 +398,7 @@ function PersonPicker({ selectedIds, knownPeople, onChange, onLearnPeople, locke
             <div style={{ padding: '4px 16px 10px' }}>
               <div className="flex items-center gap-2" style={{ padding: '9px 12px', borderRadius: 12, background: HNH.cream, border: `1px solid ${HNH.line}` }}>
                 <Icon name="search" size={16} color={HNH.ink3} stroke={2} />
-                <input value={q} onChange={e => setQ(e.target.value)} placeholder="Tìm theo họ tên / email..." autoFocus
+                <input value={q} onChange={e => setQ(e.target.value)} placeholder="Tìm theo tên, mã kế toán, mã NV..." autoFocus
                   style={{ flex: 1, border: 'none', background: 'transparent', outline: 'none', fontSize: 14, color: HNH.ink, fontFamily: 'inherit' }} />
               </div>
             </div>
@@ -415,7 +415,7 @@ function PersonPicker({ selectedIds, knownPeople, onChange, onLearnPeople, locke
                       {sel && <Icon name="check" size={13} color="#fff" stroke={3} />}
                     </div>
                     <div className="flex-1" style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 14, fontWeight: 600, color: HNH.ink }}>{p.name}{locked ? ' · C&B cố định' : ''}</div>
+                      <div style={{ fontSize: 14, fontWeight: 600, color: HNH.ink }}>{p.name}{p.accounting_code ? ` · ${p.accounting_code}` : ''}{locked ? ' · C&B cố định' : ''}</div>
                       {(p.position || p.department || p.company) && <div style={{ fontSize: 11.5, color: HNH.ink3 }}>{[p.position, p.department, p.company].filter(Boolean).join(' · ')}</div>}
                     </div>
                   </button>

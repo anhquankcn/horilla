@@ -105,6 +105,8 @@ def _person_dict(emp, is_direct=False, locked=False):
     return {
         "id": emp.id,
         "name": f"{emp.employee_first_name} {emp.employee_last_name or ''}".strip(),
+        "badge_id": emp.badge_id,
+        "accounting_code": getattr(emp, "accounting_code", None),
         "position": wi.job_position_id.job_position if wi and wi.job_position_id else None,
         "department": wi.department_id.department if wi and wi.department_id else None,
         "company": wi.company_id.company if wi and wi.company_id else None,
@@ -1868,16 +1870,21 @@ class LeaveSelectCandidatesView(APIView):
         if department_id:
             qs = qs.filter(employee_work_info__department_id=department_id)
         if search:
+            # Tìm theo tên, email, mã nhân sự (badge_id) và MÃ KẾ TOÁN (accounting_code).
             qs = qs.filter(
                 Q(employee_first_name__icontains=search)
                 | Q(employee_last_name__icontains=search)
                 | Q(email__icontains=search)
+                | Q(badge_id__icontains=search)
+                | Q(accounting_code__icontains=search)
             )
         people = [_person_dict(e) for e in qs.order_by("employee_first_name")[:100]]
         companies = [{"id": c.id, "name": c.company} for c in Company.objects.all()]
+        # Department.company_id là M2M (1 phòng có thể thuộc nhiều công ty) → trả
+        # company_ids (list), KHÔNG dùng company_id_id (không tồn tại cho M2M).
         departments = [
-            {"id": d.id, "name": d.department, "company_id": d.company_id_id}
-            for d in Department.objects.all()
+            {"id": d.id, "name": d.department, "company_ids": [c.id for c in d.company_id.all()]}
+            for d in Department.objects.prefetch_related("company_id").all()
         ]
         return Response({"results": people, "companies": companies, "departments": departments})
 
