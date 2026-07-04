@@ -24,6 +24,8 @@ interface EmpInfo {
   company: string
   company_id: number | null
   leave_start: number
+  leave_deduct: number
+  leave_unpaid: number
   leave_taken: number
   leave_end: number
 }
@@ -432,12 +434,15 @@ export function LeaveOverviewPage() {
               }}>
                 NV ({employees.length})
               </div>
-              {/* 3 cột tổng hợp dồn lên đầu: Phép đầu · Phát sinh · Còn lại */}
+              {/* Cột tổng hợp dồn lên đầu: Phép đầu · [Trừ phép · Không lương = Phát sinh] · Còn lại */}
               <div style={{ width: BAL_W, flexShrink: 0, textAlign: 'center', padding: '3px 2px', borderLeft: `1px solid ${HNH.line}`, background: HNH.navy50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div style={{ fontSize: 8.5, fontWeight: 700, color: HNH.navy, lineHeight: 1.2 }}>Phép<br />đầu</div>
               </div>
               <div style={{ width: BAL_W, flexShrink: 0, textAlign: 'center', padding: '3px 2px', borderLeft: `1px solid ${HNH.line}`, background: '#faf1d6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ fontSize: 8.5, fontWeight: 700, color: '#a87908', lineHeight: 1.2 }}>Phát<br />sinh</div>
+                <div style={{ fontSize: 8.5, fontWeight: 700, color: '#a87908', lineHeight: 1.15 }}>Trừ<br />phép</div>
+              </div>
+              <div style={{ width: BAL_W, flexShrink: 0, textAlign: 'center', padding: '3px 2px', borderLeft: `1px solid ${HNH.line}`, background: '#ffedd5', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ fontSize: 8.5, fontWeight: 700, color: '#c2410c', lineHeight: 1.15 }}>Không<br />lương</div>
               </div>
               <div style={{ width: BAL_W, flexShrink: 0, textAlign: 'center', padding: '3px 2px', borderLeft: `1px solid ${HNH.line}`, background: HNH.success50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div style={{ fontSize: 8.5, fontWeight: 700, color: HNH.success, lineHeight: 1.2 }}>Còn<br />lại</div>
@@ -499,12 +504,15 @@ export function LeaveOverviewPage() {
                   </div>
                 </div>
 
-                {/* 3 cột tổng hợp: Phép đầu · Phát sinh · Còn lại */}
+                {/* Cột tổng hợp: Phép đầu · [Trừ phép · Không lương] · Còn lại */}
                 <div style={{ width: BAL_W, height: ROW_H, flexShrink: 0, borderLeft: `1px solid ${HNH.line}`, background: HNH.navy50, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: HNH.navy }}>
                   {emp.leave_start % 1 === 0 ? emp.leave_start : +emp.leave_start.toFixed(2)}
                 </div>
-                <div style={{ width: BAL_W, height: ROW_H, flexShrink: 0, borderLeft: `1px solid ${HNH.line}`, background: '#faf1d6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: emp.leave_taken > 0 ? '#a87908' : HNH.ink4 }}>
-                  {emp.leave_taken % 1 === 0 ? emp.leave_taken : +emp.leave_taken.toFixed(2)}
+                <div style={{ width: BAL_W, height: ROW_H, flexShrink: 0, borderLeft: `1px solid ${HNH.line}`, background: '#faf1d6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: emp.leave_deduct > 0 ? '#a87908' : HNH.ink4 }}>
+                  {emp.leave_deduct % 1 === 0 ? emp.leave_deduct : +emp.leave_deduct.toFixed(2)}
+                </div>
+                <div style={{ width: BAL_W, height: ROW_H, flexShrink: 0, borderLeft: `1px solid ${HNH.line}`, background: '#ffedd5', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: emp.leave_unpaid > 0 ? '#c2410c' : HNH.ink4 }}>
+                  {emp.leave_unpaid % 1 === 0 ? emp.leave_unpaid : +emp.leave_unpaid.toFixed(2)}
                 </div>
                 <div style={{ width: BAL_W, height: ROW_H, flexShrink: 0, borderLeft: `1px solid ${HNH.line}`, background: HNH.success50, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: HNH.success }}>
                   {emp.leave_end % 1 === 0 ? emp.leave_end : +emp.leave_end.toFixed(2)}

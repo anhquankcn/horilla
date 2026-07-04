@@ -604,6 +604,18 @@ class HNHLeaveOverviewView(APIView):
         ):
             taken_month[lr.employee_id_id] = taken_month.get(lr.employee_id_id, 0.0) + (lr.requested_days or 0)
 
+        # Nghỉ không lương — tách riêng, KHÔNG trừ vào số dư phép (Còn lại)
+        unpaid_ids = list(
+            LeaveType.objects.filter(name__in=["Nghỉ không lương"]).values_list("id", flat=True)
+        )
+        taken_unpaid: dict = {}
+        if unpaid_ids:
+            for lr in LeaveRequest.objects.filter(
+                employee_id__in=emp_ids, status="approved", leave_type_id__in=unpaid_ids,
+                start_date__gte=month_start, start_date__lte=month_end,
+            ):
+                taken_unpaid[lr.employee_id_id] = taken_unpaid.get(lr.employee_id_id, 0.0) + (lr.requested_days or 0)
+
         # Build employee data + collect department/company list
         dept_map: dict = {}
         comp_map: dict = {}
@@ -626,7 +638,8 @@ class HNHLeaveOverviewView(APIView):
             except Exception:
                 pass
             start_v = round(bal_start.get(e.id, 0.0), 2)
-            taken_v = round(taken_month.get(e.id, 0.0), 2)
+            deduct_v = round(taken_month.get(e.id, 0.0), 2)    # Phát sinh: Trừ phép
+            unpaid_v = round(taken_unpaid.get(e.id, 0.0), 2)   # Phát sinh: Không lương
             emp_data.append({
                 "id": e.id,
                 "name": str(e),
@@ -636,9 +649,11 @@ class HNHLeaveOverviewView(APIView):
                 "dept_id": dept_id_val,
                 "company": comp_name,
                 "company_id": comp_id_val,
-                "leave_start": start_v,       # Phép đầu
-                "leave_taken": taken_v,       # Phát sinh (tổng đã duyệt trong tháng)
-                "leave_end": round(start_v - taken_v, 2),  # Còn lại (Phép cuối)
+                "leave_start": start_v,        # Phép đầu
+                "leave_deduct": deduct_v,      # Phát sinh: Trừ phép (trừ vào số dư)
+                "leave_unpaid": unpaid_v,      # Phát sinh: Không lương (không trừ số dư)
+                "leave_taken": round(deduct_v + unpaid_v, 2),  # Tổng phát sinh (dùng cho lọc)
+                "leave_end": round(start_v - deduct_v, 2),     # Còn lại = Phép đầu − Trừ phép
             })
 
         # Dropdown lọc: TOÀN BỘ công ty + phòng ban (không co theo bộ lọc đang chọn).
