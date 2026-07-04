@@ -138,6 +138,39 @@ def _leave_summary(emp: Employee):
     return result
 
 
+def _usage_this_year(emp):
+    """Số lượt + số ngày đã áp dụng theo TỪNG hình thức nghỉ, từ đầu năm tới nay.
+    Gồm cả hình thức NV có số dư (dù chưa dùng, count=0) → 'các hình thức đang có'.
+    Loại trừ đơn bị từ chối/huỷ."""
+    from datetime import date as _date
+    from leave.models import LeaveRequest, AvailableLeave
+
+    year = _date.today().year
+    usage = {}
+    # Hình thức NV có số dư (đang có) — đưa vào dù chưa dùng
+    for al in AvailableLeave.objects.filter(employee_id=emp).select_related("leave_type_id"):
+        lt = al.leave_type_id
+        if lt:
+            usage.setdefault(lt.id, {"leave_type_id": lt.id, "name": lt.name, "count": 0, "days": 0.0})
+    # Số lượt đã áp dụng năm nay
+    lrs = (
+        LeaveRequest.objects.filter(employee_id=emp, start_date__year=year)
+        .exclude(status__in=["rejected", "cancelled"])
+        .select_related("leave_type_id")
+    )
+    for lr in lrs:
+        lt = lr.leave_type_id
+        if not lt:
+            continue
+        u = usage.setdefault(lt.id, {"leave_type_id": lt.id, "name": lt.name, "count": 0, "days": 0.0})
+        u["count"] += 1
+        u["days"] += (lr.requested_days or 0)
+    for u in usage.values():
+        u["days"] = round(u["days"], 2)
+    # Ưu tiên hình thức đã dùng nhiều, rồi tới còn lại
+    return sorted(usage.values(), key=lambda x: (-x["count"], x["name"]))
+
+
 class HNHLeaveSummaryView(APIView):
     """GET /api/leave/hnh-leave-summary/ — 4 leave types + scope for current user."""
 
@@ -153,6 +186,7 @@ class HNHLeaveSummaryView(APIView):
             summary["scope"] = "manager"
         else:
             summary["scope"] = "employee"
+        summary["usage_this_year"] = _usage_this_year(emp)
         return Response(summary)
 
 

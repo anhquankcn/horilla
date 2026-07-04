@@ -31,12 +31,14 @@ interface HNHSummarySlot {
   carryforward_days: number
 }
 
+interface UsageItem { leave_type_id: number; name: string; count: number; days: number }
 interface HNHSummary {
   annual: HNHSummarySlot | null
   compensatory: HNHSummarySlot | null
   sick: HNHSummarySlot | null
   seniority: HNHSummarySlot
   seniority_days: number
+  usage_this_year?: UsageItem[]
 }
 
 interface LeaveRequestItem {
@@ -152,9 +154,7 @@ export function LeavePage() {
   if (summary?.compensatory) {
     fourTypes.push({ icon: 'palm', iconColor: '#a87908', iconBg: '#faf1d6', label: summary.compensatory.name, tag: 'Dùng trước', available: summary.compensatory.available_days, total: summary.compensatory.total_days, highlight: true })
   }
-  if (summary?.sick) {
-    fourTypes.push({ icon: 'shield', iconColor: HNH.navy, iconBg: HNH.navy50, label: summary.sick.name, available: summary.sick.available_days, total: summary.sick.total_days })
-  }
+  // Bỏ card "Nghỉ ốm" — không áp dụng ở công ty. Thay bằng section "số lượt đã dùng" bên dưới.
   if (summary?.seniority && (summary.seniority.available_days > 0 || summary.seniority_days > 0)) {
     fourTypes.push({ icon: 'star', iconColor: HNH.red, iconBg: HNH.red50, label: summary.seniority.name, available: summary.seniority.available_days, total: summary.seniority.total_days })
   }
@@ -163,6 +163,9 @@ export function LeavePage() {
   const otherBalances = summary
     ? []
     : balances.filter(b => !b.leave_type_id.name.toLowerCase().includes('phép năm'))
+
+  // Hình thức nghỉ đang có + số lượt đã áp dụng từ đầu năm (bỏ Nghỉ ốm — không áp dụng).
+  const usageItems = (summary?.usage_this_year ?? []).filter(u => !u.name.toLowerCase().includes('ốm'))
 
   return (
     <div style={{ background: HNH.cream, minHeight: '100%', position: 'relative' }}>
@@ -258,6 +261,25 @@ export function LeavePage() {
             <div className="grid grid-cols-2 gap-2">
               {fourTypes.map((t, i) => (
                 <LeaveTypeCard key={i} {...t} />
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Hình thức nghỉ đã áp dụng từ đầu năm — số lượt + số ngày */}
+        {usageItems.length > 0 && (
+          <>
+            <div style={{ fontSize: 13, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, padding: '14px 4px 8px' }}>ĐÃ ÁP DỤNG TỪ ĐẦU NĂM</div>
+            <div className="grid grid-cols-2 gap-2">
+              {usageItems.map(u => (
+                <div key={u.leave_type_id} style={{ background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`, padding: '12px 14px' }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 700, color: HNH.ink, lineHeight: 1.3, minHeight: 32 }}>{u.name}</div>
+                  <div className="flex items-baseline gap-1" style={{ marginTop: 6 }}>
+                    <span style={{ fontSize: 22, fontWeight: 800, color: u.count > 0 ? HNH.navy : HNH.ink4, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{u.count}</span>
+                    <span style={{ fontSize: 12, color: HNH.ink3, fontWeight: 600 }}>lượt</span>
+                    {u.days > 0 && <span style={{ fontSize: 11.5, color: HNH.ink3, marginLeft: 'auto' }}>{u.days % 1 === 0 ? u.days : u.days.toFixed(1)} ngày</span>}
+                  </div>
+                </div>
               ))}
             </div>
           </>
