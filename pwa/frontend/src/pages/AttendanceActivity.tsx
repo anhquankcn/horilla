@@ -4,6 +4,7 @@ import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { TopBar } from '../components/layout/TopBar'
 import { api } from '../lib/api'
+import { PunchSourceBadge, type PunchSource } from '../components/PunchSourceBadge'
 
 /* ── Types ── */
 type FilterMode = 'today' | '3days' | '7days' | 'month' | 'range'
@@ -30,6 +31,8 @@ interface Activity {
   clock_out: string | null
   clock_in_date: string | null
   clock_out_date: string | null
+  clock_in_source?: PunchSource   // nguồn chấm vào: biometric (máy) vs app
+  clock_out_source?: PunchSource  // nguồn chấm ra
 }
 
 interface OverviewData {
@@ -291,6 +294,22 @@ function ListView({ data }: { data: OverviewData }) {
                     Vào {a.clock_in || '—'}
                     {a.clock_out ? ` · Ra ${a.clock_out}` : ' · Chưa ra'}
                   </div>
+                  {(a.clock_in_source || a.clock_out_source) && (
+                    <div className="flex items-center gap-1" style={{ marginTop: 4, flexWrap: 'wrap' }}>
+                      {a.clock_in_source && (
+                        <span className="flex items-center gap-1">
+                          <span style={{ fontSize: 9, color: HNH.ink3, fontWeight: 600 }}>Vào:</span>
+                          <PunchSourceBadge source={a.clock_in_source} size="xs" />
+                        </span>
+                      )}
+                      {a.clock_out_source && (
+                        <span className="flex items-center gap-1">
+                          <span style={{ fontSize: 9, color: HNH.ink3, fontWeight: 600 }}>Ra:</span>
+                          <PunchSourceBadge source={a.clock_out_source} size="xs" />
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div style={{
                   fontSize: 11, fontWeight: 700,

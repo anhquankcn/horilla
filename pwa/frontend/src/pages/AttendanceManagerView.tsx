@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { HNH } from '../lib/theme'
+import { PunchSourceBadge, type PunchSource } from '../components/PunchSourceBadge'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -45,6 +46,7 @@ interface MatrixData {
 interface PunchEvent {
   time: string
   type: 'in' | 'out'
+  source?: PunchSource   // nguồn chấm: biometric (máy) vs app
 }
 
 interface PunchDetail {
@@ -565,6 +567,9 @@ function PunchDetailModal({
                       <div style={{ fontSize: 11, color: HNH.ink3, marginTop: 1 }}>
                         Lượt {i + 1} · {isIn ? 'Vào ca' : 'Ra ca'}
                       </div>
+                    </div>
+                    <div style={{ marginLeft: 'auto' }}>
+                      <PunchSourceBadge source={p.source} />
                     </div>
                   </div>
                 )

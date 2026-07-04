@@ -1670,6 +1670,9 @@ class MyAttendanceActivitiesView(APIView):
             result[i]["gps_out_distance_m"] = dist_out
             result[i]["gps_out_company_name"] = name_out
             result[i]["gps_out_company_address"] = addr_out
+            # Nguồn chấm: biometric (máy) vs app (PWA) — badge phân biệt
+            result[i]["clock_in_source"] = AttendanceActivityDetailView._punch_source(act.clock_in_device)
+            result[i]["clock_out_source"] = AttendanceActivityDetailView._punch_source(act.clock_out_device)
 
         return Response(result, status=200)
 
@@ -1834,6 +1837,8 @@ class AttendanceActivityOverviewView(APIView):
                 "clock_out": a.clock_out.strftime("%H:%M") if a.clock_out else None,
                 "clock_in_date": a.clock_in_date.isoformat() if a.clock_in_date else None,
                 "clock_out_date": a.clock_out_date.isoformat() if a.clock_out_date else None,
+                "clock_in_source": AttendanceActivityDetailView._punch_source(a.clock_in_device),
+                "clock_out_source": AttendanceActivityDetailView._punch_source(a.clock_out_device),
             })
 
         return Response({
@@ -2438,6 +2443,18 @@ class AttendanceActivityDetailView(APIView):
         "other": "Khác",
     }
 
+    @staticmethod
+    def _punch_source(device):
+        """Phân loại nguồn lượt chấm theo device: máy chấm công vs app PWA.
+
+        'ronaljack' (agent máy chấm công) → biometric; chuỗi trình duyệt/thiết bị
+        khác → app; rỗng (import Excel/thủ công) → None.
+        """
+        d = (device or "").strip()
+        if not d:
+            return None
+        return "biometric" if d.lower() == "ronaljack" else "app"
+
     def get(self, request):
         from attendance.models import AttendanceActivity
         from employee.models import Employee
@@ -2557,6 +2574,9 @@ class AttendanceActivityDetailView(APIView):
                 "clock_in_photo": photo_url(a.clock_in_photo),
                 "clock_out_photo": photo_url(a.clock_out_photo),
                 "no_camera": bool(a.no_camera),
+                # Nguồn chấm: biometric (máy) vs app (PWA) — để UI dán badge phân biệt
+                "clock_in_source": self._punch_source(a.clock_in_device),
+                "clock_out_source": self._punch_source(a.clock_out_device),
             })
 
         # Trạng thái NCO + đơn khai báo cho ngày này
@@ -3611,9 +3631,11 @@ class ManagerPunchDetailView(APIView):
         punches = []
         for act in activities:
             if act.clock_in:
-                punches.append({"time": act.clock_in.strftime("%H:%M"), "type": "in"})
+                punches.append({"time": act.clock_in.strftime("%H:%M"), "type": "in",
+                                "source": AttendanceActivityDetailView._punch_source(act.clock_in_device)})
             if act.clock_out:
-                punches.append({"time": act.clock_out.strftime("%H:%M"), "type": "out"})
+                punches.append({"time": act.clock_out.strftime("%H:%M"), "type": "out",
+                                "source": AttendanceActivityDetailView._punch_source(act.clock_out_device)})
         punches.sort(key=lambda x: x["time"])
 
         return Response({

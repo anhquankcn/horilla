@@ -6,6 +6,7 @@ import { useApi } from '../lib/useApi'
 import { api } from '../lib/api'
 import type { ActivityResp } from './AttendanceActivityDetail'
 import { fmtDistance, legInside } from './AttendanceActivityDetail'
+import { PunchSourceBadge, type PunchSource } from './PunchSourceBadge'
 
 interface Props {
   open: boolean
@@ -29,6 +30,7 @@ interface Punch {
   inside: boolean | null  // trong/ngoài VP theo GPS thực của LƯỢT này
   distanceM: number | null
   noCamera: boolean       // lượt chấm không ảnh (camera lỗi) — chờ HR duyệt
+  source: PunchSource     // nguồn chấm: biometric (máy) vs app
 }
 
 function flattenPunches(resp: ActivityResp | null): Punch[] {
@@ -40,13 +42,15 @@ function flattenPunches(resp: ActivityResp | null): Punch[] {
     if (a.clock_in) {
       out.push({ key: `${a.id}-in`, time: a.clock_in, photo: a.clock_in_photo, address: a.clock_in_address,
         workLocation: a.work_location, oofLabel: a.out_of_office_label, oofNote: note,
-        inside: legInside(a.clock_in_inside, a.work_location), distanceM: a.clock_in_distance_m ?? null, noCamera: noCam })
+        inside: legInside(a.clock_in_inside, a.work_location), distanceM: a.clock_in_distance_m ?? null, noCamera: noCam,
+        source: a.clock_in_source })
     }
     if (a.clock_out) {
       // Lượt RA dùng GPS RA của chính nó (không inherit work_location của activity).
       out.push({ key: `${a.id}-out`, time: a.clock_out, photo: a.clock_out_photo, address: a.clock_out_address,
         workLocation: a.work_location, oofLabel: a.out_of_office_label, oofNote: note,
-        inside: legInside(a.clock_out_inside, a.work_location), distanceM: a.clock_out_distance_m ?? null, noCamera: noCam })
+        inside: legInside(a.clock_out_inside, a.work_location), distanceM: a.clock_out_distance_m ?? null, noCamera: noCam,
+        source: a.clock_out_source })
     }
   }
   out.sort((x, y) => (x.time < y.time ? -1 : x.time > y.time ? 1 : 0))
@@ -102,6 +106,7 @@ function PunchCard({ punch, index, total, role, officeName }: {
             {isIn && <Badge tone="success" size="s">Trong VP</Badge>}
             {isOut && <Badge tone="warn" size="s">Ngoài VP</Badge>}
             {punch.noCamera && <Badge tone="red" size="s">⚠ Không ảnh</Badge>}
+            <PunchSourceBadge source={punch.source} />
           </div>
           <div style={{ fontSize: 17, fontWeight: 800, color: HNH.ink, fontFamily: "'Plus Jakarta Sans', monospace", marginTop: 2 }}>{punch.time?.slice(0, 5) || '--:--'}</div>
 

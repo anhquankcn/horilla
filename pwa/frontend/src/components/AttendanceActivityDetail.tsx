@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { HNH } from '../lib/theme'
+import { PunchSourceBadge, type PunchSource } from './PunchSourceBadge'
 
 // Chi tiết hoạt động chấm công dùng chung giữa CC Tháng (C&B) và Trang chủ (tự xem).
 // Nguồn dữ liệu: GET /api/attendance/activity-detail/
@@ -29,6 +30,9 @@ export interface ActivityDetail {
   clock_out_distance_m?: number | null
   // Lượt chấm không ảnh (camera lỗi) — chờ HR duyệt.
   no_camera?: boolean
+  // Nguồn chấm: biometric (máy) vs app (PWA).
+  clock_in_source?: PunchSource
+  clock_out_source?: PunchSource
 }
 
 // "Cách VP 12m" / "Cách VP 2.0km". Trả '' khi không có khoảng cách.
@@ -193,6 +197,7 @@ interface Punch {
   inside: boolean | null   // trong/ngoài VP theo GPS thực của LƯỢT này
   distanceM: number | null // khoảng cách tới VP (m)
   noCamera: boolean        // lượt chấm không ảnh (camera lỗi) — chờ HR duyệt
+  source: PunchSource      // nguồn chấm: biometric (máy) vs app
 }
 
 export function flattenPunches(resp: ActivityResp | null): Punch[] {
@@ -204,13 +209,15 @@ export function flattenPunches(resp: ActivityResp | null): Punch[] {
     if (a.clock_in) {
       out.push({ key: `${a.id}-in`, time: a.clock_in, photo: a.clock_in_photo, address: a.clock_in_address,
         workLocation: a.work_location, oofLabel: a.out_of_office_label, oofNote: note,
-        inside: legInside(a.clock_in_inside, a.work_location), distanceM: a.clock_in_distance_m ?? null, noCamera: noCam })
+        inside: legInside(a.clock_in_inside, a.work_location), distanceM: a.clock_in_distance_m ?? null, noCamera: noCam,
+        source: a.clock_in_source })
     }
     if (a.clock_out) {
       // Lượt RA dùng GPS RA của chính nó (không inherit work_location của activity).
       out.push({ key: `${a.id}-out`, time: a.clock_out, photo: a.clock_out_photo, address: a.clock_out_address,
         workLocation: a.work_location, oofLabel: a.out_of_office_label, oofNote: note,
-        inside: legInside(a.clock_out_inside, a.work_location), distanceM: a.clock_out_distance_m ?? null, noCamera: noCam })
+        inside: legInside(a.clock_out_inside, a.work_location), distanceM: a.clock_out_distance_m ?? null, noCamera: noCam,
+        source: a.clock_out_source })
     }
   }
   out.sort((x, y) => (x.time < y.time ? -1 : x.time > y.time ? 1 : 0))
@@ -241,6 +248,7 @@ function PunchCard({ punch, index, total, role, officeName }: {
             {isIn && <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 6, padding: '1px 7px', background: '#dcfce7', color: '#15803d' }}>Trong VP</span>}
             {isOut && <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 6, padding: '1px 7px', background: '#fef3c7', color: '#92400e' }}>Ngoài VP</span>}
             {punch.noCamera && <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 6, padding: '1px 7px', background: '#fee2e2', color: '#b91c1c' }}>⚠ Không ảnh</span>}
+            <PunchSourceBadge source={punch.source} />
           </div>
           <div style={{ fontSize: 16, fontWeight: 800, color: HNH.ink, fontFamily: "'Plus Jakarta Sans', monospace", marginTop: 2 }}>{punch.time?.slice(0, 5) || '--:--'}</div>
           {distLabel && <InfoLine icon="📏" text={`${distLabel}${isIn ? ' · trong khu vực' : isOut ? ' · ngoài khu vực' : ''}`} />}
