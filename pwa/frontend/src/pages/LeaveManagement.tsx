@@ -23,6 +23,8 @@ interface Proposal {
   id: number
   employee_id: number
   employee_name: string
+  company?: string | null
+  department?: string | null
   proposed_by_name: string
   days: number
   note: string
@@ -64,6 +66,7 @@ function ProposalCard({ proposal, isCnb, onApprove, onReject, onDelete }: {
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div style={{ fontSize: 14, fontWeight: 700, color: HNH.ink }}>{proposal.employee_name}</div>
+          {(proposal.company || proposal.department) && <div style={{ fontSize: 11, color: HNH.navy, marginTop: 1 }}>{[proposal.department, proposal.company].filter(Boolean).join(' · ')}</div>}
           <div style={{ fontSize: 11.5, color: HNH.ink3, marginTop: 1 }}>{proposal.proposed_by_name && `Do: ${proposal.proposed_by_name}`}</div>
         </div>
         <StatusBadge status={proposal.status} />
@@ -272,15 +275,24 @@ function CreateProposalModal({ employees, onClose, onCreated }: {
 export function LeaveManagementPage() {
   const navigate = useNavigate()
   const [statusFilter, setStatusFilter] = useState<string>('requested')
+  const [company, setCompany] = useState<number | ''>('')
+  const [department, setDepartment] = useState<number | ''>('')
   const [showCreate, setShowCreate] = useState(false)
 
-  const { data: proposals, refresh: refreshProposals } = useApi<Proposal[]>(
-    `/api/leave/hnh-compensatory/?status=${statusFilter}`
-  )
+  const propUrl = (() => {
+    const p = new URLSearchParams({ status: statusFilter })
+    if (company) p.set('company', String(company))
+    if (department) p.set('department', String(department))
+    return `/api/leave/hnh-compensatory/?${p.toString()}`
+  })()
+  const { data: proposals, refresh: refreshProposals } = useApi<Proposal[]>(propUrl)
   const { data: teamEmployees } = useApi<TeamEmployee[]>('/api/leave/hnh-team-employees/')
   const { data: summaryData } = useApi<LeaveSummary>('/api/leave/hnh-leave-summary/')
+  // Danh sách công ty/phòng ban cho dropdown lọc (chỉ C&B/Admin dùng).
+  const { data: meta } = useApi<{ companies: { id: number; name: string }[]; departments: { id: number; name: string; company_ids: number[] }[] }>('/api/leave/select-candidates/')
 
   const isCnb = () => summaryData?.scope === 'cnb'
+  const deptOptions = (meta?.departments ?? []).filter(d => !company || (d.company_ids ?? []).includes(company))
 
   const handleApprove = async (id: number) => {
     try {
@@ -366,6 +378,22 @@ export function LeaveManagementPage() {
             </button>
           ))}
         </div>
+
+        {/* Lọc công ty / phòng ban — chỉ C&B/Admin (xem toàn bộ mọi công ty) */}
+        {isCnb() && (
+          <div className="flex gap-2" style={{ marginBottom: 14 }}>
+            <select value={company} onChange={e => { setCompany(e.target.value ? Number(e.target.value) : ''); setDepartment('') }}
+              style={{ flex: 1, padding: '8px 10px', borderRadius: 10, border: `1px solid ${HNH.line}`, fontSize: 13, background: '#fff', color: HNH.ink }}>
+              <option value="">Tất cả công ty</option>
+              {(meta?.companies ?? []).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <select value={department} onChange={e => setDepartment(e.target.value ? Number(e.target.value) : '')}
+              style={{ flex: 1, padding: '8px 10px', borderRadius: 10, border: `1px solid ${HNH.line}`, fontSize: 13, background: '#fff', color: HNH.ink }}>
+              <option value="">Tất cả phòng ban</option>
+              {deptOptions.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+            </select>
+          </div>
+        )}
 
         {/* Proposals list */}
         {list.length === 0 && (

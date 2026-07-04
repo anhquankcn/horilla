@@ -218,13 +218,27 @@ class HNHCompensatoryProposalListCreateView(APIView):
         status_filter = request.query_params.get("status")
         if status_filter:
             qs = qs.filter(status=status_filter)
+        # Lọc theo công ty / phòng ban (C&B/Admin xem toàn bộ + lọc được).
+        company_id = request.query_params.get("company")
+        department_id = request.query_params.get("department")
+        if company_id:
+            qs = qs.filter(employee_id__employee_work_info__company_id=company_id)
+        if department_id:
+            qs = qs.filter(employee_id__employee_work_info__department_id=department_id)
+        qs = qs.select_related(
+            "employee_id__employee_work_info__company_id",
+            "employee_id__employee_work_info__department_id",
+        )
 
         data = []
-        for p in qs[:50]:
+        for p in qs[:500]:
+            wi = getattr(p.employee_id, "employee_work_info", None)
             data.append({
                 "id": p.id,
                 "employee_id": p.employee_id_id,
                 "employee_name": str(p.employee_id),
+                "company": wi.company_id.company if wi and wi.company_id else None,
+                "department": wi.department_id.department if wi and wi.department_id else None,
                 "proposed_by_id": p.proposed_by_id,
                 "proposed_by_name": str(p.proposed_by) if p.proposed_by else "",
                 "days": p.days,
@@ -537,6 +551,7 @@ class HNHLeaveOverviewView(APIView):
         year = int(request.query_params.get("year") or today.year)
         month = int(request.query_params.get("month") or today.month)
         dept_filter = request.query_params.get("dept_id") or None
+        company_filter = request.query_params.get("company_id") or None
 
         days_count = monthrange(year, month)[1]
         month_start = date(year, month, 1)
@@ -548,7 +563,8 @@ class HNHLeaveOverviewView(APIView):
 
         # Employee scope
         base_qs = Employee.objects.filter(is_active=True).select_related(
-            "employee_work_info__department_id"
+            "employee_work_info__department_id",
+            "employee_work_info__company_id",
         )
         if _is_cnb(request):
             emp_qs = base_qs.order_by("badge_id")
@@ -561,33 +577,66 @@ class HNHLeaveOverviewView(APIView):
 
         if dept_filter:
             emp_qs = emp_qs.filter(employee_work_info__department_id=dept_filter)
+        if company_filter:
+            emp_qs = emp_qs.filter(employee_work_info__company_id=company_filter)
 
         employees = list(emp_qs[:400])
+        emp_ids = [e.id for e in employees]
 
-        # Build employee data + collect department list
-        dept_map: dict = {}  # id → name
+        # Số dư phép: cuối tháng = tổng available+carryforward hiện tại; đầu tháng =
+        # cuối tháng + số ngày phép ĐÃ DUYỆT có start_date trong tháng (cộng lại
+        # phần đã trừ trong tháng). Đúng cho THÁNG HIỆN TẠI.
+        from leave.models import AvailableLeave
+        bal_end: dict = {}
+        for al in AvailableLeave.objects.filter(employee_id__in=emp_ids):
+            bal_end[al.employee_id_id] = bal_end.get(al.employee_id_id, 0.0) + (al.available_days or 0) + (al.carryforward_days or 0)
+        taken_month: dict = {}
+        for lr in LeaveRequest.objects.filter(
+            employee_id__in=emp_ids, status="approved",
+            start_date__gte=month_start, start_date__lte=month_end,
+        ):
+            taken_month[lr.employee_id_id] = taken_month.get(lr.employee_id_id, 0.0) + (lr.requested_days or 0)
+
+        # Build employee data + collect department/company list
+        dept_map: dict = {}
+        comp_map: dict = {}
         emp_data = []
         for e in employees:
             dept_name = ""
             dept_id_val = None
+            comp_name = ""
             try:
                 wi = e.employee_work_info
                 if wi and wi.department_id:
                     dept_name = str(wi.department_id)
                     dept_id_val = wi.department_id_id
                     dept_map[str(dept_id_val)] = dept_name
+                if wi and wi.company_id:
+                    comp_name = wi.company_id.company
+                    comp_map[str(wi.company_id_id)] = comp_name
             except Exception:
                 pass
+            end_v = round(bal_end.get(e.id, 0.0), 1)
+            start_v = round(end_v + taken_month.get(e.id, 0.0), 1)
             emp_data.append({
                 "id": e.id,
                 "name": str(e),
                 "badge_id": e.badge_id or "",
+                "accounting_code": getattr(e, "accounting_code", None) or "",
                 "department": dept_name,
                 "dept_id": dept_id_val,
+                "company": comp_name,
+                "leave_start": start_v,
+                "leave_end": end_v,
             })
 
-        departments = [{"id": k, "name": v} for k, v in dept_map.items()]
-        emp_ids = [e.id for e in employees]
+        # Dropdown lọc: TOÀN BỘ công ty + phòng ban (không co theo bộ lọc đang chọn).
+        from base.models import Company as _Company, Department as _Department
+        companies = [{"id": str(c.id), "name": c.company} for c in _Company.objects.all()]
+        departments = [
+            {"id": str(d.id), "name": d.department, "company_ids": [c.id for c in d.company_id.all()]}
+            for d in _Department.objects.prefetch_related("company_id").all()
+        ]
 
         # Fetch leave requests overlapping with the month
         lr_qs = (
@@ -665,6 +714,7 @@ class HNHLeaveOverviewView(APIView):
             "cells": cells,
             "days": day_strs,
             "departments": departments,
+            "companies": companies,
             "year": year,
             "month": month,
         })

@@ -10,6 +10,7 @@ import { api } from '../lib/api'
 const CELL_W = 44
 const NAME_W = 108
 const ROW_H = 44
+const BAL_W = 52   // cột Phép đầu / Phép cuối
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -17,8 +18,12 @@ interface EmpInfo {
   id: number
   name: string
   badge_id: string
+  accounting_code: string
   department: string
   dept_id: number | null
+  company: string
+  leave_start: number
+  leave_end: number
 }
 
 interface CellEntry {
@@ -35,7 +40,8 @@ interface OverviewData {
   employees: EmpInfo[]
   cells: Record<string, CellEntry[]>
   days: string[]
-  departments: { id: string; name: string }[]
+  departments: { id: string; name: string; company_ids: number[] }[]
+  companies: { id: string; name: string }[]
   year: number
   month: number
 }
@@ -146,6 +152,7 @@ export function LeaveOverviewPage() {
   const now = new Date()
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth() + 1)
+  const [companyFilter, setCompanyFilter] = useState('')
   const [deptFilter, setDeptFilter] = useState('')
   const [search, setSearch] = useState('')
   const [data, setData] = useState<OverviewData | null>(null)
@@ -157,6 +164,7 @@ export function LeaveOverviewPage() {
     try {
       const params = new URLSearchParams({ year: String(year), month: String(month) })
       if (deptFilter) params.set('dept_id', deptFilter)
+      if (companyFilter) params.set('company_id', companyFilter)
       const res = await api.get<OverviewData>(`/api/leave/hnh-leave-overview/?${params}`)
       setData(res)
     } catch {
@@ -164,7 +172,7 @@ export function LeaveOverviewPage() {
     } finally {
       setLoading(false)
     }
-  }, [year, month, deptFilter])
+  }, [year, month, deptFilter, companyFilter])
 
   useEffect(() => { load() }, [load])
 
@@ -173,7 +181,8 @@ export function LeaveOverviewPage() {
     if (!data || !gridRef.current) return
     const idx = data.days.indexOf(today)
     if (idx >= 0) {
-      gridRef.current.scrollLeft = Math.max(0, idx * CELL_W - NAME_W - 20)
+      // +BAL_W vì có cột "Phép đầu" trước ngày 1 trong vùng cuộn
+      gridRef.current.scrollLeft = Math.max(0, idx * CELL_W + BAL_W - NAME_W - 20)
     }
   }, [data, today])
 
@@ -209,11 +218,16 @@ export function LeaveOverviewPage() {
   const employees = (data?.employees ?? []).filter(e => {
     const q = search.trim().toLowerCase()
     if (!q) return true
-    return e.name.toLowerCase().includes(q) || e.badge_id.toLowerCase().includes(q)
+    // Tìm theo Họ tên, Mã HRM (badge_id), Mã Kế toán (accounting_code)
+    return e.name.toLowerCase().includes(q)
+      || (e.badge_id || '').toLowerCase().includes(q)
+      || (e.accounting_code || '').toLowerCase().includes(q)
   })
 
   const days = data?.days ?? []
   const departments = data?.departments ?? []
+  const companies = data?.companies ?? []
+  const deptOptions = departments.filter(d => !companyFilter || (d.company_ids ?? []).includes(Number(companyFilter)))
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#fff', overflow: 'hidden' }}>
@@ -270,8 +284,22 @@ export function LeaveOverviewPage() {
             </button>
           </div>
 
-          {/* Dept filter */}
-          {departments.length > 1 && (
+          {/* Lọc công ty + phòng ban (default: tất cả) */}
+          {companies.length > 0 && (
+            <select
+              value={companyFilter}
+              onChange={e => { setCompanyFilter(e.target.value); setDeptFilter('') }}
+              style={{
+                flex: 1, minWidth: 0, padding: '6px 8px', borderRadius: 8,
+                border: `1px solid ${HNH.line}`, fontSize: 12, color: HNH.ink2,
+                background: '#fff', outline: 'none',
+              }}
+            >
+              <option value="">Tất cả công ty</option>
+              {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          )}
+          {deptOptions.length > 0 && (
             <select
               value={deptFilter}
               onChange={e => setDeptFilter(e.target.value)}
@@ -282,14 +310,14 @@ export function LeaveOverviewPage() {
               }}
             >
               <option value="">Tất cả phòng ban</option>
-              {departments.map(d => (
+              {deptOptions.map(d => (
                 <option key={d.id} value={d.id}>{d.name}</option>
               ))}
             </select>
           )}
         </div>
 
-        {/* Search */}
+        {/* Search: Họ tên / Mã HRM / Mã Kế toán */}
         <div
           className="flex items-center gap-2"
           style={{ background: HNH.cream, borderRadius: 10, padding: '7px 12px' }}
@@ -298,7 +326,7 @@ export function LeaveOverviewPage() {
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Tìm nhân viên..."
+            placeholder="Tìm theo tên, mã HRM, mã kế toán..."
             style={{
               flex: 1, border: 'none', outline: 'none', fontSize: 13,
               color: HNH.ink, background: 'transparent', fontFamily: 'inherit',
@@ -342,6 +370,10 @@ export function LeaveOverviewPage() {
               }}>
                 NV ({employees.length})
               </div>
+              {/* Cột Phép đầu tháng */}
+              <div style={{ width: BAL_W, flexShrink: 0, textAlign: 'center', padding: '3px 2px', borderLeft: `1px solid ${HNH.line}`, background: HNH.navy50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ fontSize: 8.5, fontWeight: 700, color: HNH.navy, lineHeight: 1.2 }}>Phép<br />đầu</div>
+              </div>
               {days.map(d => (
                 <div
                   key={d}
@@ -365,6 +397,10 @@ export function LeaveOverviewPage() {
                   </div>
                 </div>
               ))}
+              {/* Cột Phép cuối tháng */}
+              <div style={{ width: BAL_W, flexShrink: 0, textAlign: 'center', padding: '3px 2px', borderLeft: `1px solid ${HNH.line}`, background: HNH.success50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ fontSize: 8.5, fontWeight: 700, color: HNH.success, lineHeight: 1.2 }}>Phép<br />cuối</div>
+              </div>
             </div>
 
             {/* Employee rows */}
@@ -394,8 +430,13 @@ export function LeaveOverviewPage() {
                     {emp.name.split(' ').slice(0, -1).join(' ')}
                   </div>
                   <div style={{ fontSize: 8.5, color: HNH.ink4, fontWeight: 600, letterSpacing: 0.2 }}>
-                    {emp.badge_id}
+                    {emp.badge_id}{emp.accounting_code ? ` · ${emp.accounting_code}` : ''}
                   </div>
+                </div>
+
+                {/* Phép đầu tháng */}
+                <div style={{ width: BAL_W, height: ROW_H, flexShrink: 0, borderLeft: `1px solid ${HNH.line}`, background: HNH.navy50, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: HNH.navy }}>
+                  {emp.leave_start % 1 === 0 ? emp.leave_start : emp.leave_start.toFixed(1)}
                 </div>
 
                 {/* Day cells */}
@@ -417,6 +458,11 @@ export function LeaveOverviewPage() {
                     </div>
                   )
                 })}
+
+                {/* Phép cuối tháng */}
+                <div style={{ width: BAL_W, height: ROW_H, flexShrink: 0, borderLeft: `1px solid ${HNH.line}`, background: HNH.success50, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: HNH.success }}>
+                  {emp.leave_end % 1 === 0 ? emp.leave_end : emp.leave_end.toFixed(1)}
+                </div>
               </div>
             ))}
 

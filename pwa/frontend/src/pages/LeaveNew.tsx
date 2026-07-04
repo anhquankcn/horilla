@@ -589,14 +589,14 @@ export function LeaveNewPage() {
 
   return (
     <div className="flex flex-col" style={{ background: HNH.cream, height: '100dvh' }}>
-      {/* Header */}
-      <div className="flex items-center justify-between" style={{ padding: '6px 16px 8px', flexShrink: 0 }}>
-        <button onClick={() => navigate(-1)} className="border-none bg-transparent cursor-pointer"
-          style={{ height: 32, padding: '0 12px', borderRadius: 10, color: HNH.red, fontWeight: 600, fontSize: 14 }}>
-          Hủy
+      {/* Header — chừa safe-area-inset-top để không bị 'tai thỏ'/Dynamic Island che (iPhone 15) */}
+      <div className="flex items-center justify-between" style={{ padding: '6px 12px 8px', paddingTop: 'calc(8px + env(safe-area-inset-top, 0px))', flexShrink: 0 }}>
+        <button onClick={() => navigate(-1)} className="flex items-center gap-1 border-none bg-transparent cursor-pointer"
+          style={{ height: 36, padding: '0 8px', borderRadius: 10, color: HNH.red, fontWeight: 600, fontSize: 14.5 }}>
+          <Icon name="chev-l" size={18} color={HNH.red} stroke={2.5} /> Quay lại
         </button>
         <div style={{ fontSize: 15, fontWeight: 700, color: HNH.ink }}>Đơn xin nghỉ ({mode === 'day' ? 'theo ngày' : 'theo giờ'})</div>
-        <div style={{ width: 48 }} />
+        <div style={{ width: 72 }} />
       </div>
 
       <div className="flex-1 overflow-auto" style={{ padding: '6px 20px 20px', minHeight: 0 }}>
