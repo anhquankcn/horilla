@@ -414,6 +414,9 @@ def clock_in(request):
                 end_time=end_time_sec,
                 in_datetime=datetime_now,
             )
+            # Gọi headless (M2M máy chấm công): không render template HTML
+            if getattr(request, "is_headless", False):
+                return HttpResponse("clocked in")
             return render(
                 request, "attendance/components/in_out_component.html", {"run": 1}
             )
@@ -823,6 +826,9 @@ def clock_out(request):
                         shift=shift,
                     )
 
+        # Gọi headless (M2M máy chấm công): không render template HTML
+        if getattr(request, "is_headless", False):
+            return HttpResponse("clocked out")
         return render(
             request, "attendance/components/in_out_component.html", {"run": 1}
         )

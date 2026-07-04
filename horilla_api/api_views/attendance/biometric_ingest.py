@@ -101,6 +101,7 @@ class BiometricPunchView(APIView):
                  if a.clock_out is None), None
             )
             shim = DeviceRequest(user=emp.employee_user_id, date=d, time=t, datetime=ts)
+            shim.is_headless = True  # clock_in/out trả HttpResponse, không render HTML
             try:
                 if open_act:
                     clock_out(shim)
