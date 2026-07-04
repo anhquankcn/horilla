@@ -111,7 +111,9 @@ export function App() {
         <Route path="/leave" element={<LeavePage />} />
         <Route path="/payslip" element={<PayslipPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
-        <Route path="/calendar" element={<CalendarPage />} />
+        {/* /calendar = Lịch tổng hợp (CalendarViewPage, có Outlook) — xem dòng dưới.
+            CalendarPage (Lịch & Ca làm) chuyển sang /shift-calendar để không che route. */}
+        <Route path="/shift-calendar" element={<CalendarPage />} />
         <Route path="/announcements" element={<AnnouncementFeedPage />} />
         <Route path="/announcement-hub" element={<AnnouncementHubPage />} />
         <Route path="/projects" element={<ProjectsPage />} />

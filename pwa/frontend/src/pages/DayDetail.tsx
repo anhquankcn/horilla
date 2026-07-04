@@ -3,6 +3,7 @@ import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { TopBar } from '../components/layout/TopBar'
 import { useApi } from '../lib/useApi'
+import { useOutlookEvents } from '../lib/outlook'
 
 interface DayItem {
   id: number
@@ -105,6 +106,8 @@ export function DayDetailPage() {
   const { data, loading } = useApi<DayDetailData>(
     date ? `/api/employee/me/day-detail/?date=${date}` : null
   )
+  // Outlook: tự tải lịch ngày này nếu đã kết nối
+  const { events: outlookEvents } = useOutlookEvents(date ?? null, date ?? null)
 
   function handleItemClick(item: DayItem) {
     if (item.type === 'meeting' && item.meet_url) {
@@ -159,6 +162,35 @@ export function DayDetailPage() {
             </div>
           )}
 
+          {/* Lịch Outlook trong ngày */}
+          {outlookEvents.length > 0 && (
+            <div style={{ padding: '10px 14px 4px' }}>
+              <div className="flex items-center gap-1.5" style={{ marginBottom: 6 }}>
+                <span style={{ fontSize: 11 }}>☁</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: HNH.navy, letterSpacing: 0.5 }}>LỊCH OUTLOOK</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {outlookEvents.map(ev => (
+                  <div key={ev.id} style={{
+                    background: HNH.navy50, border: `1px solid ${HNH.navy}33`,
+                    borderRadius: 10, padding: '8px 12px',
+                  }}>
+                    <div className="flex items-center gap-2">
+                      <div style={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: HNH.navy }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 700, color: HNH.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.title}</div>
+                        <div style={{ fontSize: 10.5, color: HNH.navy, marginTop: 1, fontWeight: 600 }}>
+                          {ev.all_day ? 'Cả ngày' : `${ev.start_time ?? ''}${ev.end_time ? ' – ' + ev.end_time : ''}`}
+                          {ev.description ? ` · ${ev.description}` : ''}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* 24-hour timeline */}
           <div style={{ marginTop: 8, background: '#fff', border: `1px solid ${HNH.line}`, borderRadius: 0 }}>
             <div style={{ padding: '8px 14px 4px', borderBottom: `1px solid ${HNH.line}` }}>
@@ -169,7 +201,7 @@ export function DayDetailPage() {
             ))}
           </div>
 
-          {(data?.tasks.length === 0 && data?.hours.every(h => h.items.length === 0)) && (
+          {(data?.tasks.length === 0 && data?.hours.every(h => h.items.length === 0) && outlookEvents.length === 0) && (
             <div className="flex flex-col items-center justify-center" style={{ padding: '40px 20px', color: HNH.ink3 }}>
               <div style={{ fontSize: 32, marginBottom: 8 }}>📅</div>
               <div style={{ fontSize: 14, fontWeight: 600 }}>Không có lịch nào</div>

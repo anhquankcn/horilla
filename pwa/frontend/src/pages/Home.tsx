@@ -13,6 +13,7 @@ import { useTablet, useSmallPhone } from '../lib/useTablet'
 import { roundCong } from '../lib/cong'
 import { useToast } from '../components/ui/Toast'
 import { AttendanceDetailModal } from '../components/AttendanceDetailModal'
+import { useOutlookEvents } from '../lib/outlook'
 
 interface AttendanceRecord {
   id: number
@@ -350,7 +351,7 @@ const DAY_TYPE_CONFIG: Record<string, { label: string; bg: string; fg: string; i
   event:  { label: 'Sự kiện',   bg: '#ec4899',   fg: '#fff',          icon: '🎉' },
 }
 
-function DayCard({ day, onClick }: { day: TenDayDay; onClick: () => void }) {
+function DayCard({ day, onClick, outlookCount = 0 }: { day: TenDayDay; onClick: () => void; outlookCount?: number }) {
   const cfg = DAY_TYPE_CONFIG[day.day_type] ?? DAY_TYPE_CONFIG.office
   const isOff = day.day_type === 'off' || day.day_type === 'leave'
   const [mm, dd] = day.date.slice(5).split('-')
@@ -397,6 +398,18 @@ function DayCard({ day, onClick }: { day: TenDayDay; onClick: () => void }) {
         <span style={{ display: day.is_today ? 'inline' : 'none' }}>{cfg.label}</span>
       </div>
 
+      {/* Chỉ báo họp Outlook (navy) */}
+      {outlookCount > 0 && (
+        <div style={{
+          fontSize: 7.5, fontWeight: 800, padding: '1px 5px', borderRadius: 5, marginTop: 2,
+          background: day.is_today ? 'rgba(255,255,255,0.2)' : HNH.navy + '1a',
+          color: day.is_today ? '#fff' : HNH.navy,
+          display: 'flex', alignItems: 'center', gap: 2, whiteSpace: 'nowrap',
+        }} title={`${outlookCount} lịch Outlook`}>
+          <span>☁</span><span>{outlookCount}</span>
+        </div>
+      )}
+
       {/* Meeting slot grid 2×4 */}
       {!isOff && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, marginTop: 2, width: '100%', padding: '0 2px' }}>
@@ -438,6 +451,11 @@ function TenDayWidget() {
   const { data } = useApi<TenDayData>('/api/employee/me/ten-day-schedule/')
   const days = data?.days ?? []
 
+  // Outlook: tự tải khi mở (nếu đã kết nối) cho khoảng 10 ngày; nút để đồng bộ lại.
+  const from = days.length ? days[0].date : null
+  const to = days.length ? days[days.length - 1].date : null
+  const { status: outlook, byDate: outlookByDate, loading: outlookLoading, refetch: outlookRefetch } = useOutlookEvents(from, to)
+
   if (days.length === 0) return null
 
   return (
@@ -456,7 +474,30 @@ function TenDayWidget() {
         <div className="flex items-center gap-2" style={{ fontSize: 8, color: HNH.ink3 }}>
           <span>🔴 Có họp</span>
           <span>✈️ Công tác</span>
-          <span>🎉 Sự kiện</span>
+          {outlook.connected && <span>☁ Outlook</span>}
+          {/* Nút đồng bộ / kết nối Outlook — chỉ khi server đã bật Outlook */}
+          {outlook.configured && (
+            outlook.connected ? (
+              <button
+                onClick={outlookRefetch}
+                disabled={outlookLoading}
+                className="flex items-center gap-1 border-none cursor-pointer"
+                style={{ background: HNH.navy + '14', color: HNH.navy, borderRadius: 6, padding: '2px 6px', fontSize: 8, fontWeight: 700 }}
+                title="Đồng bộ lịch Outlook"
+              >
+                <Icon name="refresh" size={9} color={HNH.navy} stroke={2} />
+                {outlookLoading ? 'Đang…' : 'Đồng bộ'}
+              </button>
+            ) : (
+              <button
+                onClick={() => navigate('/outlook')}
+                className="border-none cursor-pointer"
+                style={{ background: HNH.navy, color: '#fff', borderRadius: 6, padding: '2px 6px', fontSize: 8, fontWeight: 700 }}
+              >
+                Kết nối Outlook
+              </button>
+            )
+          )}
         </div>
       </div>
 
@@ -474,6 +515,7 @@ function TenDayWidget() {
           <DayCard
             key={day.date}
             day={day}
+            outlookCount={outlookByDate[day.date]?.length ?? 0}
             onClick={() => navigate(`/day/${day.date}`)}
           />
         ))}
