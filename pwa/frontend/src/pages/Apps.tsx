@@ -51,6 +51,7 @@ const features: AppFeature[] = [
   { slug: 'attendance',          icon: 'clock', label: 'Chấm công',     desc: 'Check-in, lịch sử, GPS',                               path: '/attendance',                tone: 'navy', group: 'attendance', always: true },
   { slug: 'work-schedule',       icon: 'cal',   label: 'Lịch làm việc', desc: 'Ca làm, giờ vào ra theo tuần',                         path: '/work-schedule',             tone: 'navy', group: 'attendance', always: true },
   { slug: 'monthly-attendance',  icon: 'cal',   label: 'Công Tháng',    desc: 'Lịch công HR xác nhận, trạng thái ngày công',          path: '/attendance/monthly',        tone: 'navy', group: 'attendance', always: true },
+  { slug: 'calendar',            icon: 'cal',   label: 'Lịch',          desc: 'Lịch tổng hợp: nghỉ phép, ngày lễ, sự kiện công ty',    path: '/calendar',                  tone: 'navy', group: 'attendance', always: true },
   { slug: 'calendar-sync',       icon: 'link',  label: 'Đồng bộ lịch',  desc: 'Đưa nghỉ phép, ngày lễ, sự kiện vào Outlook/Google',    path: '/calendar-sync',             tone: 'navy', group: 'attendance', always: true },
   { slug: 'attendance-activity', icon: 'clock', label: 'HĐ Chấm công', desc: 'Tổng hợp hoạt động chấm công',                         path: '/attendance-activity',       tone: 'navy', group: 'attendance' },
   { slug: 'monthly-att',         icon: 'grid',  label: 'CC Tháng',      desc: 'Bảng chấm công từng ngày cho toàn bộ nhân viên',       path: '/attendance-monthly-detail', tone: 'navy', group: 'attendance' },

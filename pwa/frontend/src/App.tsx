@@ -73,6 +73,7 @@ import { DbSyncPage } from './pages/DbSync'
 import { EOfficePage } from './pages/EOffice'
 import { ExportAttendancePage } from './pages/ExportAttendance'
 import { CalendarSyncPage } from './pages/CalendarSync'
+import { CalendarViewPage } from './pages/CalendarView'
 import { ServicesPage } from './pages/Services'
 import { AccountMgmtPage } from './pages/AccountMgmt'
 import { JobPositionRolesPage } from './pages/JobPositionRoles'
@@ -151,6 +152,7 @@ export function App() {
         <Route path="/eoffice" element={<EOfficePage />} />
         <Route path="/export-attendance" element={<ExportAttendancePage />} />
         <Route path="/calendar-sync" element={<CalendarSyncPage />} />
+        <Route path="/calendar" element={<CalendarViewPage />} />
         <Route path="/services" element={<ServicesPage />} />
         <Route path="/account-mgmt" element={<AccountMgmtPage />} />
         <Route path="/job-mgmt" element={<JobPositionRolesPage />} />

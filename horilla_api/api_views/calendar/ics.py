@@ -78,9 +78,15 @@ def build_calendar(vevents: list[list[str]], name: str = "HNH Travel — Lịch 
     return "\r\n".join(lines) + "\r\n"
 
 
-# ─── Nguồn sự kiện HRM ───
+# ─── Nguồn sự kiện HRM (trả dict, dùng chung cho feed .ics lẫn JSON màn Lịch) ───
 
-def leave_events(employee) -> list[list[str]]:
+def _company_or_null_q(company):
+    """Q: holiday của đúng company HOẶC không gắn company (áp chung)."""
+    from django.db.models import Q
+    return Q(company_id=company) | Q(company_id__isnull=True)
+
+
+def leave_items(employee) -> list[dict]:
     """Nghỉ phép ĐÃ DUYỆT của 1 nhân viên."""
     from leave.models import LeaveRequest
     out = []
@@ -89,7 +95,6 @@ def leave_events(employee) -> list[list[str]]:
     ).select_related("leave_type_id")
     for lr in qs:
         lt = getattr(lr.leave_type_id, "name", "Nghỉ phép")
-        summary = f"Nghỉ phép: {lt}"
         desc_parts = [f"Loại: {lt}"]
         if lr.requested_days:
             desc_parts.append(f"Số ngày: {lr.requested_days}")
@@ -97,47 +102,40 @@ def leave_events(employee) -> list[list[str]]:
             desc_parts.append(f"Theo giờ: {lr.start_time:%H:%M}–{lr.end_time:%H:%M}")
         if lr.description:
             desc_parts.append(str(lr.description))
-        out.append(build_vevent(
-            uid=f"leave-{lr.id}", start=lr.start_date, end=lr.end_date,
-            summary=summary, description=" | ".join(desc_parts), category="Nghỉ phép",
-        ))
+        out.append({
+            "kind": "leave", "id": lr.id, "title": f"Nghỉ phép: {lt}",
+            "start": lr.start_date, "end": lr.end_date or lr.start_date,
+            "description": " | ".join(desc_parts), "category": "Nghỉ phép",
+        })
     return out
 
 
-def holiday_events(company=None) -> list[list[str]]:
-    """Ngày lễ (toàn công ty của nhân viên; company=None → tất cả)."""
+def holiday_items(company=None) -> list[dict]:
+    """Ngày lễ (của công ty nhân viên + lễ không gắn công ty)."""
     from base.models import Holidays
     out = []
     qs = Holidays.objects.all()
     if company is not None:
-        qs = qs.filter(models_company_or_null(company))
+        qs = qs.filter(_company_or_null_q(company))
     for h in qs:
-        out.append(build_vevent(
-            uid=f"holiday-{h.id}", start=h.start_date, end=h.end_date,
-            summary=f"Nghỉ lễ: {h.name}", category="Ngày lễ",
-        ))
+        out.append({
+            "kind": "holiday", "id": h.id, "title": f"Nghỉ lễ: {h.name}",
+            "start": h.start_date, "end": h.end_date or h.start_date,
+            "description": "", "category": "Ngày lễ",
+        })
     return out
 
 
-def models_company_or_null(company):
-    """Q: holiday của đúng company HOẶC không gắn company (áp chung)."""
-    from django.db.models import Q
-    return Q(company_id=company) | Q(company_id__isnull=True)
-
-
-def announcement_events(user) -> list[list[str]]:
+def announcement_items(user) -> list[dict]:
     """Sự kiện/thông báo CÓ MỐC THỜI GIAN (expire_date) mà user là người nhận."""
     from base.models import Announcement
     from django.db.models import Q
     out = []
     emp = getattr(user, "employee_get", None)
     qs = Announcement.objects.filter(expire_date__isnull=False).distinct()
-    # lọc theo đối tượng nhận: gửi cho employee / phòng / vị trí / công ty của user,
-    # hoặc announcement không nhắm ai (toàn công ty)
     if emp is not None:
         dept = getattr(getattr(emp, "employee_work_info", None), "department_id", None)
         jp = getattr(getattr(emp, "employee_work_info", None), "job_position_id", None)
-        comp = None
         try:
             comp = emp.get_company()
         except Exception:
@@ -146,21 +144,20 @@ def announcement_events(user) -> list[list[str]]:
         if dept: cond |= Q(department=dept)
         if jp: cond |= Q(job_position=jp)
         if comp: cond |= Q(company_id=comp)
-        # announcement không nhắm đối tượng nào → coi là toàn công ty
         cond |= Q(employees__isnull=True, department__isnull=True,
                   job_position__isnull=True, company_id__isnull=True)
         qs = qs.filter(cond).distinct()
     for a in qs:
-        out.append(build_vevent(
-            uid=f"announce-{a.id}", start=a.expire_date, end=a.expire_date,
-            summary=f"Sự kiện: {a.title}",
-            description=str(a.description or ""), category="Sự kiện",
-        ))
+        out.append({
+            "kind": "announcement", "id": a.id, "title": f"Sự kiện: {a.title}",
+            "start": a.expire_date, "end": a.expire_date,
+            "description": str(a.description or ""), "category": "Sự kiện",
+        })
     return out
 
 
-def build_user_feed(user) -> str:
-    """Toàn bộ lịch HRM của 1 user: nghỉ phép + lễ + sự kiện."""
+def collect_user_events(user, start: date | None = None, end: date | None = None) -> list[dict]:
+    """Gộp mọi sự kiện HRM của 1 user; lọc theo [start, end] nếu có (giao khoảng)."""
     emp = getattr(user, "employee_get", None)
     company = None
     if emp is not None:
@@ -168,9 +165,31 @@ def build_user_feed(user) -> str:
             company = emp.get_company()
         except Exception:
             company = None
-    vevents = []
+    items = []
     if emp is not None:
-        vevents += leave_events(emp)
-    vevents += holiday_events(company)
-    vevents += announcement_events(user)
+        items += leave_items(emp)
+    items += holiday_items(company)
+    items += announcement_items(user)
+    if start or end:
+        def overlaps(e):
+            s, en = e["start"], e["end"]
+            if start and en < start:
+                return False
+            if end and s > end:
+                return False
+            return True
+        items = [e for e in items if overlaps(e)]
+    items.sort(key=lambda e: e["start"])
+    return items
+
+
+def build_user_feed(user) -> str:
+    """Toàn bộ lịch HRM của 1 user thành file .ics."""
+    vevents = [
+        build_vevent(
+            uid=f"{e['kind']}-{e['id']}", start=e["start"], end=e["end"],
+            summary=e["title"], description=e.get("description", ""), category=e["category"],
+        )
+        for e in collect_user_events(user)
+    ]
     return build_calendar(vevents)

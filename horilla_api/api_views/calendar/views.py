@@ -84,6 +84,43 @@ class CalendarEventView(APIView):
         return resp
 
 
+class CalendarEventsView(APIView):
+    """JSON sự kiện HRM của user cho màn Lịch tổng hợp (nghỉ phép + lễ + sự kiện).
+    ?from=YYYY-MM-DD&to=YYYY-MM-DD để lọc theo tháng đang xem.
+
+    Lớp Outlook (Microsoft Graph) sẽ được gộp vào response này ở giai đoạn sau."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from datetime import date as _date
+
+        def _parse(s):
+            try:
+                y, m, d = map(int, s.split("-"))
+                return _date(y, m, d)
+            except Exception:
+                return None
+
+        start = _parse(request.GET.get("from", ""))
+        end = _parse(request.GET.get("to", ""))
+        items = ics.collect_user_events(request.user, start, end)
+        events = [
+            {
+                "id": f"{e['kind']}-{e['id']}",
+                "kind": e["kind"],
+                "title": e["title"],
+                "start": e["start"].isoformat(),
+                "end": e["end"].isoformat(),
+                "all_day": True,
+                "description": e.get("description", ""),
+                "source": "hrm",
+            }
+            for e in items
+        ]
+        return Response({"events": events})
+
+
 class CalendarTokenView(APIView):
     """Quản lý token feed cá nhân: GET lấy token, POST tạo lại, DELETE thu hồi."""
 
