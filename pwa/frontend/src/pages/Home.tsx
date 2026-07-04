@@ -356,27 +356,33 @@ function hmToMin(hm: string | null): number | null {
   return h * 60 + (m || 0)
 }
 
-// Tỉ lệ bận [0..1] của 1 slot: max giữa họp nội bộ (full) và sự kiện Outlook có giờ.
-function slotBusyFraction(idx: number, internalBusy: boolean, events: OutlookEvent[]): number {
-  let frac = internalBusy ? 1 : 0
+// Màu nền 1 slot giờ theo trạng thái + mức bận.
+// Ưu tiên: confirm (xanh lá) > mức bận dự kiến (¼ xanh trời · ½ vàng · ¾ hồng · full đỏ)
+//          > đã hủy (ghi nhạt) > trống.
+const SLOT_EMPTY_TODAY = 'rgba(255,255,255,0.22)'
+function slotBackground(idx: number, internalBusy: boolean, events: OutlookEvent[], isToday: boolean): string {
   const [s, e] = SLOT_RANGES[idx]
+  let confirmed = false, cancelled = false
+  let busyFrac = internalBusy ? 1 : 0     // họp nội bộ = full giờ, tính vào gradient
   for (const ev of events) {
-    if (ev.all_day) continue          // sự kiện cả ngày không tính vào giờ cụ thể
+    if (ev.all_day) continue              // sự kiện cả ngày không gán vào giờ cụ thể
     const st = hmToMin(ev.start_time), en = hmToMin(ev.end_time)
     if (st == null || en == null) continue
     const overlap = Math.min(e, en) - Math.max(s, st)
-    if (overlap > 0) frac = Math.max(frac, overlap / 60)
+    if (overlap <= 0) continue
+    if (ev.status === 'cancelled') { cancelled = true; continue }
+    if (ev.status === 'confirmed') { confirmed = true; continue }
+    busyFrac = Math.max(busyFrac, overlap / 60)   // dự kiến (tentative) → gradient
   }
-  return Math.min(1, frac)
-}
-
-// Màu theo tỉ lệ bận: 1/4 vàng nhạt · 1/2 vàng · 3/4 hồng · full đỏ.
-function slotColor(frac: number, isToday: boolean): string {
-  if (frac <= 0.001) return isToday ? 'rgba(255,255,255,0.22)' : HNH.line
-  if (frac >= 0.875) return HNH.red      // full 1h → đỏ
-  if (frac >= 0.625) return '#fb7185'    // 3/4 → hồng
-  if (frac >= 0.375) return '#facc15'    // 1/2 → vàng
-  return '#fde68a'                        // 1/4 → vàng nhạt
+  if (confirmed) return '#22c55e'          // đã confirm → xanh lá
+  if (busyFrac > 0.001) {
+    if (busyFrac >= 0.875) return HNH.red   // full 1h → đỏ
+    if (busyFrac >= 0.625) return '#fb7185' // ¾ → hồng
+    if (busyFrac >= 0.375) return '#facc15' // ½ → vàng
+    return '#7dd3fc'                        // ¼ → xanh da trời nhạt
+  }
+  if (cancelled) return '#d1d5db'          // đã hủy → ghi nhạt
+  return isToday ? SLOT_EMPTY_TODAY : HNH.line
 }
 
 const DAY_TYPE_CONFIG: Record<string, { label: string; bg: string; fg: string; icon: string }> = {
@@ -451,16 +457,12 @@ function DayCard({ day, onClick, outlookEvents = [] }: { day: TenDayDay; onClick
       {!isOff && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, marginTop: 2, width: '100%', padding: '0 2px' }}>
           {[0,1,2,3].map(i => {
-            const leftFrac = slotBusyFraction(i, day.busy_slots.includes(i), outlookEvents)
-            const rightFrac = slotBusyFraction(i + 4, day.busy_slots.includes(i + 4), outlookEvents)
+            const leftBg = slotBackground(i, day.busy_slots.includes(i), outlookEvents, day.is_today)
+            const rightBg = slotBackground(i + 4, day.busy_slots.includes(i + 4), outlookEvents, day.is_today)
             return (
               <React.Fragment key={i}>
-                <div title={SLOT_LABEL[i]} style={{
-                  height: 7, borderRadius: 2, background: slotColor(leftFrac, day.is_today),
-                }} />
-                <div title={SLOT_LABEL[i + 4]} style={{
-                  height: 7, borderRadius: 2, background: slotColor(rightFrac, day.is_today),
-                }} />
+                <div title={SLOT_LABEL[i]} style={{ height: 7, borderRadius: 2, background: leftBg }} />
+                <div title={SLOT_LABEL[i + 4]} style={{ height: 7, borderRadius: 2, background: rightBg }} />
               </React.Fragment>
             )
           })}
@@ -562,13 +564,14 @@ function TenDayWidget() {
           <div style={{ width: 10, height: 7, borderRadius: 2, background: HNH.line }} />
           <span style={{ fontSize: 8, color: HNH.ink3 }}>Cột trái: 8–12h · Cột phải: 13:30–17:30</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span style={{ fontSize: 8, color: HNH.ink3 }}>Mức bận:</span>
+        <div className="flex items-center gap-1.5" style={{ flexWrap: 'wrap', justifyContent: 'flex-end' }}>
           {[
-            { c: '#fde68a', l: '¼' },
+            { c: '#7dd3fc', l: '¼' },
             { c: '#facc15', l: '½' },
             { c: '#fb7185', l: '¾' },
             { c: HNH.red,   l: '1h' },
+            { c: '#22c55e', l: 'Confirm' },
+            { c: '#d1d5db', l: 'Hủy' },
           ].map(x => (
             <div key={x.l} className="flex items-center gap-0.5">
               <div style={{ width: 8, height: 7, borderRadius: 2, background: x.c }} />

@@ -12,6 +12,8 @@ export interface OutlookEvent {
   all_day: boolean
   description: string    // location
   source: 'outlook'
+  status?: 'confirmed' | 'cancelled' | 'tentative'   // trạng thái phản hồi cuộc họp
+  show_as?: string       // free | tentative | busy | oof | ...
   start_time: string | null   // HH:MM
   end_time: string | null
 }

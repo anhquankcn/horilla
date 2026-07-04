@@ -137,7 +137,9 @@ export async function outlookRoutes(app: FastifyInstance) {
     const start = from ? `${from}T00:00:00` : new Date().toISOString().slice(0, 10) + "T00:00:00";
     const end = to ? `${to}T23:59:59` : start;
     const url = `https://graph.microsoft.com/v1.0/me/calendarView?startDateTime=${encodeURIComponent(start)}`
-      + `&endDateTime=${encodeURIComponent(end)}&$select=subject,start,end,isAllDay,location,showAs&$top=200&$orderby=start/dateTime`;
+      + `&endDateTime=${encodeURIComponent(end)}`
+      + `&$select=subject,start,end,isAllDay,location,showAs,isCancelled,responseStatus`
+      + `&$top=200&$orderby=start/dateTime`;
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${token}`, Prefer: 'outlook.timezone="Asia/Ho_Chi_Minh"' },
     });
@@ -146,18 +148,29 @@ export async function outlookRoutes(app: FastifyInstance) {
       return reply.send({ connected: true, events: [] });
     }
     const data = (await res.body.json()) as { value: Array<Record<string, any>> };
-    const events = (data.value ?? []).map((e) => ({
-      id: `outlook-${e.id ?? Math.random().toString(36).slice(2)}`,
-      kind: "outlook",
-      title: e.subject || "(Không tiêu đề)",
-      start: (e.start?.dateTime ?? "").slice(0, 10),
-      end: (e.end?.dateTime ?? "").slice(0, 10),
-      all_day: !!e.isAllDay,
-      description: e.location?.displayName || "",
-      source: "outlook",
-      start_time: e.isAllDay ? null : (e.start?.dateTime ?? "").slice(11, 16),
-      end_time: e.isAllDay ? null : (e.end?.dateTime ?? "").slice(11, 16),
-    }));
+    const events = (data.value ?? []).map((e) => {
+      // Trạng thái cuộc họp: đã hủy / đã confirm / dự kiến.
+      const resp = e.responseStatus?.response as string | undefined;
+      const status = e.isCancelled || resp === "declined"
+        ? "cancelled"
+        : resp === "accepted" || resp === "organizer"
+          ? "confirmed"
+          : "tentative";
+      return {
+        id: `outlook-${e.id ?? Math.random().toString(36).slice(2)}`,
+        kind: "outlook",
+        title: e.subject || "(Không tiêu đề)",
+        start: (e.start?.dateTime ?? "").slice(0, 10),
+        end: (e.end?.dateTime ?? "").slice(0, 10),
+        all_day: !!e.isAllDay,
+        description: e.location?.displayName || "",
+        source: "outlook",
+        status,
+        show_as: e.showAs || "",
+        start_time: e.isAllDay ? null : (e.start?.dateTime ?? "").slice(11, 16),
+        end_time: e.isAllDay ? null : (e.end?.dateTime ?? "").slice(11, 16),
+      };
+    });
     return reply.send({ connected: true, events });
   });
 }
