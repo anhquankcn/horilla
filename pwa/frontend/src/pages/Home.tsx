@@ -13,7 +13,7 @@ import { useTablet, useSmallPhone } from '../lib/useTablet'
 import { roundCong } from '../lib/cong'
 import { useToast } from '../components/ui/Toast'
 import { AttendanceDetailModal } from '../components/AttendanceDetailModal'
-import { useOutlookEvents } from '../lib/outlook'
+import { useOutlookEvents, type OutlookEvent } from '../lib/outlook'
 
 interface AttendanceRecord {
   id: number
@@ -343,6 +343,42 @@ interface TenDayData {
 // Slot labels: 0-3 = morning, 4-7 = afternoon
 const SLOT_LABEL = ['8h','9h','10h','11h','13h30','14h30','15h30','16h30']
 
+// Khoảng thời gian mỗi slot (phút trong ngày): sáng 8–12h, chiều 13:30–17:30.
+const SLOT_RANGES: [number, number][] = [
+  [480, 540], [540, 600], [600, 660], [660, 720],       // 8-9, 9-10, 10-11, 11-12
+  [810, 870], [870, 930], [930, 990], [990, 1050],      // 13:30-14:30 ... 16:30-17:30
+]
+
+function hmToMin(hm: string | null): number | null {
+  if (!hm) return null
+  const [h, m] = hm.split(':').map(Number)
+  if (Number.isNaN(h)) return null
+  return h * 60 + (m || 0)
+}
+
+// Tỉ lệ bận [0..1] của 1 slot: max giữa họp nội bộ (full) và sự kiện Outlook có giờ.
+function slotBusyFraction(idx: number, internalBusy: boolean, events: OutlookEvent[]): number {
+  let frac = internalBusy ? 1 : 0
+  const [s, e] = SLOT_RANGES[idx]
+  for (const ev of events) {
+    if (ev.all_day) continue          // sự kiện cả ngày không tính vào giờ cụ thể
+    const st = hmToMin(ev.start_time), en = hmToMin(ev.end_time)
+    if (st == null || en == null) continue
+    const overlap = Math.min(e, en) - Math.max(s, st)
+    if (overlap > 0) frac = Math.max(frac, overlap / 60)
+  }
+  return Math.min(1, frac)
+}
+
+// Màu theo tỉ lệ bận: 1/4 vàng nhạt · 1/2 vàng · 3/4 hồng · full đỏ.
+function slotColor(frac: number, isToday: boolean): string {
+  if (frac <= 0.001) return isToday ? 'rgba(255,255,255,0.22)' : HNH.line
+  if (frac >= 0.875) return HNH.red      // full 1h → đỏ
+  if (frac >= 0.625) return '#fb7185'    // 3/4 → hồng
+  if (frac >= 0.375) return '#facc15'    // 1/2 → vàng
+  return '#fde68a'                        // 1/4 → vàng nhạt
+}
+
 const DAY_TYPE_CONFIG: Record<string, { label: string; bg: string; fg: string; icon: string }> = {
   office: { label: 'Văn phòng', bg: HNH.navy,    fg: '#fff',          icon: '🏢' },
   leave:  { label: 'Nghỉ phép', bg: '#8b5cf6',   fg: '#fff',          icon: '🌿' },
@@ -351,9 +387,10 @@ const DAY_TYPE_CONFIG: Record<string, { label: string; bg: string; fg: string; i
   event:  { label: 'Sự kiện',   bg: '#ec4899',   fg: '#fff',          icon: '🎉' },
 }
 
-function DayCard({ day, onClick, outlookCount = 0 }: { day: TenDayDay; onClick: () => void; outlookCount?: number }) {
+function DayCard({ day, onClick, outlookEvents = [] }: { day: TenDayDay; onClick: () => void; outlookEvents?: OutlookEvent[] }) {
   const cfg = DAY_TYPE_CONFIG[day.day_type] ?? DAY_TYPE_CONFIG.office
   const isOff = day.day_type === 'off' || day.day_type === 'leave'
+  const outlookCount = outlookEvents.length
   const [mm, dd] = day.date.slice(5).split('-')
   const shortWd = day.weekday_vi.replace('Thứ ', 'T').replace('Chủ nhật', 'CN')
 
@@ -414,17 +451,15 @@ function DayCard({ day, onClick, outlookCount = 0 }: { day: TenDayDay; onClick: 
       {!isOff && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2, marginTop: 2, width: '100%', padding: '0 2px' }}>
           {[0,1,2,3].map(i => {
-            const leftBusy = day.busy_slots.includes(i)
-            const rightBusy = day.busy_slots.includes(i + 4)
+            const leftFrac = slotBusyFraction(i, day.busy_slots.includes(i), outlookEvents)
+            const rightFrac = slotBusyFraction(i + 4, day.busy_slots.includes(i + 4), outlookEvents)
             return (
               <React.Fragment key={i}>
                 <div title={SLOT_LABEL[i]} style={{
-                  height: 7, borderRadius: 2,
-                  background: leftBusy ? HNH.red : day.is_today ? 'rgba(255,255,255,0.22)' : HNH.line,
+                  height: 7, borderRadius: 2, background: slotColor(leftFrac, day.is_today),
                 }} />
                 <div title={SLOT_LABEL[i + 4]} style={{
-                  height: 7, borderRadius: 2,
-                  background: rightBusy ? HNH.red : day.is_today ? 'rgba(255,255,255,0.22)' : HNH.line,
+                  height: 7, borderRadius: 2, background: slotColor(rightFrac, day.is_today),
                 }} />
               </React.Fragment>
             )
@@ -515,7 +550,7 @@ function TenDayWidget() {
           <DayCard
             key={day.date}
             day={day}
-            outlookCount={outlookByDate[day.date]?.length ?? 0}
+            outlookEvents={outlookByDate[day.date] ?? []}
             onClick={() => navigate(`/day/${day.date}`)}
           />
         ))}
@@ -527,9 +562,19 @@ function TenDayWidget() {
           <div style={{ width: 10, height: 7, borderRadius: 2, background: HNH.line }} />
           <span style={{ fontSize: 8, color: HNH.ink3 }}>Cột trái: 8–12h · Cột phải: 13:30–17:30</span>
         </div>
-        <div className="flex items-center gap-1">
-          <div style={{ width: 10, height: 7, borderRadius: 2, background: HNH.red }} />
-          <span style={{ fontSize: 8, color: HNH.ink3 }}>Có lịch họp</span>
+        <div className="flex items-center gap-1.5">
+          <span style={{ fontSize: 8, color: HNH.ink3 }}>Mức bận:</span>
+          {[
+            { c: '#fde68a', l: '¼' },
+            { c: '#facc15', l: '½' },
+            { c: '#fb7185', l: '¾' },
+            { c: HNH.red,   l: '1h' },
+          ].map(x => (
+            <div key={x.l} className="flex items-center gap-0.5">
+              <div style={{ width: 8, height: 7, borderRadius: 2, background: x.c }} />
+              <span style={{ fontSize: 7.5, color: HNH.ink3 }}>{x.l}</span>
+            </div>
+          ))}
         </div>
       </div>
     </div>
