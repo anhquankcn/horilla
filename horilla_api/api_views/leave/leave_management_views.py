@@ -621,8 +621,8 @@ class HNHLeaveOverviewView(APIView):
                     comp_map[str(wi.company_id_id)] = comp_name
             except Exception:
                 pass
-            start_v = round(bal_start.get(e.id, 0.0), 1)
-            end_v = round(start_v - taken_month.get(e.id, 0.0), 1)
+            start_v = round(bal_start.get(e.id, 0.0), 2)
+            end_v = round(start_v - taken_month.get(e.id, 0.0), 2)
             emp_data.append({
                 "id": e.id,
                 "name": str(e),

@@ -436,7 +436,7 @@ export function LeaveOverviewPage() {
 
                 {/* Phép đầu tháng */}
                 <div style={{ width: BAL_W, height: ROW_H, flexShrink: 0, borderLeft: `1px solid ${HNH.line}`, background: HNH.navy50, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: HNH.navy }}>
-                  {emp.leave_start % 1 === 0 ? emp.leave_start : emp.leave_start.toFixed(1)}
+                  {emp.leave_start % 1 === 0 ? emp.leave_start : +emp.leave_start.toFixed(2)}
                 </div>
 
                 {/* Day cells */}
@@ -461,7 +461,7 @@ export function LeaveOverviewPage() {
 
                 {/* Phép cuối tháng */}
                 <div style={{ width: BAL_W, height: ROW_H, flexShrink: 0, borderLeft: `1px solid ${HNH.line}`, background: HNH.success50, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: HNH.success }}>
-                  {emp.leave_end % 1 === 0 ? emp.leave_end : emp.leave_end.toFixed(1)}
+                  {emp.leave_end % 1 === 0 ? emp.leave_end : +emp.leave_end.toFixed(2)}
                 </div>
               </div>
             ))}
