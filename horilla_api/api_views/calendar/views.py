@@ -68,12 +68,15 @@ class CalendarEventView(APIView):
                     summary=f"Nghỉ lễ: {h.name}", category="Ngày lễ",
                 )
         elif kind == "announcement":
-            from base.models import Announcement
-            a = Announcement.objects.filter(id=pk, expire_date__isnull=False).first()
-            if a:
+            from notifications.models import Announcement as NAnnouncement
+            from django.utils import timezone
+            a = NAnnouncement.objects.filter(id=pk).first()
+            # chỉ cho tải nếu user là người nhận
+            if a and a.recipients.filter(user=request.user).exists() and a.created_at:
+                d = timezone.localtime(a.created_at).date()
                 vevent = ics.build_vevent(
-                    uid=f"announce-{a.id}", start=a.expire_date, end=a.expire_date,
-                    summary=f"Sự kiện: {a.title}", description=str(a.description or ""),
+                    uid=f"announce-{a.id}", start=d, end=d,
+                    summary=f"Thông báo: {a.title}", description=(a.body or "")[:200],
                     category="Sự kiện",
                 )
         if not vevent:

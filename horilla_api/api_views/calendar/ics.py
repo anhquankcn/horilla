@@ -127,31 +127,25 @@ def holiday_items(company=None) -> list[dict]:
 
 
 def announcement_items(user) -> list[dict]:
-    """Sự kiện/thông báo CÓ MỐC THỜI GIAN (expire_date) mà user là người nhận."""
-    from base.models import Announcement
-    from django.db.models import Q
+    """Thông báo HNH Life gửi tới user — neo trên NGÀY ĐĂNG (created_at), vì
+    model không có ngày sự kiện riêng. Lấy qua AnnouncementRecipient (đúng đối
+    tượng nhận)."""
+    from notifications.models import AnnouncementRecipient
+    from django.utils import timezone
     out = []
-    emp = getattr(user, "employee_get", None)
-    qs = Announcement.objects.filter(expire_date__isnull=False).distinct()
-    if emp is not None:
-        dept = getattr(getattr(emp, "employee_work_info", None), "department_id", None)
-        jp = getattr(getattr(emp, "employee_work_info", None), "job_position_id", None)
-        try:
-            comp = emp.get_company()
-        except Exception:
-            comp = None
-        cond = Q(employees=emp)
-        if dept: cond |= Q(department=dept)
-        if jp: cond |= Q(job_position=jp)
-        if comp: cond |= Q(company_id=comp)
-        cond |= Q(employees__isnull=True, department__isnull=True,
-                  job_position__isnull=True, company_id__isnull=True)
-        qs = qs.filter(cond).distinct()
-    for a in qs:
+    qs = (
+        AnnouncementRecipient.objects.filter(user=user)
+        .select_related("announcement")
+    )
+    for r in qs:
+        a = r.announcement
+        if not a or not a.created_at:
+            continue
+        d = timezone.localtime(a.created_at).date()
         out.append({
-            "kind": "announcement", "id": a.id, "title": f"Sự kiện: {a.title}",
-            "start": a.expire_date, "end": a.expire_date,
-            "description": str(a.description or ""), "category": "Sự kiện",
+            "kind": "announcement", "id": a.id, "title": f"Thông báo: {a.title}",
+            "start": d, "end": d,
+            "description": (a.body or "")[:200], "category": "Sự kiện",
         })
     return out
 
