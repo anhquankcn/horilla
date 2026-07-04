@@ -678,7 +678,8 @@ class HNHLeaveOverviewView(APIView):
             # Clamp to month
             s = max(lr.start_date, month_start)
             e_date = min(lr.end_date, month_end)
-            code = _code(lr.leave_type_id.name if lr.leave_type_id else "?")
+            lt_name = lr.leave_type_id.name if lr.leave_type_id else "?"
+            code = _code(lt_name)
             is_single = lr.start_date == lr.end_date
 
             time_range = None
@@ -712,6 +713,7 @@ class HNHLeaveOverviewView(APIView):
                 entry = {
                     "id": lr.id,
                     "code": code,
+                    "name": lt_name,
                     "status": lr.status,
                     "is_morning": is_morning,
                     "is_afternoon": is_afternoon,

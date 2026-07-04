@@ -43,9 +43,13 @@ function noAccent(s: string): string {
     .toLowerCase()
 }
 
+// Bảng màu phân biệt từng loại phép trong chú thích (legend) ở dưới bảng.
+const LEAVE_TYPE_COLORS = ['#c0222b', '#0e7490', '#a87908', '#1f8a5b', '#7c3aed', '#be185d', '#2563eb', '#ea580c', '#0f766e', '#9333ea']
+
 interface CellEntry {
   id: number
   code: string
+  name: string
   status: string
   is_morning: boolean
   is_afternoon: boolean
@@ -194,15 +198,11 @@ export function LeaveOverviewPage() {
 
   useEffect(() => { load() }, [load])
 
-  // Scroll to today on initial load
+  // Focus ngay vào các cột Phép đầu / Phát sinh / Còn lại khi mở bảng
   useEffect(() => {
     if (!data || !gridRef.current) return
-    const idx = data.days.indexOf(today)
-    if (idx >= 0) {
-      // +3*BAL_W vì 3 cột (Phép đầu · Phát sinh · Còn lại) trước ngày 1 trong vùng cuộn
-      gridRef.current.scrollLeft = Math.max(0, idx * CELL_W + 3 * BAL_W - NAME_W - 20)
-    }
-  }, [data, today])
+    gridRef.current.scrollLeft = 0
+  }, [data])
 
   function prevMonth() {
     if (month === 1) { setYear(y => y - 1); setMonth(12) }
@@ -250,6 +250,17 @@ export function LeaveOverviewPage() {
   const departments = data?.departments ?? []
   const companies = data?.companies ?? []
   const deptOptions = departments.filter(d => !companyFilter || (d.company_ids ?? []).includes(Number(companyFilter)))
+
+  // Gom các loại phép xuất hiện trong tháng → chú thích viết tắt → tên đầy đủ, mỗi loại một màu
+  const leaveTypes = (() => {
+    const m = new Map<string, string>()  // tên đầy đủ -> viết tắt hiển thị (khớp ô bảng: 3 ký tự)
+    Object.values(data?.cells ?? {}).forEach(list => list.forEach(en => {
+      if (en.name && !m.has(en.name)) m.set(en.name, (en.code || '').slice(0, 3))
+    }))
+    return [...m.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0], 'vi'))
+      .map(([name, code], i) => ({ name, code, color: LEAVE_TYPE_COLORS[i % LEAVE_TYPE_COLORS.length] }))
+  })()
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#fff', overflow: 'hidden' }}>
@@ -528,7 +539,29 @@ export function LeaveOverviewPage() {
             )}
           </div>
 
-          {/* Legend */}
+          {/* Chú thích viết tắt loại phép — mỗi loại một màu */}
+          {leaveTypes.length > 0 && (
+            <div style={{
+              display: 'flex', gap: 10, padding: '7px 14px',
+              background: HNH.cream, borderTop: `1px solid ${HNH.line}`,
+              flexShrink: 0, justifyContent: 'center', flexWrap: 'wrap', alignItems: 'center',
+            }}>
+              <span style={{ fontSize: 10, fontWeight: 800, color: HNH.ink3, letterSpacing: 0.3 }}>LOẠI PHÉP:</span>
+              {leaveTypes.map(t => (
+                <div key={t.name} className="flex items-center gap-1" title={t.name}>
+                  <span style={{
+                    minWidth: 26, textAlign: 'center', padding: '1px 4px', borderRadius: 4,
+                    background: t.color, color: '#fff', fontSize: 9, fontWeight: 800, letterSpacing: 0.2,
+                  }}>
+                    {t.code}
+                  </span>
+                  <span style={{ fontSize: 10.5, color: HNH.ink2, fontWeight: 600 }}>{t.name}</span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Legend trạng thái đơn */}
           <div style={{
             display: 'flex', gap: 14, padding: '6px 14px',
             background: '#fff', borderTop: `1px solid ${HNH.line}`,
