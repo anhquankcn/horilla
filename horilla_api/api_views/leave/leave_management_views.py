@@ -583,16 +583,19 @@ class HNHLeaveOverviewView(APIView):
         employees = list(emp_qs[:400])
         emp_ids = [e.id for e in employees]
 
-        # Số dư phép: cuối tháng = tổng available+carryforward hiện tại; đầu tháng =
-        # cuối tháng + số ngày phép ĐÃ DUYỆT có start_date trong tháng (cộng lại
-        # phần đã trừ trong tháng). Đúng cho THÁNG HIỆN TẠI.
-        from leave.models import AvailableLeave
-        bal_end: dict = {}
-        for al in AvailableLeave.objects.filter(employee_id__in=emp_ids):
-            bal_end[al.employee_id_id] = bal_end.get(al.employee_id_id, 0.0) + (al.available_days or 0) + (al.carryforward_days or 0)
+        # Số dư phép CHỈ tính Phép năm + Phép bù (không thâm niên, không ốm):
+        #   Phép đầu = số dư THỰC TẾ hôm nay (available + carryforward) của 2 loại này.
+        #   Phép cuối = Phép đầu − số ngày 2 loại này ĐÃ DUYỆT có start_date trong tháng.
+        from leave.models import AvailableLeave, LeaveType
+        lc_ids = list(
+            LeaveType.objects.filter(name__in=["Nghỉ phép năm", "Phép Bù"]).values_list("id", flat=True)
+        )
+        bal_start: dict = {}
+        for al in AvailableLeave.objects.filter(employee_id__in=emp_ids, leave_type_id__in=lc_ids):
+            bal_start[al.employee_id_id] = bal_start.get(al.employee_id_id, 0.0) + (al.available_days or 0) + (al.carryforward_days or 0)
         taken_month: dict = {}
         for lr in LeaveRequest.objects.filter(
-            employee_id__in=emp_ids, status="approved",
+            employee_id__in=emp_ids, status="approved", leave_type_id__in=lc_ids,
             start_date__gte=month_start, start_date__lte=month_end,
         ):
             taken_month[lr.employee_id_id] = taken_month.get(lr.employee_id_id, 0.0) + (lr.requested_days or 0)
@@ -616,8 +619,8 @@ class HNHLeaveOverviewView(APIView):
                     comp_map[str(wi.company_id_id)] = comp_name
             except Exception:
                 pass
-            end_v = round(bal_end.get(e.id, 0.0), 1)
-            start_v = round(end_v + taken_month.get(e.id, 0.0), 1)
+            start_v = round(bal_start.get(e.id, 0.0), 1)
+            end_v = round(start_v - taken_month.get(e.id, 0.0), 1)
             emp_data.append({
                 "id": e.id,
                 "name": str(e),
