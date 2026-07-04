@@ -22,8 +22,17 @@ interface EmpInfo {
   department: string
   dept_id: number | null
   company: string
+  company_id: number | null
   leave_start: number
+  leave_taken: number
   leave_end: number
+}
+
+// Màu phân biệt công ty ở cột Mã NV (theo company_id).
+const COMPANY_COLORS = ['#142b6f', '#c0222b', '#a87908', '#1f8a5b', '#7c3aed', '#0e7490', '#be185d']
+function companyColor(id: number | null): string {
+  if (!id) return '#64748b'
+  return COMPANY_COLORS[(id - 1) % COMPANY_COLORS.length]
 }
 
 interface CellEntry {
@@ -181,8 +190,8 @@ export function LeaveOverviewPage() {
     if (!data || !gridRef.current) return
     const idx = data.days.indexOf(today)
     if (idx >= 0) {
-      // +BAL_W vì có cột "Phép đầu" trước ngày 1 trong vùng cuộn
-      gridRef.current.scrollLeft = Math.max(0, idx * CELL_W + BAL_W - NAME_W - 20)
+      // +3*BAL_W vì 3 cột (Phép đầu · Phát sinh · Còn lại) trước ngày 1 trong vùng cuộn
+      gridRef.current.scrollLeft = Math.max(0, idx * CELL_W + 3 * BAL_W - NAME_W - 20)
     }
   }, [data, today])
 
@@ -370,9 +379,15 @@ export function LeaveOverviewPage() {
               }}>
                 NV ({employees.length})
               </div>
-              {/* Cột Phép đầu tháng */}
+              {/* 3 cột tổng hợp dồn lên đầu: Phép đầu · Phát sinh · Còn lại */}
               <div style={{ width: BAL_W, flexShrink: 0, textAlign: 'center', padding: '3px 2px', borderLeft: `1px solid ${HNH.line}`, background: HNH.navy50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div style={{ fontSize: 8.5, fontWeight: 700, color: HNH.navy, lineHeight: 1.2 }}>Phép<br />đầu</div>
+              </div>
+              <div style={{ width: BAL_W, flexShrink: 0, textAlign: 'center', padding: '3px 2px', borderLeft: `1px solid ${HNH.line}`, background: '#faf1d6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ fontSize: 8.5, fontWeight: 700, color: '#a87908', lineHeight: 1.2 }}>Phát<br />sinh</div>
+              </div>
+              <div style={{ width: BAL_W, flexShrink: 0, textAlign: 'center', padding: '3px 2px', borderLeft: `1px solid ${HNH.line}`, background: HNH.success50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ fontSize: 8.5, fontWeight: 700, color: HNH.success, lineHeight: 1.2 }}>Còn<br />lại</div>
               </div>
               {days.map(d => (
                 <div
@@ -397,10 +412,6 @@ export function LeaveOverviewPage() {
                   </div>
                 </div>
               ))}
-              {/* Cột Phép cuối tháng */}
-              <div style={{ width: BAL_W, flexShrink: 0, textAlign: 'center', padding: '3px 2px', borderLeft: `1px solid ${HNH.line}`, background: HNH.success50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <div style={{ fontSize: 8.5, fontWeight: 700, color: HNH.success, lineHeight: 1.2 }}>Phép<br />cuối</div>
-              </div>
             </div>
 
             {/* Employee rows */}
@@ -429,14 +440,21 @@ export function LeaveOverviewPage() {
                   }}>
                     {emp.name.split(' ').slice(0, -1).join(' ')}
                   </div>
-                  <div style={{ fontSize: 8.5, color: HNH.ink4, fontWeight: 600, letterSpacing: 0.2 }}>
+                  {/* Mã NV tô màu theo công ty để phân biệt các công ty khác nhau */}
+                  <div style={{ fontSize: 8.5, color: companyColor(emp.company_id), fontWeight: 800, letterSpacing: 0.2 }}>
                     {emp.badge_id}{emp.accounting_code ? ` · ${emp.accounting_code}` : ''}
                   </div>
                 </div>
 
-                {/* Phép đầu tháng */}
+                {/* 3 cột tổng hợp: Phép đầu · Phát sinh · Còn lại */}
                 <div style={{ width: BAL_W, height: ROW_H, flexShrink: 0, borderLeft: `1px solid ${HNH.line}`, background: HNH.navy50, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: HNH.navy }}>
                   {emp.leave_start % 1 === 0 ? emp.leave_start : +emp.leave_start.toFixed(2)}
+                </div>
+                <div style={{ width: BAL_W, height: ROW_H, flexShrink: 0, borderLeft: `1px solid ${HNH.line}`, background: '#faf1d6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: emp.leave_taken > 0 ? '#a87908' : HNH.ink4 }}>
+                  {emp.leave_taken % 1 === 0 ? emp.leave_taken : +emp.leave_taken.toFixed(2)}
+                </div>
+                <div style={{ width: BAL_W, height: ROW_H, flexShrink: 0, borderLeft: `1px solid ${HNH.line}`, background: HNH.success50, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: HNH.success }}>
+                  {emp.leave_end % 1 === 0 ? emp.leave_end : +emp.leave_end.toFixed(2)}
                 </div>
 
                 {/* Day cells */}
@@ -458,11 +476,6 @@ export function LeaveOverviewPage() {
                     </div>
                   )
                 })}
-
-                {/* Phép cuối tháng */}
-                <div style={{ width: BAL_W, height: ROW_H, flexShrink: 0, borderLeft: `1px solid ${HNH.line}`, background: HNH.success50, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, color: HNH.success }}>
-                  {emp.leave_end % 1 === 0 ? emp.leave_end : +emp.leave_end.toFixed(2)}
-                </div>
               </div>
             ))}
 

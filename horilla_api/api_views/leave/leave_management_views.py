@@ -567,11 +567,13 @@ class HNHLeaveOverviewView(APIView):
             "employee_work_info__company_id",
         )
         if _is_cnb(request):
-            emp_qs = base_qs.order_by("badge_id")
+            # Trụ sở chính Hồng Ngọc Hà (company id=1) xếp đầu → chi nhánh con
+            # (order theo company_id tăng dần), rồi tới badge_id.
+            emp_qs = base_qs.order_by("employee_work_info__company_id", "badge_id")
         elif _is_manager(request):
             emp_qs = base_qs.filter(
                 employee_work_info__reporting_manager_id=emp_user
-            ).order_by("badge_id")
+            ).order_by("employee_work_info__company_id", "badge_id")
         else:
             emp_qs = base_qs.filter(id=emp_user.id)
 
@@ -610,6 +612,7 @@ class HNHLeaveOverviewView(APIView):
             dept_name = ""
             dept_id_val = None
             comp_name = ""
+            comp_id_val = None
             try:
                 wi = e.employee_work_info
                 if wi and wi.department_id:
@@ -618,11 +621,12 @@ class HNHLeaveOverviewView(APIView):
                     dept_map[str(dept_id_val)] = dept_name
                 if wi and wi.company_id:
                     comp_name = wi.company_id.company
-                    comp_map[str(wi.company_id_id)] = comp_name
+                    comp_id_val = wi.company_id_id
+                    comp_map[str(comp_id_val)] = comp_name
             except Exception:
                 pass
             start_v = round(bal_start.get(e.id, 0.0), 2)
-            end_v = round(start_v - taken_month.get(e.id, 0.0), 2)
+            taken_v = round(taken_month.get(e.id, 0.0), 2)
             emp_data.append({
                 "id": e.id,
                 "name": str(e),
@@ -631,8 +635,10 @@ class HNHLeaveOverviewView(APIView):
                 "department": dept_name,
                 "dept_id": dept_id_val,
                 "company": comp_name,
-                "leave_start": start_v,
-                "leave_end": end_v,
+                "company_id": comp_id_val,
+                "leave_start": start_v,       # Phép đầu
+                "leave_taken": taken_v,       # Phát sinh (tổng đã duyệt trong tháng)
+                "leave_end": round(start_v - taken_v, 2),  # Còn lại (Phép cuối)
             })
 
         # Dropdown lọc: TOÀN BỘ công ty + phòng ban (không co theo bộ lọc đang chọn).
