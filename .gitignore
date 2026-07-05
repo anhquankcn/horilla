@@ -3,6 +3,9 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# TypeScript incremental build cache (artifact, không cần commit)
+*.tsbuildinfo
+
 # C extensions
 *.so
 
