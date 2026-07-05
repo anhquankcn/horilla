@@ -7,7 +7,9 @@ import { useTablet } from '../lib/useTablet'
 import { api } from '../lib/api'
 import { WC2026_ENABLED } from '../lib/flags'
 
-type ModuleGroup = 'hr' | 'attendance' | 'leave' | 'payroll' | 'admin' | 'system' | 'support' | 'reports'
+type ModuleGroup =
+  | 'org' | 'attendance' | 'schedule' | 'payroll'
+  | 'proposals' | 'support' | 'reports' | 'performance' | 'system'
 
 interface AppFeature {
   slug: string
@@ -21,86 +23,93 @@ interface AppFeature {
 }
 
 const MODULE_META: Record<ModuleGroup, { label: string; icon: string; color: string; bg: string }> = {
-  hr:         { label: 'Nhân sự',             icon: 'users',  color: HNH.navy,    bg: HNH.navy50 },
-  attendance: { label: 'Chấm Công',           icon: 'clock',  color: HNH.red,     bg: HNH.red50 },
-  leave:      { label: 'Nghỉ phép',           icon: 'leaf',   color: HNH.success, bg: HNH.success50 },
-  payroll:    { label: 'Lương',               icon: 'doc',    color: '#a87908',   bg: '#faf1d6' },
-  admin:      { label: 'Hành chính',          icon: 'file-text', color: HNH.gold, bg: '#faf1d6' },
-  system:     { label: 'Quản trị Hệ thống',  icon: 'gear',   color: HNH.ink,     bg: '#eef0f4' },
-  support:    { label: 'Hỗ trợ',             icon: 'help',   color: '#6b7280',   bg: '#f3f4f6' },
-  reports:    { label: 'Báo cáo / Dashboard', icon: 'grid',   color: '#7c3aed',   bg: '#f5f3ff' },
+  org:         { label: 'Tổ chức & Nhân sự',       icon: 'users',  color: HNH.navy,    bg: HNH.navy50 },
+  attendance:  { label: 'Chấm công & Nghỉ phép',   icon: 'clock',  color: HNH.red,     bg: HNH.red50 },
+  schedule:    { label: 'Lịch làm việc',           icon: 'cal',    color: HNH.success, bg: HNH.success50 },
+  payroll:     { label: 'Lương',                   icon: 'doc',    color: '#a87908',   bg: '#faf1d6' },
+  proposals:   { label: 'Đề xuất & YC Thanh toán', icon: 'send',   color: '#c2410c',   bg: '#ffedd5' },
+  support:     { label: 'Hỗ trợ - Tiện ích',       icon: 'help',   color: '#6b7280',   bg: '#f3f4f6' },
+  reports:     { label: 'Dashboard & Báo cáo',     icon: 'grid',   color: '#7c3aed',   bg: '#f5f3ff' },
+  performance: { label: 'Đánh giá & Hiệu suất',    icon: 'target', color: '#be185d',   bg: '#fdf2f8' },
+  system:      { label: 'Quản trị hệ thống',       icon: 'gear',   color: HNH.ink,     bg: '#eef0f4' },
 }
 
-const MODULE_ORDER: ModuleGroup[] = ['hr', 'attendance', 'leave', 'payroll', 'admin', 'system', 'support', 'reports']
+const MODULE_ORDER: ModuleGroup[] = [
+  'org', 'attendance', 'schedule', 'payroll',
+  'proposals', 'support', 'reports', 'performance', 'system',
+]
 
 const features: AppFeature[] = [
-  // ── Nhân sự ──
-  { slug: 'employees',     icon: 'users',   label: 'Nhân sự',         desc: 'Danh sách, hồ sơ nhân viên',               path: '/employees',      tone: 'navy',    group: 'hr' },
-  { slug: 'employees',     icon: 'users',   label: 'Onboarding NV',   desc: 'Tạo NV mới: gán vị trí, vai trò, nhóm quyền, tài khoản KC', path: '/onboard-employee', tone: 'red', group: 'hr' },
-  { slug: 'org-chart',     icon: 'sitemap', label: 'Cây tổ chức',     desc: 'Sơ đồ phân cấp, phân công quản lý',        path: '/org-chart',      tone: 'navy',    group: 'hr' },
-  { slug: 'roles',         icon: 'shield',  label: 'Vai trò & Quyền', desc: 'Phân quyền, nhóm vai trò',                 path: '/roles',          tone: 'navy',    group: 'hr' },
-  { slug: 'groups',        icon: 'folder',  label: 'Nhóm Quyền',      desc: 'Quản lý nhóm, phân nhân sự',               path: '/groups',         tone: 'navy',    group: 'hr' },
-  { slug: 'onboarding',    icon: 'star',    label: 'On/Offboarding',  desc: 'Onboarding, offboarding, đơn nghỉ việc',   path: '/onboarding',     tone: 'red',     group: 'hr' },
-  { slug: 'promotion-hub', icon: 'trophy',  label: 'Hub Thăng Tiến',  desc: '9-Box, đề xuất, phê duyệt, công bố',       path: '/promotion-hub',  tone: 'gold',    group: 'hr' },
-  { slug: 'journey',       icon: 'layers',  label: 'Hành trình NV',   desc: 'Vòng đời nhân viên, AI hỗ trợ',            path: '/journey',        tone: 'navy',    group: 'hr' },
-  { slug: 'documents',     icon: 'folder',  label: 'Tài liệu',        desc: 'Giấy tờ yêu cầu nộp, theo dõi trạng thái', path: '/documents',     tone: 'navy',    group: 'hr', always: true },
-  { slug: 'account-mgmt',  icon: 'shield',  label: 'Quản lý TK',      desc: 'Cấp tài khoản KC hàng loạt theo phòng',     path: '/account-mgmt',  tone: 'navy',    group: 'hr' },
-  { slug: 'job-mgmt',      icon: 'layers',  label: 'Vị trí & Vai trò',desc: 'Quản lý vị trí và vai trò công việc',       path: '/job-mgmt',      tone: 'navy',    group: 'hr' },
+  // ── Tổ chức & Nhân sự ──
+  { slug: 'employees',     icon: 'users',   label: 'Nhân sự',         desc: 'Danh sách, hồ sơ nhân viên',               path: '/employees',      tone: 'navy',    group: 'org' },
+  { slug: 'employees',     icon: 'users',   label: 'Onboarding NV',   desc: 'Tạo NV mới: gán vị trí, vai trò, nhóm quyền, tài khoản KC', path: '/onboard-employee', tone: 'red', group: 'org' },
+  { slug: 'org-chart',     icon: 'sitemap', label: 'Cây tổ chức',     desc: 'Sơ đồ phân cấp, phân công quản lý',        path: '/org-chart',      tone: 'navy',    group: 'org' },
+  { slug: 'roles',         icon: 'shield',  label: 'Vai trò & Quyền', desc: 'Phân quyền, nhóm vai trò',                 path: '/roles',          tone: 'navy',    group: 'org' },
+  { slug: 'groups',        icon: 'folder',  label: 'Nhóm Quyền',      desc: 'Quản lý nhóm, phân nhân sự',               path: '/groups',         tone: 'navy',    group: 'org' },
+  { slug: 'onboarding',    icon: 'star',    label: 'On/Offboarding',  desc: 'Onboarding, offboarding, đơn nghỉ việc',   path: '/onboarding',     tone: 'red',     group: 'org' },
+  { slug: 'journey',       icon: 'layers',  label: 'Hành trình NV',   desc: 'Vòng đời nhân viên, AI hỗ trợ',            path: '/journey',        tone: 'navy',    group: 'org' },
+  { slug: 'documents',     icon: 'folder',  label: 'Tài liệu',        desc: 'Giấy tờ yêu cầu nộp, theo dõi trạng thái', path: '/documents',     tone: 'navy',    group: 'org', always: true },
+  { slug: 'account-mgmt',  icon: 'shield',  label: 'Quản lý TK',      desc: 'Cấp tài khoản KC hàng loạt theo phòng',     path: '/account-mgmt',  tone: 'navy',    group: 'org' },
+  { slug: 'job-mgmt',      icon: 'layers',  label: 'Vị trí & Vai trò',desc: 'Quản lý vị trí và vai trò công việc',       path: '/job-mgmt',      tone: 'navy',    group: 'org' },
 
-  // ── Chấm Công ──
+  // ── Chấm công & Nghỉ phép ──
   { slug: 'attendance',          icon: 'clock', label: 'Chấm công',     desc: 'Check-in, lịch sử, GPS',                               path: '/attendance',                tone: 'navy', group: 'attendance', always: true },
-  { slug: 'work-schedule',       icon: 'cal',   label: 'Lịch làm việc', desc: 'Ca làm, giờ vào ra theo tuần',                         path: '/work-schedule',             tone: 'navy', group: 'attendance', always: true },
   { slug: 'monthly-attendance',  icon: 'cal',   label: 'Công Tháng',    desc: 'Lịch công HR xác nhận, trạng thái ngày công',          path: '/attendance/monthly',        tone: 'navy', group: 'attendance', always: true },
-  { slug: 'calendar',            icon: 'cal',   label: 'Lịch',          desc: 'Lịch tổng hợp: nghỉ phép, ngày lễ, sự kiện công ty',    path: '/calendar',                  tone: 'navy', group: 'attendance', always: true },
-  { slug: 'calendar-sync',       icon: 'link',  label: 'Đồng bộ lịch',  desc: 'Đưa nghỉ phép, ngày lễ, sự kiện vào Outlook/Google',    path: '/calendar-sync',             tone: 'navy', group: 'attendance', always: true },
   { slug: 'attendance-activity', icon: 'clock', label: 'HĐ Chấm công', desc: 'Tổng hợp hoạt động chấm công',                         path: '/attendance-activity',       tone: 'navy', group: 'attendance' },
   { slug: 'monthly-att',         icon: 'grid',  label: 'CC Tháng',      desc: 'Bảng chấm công từng ngày cho toàn bộ nhân viên',       path: '/attendance-monthly-detail', tone: 'navy', group: 'attendance' },
-  { slug: 'shift-management',    icon: 'clock', label: 'Quản lý Ca',    desc: 'Phân ca nhân viên, cấu hình ca theo phòng ban',        path: '/shift-management',          tone: 'red',  group: 'attendance' },
-  { slug: 'shift-planner',      icon: 'cal',   label: 'Phân Ca NV',    desc: 'Lưới phân ca tháng theo phòng ban, quản lý, phê duyệt', path: '/shift-planner',             tone: 'red',  group: 'attendance', always: true },
-  { slug: 'hrm-wds-labelday',    icon: 'cal',   label: 'Gán lịch bận',  desc: 'Tag Công tác / Sự kiện / Nghỉ ốm theo tuần',          path: '/labelday',                  tone: 'gold', group: 'attendance' },
   { slug: 'attendance-manager',   icon: 'users', label: 'Quản lý Công NV', desc: 'Bảng First-Last chấm công NV dưới quyền theo tháng', path: '/attendance-manager',        tone: 'red',  group: 'attendance' },
   { slug: 'hrm-att-setting',     icon: 'gear',  label: 'Cài đặt CC',   desc: 'Cấu hình Chấm công, Geofence',                         path: '/attendance-settings',       tone: 'navy', group: 'attendance' },
+  { slug: 'leave',            icon: 'leaf',  label: 'Nghỉ phép',    desc: 'Số dư, lịch sử nghỉ phép, gửi đơn',  path: '/leave',            tone: 'success', group: 'attendance', always: true },
+  { slug: 'leave-management', icon: 'leaf',  label: 'Quản lý Phép',    desc: 'Phép bù, thâm niên, duyệt đề xuất',   path: '/leave-management', tone: 'success', group: 'attendance' },
+  { slug: 'leave-overview',   icon: 'grid',  label: 'Nghỉ phép Tháng', desc: 'Lịch nghỉ toàn bộ NV theo tháng + phép đầu/cuối, lọc công ty/phòng', path: '/leave/overview',  tone: 'success', group: 'attendance' },
+  { slug: 'leave-import',     icon: 'upload', label: 'Import Phép Năm', desc: 'Nhập số ngày phép đầu năm từ file Excel', path: '/leave/import',   tone: 'gold',    group: 'attendance' },
 
-  // ── Nghỉ phép ──
-  { slug: 'leave',            icon: 'leaf',  label: 'Nghỉ phép',    desc: 'Số dư, lịch sử nghỉ phép, gửi đơn',  path: '/leave',            tone: 'success', group: 'leave', always: true },
-  { slug: 'proposals',        icon: 'send',  label: 'Đề xuất',      desc: 'Nghỉ phép, đổi ca, ngày công',        path: '/proposals',        tone: 'success', group: 'leave', always: true },
-  { slug: 'approvals',        icon: 'check', label: 'Phê duyệt',    desc: 'Duyệt đề xuất nhân viên',             path: '/approvals',        tone: 'gold',    group: 'leave', always: true },
-  { slug: 'leave-management', icon: 'leaf',  label: 'Quản lý Phép',    desc: 'Phép bù, thâm niên, duyệt đề xuất',   path: '/leave-management', tone: 'success', group: 'leave' },
-  { slug: 'leave-overview',   icon: 'grid',  label: 'Nghỉ phép Tháng', desc: 'Lịch nghỉ toàn bộ NV theo tháng + phép đầu/cuối, lọc công ty/phòng', path: '/leave/overview',  tone: 'success', group: 'leave' },
-  { slug: 'leave-import',     icon: 'upload', label: 'Import Phép Năm', desc: 'Nhập số ngày phép đầu năm từ file Excel', path: '/leave/import',   tone: 'gold',    group: 'leave' },
+  // ── Lịch làm việc ──
+  { slug: 'work-schedule',       icon: 'cal',   label: 'Lịch làm việc', desc: 'Ca làm, giờ vào ra theo tuần',                         path: '/work-schedule',             tone: 'navy', group: 'schedule', always: true },
+  { slug: 'calendar',            icon: 'cal',   label: 'Lịch',          desc: 'Lịch tổng hợp: nghỉ phép, ngày lễ, sự kiện công ty',    path: '/calendar',                  tone: 'navy', group: 'schedule', always: true },
+  { slug: 'unified-calendar',  icon: 'cal',    label: 'Lịch tổng hợp',desc: 'Nghỉ phép, deadline, tour, dự án',        path: '/unified-calendar',  tone: 'gold',  group: 'schedule', always: true },
+  { slug: 'calendar-sync',       icon: 'link',  label: 'Đồng bộ lịch',  desc: 'Đưa nghỉ phép, ngày lễ, sự kiện vào Outlook/Google',    path: '/calendar-sync',             tone: 'navy', group: 'schedule', always: true },
+  { slug: 'outlook',           icon: 'mail',   label: 'Kết nối Outlook', desc: 'Đưa lịch họp Outlook vào màn Lịch của app', path: '/outlook',        tone: 'navy',  group: 'schedule', always: true },
+  { slug: 'shift-management',    icon: 'clock', label: 'Quản lý Ca',    desc: 'Phân ca nhân viên, cấu hình ca theo phòng ban',        path: '/shift-management',          tone: 'red',  group: 'schedule' },
+  { slug: 'shift-planner',      icon: 'cal',   label: 'Phân Ca NV',    desc: 'Lưới phân ca tháng theo phòng ban, quản lý, phê duyệt', path: '/shift-planner',             tone: 'red',  group: 'schedule', always: true },
+  { slug: 'hrm-wds-labelday',    icon: 'cal',   label: 'Gán lịch bận',  desc: 'Tag Công tác / Sự kiện / Nghỉ ốm theo tuần',          path: '/labelday',                  tone: 'gold', group: 'schedule' },
 
   // ── Lương ──
   { slug: 'payslip',      icon: 'doc', label: 'Phiếu lương', desc: 'Xem chi tiết lương hàng tháng',    path: '/payslip',      tone: 'navy', group: 'payroll', always: true },
   { slug: 'payroll-mgmt', icon: 'doc', label: 'Bảng lương',  desc: 'Tổng hợp lương tháng, BHXH, thuế', path: '/payroll-mgmt', tone: 'gold', group: 'payroll' },
 
-  // ── Hành chính ──
-  { slug: 'expenses-admin', icon: 'doc', label: 'Chi phí HC', desc: 'Quản lý yêu cầu chi phí, tạo bảng kê', path: '/expenses/admin', tone: 'gold', group: 'admin' },
+  // ── Đề xuất & YC Thanh toán ──
+  { slug: 'proposals',        icon: 'send',  label: 'Đề xuất',      desc: 'Nghỉ phép, đổi ca, ngày công',        path: '/proposals',        tone: 'success', group: 'proposals', always: true },
+  { slug: 'approvals',        icon: 'check', label: 'Phê duyệt',    desc: 'Duyệt đề xuất nhân viên',             path: '/approvals',        tone: 'gold',    group: 'proposals', always: true },
+  { slug: 'expenses-admin', icon: 'doc', label: 'Chi phí HC', desc: 'Quản lý yêu cầu chi phí, tạo bảng kê', path: '/expenses/admin', tone: 'gold', group: 'proposals' },
 
-  // ── Hỗ trợ ──
+  // ── Hỗ trợ - Tiện ích ──
   { slug: 'helpdesk',          icon: 'help',   label: 'Hỗ trợ IT',     desc: 'Gửi yêu cầu hỗ trợ, theo dõi tiến độ',   path: '/helpdesk',          tone: 'navy',  group: 'support', always: true },
   { slug: 'helpdesk',          icon: 'help',   label: 'YC Hỗ trợ',     desc: 'Xem và xử lý tất cả yêu cầu hỗ trợ',    path: '/helpdesk?tab=all',  tone: 'red',   group: 'support' },
   { slug: 'announcement-hub',  icon: 'send',   label: 'Hub Thông Báo', desc: 'Tạo & quản lý thông báo nội bộ',          path: '/announcement-hub',  tone: 'red',   group: 'support' },
   { slug: 'announcements',     icon: 'bell',   label: 'Tin nội bộ',    desc: 'Bản tin, thông báo BGĐ, quy định, sự kiện', path: '/announcements',   tone: 'red',   group: 'support', always: true },
-  { slug: 'outlook',           icon: 'mail',   label: 'Kết nối Outlook', desc: 'Đưa lịch họp Outlook vào màn Lịch của app', path: '/outlook',        tone: 'navy',  group: 'support', always: true },
   { slug: 'notifications',     icon: 'bell',   label: 'Thông báo',     desc: 'Xem thông báo hệ thống',                  path: '/notifications',     tone: 'navy',  group: 'support', always: true },
   { slug: 'assets',            icon: 'doc',    label: 'Tài sản',       desc: 'Quản lý tài sản, cấp phát, yêu cầu',     path: '/assets',            tone: 'navy',  group: 'support' },
   { slug: 'eoffice',           icon: 'file-text', label: 'eOffice',    desc: 'Quản lý công việc, phê duyệt, văn phòng điện tử', path: '/eoffice', tone: 'navy', group: 'support' },
-  { slug: 'wc2026',            icon: 'trophy',    label: 'World Cup 2026', desc: 'Dự đoán kết quả trận đấu WC2026',             path: '/wc2026',  tone: 'gold', group: 'support', always: true },
   { slug: 'tasks',             icon: 'check',  label: 'Công việc',     desc: 'Tasks, deadline, phân công',              path: '/tasks',             tone: 'red',   group: 'support', always: true },
   { slug: 'projects',          icon: 'folder', label: 'Dự án',         desc: 'Quản lý dự án, tiến độ',                  path: '/projects',          tone: 'gold',  group: 'support', always: true },
-  { slug: 'unified-calendar',  icon: 'cal',    label: 'Lịch tổng hợp',desc: 'Nghỉ phép, deadline, tour, dự án',        path: '/unified-calendar',  tone: 'gold',  group: 'support', always: true },
+  { slug: 'wc2026',            icon: 'trophy',    label: 'World Cup 2026', desc: 'Dự đoán kết quả trận đấu WC2026',             path: '/wc2026',  tone: 'gold', group: 'support', always: true },
   { slug: 'hrm-app-setting',   icon: 'gear',   label: 'Cài đặt App',  desc: 'Thông báo đẩy, bộ nhớ cache, tài khoản', path: '/settings',          tone: 'navy',  group: 'support', always: true },
-  // ── Quản trị Hệ thống ──
-  { slug: 'service-accounts',  icon: 'shield', label: 'Service Account', desc: 'Quản lý M2M token, scope, IP cho hệ thống ngoài', path: '/m2m', tone: 'navy', group: 'system' },
-  { slug: 'service-accounts',  icon: 'gear',   label: 'Đồng bộ DB',      desc: 'Lịch sử & đối chiếu Standby→Stage (5h/13h)',      path: '/db-sync', tone: 'navy', group: 'system' },
 
-  // ── Báo cáo / Dashboard ──
+  // ── Dashboard & Báo cáo ──
   { slug: 'dashboard', icon: 'grid',   label: 'Dashboard',    desc: 'Tổng quan công ty, nhân sự, chấm công',    path: '/dashboard',            tone: 'navy', group: 'reports' },
   { slug: 'dashboard', icon: 'clock',  label: 'Dashboard CC', desc: 'Nghỉ phép, đi muộn, xu hướng theo tháng',  path: '/attendance-dashboard', tone: 'red',  group: 'reports' },
   { slug: 'export-attendance', icon: 'doc', label: 'Xuất CC Excel', desc: 'Xuất hoạt động chấm công tháng ra Excel', path: '/export-attendance', tone: 'gold', group: 'reports' },
   { slug: 'reports',   icon: 'grid',   label: 'Báo cáo',      desc: 'Chấm công, nghỉ phép, đề xuất',            path: '/reports',              tone: 'red',  group: 'reports' },
-  { slug: 'pms',       icon: 'target', label: 'Hiệu suất',    desc: 'KPI, mục tiêu, Feedback 360',               path: '/pms',                  tone: 'red',  group: 'reports' },
-  { slug: 'training',  icon: 'book',   label: 'Đào tạo',      desc: 'Khóa học, chứng chỉ, phát triển NV',        path: '/training',             tone: 'gold', group: 'reports' },
+
+  // ── Đánh giá & Hiệu suất ──
+  { slug: 'pms',       icon: 'target', label: 'Hiệu suất',    desc: 'KPI, mục tiêu, Feedback 360',               path: '/pms',                  tone: 'red',  group: 'performance' },
+  { slug: 'promotion-hub', icon: 'trophy',  label: 'Hub Thăng Tiến',  desc: '9-Box, đề xuất, phê duyệt, công bố',       path: '/promotion-hub',  tone: 'gold',    group: 'performance' },
+  { slug: 'training',  icon: 'book',   label: 'Đào tạo',      desc: 'Khóa học, chứng chỉ, phát triển NV',        path: '/training',             tone: 'gold', group: 'performance' },
+
+  // ── Quản trị hệ thống ──
+  { slug: 'service-accounts',  icon: 'shield', label: 'Service Account', desc: 'Quản lý M2M token, scope, IP cho hệ thống ngoài', path: '/m2m', tone: 'navy', group: 'system' },
+  { slug: 'service-accounts',  icon: 'gear',   label: 'Đồng bộ DB',      desc: 'Lịch sử & đối chiếu Standby→Stage (5h/13h)',      path: '/db-sync', tone: 'navy', group: 'system' },
 ]
 
 const toneBg: Record<string, string> = {
