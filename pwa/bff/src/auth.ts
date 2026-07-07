@@ -15,6 +15,49 @@ const COOKIE_OPTS = {
 };
 
 export async function authRoutes(app: FastifyInstance) {
+  // Refresh KC access token bằng refresh_token + đổi lại Horilla JWT. Trả true nếu OK.
+  // Dùng chung cho /kc-session (tự khôi phục) và /kc-refresh.
+  async function refreshKcTokens(session: {
+    kcAccessToken?: string; kcRefreshToken?: string; kcIdToken?: string; horillaJwt?: string;
+  }): Promise<boolean> {
+    if (!session?.kcRefreshToken) return false;
+    try {
+      const tokenRes = await fetch(`${env.KC_BASE}/protocol/openid-connect/token`, {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "refresh_token",
+          client_id: env.KC_CLIENT_ID,
+          refresh_token: session.kcRefreshToken,
+        }).toString(),
+      });
+      if (tokenRes.statusCode !== 200) {
+        app.log.warn({ status: tokenRes.statusCode }, "KC refresh token failed");
+        return false;
+      }
+      const kcTokens = (await tokenRes.body.json()) as {
+        access_token: string; refresh_token?: string; id_token?: string;
+      };
+      session.kcAccessToken = kcTokens.access_token;
+      if (kcTokens.refresh_token) session.kcRefreshToken = kcTokens.refresh_token;
+      if (kcTokens.id_token) session.kcIdToken = kcTokens.id_token;
+      // Đổi lấy Horilla JWT mới
+      const horillaRes = await fetch(`${env.HORILLA_API}/api/auth/oidc-login/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ access_token: kcTokens.access_token }),
+      });
+      if (horillaRes.statusCode === 200) {
+        const horillaData = (await horillaRes.body.json()) as { access: string };
+        session.horillaJwt = horillaData.access;
+      }
+      return true;
+    } catch (err) {
+      app.log.error(err, "KC refresh error");
+      return false;
+    }
+  }
+
   // Step 1: Redirect to Keycloak authorization endpoint with PKCE
   app.get("/bff/auth/login", async (req, reply) => {
     const { sessionId, session } = createSession();
@@ -147,7 +190,12 @@ export async function authRoutes(app: FastifyInstance) {
         const r = await fetch(`${env.KC_BASE}/protocol/openid-connect/userinfo`, {
           headers: { Authorization: `Bearer ${session.kcAccessToken}` },
         });
-        return reply.send({ valid: r.statusCode === 200 });
+        if (r.statusCode === 200) return reply.send({ valid: true });
+        // Access token hết hạn → thử refresh trước khi báo invalid. Tránh vòng lặp
+        // userinfo "Token is not active" (team kẹt login) + tự khôi phục phiên nếu
+        // refresh_token còn hạn. Refresh hỏng → invalid → FE chuyển về đăng nhập.
+        const refreshed = await refreshKcTokens(session);
+        return reply.send({ valid: refreshed });
       } catch {
         return reply.send({ valid: false });
       }
@@ -161,48 +209,8 @@ export async function authRoutes(app: FastifyInstance) {
     if (!sessionId) return reply.status(401).send({ ok: false, error: "no_session" });
     const session = getSession(sessionId);
     if (!session?.kcRefreshToken) return reply.status(401).send({ ok: false, error: "no_refresh_token" });
-
-    try {
-      const tokenRes = await fetch(`${env.KC_BASE}/protocol/openid-connect/token`, {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          grant_type: "refresh_token",
-          client_id: env.KC_CLIENT_ID,
-          refresh_token: session.kcRefreshToken,
-        }).toString(),
-      });
-
-      if (tokenRes.statusCode !== 200) {
-        app.log.warn({ status: tokenRes.statusCode }, "KC refresh token failed");
-        return reply.status(401).send({ ok: false, error: "refresh_failed" });
-      }
-
-      const kcTokens = (await tokenRes.body.json()) as {
-        access_token: string;
-        refresh_token?: string;
-        id_token?: string;
-      };
-      session.kcAccessToken = kcTokens.access_token;
-      if (kcTokens.refresh_token) session.kcRefreshToken = kcTokens.refresh_token;
-      if (kcTokens.id_token) session.kcIdToken = kcTokens.id_token;
-
-      // Re-exchange for a fresh Horilla JWT
-      const horillaRes = await fetch(`${env.HORILLA_API}/api/auth/oidc-login/`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ access_token: kcTokens.access_token }),
-      });
-      if (horillaRes.statusCode === 200) {
-        const horillaData = (await horillaRes.body.json()) as { access: string };
-        session.horillaJwt = horillaData.access;
-      }
-
-      return reply.send({ ok: true });
-    } catch (err) {
-      app.log.error(err, "KC refresh error");
-      return reply.status(500).send({ ok: false, error: "server_error" });
-    }
+    const ok = await refreshKcTokens(session);
+    return ok ? reply.send({ ok: true }) : reply.status(401).send({ ok: false, error: "refresh_failed" });
   });
 
   // /bff/auth/me — return current user info (frontend polls this)
