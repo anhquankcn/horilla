@@ -1951,6 +1951,8 @@ class WeatherProxyView(APIView):
         import json as _json
         import urllib.request
 
+        from django.core.cache import cache
+
         lat = request.query_params.get("lat", "")
         lng = request.query_params.get("lng", "")
         try:
@@ -1959,13 +1961,23 @@ class WeatherProxyView(APIView):
         except (ValueError, TypeError):
             return Response({"error": "invalid coordinates"}, status=400)
 
+        # Cache theo lưới ~1.1km (2 chữ số thập phân), TTL 10 phút. Giờ cao điểm
+        # chấm công hàng trăm app mở Home cùng gọi weather → nếu không cache, mỗi
+        # request chặn 1 worker-thread trong 4–14s (2 call external: wttr.in +
+        # Nominatim) → bão hoà thread → clock-in xếp hàng ("treo khi xử lý").
+        # Cache biến hàng trăm call external thành vài call / 10 phút / khu vực.
+        cache_key = f"weather:{lat_f:.2f}:{lng_f:.2f}"
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return Response(cached)
+
         temp, code, suburb, city = 0, 0, "", ""
 
-        # wttr.in — works reliably from server
+        # wttr.in — timeout ngắn để 1 lần cache-miss cũng không chặn worker lâu
         try:
             wx_url = f"https://wttr.in/{lat_f:.4f},{lng_f:.4f}?format=j1"
             req = urllib.request.Request(wx_url, headers={"User-Agent": "HNH-HRM-Server/1.0"})
-            with urllib.request.urlopen(req, timeout=8) as resp:
+            with urllib.request.urlopen(req, timeout=4) as resp:
                 w = _json.loads(resp.read())
             cur = w["current_condition"][0]
             temp = int(cur.get("temp_C", 0))
@@ -1981,7 +1993,7 @@ class WeatherProxyView(APIView):
                 f"?lat={lat_f:.5f}&lon={lng_f:.5f}&format=json&accept-language=vi"
             )
             req2 = urllib.request.Request(geo_url, headers={"User-Agent": "HNH-HRM-Server/1.0"})
-            with urllib.request.urlopen(req2, timeout=6) as resp2:
+            with urllib.request.urlopen(req2, timeout=3) as resp2:
                 g = _json.loads(resp2.read())
             addr = g.get("address", {})
             suburb = addr.get("suburb") or addr.get("quarter") or addr.get("neighbourhood") or ""
@@ -1994,7 +2006,11 @@ class WeatherProxyView(APIView):
         except Exception:
             pass
 
-        return Response({"temp": temp, "code": code, "suburb": suburb, "city": city})
+        result = {"temp": temp, "code": code, "suburb": suburb, "city": city}
+        # Có dữ liệu → cache 10 phút; rỗng (external down) → negative-cache 60s
+        # để tránh retry-storm đúng lúc service ngoài đang chậm (chính là sáng nay).
+        cache.set(cache_key, result, 600 if (temp or suburb or city) else 60)
+        return Response(result)
 
 
 # ── HRM Company Configuration ─────────────────────────────────────────────────
