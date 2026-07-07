@@ -536,36 +536,38 @@ function PunchDetailModal({
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {detail.punches.map((p, i) => {
-                const isIn = p.type === 'in'
+                // Ca 24h (ALD26): lượt đầu tiên → các lượt tiếp theo, không vào/ra cứng.
+                const isFirst = i === 0
+                const c = isFirst
+                  ? { bg: '#f0fdf4', bd: '#bbf7d0', icon: '#dcfce7', fg: '#15803d' }
+                  : { bg: HNH.navy50, bd: '#c7d2fe', icon: '#e0e7ff', fg: HNH.navy }
                 return (
                   <div key={i} style={{
                     display: 'flex', alignItems: 'center', gap: 14,
-                    background: isIn ? '#f0fdf4' : '#fff7ed',
-                    border: `1px solid ${isIn ? '#bbf7d0' : '#fdba74'}`,
+                    background: c.bg,
+                    border: `1px solid ${c.bd}`,
                     borderRadius: 10, padding: '10px 16px',
                   }}>
                     <div style={{
                       width: 32, height: 32, borderRadius: '50%',
-                      background: isIn ? '#dcfce7' : '#ffedd5',
+                      background: c.icon,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       flexShrink: 0,
                     }}>
-                      {isIn ? (
+                      {isFirst ? (
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                          <path d="M12 19V5M5 12l7-7 7 7" stroke={isIn ? '#15803d' : '#c2410c'} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+                          <path d="M12 19V5M5 12l7-7 7 7" stroke={c.fg} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
                         </svg>
                       ) : (
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                          <path d="M12 5v14M19 12l-7 7-7-7" stroke="#c2410c" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill={c.fg}/></svg>
                       )}
                     </div>
                     <div>
-                      <div style={{ fontSize: 16, fontWeight: 800, color: isIn ? '#15803d' : '#c2410c', letterSpacing: 0.5 }}>
+                      <div style={{ fontSize: 16, fontWeight: 800, color: c.fg, letterSpacing: 0.5 }}>
                         {p.time}
                       </div>
                       <div style={{ fontSize: 11, color: HNH.ink3, marginTop: 1 }}>
-                        Lượt {i + 1} · {isIn ? 'Vào ca' : 'Ra ca'}
+                        Lượt {i + 1} · {isFirst ? 'Lần đầu' : 'Lần tiếp theo'}
                       </div>
                     </div>
                     <div style={{ marginLeft: 'auto' }}>

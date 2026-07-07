@@ -224,16 +224,19 @@ export function flattenPunches(resp: ActivityResp | null): Punch[] {
   return out
 }
 
-function PunchCard({ punch, index, total, role, officeName }: {
-  punch: Punch; index: number; total: number; role: 'in' | 'out' | 'mid'; officeName: string
+function PunchCard({ punch, index, total, officeName }: {
+  punch: Punch; index: number; total: number; officeName: string
 }) {
   const [zoom, setZoom] = useState<string | null>(null)
   const isOut = punch.inside === false
   const isIn = punch.inside === true
   const distLabel = fmtDistance(punch.distanceM)
-  const roleLabel = role === 'in' ? 'Giờ vào ca' : role === 'out' ? 'Giờ ra ca' : 'Giờ chấm'
-  const accent = role === 'in' ? HNH.success : role === 'out' ? HNH.navy : HNH.ink2
-  const accentBg = role === 'in' ? HNH.success50 : role === 'out' ? HNH.navy50 : HNH.cream2
+  // Mô hình ALD26 ca 24h: hiển thị theo thứ tự lượt chấm (lần đầu → lần tiếp
+  // theo), không phải cặp vào/ra cứng.
+  const isFirst = index === 0
+  const roleLabel = isFirst ? 'Lần đầu' : `Lần ${index + 1}`
+  const accent = isFirst ? HNH.success : HNH.navy
+  const accentBg = isFirst ? HNH.success50 : HNH.navy50
 
   return (
     <div style={{ background: '#fff', borderRadius: 12, padding: '10px 12px', marginBottom: 8, border: `1px solid ${HNH.line}` }}>
@@ -244,7 +247,7 @@ function PunchCard({ punch, index, total, role, officeName }: {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2" style={{ flexWrap: 'wrap' }}>
             <span style={{ fontSize: 10.5, color: HNH.ink3, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.3 }}>Lượt {index + 1}/{total}</span>
-            <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 6, padding: '1px 7px', background: role === 'in' ? '#dcfce7' : role === 'out' ? HNH.navy50 : HNH.cream2, color: accent }}>{roleLabel}</span>
+            <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 6, padding: '1px 7px', background: isFirst ? '#dcfce7' : HNH.navy50, color: accent }}>{roleLabel}</span>
             {isIn && <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 6, padding: '1px 7px', background: '#dcfce7', color: '#15803d' }}>Trong VP</span>}
             {isOut && <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 6, padding: '1px 7px', background: '#fef3c7', color: '#92400e' }}>Ngoài VP</span>}
             {punch.noCamera && <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 6, padding: '1px 7px', background: '#fee2e2', color: '#b91c1c' }}>⚠ Không ảnh</span>}
@@ -264,10 +267,8 @@ function PunchCard({ punch, index, total, role, officeName }: {
   )
 }
 
-export function PunchList({ resp, loading, isPast }: { resp: ActivityResp | null; loading: boolean; isPast: boolean }) {
+export function PunchList({ resp, loading }: { resp: ActivityResp | null; loading: boolean; isPast: boolean }) {
   const punches = flattenPunches(resp)
-  const role = (i: number): 'in' | 'out' | 'mid' =>
-    i === 0 ? 'in' : (isPast && i === punches.length - 1 && punches.length >= 2 ? 'out' : 'mid')
   return (
     <>
       {loading && <div style={{ fontSize: 12, color: HNH.ink3 }}>Đang tải…</div>}
@@ -275,7 +276,7 @@ export function PunchList({ resp, loading, isPast }: { resp: ActivityResp | null
         <div style={{ fontSize: 12, color: HNH.ink3 }}>Không có lượt chấm nào.</div>
       )}
       {punches.map((p, i) => (
-        <PunchCard key={p.key} punch={p} index={i} total={punches.length} role={role(i)} officeName={resp?.office_name ?? ''} />
+        <PunchCard key={p.key} punch={p} index={i} total={punches.length} officeName={resp?.office_name ?? ''} />
       ))}
     </>
   )

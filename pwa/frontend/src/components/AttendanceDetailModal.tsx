@@ -82,15 +82,17 @@ function PhotoView({ src, label }: { src: string; label: string }) {
   )
 }
 
-function PunchCard({ punch, index, total, role, officeName }: {
-  punch: Punch; index: number; total: number; role: 'in' | 'out' | 'mid'; officeName: string
+function PunchCard({ punch, index, total, officeName }: {
+  punch: Punch; index: number; total: number; officeName: string
 }) {
   const isOut = punch.inside === false
   const isIn = punch.inside === true
   const distLabel = fmtDistance(punch.distanceM)
-  const roleLabel = role === 'in' ? 'Giờ vào ca' : role === 'out' ? 'Giờ ra ca' : 'Giờ chấm'
-  const accent = role === 'in' ? HNH.success : role === 'out' ? HNH.navy : HNH.ink2
-  const accentBg = role === 'in' ? HNH.success50 : role === 'out' ? HNH.navy50 : HNH.cream2
+  // Ca 24h (ALD26): lượt theo thứ tự — lần đầu → lần tiếp theo, không vào/ra cứng.
+  const isFirst = index === 0
+  const roleLabel = isFirst ? 'Lần đầu' : `Lần ${index + 1}`
+  const accent = isFirst ? HNH.success : HNH.navy
+  const accentBg = isFirst ? HNH.success50 : HNH.navy50
 
   return (
     <div style={{ background: '#fff', borderRadius: 16, padding: '12px 14px', border: `1px solid ${HNH.line}`, boxShadow: '0 1px 2px rgba(15,20,40,0.03)' }}>
@@ -101,7 +103,7 @@ function PunchCard({ punch, index, total, role, officeName }: {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2" style={{ flexWrap: 'wrap' }}>
             <span style={{ fontSize: 11, color: HNH.ink3, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.3 }}>Lượt {index + 1}/{total}</span>
-            <Badge tone={role === 'in' ? 'success' : role === 'out' ? 'navy' : 'ink'} size="s">{roleLabel}</Badge>
+            <Badge tone={isFirst ? 'success' : 'navy'} size="s">{roleLabel}</Badge>
             {/* Card badge Trong/Ngoài VP */}
             {isIn && <Badge tone="success" size="s">Trong VP</Badge>}
             {isOut && <Badge tone="warn" size="s">Ngoài VP</Badge>}
@@ -177,10 +179,6 @@ export function AttendanceDetailModal({ open, onClose, attendanceDate, clockIn, 
   const dateLabel = `${dayLabels[d.getDay()]}, ${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
 
   const punches = flattenPunches(resp ?? null)
-  const todayISO = new Date().toISOString().slice(0, 10)
-  const isPast = attendanceDate < todayISO
-  const punchRole = (i: number): 'in' | 'out' | 'mid' =>
-    i === 0 ? 'in' : (isPast && i === punches.length - 1 && punches.length >= 2 ? 'out' : 'mid')
   const isNco = !!resp?.is_nco
 
   const submitNco = async () => {
@@ -217,12 +215,12 @@ export function AttendanceDetailModal({ open, onClose, attendanceDate, clockIn, 
               <div style={{ fontSize: 13.5, fontWeight: 700, color: HNH.ink, marginBottom: 2 }}>{dateLabel}</div>
               <div className="flex items-center gap-4" style={{ marginTop: 8 }}>
                 <div>
-                  <div style={{ fontSize: 10.5, color: HNH.ink3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>Vào</div>
+                  <div style={{ fontSize: 10.5, color: HNH.ink3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>Lần đầu</div>
                   <div style={{ fontSize: 18, fontWeight: 800, color: HNH.ink, fontFamily: "'Plus Jakarta Sans', monospace" }}>{clockIn}</div>
                 </div>
                 <Icon name="arrow-r" size={16} color={HNH.ink3} />
                 <div>
-                  <div style={{ fontSize: 10.5, color: HNH.ink3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>{isNco ? 'Ra' : isPast ? 'Ra' : 'Chấm cuối'}</div>
+                  <div style={{ fontSize: 10.5, color: HNH.ink3, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.3 }}>Lần cuối</div>
                   <div style={{ fontSize: 18, fontWeight: 800, color: isNco ? '#ea580c' : HNH.ink, fontFamily: "'Plus Jakarta Sans', monospace" }}>{isNco ? 'NCO' : clockOut}</div>
                 </div>
                 <div className="ml-auto" style={{ textAlign: 'right' }}>
@@ -271,7 +269,7 @@ export function AttendanceDetailModal({ open, onClose, attendanceDate, clockIn, 
             {punches.length > 0 && (
               <div className="flex flex-col gap-2.5">
                 {punches.map((p, i) => (
-                  <PunchCard key={p.key} punch={p} index={i} total={punches.length} role={punchRole(i)} officeName={resp?.office_name ?? ''} />
+                  <PunchCard key={p.key} punch={p} index={i} total={punches.length} officeName={resp?.office_name ?? ''} />
                 ))}
               </div>
             )}

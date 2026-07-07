@@ -291,8 +291,8 @@ function ListView({ data }: { data: OverviewData }) {
                   </div>
                   <div style={{ fontSize: 11, color: HNH.ink3, fontWeight: 500, marginTop: 1 }}>
                     {a.badge_id ? `${a.badge_id} · ` : ''}
-                    Vào {a.clock_in || '—'}
-                    {a.clock_out ? ` · Ra ${a.clock_out}` : ' · Chưa ra'}
+                    Lần đầu {a.clock_in || '—'}
+                    {a.clock_out ? ` · Gần nhất ${a.clock_out}` : ' · chưa có lượt sau'}
                   </div>
                   {(a.clock_in_source || a.clock_out_source) && (
                     <div className="flex items-center gap-1" style={{ marginTop: 4, flexWrap: 'wrap' }}>
