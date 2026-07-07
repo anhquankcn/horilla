@@ -14,6 +14,7 @@ from calendar import monthrange
 from datetime import date, timedelta
 
 from django.utils import timezone
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -188,6 +189,157 @@ class HNHLeaveSummaryView(APIView):
             summary["scope"] = "employee"
         summary["usage_this_year"] = _usage_this_year(emp)
         return Response(summary)
+
+
+# Loại phép TRỪ vào số dư (cộng ra "Phép đầu" — khớp cột grid Nghỉ phép Tháng).
+_DEDUCT_LEAVE_NAMES = ["Nghỉ phép năm", "Phép Bù", "Phép Thâm Niên"]
+
+
+def _can_view_employee(request, me, emp):
+    """C&B xem mọi NV; quản lý xem NV dưới quyền; NV xem chính mình."""
+    if me and emp and emp.id == me.id:
+        return True
+    if _is_cnb(request):
+        return True
+    if me is None:
+        return False
+    return Employee.objects.filter(
+        id=emp.id, employee_work_info__reporting_manager_id=me, is_active=True
+    ).exists()
+
+
+class HNHLeaveDetailView(APIView):
+    """GET /api/leave/hnh-leave-detail/?employee_id=<id>
+
+    Chi tiết số dư phép của 1 NV theo TỪNG loại + đã dùng năm nay, cộng ra tổng
+    (khớp cột "Phép đầu" của Nghỉ phép Tháng). C&B xem mọi NV; QL xem NV dưới
+    quyền; NV xem chính mình.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        me = _get_employee(request)
+        if me is None:
+            return Response({"detail": "Không có hồ sơ nhân viên"}, status=404)
+
+        emp_id = request.query_params.get("employee_id")
+        if not emp_id:
+            emp = me
+        else:
+            emp = (
+                Employee.objects.filter(id=emp_id)
+                .select_related("employee_work_info__department_id", "employee_work_info__company_id")
+                .first()
+            )
+            if emp is None:
+                return Response({"detail": "Không tìm thấy nhân viên"}, status=404)
+
+        if not _can_view_employee(request, me, emp):
+            return Response({"detail": "Không có quyền xem nhân viên này"}, status=403)
+
+        # đã dùng năm nay theo leave_type_id
+        usage = {u["leave_type_id"]: u for u in _usage_this_year(emp)}
+
+        balances = []
+        total_start = 0.0
+        for al in AvailableLeave.objects.filter(employee_id=emp).select_related("leave_type_id"):
+            lt = al.leave_type_id
+            if not lt:
+                continue
+            start = round((al.available_days or 0) + (al.carryforward_days or 0), 2)
+            u = usage.get(lt.id, {})
+            deduct = lt.name in _DEDUCT_LEAVE_NAMES
+            balances.append({
+                "id": al.id,
+                "leave_type_id": lt.id,
+                "name": lt.name,
+                "available_days": round(al.available_days or 0, 2),
+                "carryforward_days": round(al.carryforward_days or 0, 2),
+                "start": start,                          # Phép đầu (loại này)
+                "taken_this_year": u.get("days", 0.0),   # đã dùng năm nay
+                "count_this_year": u.get("count", 0),
+                "deduct": deduct,                        # có trừ vào tổng dư không
+            })
+            if deduct:
+                total_start += start
+
+        # loại trừ-dư lên đầu, rồi theo tên
+        balances.sort(key=lambda b: (not b["deduct"], b["name"]))
+
+        wi = getattr(emp, "employee_work_info", None)
+        dept = str(wi.department_id) if (wi and wi.department_id) else ""
+        comp = wi.company_id.company if (wi and wi.company_id) else ""
+
+        return Response({
+            "employee": {
+                "id": emp.id,
+                "name": str(emp),
+                "badge_id": emp.badge_id or "",
+                "master_data_code": getattr(emp, "master_data_code", "") or "",
+                "department": dept,
+                "company": comp,
+            },
+            "balances": balances,
+            "total_start": round(total_start, 2),   # tổng Phép đầu (các loại trừ-dư)
+            "is_cnb": _is_cnb(request),
+        })
+
+
+class HNHAdjustBalanceView(APIView):
+    """POST /api/leave/hnh-adjust-balance/ — C&B chỉnh tay số dư 1 loại phép cho
+    1 NV (upsert AvailableLeave), không phải import cả công ty cho mỗi điều chỉnh.
+
+    Body: {employee_id, leave_type_id, available_days, carryforward_days, reason}
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if not _is_cnb(request):
+            return Response({"detail": "Chỉ C&B được chỉnh số dư phép"}, status=403)
+
+        from leave.models import LeaveType
+
+        emp = Employee.objects.filter(id=request.data.get("employee_id")).first()
+        lt = LeaveType.objects.filter(id=request.data.get("leave_type_id")).first()
+        if not emp or not lt:
+            return Response({"detail": "Thiếu nhân viên hoặc loại phép"}, status=400)
+        try:
+            avail = round(float(request.data.get("available_days")), 2)
+            carry = round(float(request.data.get("carryforward_days", 0) or 0), 2)
+        except (TypeError, ValueError):
+            return Response({"detail": "Số ngày không hợp lệ"}, status=400)
+        if avail < 0 or carry < 0:
+            return Response({"detail": "Số ngày không được âm"}, status=400)
+
+        al, created = AvailableLeave.objects.get_or_create(
+            employee_id=emp, leave_type_id=lt,
+            defaults={"available_days": 0, "carryforward_days": 0, "assigned_date": date.today()},
+        )
+        old_avail, old_carry = al.available_days, al.carryforward_days
+        al.available_days = avail
+        al.carryforward_days = carry
+        al.is_active = True
+        al.save()  # save() tự tính total_leave_days
+
+        reason = (request.data.get("reason") or "").strip()
+        import logging
+        logging.getLogger("hnh.leave").info(
+            "ADJUST BALANCE by=%s emp=%s(%s) type=%s avail %s->%s carry %s->%s reason=%r",
+            getattr(request.user, "username", "?"), emp.id, emp.badge_id, lt.name,
+            old_avail, avail, old_carry, carry, reason,
+        )
+
+        return Response({
+            "id": al.id,
+            "leave_type_id": lt.id,
+            "name": lt.name,
+            "available_days": round(al.available_days, 2),
+            "carryforward_days": round(al.carryforward_days, 2),
+            "start": round(al.available_days + al.carryforward_days, 2),
+            "created": created,
+        })
 
 
 class HNHCompensatoryProposalListCreateView(APIView):

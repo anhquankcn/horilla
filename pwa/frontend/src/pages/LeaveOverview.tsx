@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, type CSSProperties } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
@@ -167,6 +167,135 @@ function LeaveCell({ entries }: { entries: CellEntry[] }) {
 
 // ── Main page ─────────────────────────────────────────────────────────────────
 
+// ── Modal chi tiết phép 1 NV (breakdown + C&B sửa tay) ──────────────────────
+interface LeaveBalance {
+  leave_type_id: number
+  name: string
+  available_days: number
+  carryforward_days: number
+  start: number
+  taken_this_year: number
+  count_this_year: number
+  deduct: boolean
+}
+interface LeaveDetailData {
+  employee: { id: number; name: string; badge_id: string; department: string; company: string }
+  balances: LeaveBalance[]
+  total_start: number
+  is_cnb: boolean
+}
+
+const inpStyle: CSSProperties = {
+  width: '100%', padding: '8px 10px', borderRadius: 8, border: `1px solid ${HNH.line}`,
+  fontSize: 13, background: '#fff', boxSizing: 'border-box', fontFamily: 'inherit',
+}
+
+function LeaveDetailModal({ emp, onClose, onChanged }: {
+  emp: { id: number; name: string }; onClose: () => void; onChanged: () => void
+}) {
+  const [data, setData] = useState<LeaveDetailData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [editId, setEditId] = useState<number | null>(null)
+  const [eAvail, setEAvail] = useState('')
+  const [eCarry, setECarry] = useState('')
+  const [eReason, setEReason] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const load = useCallback(async () => {
+    setLoading(true)
+    try {
+      setData(await api.get<LeaveDetailData>(`/api/leave/hnh-leave-detail/?employee_id=${emp.id}`))
+    } catch { /* silent */ } finally { setLoading(false) }
+  }, [emp.id])
+  useEffect(() => { load() }, [load])
+
+  function startEdit(b: LeaveBalance) {
+    setEditId(b.leave_type_id); setEAvail(String(b.available_days))
+    setECarry(String(b.carryforward_days)); setEReason('')
+  }
+  async function saveEdit(b: LeaveBalance) {
+    setSaving(true)
+    try {
+      await api.post('/api/leave/hnh-adjust-balance/', {
+        employee_id: emp.id, leave_type_id: b.leave_type_id,
+        available_days: parseFloat(eAvail) || 0, carryforward_days: parseFloat(eCarry) || 0,
+        reason: eReason,
+      })
+      setEditId(null); await load(); onChanged()
+    } catch { alert('Không lưu được số dư') } finally { setSaving(false) }
+  }
+
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: '20px 20px 0 0', width: '100%', maxWidth: 520, maxHeight: '86vh', overflowY: 'auto', padding: '18px 18px 28px' }}>
+        <div className="flex items-center justify-between" style={{ marginBottom: 12 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: HNH.ink, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{data?.employee.name ?? emp.name}</div>
+            {data && <div style={{ fontSize: 11, color: HNH.ink3, marginTop: 1 }}>{data.employee.badge_id}{data.employee.department ? ` · ${data.employee.department}` : ''}</div>}
+          </div>
+          <button onClick={onClose} style={{ border: 'none', background: 'none', cursor: 'pointer', padding: 4, flexShrink: 0 }}>
+            <Icon name="x" size={20} color={HNH.ink3} />
+          </button>
+        </div>
+
+        {loading ? (
+          <div style={{ padding: 30, textAlign: 'center', color: HNH.ink3, fontSize: 13 }}>Đang tải…</div>
+        ) : data && (
+          <>
+            <div style={{ background: HNH.navy50, borderRadius: 12, padding: '10px 14px', marginBottom: 12 }} className="flex items-center justify-between">
+              <span style={{ fontSize: 12, fontWeight: 700, color: HNH.navy }}>Tổng Phép đầu (các loại trừ dư)</span>
+              <span style={{ fontSize: 20, fontWeight: 800, color: HNH.navy }}>{data.total_start}</span>
+            </div>
+
+            {data.balances.map(b => (
+              <div key={b.leave_type_id} style={{ border: `1px solid ${HNH.line}`, borderRadius: 12, padding: '10px 12px', marginBottom: 8, background: b.deduct ? '#fff' : HNH.cream }}>
+                <div className="flex items-center justify-between gap-2">
+                  <div style={{ fontSize: 13, fontWeight: 700, color: HNH.ink }}>
+                    {b.name}
+                    {b.deduct && <span style={{ fontSize: 9, marginLeft: 6, color: HNH.navy, background: HNH.navy50, borderRadius: 5, padding: '1px 6px', fontWeight: 700 }}>trừ dư</span>}
+                  </div>
+                  {data.is_cnb && editId !== b.leave_type_id && (
+                    <button onClick={() => startEdit(b)} style={{ fontSize: 11, fontWeight: 700, color: HNH.red, background: HNH.red50, border: 'none', borderRadius: 8, padding: '3px 10px', cursor: 'pointer', flexShrink: 0 }}>Sửa</button>
+                  )}
+                </div>
+
+                {editId === b.leave_type_id ? (
+                  <div style={{ marginTop: 8 }}>
+                    <div className="flex gap-2">
+                      <label style={{ flex: 1 }}>
+                        <div style={{ fontSize: 10, color: HNH.ink3, marginBottom: 3, fontWeight: 600 }}>Khả dụng</div>
+                        <input value={eAvail} onChange={e => setEAvail(e.target.value)} type="number" step="0.5" style={inpStyle} />
+                      </label>
+                      <label style={{ flex: 1 }}>
+                        <div style={{ fontSize: 10, color: HNH.ink3, marginBottom: 3, fontWeight: 600 }}>Chuyển kỳ</div>
+                        <input value={eCarry} onChange={e => setECarry(e.target.value)} type="number" step="0.5" style={inpStyle} />
+                      </label>
+                    </div>
+                    <input value={eReason} onChange={e => setEReason(e.target.value)} placeholder="Lý do điều chỉnh (tuỳ chọn)" style={{ ...inpStyle, marginTop: 6 }} />
+                    <div className="flex gap-2" style={{ marginTop: 8 }}>
+                      <button onClick={() => setEditId(null)} style={{ flex: 1, padding: '9px', borderRadius: 10, border: `1px solid ${HNH.line}`, background: '#fff', color: HNH.ink2, fontSize: 13, fontWeight: 700, cursor: 'pointer' }}>Huỷ</button>
+                      <button onClick={() => saveEdit(b)} disabled={saving} style={{ flex: 1, padding: '9px', borderRadius: 10, border: 'none', background: saving ? HNH.ink4 : HNH.navy, color: '#fff', fontSize: 13, fontWeight: 700, cursor: saving ? 'default' : 'pointer' }}>{saving ? 'Đang lưu…' : 'Lưu'}</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-4" style={{ marginTop: 6, fontSize: 12 }}>
+                    <span style={{ color: HNH.ink2 }}>Phép đầu: <b style={{ color: HNH.ink }}>{b.start}</b></span>
+                    <span style={{ color: HNH.ink2 }}>Đã dùng: <b style={{ color: b.taken_this_year > 0 ? '#a87908' : HNH.ink }}>{b.taken_this_year}</b></span>
+                    {b.count_this_year > 0 && <span style={{ color: HNH.ink3, fontSize: 11 }}>· {b.count_this_year} lượt</span>}
+                  </div>
+                )}
+              </div>
+            ))}
+            {data.balances.length === 0 && (
+              <div style={{ padding: 20, textAlign: 'center', color: HNH.ink3, fontSize: 13 }}>NV chưa có số dư phép nào.</div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function LeaveOverviewPage() {
   const navigate = useNavigate()
   const today = todayStr()
@@ -182,6 +311,7 @@ export function LeaveOverviewPage() {
   const [data, setData] = useState<OverviewData | null>(null)
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
+  const [detailEmp, setDetailEmp] = useState<{ id: number; name: string } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -478,14 +608,17 @@ export function LeaveOverviewPage() {
                 key={emp.id}
                 style={{ display: 'flex', borderBottom: `1px solid ${HNH.line}` }}
               >
-                {/* Name col — sticky left */}
-                <div style={{
-                  width: NAME_W, flexShrink: 0,
-                  position: 'sticky', left: 0, zIndex: 1, background: '#fff',
-                  borderRight: `1px solid ${HNH.line}`,
-                  padding: '0 8px', height: ROW_H,
-                  display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 1,
-                }}>
+                {/* Name col — sticky left, bấm để xem chi tiết phép NV */}
+                <div
+                  onClick={() => setDetailEmp({ id: emp.id, name: emp.name })}
+                  title="Xem chi tiết phép"
+                  style={{
+                    width: NAME_W, flexShrink: 0, cursor: 'pointer',
+                    position: 'sticky', left: 0, zIndex: 1, background: '#fff',
+                    borderRight: `1px solid ${HNH.line}`,
+                    padding: '0 8px', height: ROW_H,
+                    display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 1,
+                  }}>
                   <div style={{
                     fontSize: 12, fontWeight: 700, color: HNH.ink,
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
@@ -600,6 +733,10 @@ export function LeaveOverviewPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {detailEmp && (
+        <LeaveDetailModal emp={detailEmp} onClose={() => setDetailEmp(null)} onChanged={load} />
       )}
     </div>
   )
