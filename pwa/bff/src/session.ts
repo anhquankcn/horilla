@@ -36,9 +36,9 @@ function getRedis(): Redis | null {
       host: env.REDIS_HOST,
       port: env.REDIS_PORT,
       password: env.REDIS_PASSWORD || undefined,
+      connectTimeout: 3000,
       maxRetriesPerRequest: 2,
-      retryStrategy: (times) => Math.min(times * 200, 2000),
-      enableOfflineQueue: false,
+      retryStrategy: (times) => (times > 5 ? null : Math.min(times * 300, 2000)),
     });
     redis.on("error", (e) => console.error("[session] redis error:", e.message));
     return redis;
