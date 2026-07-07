@@ -20,4 +20,9 @@ export const env = {
   MS_CLIENT_ID: process.env.MS_CLIENT_ID ?? "",
   MS_CLIENT_SECRET: process.env.MS_CLIENT_SECRET ?? "",
   MS_REDIRECT_URI: process.env.MS_REDIRECT_URI ?? "https://qlns.hnhtravel.work/bff/outlook/callback",
+  // Redis — lưu snapshot phiên để sống qua restart BFF (không bắt cả cty re-login).
+  // Không kết nối được → BFF vẫn chạy in-memory (degrade an toàn).
+  REDIS_HOST: process.env.REDIS_HOST ?? "redis",
+  REDIS_PORT: Number(process.env.REDIS_PORT ?? 6379),
+  REDIS_PASSWORD: process.env.REDIS_PASSWORD ?? "",
 } as const;

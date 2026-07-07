@@ -29,9 +29,13 @@ services:
       MS_CLIENT_ID: ${MS_CLIENT_ID:-}
       MS_CLIENT_SECRET: ${MS_CLIENT_SECRET:-}
       MS_REDIRECT_URI: ${MS_REDIRECT_URI:-https://qlns-stage.hnhtravel.work/bff/outlook/callback}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
     restart: always
     depends_on:
       - web
+      - redis
 
   pwa:
     build:
