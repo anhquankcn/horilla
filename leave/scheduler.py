@@ -141,10 +141,10 @@ if not any(
 
     scheduler = BackgroundScheduler()
     scheduler.add_job(leave_reset, "interval", seconds=20)
-    # #4 — nhắc duyệt: chạy 08:00 giờ VN mỗi ngày (CAS guard chống trùng worker).
+    # #4 — nhắc duyệt: chạy 09:00 giờ VN mỗi ngày (CAS guard chống trùng worker).
     scheduler.add_job(
         leave_approval_reminder,
-        CronTrigger(hour=8, minute=0, timezone="Asia/Ho_Chi_Minh"),
+        CronTrigger(hour=9, minute=0, timezone="Asia/Ho_Chi_Minh"),
         id="leave_approval_reminder",
         replace_existing=True,
     )
