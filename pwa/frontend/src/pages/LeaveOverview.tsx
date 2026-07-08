@@ -57,6 +57,11 @@ interface CellEntry {
   is_afternoon: boolean
   is_hourly: boolean
   time_range: string | null
+  start_date?: string | null
+  end_date?: string | null
+  requested_days?: number | null
+  requested_hours?: number | null
+  description?: string
 }
 
 interface OverviewData {
@@ -296,6 +301,85 @@ function LeaveDetailModal({ emp, onClose, onChanged }: {
   )
 }
 
+// ── Modal chi tiết ĐƠN nghỉ (bấm vào ô ngày) — giữa màn hình ─────────────────
+function LeaveRequestDetailModal({ emp, entries, onClose }: {
+  emp: EmpInfo
+  entries: CellEntry[]
+  onClose: () => void
+}) {
+  const stLabel: Record<string, string> = { approved: 'Đã duyệt', requested: 'Chờ duyệt', rejected: 'Từ chối' }
+  const fmtD = (s?: string | null) => {
+    if (!s) return '—'
+    const [y, m, d] = s.split('-')
+    return `${d}/${m}/${y}`
+  }
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: 'fixed', inset: 0, zIndex: 120, background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{ background: '#fff', borderRadius: 20, width: '100%', maxWidth: 440, maxHeight: '85vh', overflowY: 'auto', boxShadow: '0 24px 48px rgba(0,0,0,0.25)' }}
+      >
+        {/* Header */}
+        <div style={{ padding: '16px 18px', borderBottom: `1px solid ${HNH.line}`, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: HNH.ink }}>Chi tiết đơn nghỉ</div>
+            <div style={{ fontSize: 12, color: HNH.ink3, marginTop: 2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {emp.name}{emp.badge_id ? ` · ${emp.badge_id}` : ''}
+            </div>
+          </div>
+          <button onClick={onClose} style={{ border: 'none', background: HNH.cream, borderRadius: 10, width: 34, height: 34, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <Icon name="x" size={18} color={HNH.ink} stroke={2} />
+          </button>
+        </div>
+
+        {/* Body — mỗi đơn 1 khối */}
+        <div style={{ padding: '12px 18px 18px' }}>
+          {entries.map((en, i) => {
+            const c = STATUS_COLORS[en.status] || STATUS_COLORS.requested
+            const range = en.start_date && en.end_date && en.start_date !== en.end_date
+              ? `${fmtD(en.start_date)} → ${fmtD(en.end_date)}`
+              : fmtD(en.start_date)
+            const rows: [string, string][] = [['Loại nghỉ', en.name], ['Thời gian', range]]
+            if (en.is_hourly && en.time_range) {
+              rows.push(['Khung giờ', `${en.time_range}${en.requested_hours ? ` (${en.requested_hours}h)` : ''}`])
+            } else {
+              rows.push(['Buổi', en.is_morning && en.is_afternoon ? 'Cả ngày' : en.is_morning ? 'Buổi sáng' : 'Buổi chiều'])
+            }
+            if (en.requested_days != null) {
+              rows.push(['Số ngày', `${en.requested_days % 1 === 0 ? en.requested_days : en.requested_days.toFixed(2)} ngày`])
+            }
+            const last = i === entries.length - 1
+            return (
+              <div key={`${en.id}_${i}`} style={{ marginBottom: last ? 0 : 14, paddingBottom: last ? 0 : 14, borderBottom: last ? 'none' : `1px solid ${HNH.line}` }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 4 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20, background: c.bg, color: c.text }}>
+                    {stLabel[en.status] || en.status}
+                  </span>
+                </div>
+                {rows.map(([k, v]) => (
+                  <div key={k} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '8px 0', borderBottom: `1px solid ${HNH.line}`, fontSize: 13 }}>
+                    <span style={{ color: HNH.ink3, flexShrink: 0 }}>{k}</span>
+                    <span style={{ fontWeight: 600, color: HNH.ink, textAlign: 'right' }}>{v}</span>
+                  </div>
+                ))}
+                {en.description && (
+                  <div style={{ marginTop: 10 }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.3 }}>NỘI DUNG / LÝ DO</div>
+                    <div style={{ marginTop: 5, background: HNH.cream, borderRadius: 10, padding: '9px 11px', fontSize: 13, color: HNH.ink, lineHeight: 1.5 }}>{en.description}</div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function LeaveOverviewPage() {
   const navigate = useNavigate()
   const today = todayStr()
@@ -312,6 +396,7 @@ export function LeaveOverviewPage() {
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
   const [detailEmp, setDetailEmp] = useState<{ id: number; name: string } | null>(null)
+  const [detailEntry, setDetailEntry] = useState<{ emp: EmpInfo; entries: CellEntry[] } | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -701,14 +786,18 @@ export function LeaveOverviewPage() {
                   const key = `${emp.id}_${d}`
                   const entries = data?.cells[key] ?? []
                   const isToday = d === today
+                  const hasLeave = entries.length > 0
                   return (
                     <div
                       key={d}
+                      onClick={() => hasLeave && setDetailEntry({ emp, entries })}
+                      title={hasLeave ? 'Xem chi tiết đơn nghỉ' : undefined}
                       style={{
                         width: CELL_W, height: ROW_H, flexShrink: 0,
                         borderLeft: `1px solid ${HNH.line}`,
                         background: isToday ? '#fff1f2' : isWeekend(d) ? '#fafafa' : '#fff',
                         padding: 3,
+                        cursor: hasLeave ? 'pointer' : 'default',
                       }}
                     >
                       <LeaveCell entries={entries} />
@@ -782,6 +871,14 @@ export function LeaveOverviewPage() {
 
       {detailEmp && (
         <LeaveDetailModal emp={detailEmp} onClose={() => setDetailEmp(null)} onChanged={load} />
+      )}
+
+      {detailEntry && (
+        <LeaveRequestDetailModal
+          emp={detailEntry.emp}
+          entries={detailEntry.entries}
+          onClose={() => setDetailEntry(null)}
+        />
       )}
     </div>
   )

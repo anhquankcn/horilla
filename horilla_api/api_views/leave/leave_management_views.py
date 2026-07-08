@@ -1176,6 +1176,12 @@ class HNHLeaveOverviewView(APIView):
                     "is_afternoon": is_afternoon,
                     "is_hourly": bool(getattr(lr, "is_hourly", False)),
                     "time_range": time_range,
+                    # Chi tiết đơn (cho modal khi bấm vào ô) — toàn bộ đơn, không phải 1 ngày.
+                    "start_date": lr.start_date.isoformat() if lr.start_date else None,
+                    "end_date": (lr.end_date or lr.start_date).isoformat() if lr.start_date else None,
+                    "requested_days": lr.requested_days,
+                    "requested_hours": getattr(lr, "requested_hours", None),
+                    "description": lr.description or "",
                 }
                 cells.setdefault(key, []).append(entry)
 
