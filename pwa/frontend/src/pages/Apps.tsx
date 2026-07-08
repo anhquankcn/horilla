@@ -63,6 +63,7 @@ const features: AppFeature[] = [
   { slug: 'leave-management', icon: 'leaf',  label: 'Quản lý Phép',    desc: 'Phép bù, thâm niên, duyệt đề xuất',   path: '/leave-management', tone: 'success', group: 'attendance' },
   { slug: 'leave-overview',   icon: 'grid',  label: 'Nghỉ phép Tháng', desc: 'Lịch nghỉ toàn bộ NV theo tháng + phép đầu/cuối, lọc công ty/phòng', path: '/leave/overview',  tone: 'success', group: 'attendance' },
   { slug: 'leave-import',     icon: 'upload', label: 'Import Phép Năm', desc: 'Nhập số ngày phép đầu năm từ file Excel', path: '/leave/import',   tone: 'gold',    group: 'attendance' },
+  { slug: 'leave-approver-config', icon: 'gear', label: 'Cấu hình duyệt phép', desc: 'Gán người C&B duyệt theo công ty/phòng + xem người duyệt mỗi NV', path: '/leave/approver-config', tone: 'navy', group: 'attendance' },
 
   // ── Lịch làm việc ──
   { slug: 'work-schedule',       icon: 'cal',   label: 'Lịch làm việc', desc: 'Ca làm, giờ vào ra theo tuần',                         path: '/work-schedule',             tone: 'navy', group: 'schedule', always: true },

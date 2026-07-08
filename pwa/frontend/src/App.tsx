@@ -57,6 +57,7 @@ import { LeaveManagementPage } from './pages/LeaveManagement'
 import { LeaveApprovalPage } from './pages/LeaveApproval'
 import { LeaveOverviewPage } from './pages/LeaveOverview'
 import { LeaveImportPage } from './pages/LeaveImport'
+import { LeaveApproverConfigPage } from './pages/LeaveApproverConfig'
 import { AttendanceManagerViewPage } from './pages/AttendanceManagerView'
 import { HNHLifePage } from './pages/HNHLife'
 import { TaskBoardPage } from './pages/TaskBoard'
@@ -142,6 +143,7 @@ export function App() {
         <Route path="/leave/approvals" element={<LeaveApprovalPage />} />
         <Route path="/leave/overview" element={<LeaveOverviewPage />} />
         <Route path="/leave/import" element={<LeaveImportPage />} />
+        <Route path="/leave/approver-config" element={<LeaveApproverConfigPage />} />
         <Route path="/attendance-manager" element={<AttendanceManagerViewPage />} />
         <Route path="/life" element={<HNHLifePage />} />
         <Route path="/task-board" element={<TaskBoardPage />} />

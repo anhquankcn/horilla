@@ -503,6 +503,121 @@ class HNHApprovedLeavesView(APIView):
         return Response(results)
 
 
+def _cb_rule_dict(r):
+    return {
+        "id": r.id,
+        "company_id": r.company_id_id,
+        "company": r.company_id.company if r.company_id else None,
+        "department_id": r.department_id_id,
+        "department": r.department_id.department if r.department_id else None,
+        "manager_id": r.manager_id_id,
+        "manager_name": str(r.manager_id) if r.manager_id else None,
+        "manager_badge": r.manager_id.badge_id if r.manager_id else None,
+    }
+
+
+class HNHCBManagersView(APIView):
+    """GET  /api/leave/hnh-cb-managers/  — C&B liệt kê rule người duyệt (cty/phòng→người).
+    POST /api/leave/hnh-cb-managers/  — upsert theo (company_id, department_id).
+    Body: {company_id|null, department_id|null, manager_id}. Chỉ C&B.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not _is_cnb(request):
+            return Response({"detail": "Chỉ C&B"}, status=403)
+        from leave.models import CBLeaveManager
+
+        qs = CBLeaveManager.objects.select_related(
+            "company_id", "department_id", "manager_id"
+        ).order_by("company_id__company", "department_id__department")
+        return Response([_cb_rule_dict(r) for r in qs])
+
+    def post(self, request):
+        if not _is_cnb(request):
+            return Response({"detail": "Chỉ C&B"}, status=403)
+        from leave.models import CBLeaveManager
+
+        manager = Employee.objects.filter(
+            id=request.data.get("manager_id"), is_active=True
+        ).first()
+        if not manager:
+            return Response({"detail": "Thiếu/không hợp lệ người duyệt"}, status=400)
+        company_id = request.data.get("company_id") or None
+        department_id = request.data.get("department_id") or None
+
+        # unique_together (company_id, department_id) → upsert đúng 1 rule/tổ hợp.
+        rule, created = CBLeaveManager.objects.update_or_create(
+            company_id_id=company_id,
+            department_id_id=department_id,
+            defaults={"manager_id": manager},
+        )
+        rule = (
+            CBLeaveManager.objects.select_related(
+                "company_id", "department_id", "manager_id"
+            ).get(id=rule.id)
+        )
+        return Response({**_cb_rule_dict(rule), "created": created})
+
+
+class HNHCBManagerDetailView(APIView):
+    """DELETE /api/leave/hnh-cb-managers/<pk>/ — xoá 1 rule. Chỉ C&B."""
+
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk):
+        if not _is_cnb(request):
+            return Response({"detail": "Chỉ C&B"}, status=403)
+        from leave.models import CBLeaveManager
+
+        deleted, _ = CBLeaveManager.objects.filter(id=pk).delete()
+        if not deleted:
+            return Response({"detail": "Không tìm thấy rule"}, status=404)
+        return Response(status=204)
+
+
+class HNHApproverMapView(APIView):
+    """GET /api/leave/hnh-approver-map/?company&department — mỗi NV: quản lý trực
+    tiếp (reporting_manager) + người C&B duyệt (resolved theo rule). Chỉ C&B.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not _is_cnb(request):
+            return Response({"detail": "Chỉ C&B"}, status=403)
+        from leave.models import resolve_cb_manager
+
+        qs = Employee.objects.filter(is_active=True).select_related(
+            "employee_work_info__reporting_manager_id",
+            "employee_work_info__department_id",
+            "employee_work_info__company_id",
+        )
+        company_id = request.query_params.get("company")
+        dept_id = request.query_params.get("department")
+        if company_id:
+            qs = qs.filter(employee_work_info__company_id=company_id)
+        if dept_id:
+            qs = qs.filter(employee_work_info__department_id=dept_id)
+
+        data = []
+        for e in qs.order_by("employee_first_name")[:300]:
+            wi = getattr(e, "employee_work_info", None)
+            rm = wi.reporting_manager_id if wi else None
+            cb = resolve_cb_manager(e)
+            data.append({
+                "id": e.id,
+                "name": str(e),
+                "badge_id": e.badge_id,
+                "department": wi.department_id.department if wi and wi.department_id else None,
+                "company": wi.company_id.company if wi and wi.company_id else None,
+                "reporting_manager": str(rm) if rm else None,
+                "cb_manager": str(cb) if cb else None,
+            })
+        return Response(data)
+
+
 class HNHCompensatoryProposalListCreateView(APIView):
     """
     GET  — manager sees their team's proposals; C&B sees all pending.

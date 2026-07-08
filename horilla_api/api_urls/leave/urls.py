@@ -72,6 +72,9 @@ urlpatterns = [
     path("hnh-adjust-balance/", lmv.HNHAdjustBalanceView.as_view(), name="api-leave-hnh-adjust-balance"),
     path("hnh-approved-leaves/", lmv.HNHApprovedLeavesView.as_view(), name="api-leave-hnh-approved-leaves"),
     path("hnh-cancel-approved/<int:pk>/", lmv.HNHCancelApprovedView.as_view(), name="api-leave-hnh-cancel-approved"),
+    path("hnh-cb-managers/", lmv.HNHCBManagersView.as_view(), name="api-leave-hnh-cb-managers"),
+    path("hnh-cb-managers/<int:pk>/", lmv.HNHCBManagerDetailView.as_view(), name="api-leave-hnh-cb-manager-detail"),
+    path("hnh-approver-map/", lmv.HNHApproverMapView.as_view(), name="api-leave-hnh-approver-map"),
     path("hnh-leave-import/template/", lmv.LeaveImportTemplateView.as_view(), name="api-leave-import-template"),
     path("hnh-leave-import/", lmv.LeaveImportView.as_view(), name="api-leave-import"),
 ]
