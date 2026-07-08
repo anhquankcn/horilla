@@ -543,6 +543,7 @@ class ClockOutAPIView(APIView):
     def _notify_manager_outside_geofence(employee, distance_m, sender_user):
         """Notify reporting manager when employee clocks out outside geofence."""
         try:
+            from django.urls import reverse
             from notifications.signals import notify
             work_info = getattr(employee, "employee_work_info", None)
             if not work_info or not work_info.reporting_manager_id:
@@ -557,6 +558,7 @@ class ClockOutAPIView(APIView):
                 sender_user,
                 recipient=manager_user,
                 verb=verb,
+                redirect=reverse("attendance-view"),
                 icon="location-outline",
             )
         except Exception as e:
