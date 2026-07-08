@@ -953,6 +953,12 @@ class LeaveRequest(HorillaModel):
     cancelled_at = models.DateTimeField(
         null=True, blank=True, verbose_name=_("Cancelled At")
     )
+    # HNH #4 — nhắc người duyệt đơn treo. reminder_count: số lần đã nhắc (0..3);
+    # dùng làm khoá atomic (CAS) chống nhắc trùng khi job chạy nhiều worker.
+    reminder_count = models.IntegerField(default=0, verbose_name=_("Reminder Count"))
+    last_reminded_at = models.DateTimeField(
+        null=True, blank=True, verbose_name=_("Last Reminded At")
+    )
     history = HorillaAuditLog(
         related_name="history_set",
         bases=[
