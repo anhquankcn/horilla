@@ -47,6 +47,7 @@ interface ApprovedLeave {
   end_date: string
   requested_days: number | null
   description: string
+  status?: string
   has_conflict: boolean
   worked_days: string[]
 }
@@ -380,6 +381,98 @@ function ApprovedLeaveCard({ leave, isCnb, onCancel }: {
   )
 }
 
+function PendingLeaveCard({ leave, isCnb, onApprove, onReject }: {
+  leave: ApprovedLeave
+  isCnb: boolean
+  onApprove: (id: number) => void
+  onReject: (id: number, reason: string) => void
+}) {
+  const [reason, setReason] = useState('')
+  const [showReject, setShowReject] = useState(false)
+  const range = leave.end_date && leave.end_date !== leave.start_date
+    ? `${fmtDate(leave.start_date)} → ${fmtDate(leave.end_date)}`
+    : fmtDate(leave.start_date)
+
+  return (
+    <div style={{
+      background: '#fff', borderRadius: 16, padding: 14, marginBottom: 10,
+      border: `1px solid ${HNH.line}`, boxShadow: '0 2px 8px rgba(15,20,40,0.05)',
+    }}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div style={{ fontSize: 14, fontWeight: 700, color: HNH.ink }}>{leave.employee_name}</div>
+          {(leave.company || leave.department) && (
+            <div style={{ fontSize: 11, color: HNH.navy, marginTop: 1 }}>{[leave.department, leave.company].filter(Boolean).join(' · ')}</div>
+          )}
+        </div>
+        <Badge tone="warn" size="s">Chờ duyệt</Badge>
+      </div>
+
+      <div style={{ marginTop: 8, fontSize: 12.5, color: HNH.ink2 }}>
+        <span style={{ fontWeight: 700, color: HNH.ink }}>{leave.leave_type}</span>
+        {' · '}{range}
+        {leave.requested_days != null && <> · {leave.requested_days} ngày</>}
+      </div>
+      {leave.description && (
+        <div style={{ fontSize: 12, color: HNH.ink3, marginTop: 3, fontStyle: 'italic' }}>"{leave.description}"</div>
+      )}
+
+      {isCnb && (
+        <div style={{ marginTop: 12 }}>
+          {!showReject ? (
+            <div className="flex gap-2">
+              <button
+                onClick={() => onApprove(leave.id)}
+                className="flex-1 flex items-center justify-center gap-1 border-none cursor-pointer"
+                style={{ height: 36, borderRadius: 10, background: HNH.success, color: '#fff', fontWeight: 700, fontSize: 13 }}
+              >
+                <Icon name="check" size={14} color="#fff" stroke={2.5} />
+                Duyệt
+              </button>
+              <button
+                onClick={() => setShowReject(true)}
+                className="flex-1 border-none cursor-pointer"
+                style={{ height: 36, borderRadius: 10, background: HNH.red50, color: HNH.red, fontWeight: 700, fontSize: 13 }}
+              >
+                Từ chối
+              </button>
+            </div>
+          ) : (
+            <div>
+              <input
+                value={reason}
+                onChange={e => setReason(e.target.value)}
+                placeholder="Lý do từ chối..."
+                style={{
+                  width: '100%', border: `1px solid ${HNH.line}`, borderRadius: 8,
+                  padding: '6px 10px', fontSize: 13, color: HNH.ink,
+                  fontFamily: 'inherit', marginBottom: 6, outline: 'none', boxSizing: 'border-box',
+                }}
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => onReject(leave.id, reason)}
+                  className="flex-1 border-none cursor-pointer"
+                  style={{ height: 32, borderRadius: 8, background: HNH.red, color: '#fff', fontWeight: 700, fontSize: 12 }}
+                >
+                  Xác nhận
+                </button>
+                <button
+                  onClick={() => { setShowReject(false); setReason('') }}
+                  className="flex-1 border-none cursor-pointer"
+                  style={{ height: 32, borderRadius: 8, background: HNH.cream2, color: HNH.ink2, fontWeight: 600, fontSize: 12 }}
+                >
+                  Hủy
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function LeaveManagementPage() {
   const navigate = useNavigate()
   const [view, setView] = useState<'bu' | 'leave'>('bu')
@@ -387,6 +480,7 @@ export function LeaveManagementPage() {
   const [company, setCompany] = useState<number | ''>('')
   const [department, setDepartment] = useState<number | ''>('')
   const [month, setMonth] = useState(thisMonth())
+  const [leaveStatus, setLeaveStatus] = useState<'requested' | 'approved'>('requested')
   const [showCreate, setShowCreate] = useState(false)
 
   const propUrl = (() => {
@@ -404,9 +498,11 @@ export function LeaveManagementPage() {
   const isCnb = () => summaryData?.scope === 'cnb'
   const deptOptions = (meta?.departments ?? []).filter(d => !company || (d.company_ids ?? []).includes(company))
 
-  // Tab "Đơn nghỉ" (chỉ C&B): list đơn nghỉ đã duyệt trong tháng để xem/hủy.
+  // Tab "Đơn nghỉ" (chỉ C&B): đơn chờ duyệt (toàn cty) để duyệt, hoặc đơn đã
+  // duyệt trong tháng để xem/hủy — theo bộ lọc trạng thái leaveStatus.
   const approvedUrl = (() => {
-    const p = new URLSearchParams({ month })
+    const p = new URLSearchParams({ status: leaveStatus })
+    if (leaveStatus === 'approved') p.set('month', month)
     if (company) p.set('company', String(company))
     if (department) p.set('department', String(department))
     return `/api/leave/hnh-approved-leaves/?${p.toString()}`
@@ -421,6 +517,24 @@ export function LeaveManagementPage() {
       refreshApproved()
     } catch (e) {
       alert('Lỗi khi hủy đơn: ' + (e instanceof Error ? e.message : ''))
+    }
+  }
+
+  const handleApproveLeave = async (id: number) => {
+    try {
+      await api.post(`/api/leave/pwa-approve/${id}/`, {})
+      refreshApproved()
+    } catch (e) {
+      alert('Lỗi khi duyệt: ' + (e instanceof Error ? e.message : ''))
+    }
+  }
+
+  const handleRejectLeave = async (id: number, reason: string) => {
+    try {
+      await api.post(`/api/leave/pwa-reject/${id}/`, { reason })
+      refreshApproved()
+    } catch (e) {
+      alert('Lỗi khi từ chối: ' + (e instanceof Error ? e.message : ''))
     }
   }
 
@@ -532,18 +646,39 @@ export function LeaveManagementPage() {
           </div>
         )}
 
-        {/* Chọn tháng (chỉ tab Đơn nghỉ) */}
+        {/* Lọc trạng thái + chọn tháng (chỉ tab Đơn nghỉ) */}
         {view === 'leave' && (
-          <input
-            type="month"
-            value={month}
-            onChange={e => setMonth(e.target.value || thisMonth())}
-            style={{
-              width: '100%', padding: '9px 12px', borderRadius: 12, marginBottom: 12,
-              border: `1px solid ${HNH.line}`, fontSize: 14, color: HNH.ink,
-              background: '#fff', fontFamily: 'inherit', boxSizing: 'border-box',
-            }}
-          />
+          <>
+            <div className="flex gap-2" style={{ marginBottom: 12 }}>
+              {([['requested', 'Chờ duyệt'], ['approved', 'Đã duyệt']] as const).map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => setLeaveStatus(key)}
+                  className="flex-1 border-none cursor-pointer"
+                  style={{
+                    height: 36, borderRadius: 10, fontSize: 12.5, fontWeight: 700,
+                    background: leaveStatus === key ? HNH.red : '#fff',
+                    color: leaveStatus === key ? '#fff' : HNH.ink3,
+                    border: `1.5px solid ${leaveStatus === key ? HNH.red : HNH.line}`,
+                  }}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {leaveStatus === 'approved' && (
+              <input
+                type="month"
+                value={month}
+                onChange={e => setMonth(e.target.value || thisMonth())}
+                style={{
+                  width: '100%', padding: '9px 12px', borderRadius: 12, marginBottom: 12,
+                  border: `1px solid ${HNH.line}`, fontSize: 14, color: HNH.ink,
+                  background: '#fff', fontFamily: 'inherit', boxSizing: 'border-box',
+                }}
+              />
+            )}
+          </>
         )}
 
         {/* Lọc công ty / phòng ban — chỉ C&B/Admin (xem toàn bộ mọi công ty) */}
@@ -586,7 +721,7 @@ export function LeaveManagementPage() {
           </>
         )}
 
-        {/* Đơn nghỉ đã duyệt (list + hủy + cảnh báo xung đột chấm công) */}
+        {/* Đơn nghỉ: chờ duyệt (duyệt/từ chối) hoặc đã duyệt (hủy + cảnh báo xung đột) */}
         {view === 'leave' && (
           <>
             {(approvedLeaves ?? []).length === 0 && (
@@ -594,16 +729,26 @@ export function LeaveManagementPage() {
                 background: '#fff', borderRadius: 16, padding: 24, textAlign: 'center',
                 color: HNH.ink3, fontSize: 13, border: `1px solid ${HNH.line}`,
               }}>
-                Không có đơn nghỉ đã duyệt trong tháng
+                {leaveStatus === 'requested' ? 'Không có đơn chờ duyệt' : 'Không có đơn nghỉ đã duyệt trong tháng'}
               </div>
             )}
             {(approvedLeaves ?? []).map(l => (
-              <ApprovedLeaveCard
-                key={l.id}
-                leave={l}
-                isCnb={isCnb()}
-                onCancel={handleCancelApproved}
-              />
+              leaveStatus === 'requested' ? (
+                <PendingLeaveCard
+                  key={l.id}
+                  leave={l}
+                  isCnb={isCnb()}
+                  onApprove={handleApproveLeave}
+                  onReject={handleRejectLeave}
+                />
+              ) : (
+                <ApprovedLeaveCard
+                  key={l.id}
+                  leave={l}
+                  isCnb={isCnb()}
+                  onCancel={handleCancelApproved}
+                />
+              )
             ))}
           </>
         )}

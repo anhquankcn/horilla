@@ -428,11 +428,12 @@ class HNHCancelApprovedView(APIView):
 
 
 class HNHApprovedLeavesView(APIView):
-    """GET /api/leave/hnh-approved-leaves/?company&department&month=YYYY-MM&only_conflicts=1
-    — liệt kê đơn nghỉ ĐÃ DUYỆT trong tháng để C&B xem/hủy. Mỗi đơn kèm `worked_days`
-    = các ngày NV ĐÃ CHẤM CÔNG trong khoảng nghỉ (rỗng nếu không xung đột) →
-    `has_conflict` cảnh báo "NV đã đi làm ngày nghỉ". only_conflicts=1 → chỉ trả đơn
-    xung đột. Chỉ C&B.
+    """GET /api/leave/hnh-approved-leaves/?status=approved|requested&company&department&month=YYYY-MM&only_conflicts=1
+    — liệt kê đơn nghỉ cho C&B xem/xử lý. `status=approved` (mặc định): đơn ĐÃ DUYỆT
+    trong tháng đang xem, kèm `worked_days` = ngày NV ĐÃ CHẤM CÔNG trong khoảng nghỉ
+    (rỗng nếu không xung đột) → `has_conflict` cảnh báo "NV đã đi làm ngày nghỉ";
+    only_conflicts=1 → chỉ trả đơn xung đột. `status=requested`: đơn ĐANG CHỜ DUYỆT
+    (toàn công ty, KHÔNG lọc tháng) để C&B duyệt/từ chối. Chỉ C&B.
     """
 
     permission_classes = [IsAuthenticated]
@@ -444,6 +445,10 @@ class HNHApprovedLeavesView(APIView):
         from attendance.models import AttendanceActivity
         from leave.models import LeaveRequest
 
+        status_param = request.query_params.get("status", "approved")
+        if status_param not in ("approved", "requested"):
+            status_param = "approved"
+
         today = timezone.localdate()
         try:
             y, m = (int(x) for x in request.query_params.get("month", "").split("-"))
@@ -454,9 +459,13 @@ class HNHApprovedLeavesView(APIView):
         m_end = date(y, m, monthrange(y, m)[1])
         only_conflicts = request.query_params.get("only_conflicts") in ("1", "true")
 
-        qs = LeaveRequest.objects.filter(
-            status="approved", start_date__lte=m_end
-        ).filter(Q(end_date__gte=m_start) | Q(end_date__isnull=True))
+        qs = LeaveRequest.objects.filter(status=status_param)
+        if status_param == "approved":
+            # Đơn đã duyệt: lọc theo tháng đang xem (khớp UX cũ).
+            qs = qs.filter(start_date__lte=m_end).filter(
+                Q(end_date__gte=m_start) | Q(end_date__isnull=True)
+            )
+        # Đơn chờ duyệt: KHÔNG lọc tháng — hiện tất cả để C&B duyệt kịp.
 
         company_id = request.query_params.get("company")
         dept_id = request.query_params.get("department")
@@ -474,14 +483,18 @@ class HNHApprovedLeavesView(APIView):
         results = []
         for lr in qs[:500]:
             end = lr.end_date or lr.start_date
-            worked = list(
-                AttendanceActivity.objects.filter(
-                    employee_id=lr.employee_id,
-                    attendance_date__range=[lr.start_date, end],
+            # Chỉ đơn đã duyệt mới cần dò xung đột chấm công.
+            if status_param == "approved":
+                worked = list(
+                    AttendanceActivity.objects.filter(
+                        employee_id=lr.employee_id,
+                        attendance_date__range=[lr.start_date, end],
+                    )
+                    .values_list("attendance_date", flat=True)
+                    .distinct()
                 )
-                .values_list("attendance_date", flat=True)
-                .distinct()
-            )
+            else:
+                worked = []
             if only_conflicts and not worked:
                 continue
             wi = getattr(lr.employee_id, "employee_work_info", None)
@@ -497,6 +510,7 @@ class HNHApprovedLeavesView(APIView):
                 "end_date": end.isoformat(),
                 "requested_days": lr.requested_days,
                 "description": lr.description,
+                "status": lr.status,
                 "has_conflict": bool(worked),
                 "worked_days": sorted(d.isoformat() for d in worked),
             })

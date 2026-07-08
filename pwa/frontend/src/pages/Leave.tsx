@@ -5,6 +5,7 @@ import { Icon } from '../components/ui/Icon'
 import { Badge } from '../components/ui/Badge'
 import { TopBar } from '../components/layout/TopBar'
 import { useApi } from '../lib/useApi'
+import { api } from '../lib/api'
 import { downloadEventIcs } from '../lib/calendar'
 
 interface LeaveTypeInfo {
@@ -124,11 +125,24 @@ export function LeavePage() {
   const navigate = useNavigate()
   const { data: summary } = useApi<HNHSummary>('/api/leave/hnh-leave-summary/')
   const { data: balResp } = useApi<Paginated<AvailableLeave>>('/api/leave/available-leave/?page_size=20')
-  const { data: reqResp } = useApi<Paginated<LeaveRequestItem>>('/api/leave/user-request/')
+  const { data: reqResp, refresh: refreshReqs } = useApi<Paginated<LeaveRequestItem>>('/api/leave/user-request/')
   const { data: pendingApprovals } = useApi<{ id: number }[]>('/api/leave/pending-approvals/')
 
   const requests = reqResp?.results ?? []
   const [detailReq, setDetailReq] = useState<LeaveRequestItem | null>(null)
+
+  // Xóa đơn CHỜ DUYỆT của chính mình (backend chỉ cho xóa khi status=requested).
+  // Sửa đơn = xóa rồi tạo lại (đơn nhiều ngày bị tách nhiều bản ghi, không sửa tại chỗ).
+  const handleDeleteReq = async (id: number) => {
+    if (!confirm('Xóa đơn nghỉ này? Đơn đang chờ duyệt sẽ bị gỡ bỏ.')) return
+    try {
+      await api.del(`/api/leave/user-request/${id}/`)
+      setDetailReq(null)
+      refreshReqs()
+    } catch (e) {
+      alert('Lỗi khi xóa đơn: ' + (e instanceof Error ? e.message : ''))
+    }
+  }
   const balances = balResp?.results ?? []
   const now = new Date()
 
@@ -394,6 +408,17 @@ export function LeavePage() {
                   <button onClick={() => downloadEventIcs('leave', r.id, `nghi-phep-${r.id}`)} className="flex items-center justify-center gap-2 w-full border-none cursor-pointer" style={{ height: 46, borderRadius: 12, background: HNH.navy, color: '#fff', fontWeight: 700, fontSize: 14 }}>
                     <Icon name="cal" size={16} color="#fff" /> Thêm vào lịch
                   </button>
+                </div>
+              )}
+              {/* Đơn chờ duyệt → cho nhân viên tự xóa (sửa = xóa rồi tạo lại) */}
+              {st === 'pending' && (
+                <div style={{ padding: '12px 18px', borderTop: `1px solid ${HNH.line}` }}>
+                  <button onClick={() => handleDeleteReq(r.id)} className="flex items-center justify-center gap-2 w-full border-none cursor-pointer" style={{ height: 46, borderRadius: 12, background: HNH.red50, color: HNH.red, fontWeight: 700, fontSize: 14 }}>
+                    <Icon name="trash" size={16} color={HNH.red} /> Xóa đơn
+                  </button>
+                  <div style={{ fontSize: 11, color: HNH.ink3, textAlign: 'center', marginTop: 8 }}>
+                    Cần sửa? Xóa đơn này rồi tạo lại cho đúng.
+                  </div>
                 </div>
               )}
             </div>

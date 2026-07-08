@@ -81,11 +81,23 @@ def _notify_watchers(lr, actor, verb):
                                 icon="eye", redirect=f"/leave/user-request-view?id={lr.id}")
 
 
+def _is_cnb_user(user):
+    """Chuyên viên C&B (theo group) hoặc superuser — được duyệt/từ chối mọi đơn."""
+    if user.is_superuser:
+        return True
+    return any(
+        ("c&b" in g.name.lower() or "chuyên viên c" in g.name.lower())
+        for g in user.groups.all()
+    )
+
+
 def _can_approve_leave(user, lr):
-    """Ai được duyệt: superuser/staff, reporting manager của người xin, hoặc có
-    dòng ConditionApproval cho đơn (gồm cả C&B đã pin). Củng cố quy tắc 'chỉ cần
+    """Ai được duyệt: superuser/staff, C&B, reporting manager của người xin, hoặc
+    có dòng ConditionApproval cho đơn (gồm cả C&B đã pin). Củng cố quy tắc 'chỉ cần
     1 người duyệt' — chỉ đúng người trong danh sách duyệt mới bấm được."""
     if user.is_superuser or user.is_staff:
+        return True
+    if _is_cnb_user(user):
         return True
     emp = getattr(user, "employee_get", None)
     if not emp:
