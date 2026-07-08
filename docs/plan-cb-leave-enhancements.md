@@ -1,6 +1,8 @@
 # Kế hoạch: Nâng cấp C&B — Quản lý Nghỉ phép & Duyệt đơn (PWA)
 
-> Trạng thái: **PLAN** (chưa code). Nguồn: yêu cầu C&B 07/2026.
+> Trạng thái: **ĐÃ CODE + DEPLOY STAGE (08/07/2026)** — Đợt 1 (#2+#3) commit f305113eb;
+> Đợt 2 (#5) 27fe56e09; Đợt 3 (#4) 7de4b18da; Đợt 4 (#1) 8971295be. Chờ validate
+> stage → deploy prod (2 migration: 0008 audit hủy, 0009 nhắc duyệt). Nguồn: yêu cầu C&B 07/2026.
 > Quyết định đã chốt: #4 lịch nhắc = gửi ngay + ngày 3 + ngày 4 + ngày 5 rồi dừng;
 > #5 hủy đơn KHÔNG tự hoàn số dư (C&B tự chỉnh tay qua #3).
 
