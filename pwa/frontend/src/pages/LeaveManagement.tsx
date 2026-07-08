@@ -35,10 +35,31 @@ interface Proposal {
   created_at: string | null
 }
 
+interface ApprovedLeave {
+  id: number
+  employee_id: number
+  employee_name: string
+  badge_id: string
+  company?: string | null
+  department?: string | null
+  leave_type: string
+  start_date: string
+  end_date: string
+  requested_days: number | null
+  description: string
+  has_conflict: boolean
+  worked_days: string[]
+}
+
 function fmtDate(s: string | null) {
   if (!s) return ''
   const d = new Date(s)
   return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+}
+
+function thisMonth() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
 }
 
 function StatusBadge({ status }: { status: Proposal['status'] }) {
@@ -272,11 +293,100 @@ function CreateProposalModal({ employees, onClose, onCreated }: {
   )
 }
 
+function ApprovedLeaveCard({ leave, isCnb, onCancel }: {
+  leave: ApprovedLeave
+  isCnb: boolean
+  onCancel: (id: number, reason: string) => void
+}) {
+  const [reason, setReason] = useState('')
+  const [showForm, setShowForm] = useState(false)
+  const range = leave.end_date && leave.end_date !== leave.start_date
+    ? `${fmtDate(leave.start_date)} → ${fmtDate(leave.end_date)}`
+    : fmtDate(leave.start_date)
+
+  return (
+    <div style={{
+      background: '#fff', borderRadius: 16, padding: 14, marginBottom: 10,
+      border: `1px solid ${leave.has_conflict ? HNH.red : HNH.line}`,
+    }}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div style={{ fontSize: 14, fontWeight: 700, color: HNH.ink }}>{leave.employee_name}</div>
+          {(leave.company || leave.department) && (
+            <div style={{ fontSize: 11, color: HNH.navy, marginTop: 1 }}>{[leave.department, leave.company].filter(Boolean).join(' · ')}</div>
+          )}
+        </div>
+        <Badge tone="success" size="s">Đã duyệt</Badge>
+      </div>
+
+      <div style={{ marginTop: 8, fontSize: 12.5, color: HNH.ink2 }}>
+        <span style={{ fontWeight: 700, color: HNH.ink }}>{leave.leave_type}</span>
+        {' · '}{range}
+        {leave.requested_days != null && <> · {leave.requested_days} ngày</>}
+      </div>
+      {leave.description && (
+        <div style={{ fontSize: 12, color: HNH.ink3, marginTop: 3, fontStyle: 'italic' }}>"{leave.description}"</div>
+      )}
+
+      {leave.has_conflict && (
+        <div style={{ marginTop: 8, background: HNH.red50, borderRadius: 10, padding: '7px 10px', fontSize: 11.5, color: HNH.red, fontWeight: 600 }}>
+          ⚠ NV đã chấm công {leave.worked_days.length} ngày trong kỳ nghỉ: {leave.worked_days.map(d => fmtDate(d)).join(', ')}
+        </div>
+      )}
+
+      {isCnb && (
+        <div style={{ marginTop: 12 }}>
+          {!showForm ? (
+            <button
+              onClick={() => setShowForm(true)}
+              className="border-none cursor-pointer"
+              style={{ height: 34, borderRadius: 10, background: HNH.red50, color: HNH.red, fontWeight: 700, fontSize: 12.5, padding: '0 16px' }}
+            >
+              Hủy đơn
+            </button>
+          ) : (
+            <div>
+              <input
+                value={reason}
+                onChange={e => setReason(e.target.value)}
+                placeholder="Lý do hủy đơn..."
+                style={{
+                  width: '100%', border: `1px solid ${HNH.line}`, borderRadius: 8,
+                  padding: '6px 10px', fontSize: 13, color: HNH.ink,
+                  fontFamily: 'inherit', marginBottom: 6, outline: 'none', boxSizing: 'border-box',
+                }}
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { if (reason.trim()) onCancel(leave.id, reason.trim()) }}
+                  className="flex-1 border-none cursor-pointer"
+                  style={{ height: 32, borderRadius: 8, background: reason.trim() ? HNH.red : HNH.cream2, color: reason.trim() ? '#fff' : HNH.ink3, fontWeight: 700, fontSize: 12 }}
+                >
+                  Xác nhận hủy
+                </button>
+                <button
+                  onClick={() => { setShowForm(false); setReason('') }}
+                  className="flex-1 border-none cursor-pointer"
+                  style={{ height: 32, borderRadius: 8, background: HNH.cream2, color: HNH.ink2, fontWeight: 600, fontSize: 12 }}
+                >
+                  Thoát
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function LeaveManagementPage() {
   const navigate = useNavigate()
+  const [view, setView] = useState<'bu' | 'leave'>('bu')
   const [statusFilter, setStatusFilter] = useState<string>('requested')
   const [company, setCompany] = useState<number | ''>('')
   const [department, setDepartment] = useState<number | ''>('')
+  const [month, setMonth] = useState(thisMonth())
   const [showCreate, setShowCreate] = useState(false)
 
   const propUrl = (() => {
@@ -293,6 +403,26 @@ export function LeaveManagementPage() {
 
   const isCnb = () => summaryData?.scope === 'cnb'
   const deptOptions = (meta?.departments ?? []).filter(d => !company || (d.company_ids ?? []).includes(company))
+
+  // Tab "Đơn nghỉ" (chỉ C&B): list đơn nghỉ đã duyệt trong tháng để xem/hủy.
+  const approvedUrl = (() => {
+    const p = new URLSearchParams({ month })
+    if (company) p.set('company', String(company))
+    if (department) p.set('department', String(department))
+    return `/api/leave/hnh-approved-leaves/?${p.toString()}`
+  })()
+  const { data: approvedLeaves, refresh: refreshApproved } = useApi<ApprovedLeave[]>(
+    isCnb() && view === 'leave' ? approvedUrl : null,
+  )
+
+  const handleCancelApproved = async (id: number, reason: string) => {
+    try {
+      await api.post(`/api/leave/hnh-cancel-approved/${id}/`, { reason })
+      refreshApproved()
+    } catch (e) {
+      alert('Lỗi khi hủy đơn: ' + (e instanceof Error ? e.message : ''))
+    }
+  }
 
   const handleApprove = async (id: number) => {
     try {
@@ -360,24 +490,61 @@ export function LeaveManagementPage() {
       />
 
       <div style={{ padding: '0 20px 100px' }}>
-        {/* Filter tabs */}
-        <div className="flex gap-2" style={{ marginBottom: 16 }}>
-          {FILTERS.map(f => (
-            <button
-              key={f.key}
-              onClick={() => setStatusFilter(f.key)}
-              className="border-none cursor-pointer"
-              style={{
-                padding: '6px 14px', borderRadius: 20, fontSize: 12.5, fontWeight: 700,
-                background: statusFilter === f.key ? HNH.red : '#fff',
-                color: statusFilter === f.key ? '#fff' : HNH.ink3,
-                border: `1.5px solid ${statusFilter === f.key ? HNH.red : HNH.line}`,
-              }}
-            >
-              {f.label}
-            </button>
-          ))}
-        </div>
+        {/* Chuyển chế độ: Phép Bù (đề xuất) / Đơn nghỉ đã duyệt — chỉ C&B */}
+        {isCnb() && (
+          <div className="flex gap-2" style={{ marginBottom: 14 }}>
+            {([['bu', 'Phép Bù'], ['leave', 'Đơn nghỉ']] as const).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => setView(key)}
+                className="flex-1 border-none cursor-pointer"
+                style={{
+                  height: 38, borderRadius: 12, fontSize: 13, fontWeight: 700,
+                  background: view === key ? HNH.ink : '#fff',
+                  color: view === key ? '#fff' : HNH.ink3,
+                  border: `1.5px solid ${view === key ? HNH.ink : HNH.line}`,
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Filter trạng thái (chỉ tab Phép Bù) */}
+        {view === 'bu' && (
+          <div className="flex gap-2" style={{ marginBottom: 16 }}>
+            {FILTERS.map(f => (
+              <button
+                key={f.key}
+                onClick={() => setStatusFilter(f.key)}
+                className="border-none cursor-pointer"
+                style={{
+                  padding: '6px 14px', borderRadius: 20, fontSize: 12.5, fontWeight: 700,
+                  background: statusFilter === f.key ? HNH.red : '#fff',
+                  color: statusFilter === f.key ? '#fff' : HNH.ink3,
+                  border: `1.5px solid ${statusFilter === f.key ? HNH.red : HNH.line}`,
+                }}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Chọn tháng (chỉ tab Đơn nghỉ) */}
+        {view === 'leave' && (
+          <input
+            type="month"
+            value={month}
+            onChange={e => setMonth(e.target.value || thisMonth())}
+            style={{
+              width: '100%', padding: '9px 12px', borderRadius: 12, marginBottom: 12,
+              border: `1px solid ${HNH.line}`, fontSize: 14, color: HNH.ink,
+              background: '#fff', fontFamily: 'inherit', boxSizing: 'border-box',
+            }}
+          />
+        )}
 
         {/* Lọc công ty / phòng ban — chỉ C&B/Admin (xem toàn bộ mọi công ty) */}
         {isCnb() && (
@@ -395,30 +562,55 @@ export function LeaveManagementPage() {
           </div>
         )}
 
-        {/* Proposals list */}
-        {list.length === 0 && (
-          <div style={{
-            background: '#fff', borderRadius: 16, padding: 24, textAlign: 'center',
-            color: HNH.ink3, fontSize: 13, border: `1px solid ${HNH.line}`,
-          }}>
-            Không có đề xuất nào
-          </div>
+        {/* Proposals list (Phép Bù) */}
+        {view === 'bu' && (
+          <>
+            {list.length === 0 && (
+              <div style={{
+                background: '#fff', borderRadius: 16, padding: 24, textAlign: 'center',
+                color: HNH.ink3, fontSize: 13, border: `1px solid ${HNH.line}`,
+              }}>
+                Không có đề xuất nào
+              </div>
+            )}
+            {list.map(p => (
+              <ProposalCard
+                key={p.id}
+                proposal={p}
+                isCnb={isCnb()}
+                onApprove={handleApprove}
+                onReject={handleReject}
+                onDelete={handleDelete}
+              />
+            ))}
+          </>
         )}
 
-        {list.map(p => (
-          <ProposalCard
-            key={p.id}
-            proposal={p}
-            isCnb={isCnb()}
-            onApprove={handleApprove}
-            onReject={handleReject}
-            onDelete={handleDelete}
-          />
-        ))}
+        {/* Đơn nghỉ đã duyệt (list + hủy + cảnh báo xung đột chấm công) */}
+        {view === 'leave' && (
+          <>
+            {(approvedLeaves ?? []).length === 0 && (
+              <div style={{
+                background: '#fff', borderRadius: 16, padding: 24, textAlign: 'center',
+                color: HNH.ink3, fontSize: 13, border: `1px solid ${HNH.line}`,
+              }}>
+                Không có đơn nghỉ đã duyệt trong tháng
+              </div>
+            )}
+            {(approvedLeaves ?? []).map(l => (
+              <ApprovedLeaveCard
+                key={l.id}
+                leave={l}
+                isCnb={isCnb()}
+                onCancel={handleCancelApproved}
+              />
+            ))}
+          </>
+        )}
       </div>
 
-      {/* FAB — Create proposal */}
-      {employees.length > 0 && (
+      {/* FAB — Create proposal (chỉ tab Phép Bù) */}
+      {view === 'bu' && employees.length > 0 && (
         <button
           onClick={() => setShowCreate(true)}
           className="fixed flex items-center justify-center border-none cursor-pointer z-40"

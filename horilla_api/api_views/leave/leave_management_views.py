@@ -13,6 +13,7 @@ import math
 from calendar import monthrange
 from datetime import date, timedelta
 
+from django.db.models import Q
 from django.utils import timezone
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -340,6 +341,166 @@ class HNHAdjustBalanceView(APIView):
             "start": round(al.available_days + al.carryforward_days, 2),
             "created": created,
         })
+
+
+class HNHCancelApprovedView(APIView):
+    """POST /api/leave/hnh-cancel-approved/<pk>/ — C&B hủy đơn ĐÃ DUYỆT khi NV
+    không nghỉ nữa (vẫn đi làm). KHÔNG hoàn số dư (quyết định) — C&B tự chỉnh tay
+    qua hnh-adjust-balance nếu cần. Body: {reason}.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        if not _is_cnb(request):
+            return Response({"detail": "Chỉ C&B được hủy đơn đã duyệt"}, status=403)
+
+        from leave.models import LeaveRequest
+
+        lr = (
+            LeaveRequest.objects.filter(id=pk)
+            .select_related("employee_id__employee_user_id", "leave_type_id")
+            .first()
+        )
+        if lr is None:
+            return Response({"detail": "Không tìm thấy đơn"}, status=404)
+        if lr.status != "approved":
+            return Response(
+                {"detail": f"Chỉ hủy được đơn đã duyệt (đơn đang: {lr.status})"},
+                status=400,
+            )
+
+        reason = (request.data.get("reason") or "").strip()
+        if not reason:
+            return Response({"detail": "Cần nhập lý do hủy"}, status=400)
+
+        me = _get_employee(request)
+        lr.status = "cancelled"
+        lr.cancelled_by = me
+        lr.cancel_reason = reason
+        lr.cancelled_at = timezone.now()
+        # save() thường (giống LeaveRequestCancelAPIView chuẩn): set clashes=0 cho
+        # đơn cancelled + ghi history. KHÔNG hoàn số dư (quyết định #5).
+        lr.save()
+
+        import logging
+
+        logging.getLogger("hnh.leave").info(
+            "CANCEL APPROVED by=%s lr=%s emp=%s type=%s %s..%s reason=%r",
+            getattr(request.user, "username", "?"), lr.id, lr.employee_id_id,
+            lr.leave_type_id.name, lr.start_date, lr.end_date, reason,
+        )
+
+        # Báo NV + watchers (không chặn nếu notify lỗi)
+        import contextlib
+
+        from notifications.signals import notify
+
+        verb = (
+            f"Đơn nghỉ {lr.leave_type_id.name} ({lr.start_date}) đã bị C&B hủy: {reason}"
+        )
+        redirect = f"/leave/user-request-view?id={lr.id}"
+        emp = lr.employee_id
+        if emp and emp.employee_user_id_id:
+            with contextlib.suppress(Exception):
+                notify.send(request.user, recipient=emp.employee_user_id, verb=verb,
+                            icon="close-circle", redirect=redirect)
+        with contextlib.suppress(Exception):
+            from leave.models import LeaveRequestWatcher
+
+            watchers = LeaveRequestWatcher.objects.filter(
+                leave_request_id=lr
+            ).select_related("employee_id__employee_user_id")
+            for link in watchers:
+                w = link.employee_id
+                if w and w.employee_user_id_id and (me is None or w.id != me.id):
+                    with contextlib.suppress(Exception):
+                        notify.send(request.user, recipient=w.employee_user_id,
+                                    verb=verb, icon="close-circle", redirect=redirect)
+
+        return Response({
+            "id": lr.id,
+            "status": lr.status,
+            "cancelled_by": str(me) if me else None,
+            "cancel_reason": lr.cancel_reason,
+            "cancelled_at": lr.cancelled_at.isoformat() if lr.cancelled_at else None,
+        })
+
+
+class HNHApprovedLeavesView(APIView):
+    """GET /api/leave/hnh-approved-leaves/?company&department&month=YYYY-MM&only_conflicts=1
+    — liệt kê đơn nghỉ ĐÃ DUYỆT trong tháng để C&B xem/hủy. Mỗi đơn kèm `worked_days`
+    = các ngày NV ĐÃ CHẤM CÔNG trong khoảng nghỉ (rỗng nếu không xung đột) →
+    `has_conflict` cảnh báo "NV đã đi làm ngày nghỉ". only_conflicts=1 → chỉ trả đơn
+    xung đột. Chỉ C&B.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not _is_cnb(request):
+            return Response({"detail": "Chỉ C&B"}, status=403)
+
+        from attendance.models import AttendanceActivity
+        from leave.models import LeaveRequest
+
+        today = timezone.localdate()
+        try:
+            y, m = (int(x) for x in request.query_params.get("month", "").split("-"))
+            date(y, m, 1)
+        except (AttributeError, ValueError):
+            y, m = today.year, today.month
+        m_start = date(y, m, 1)
+        m_end = date(y, m, monthrange(y, m)[1])
+        only_conflicts = request.query_params.get("only_conflicts") in ("1", "true")
+
+        qs = LeaveRequest.objects.filter(
+            status="approved", start_date__lte=m_end
+        ).filter(Q(end_date__gte=m_start) | Q(end_date__isnull=True))
+
+        company_id = request.query_params.get("company")
+        dept_id = request.query_params.get("department")
+        if company_id:
+            qs = qs.filter(employee_id__employee_work_info__company_id=company_id)
+        if dept_id:
+            qs = qs.filter(employee_id__employee_work_info__department_id=dept_id)
+        qs = qs.select_related(
+            "employee_id",
+            "leave_type_id",
+            "employee_id__employee_work_info__department_id",
+            "employee_id__employee_work_info__company_id",
+        ).order_by("-start_date")
+
+        results = []
+        for lr in qs[:500]:
+            end = lr.end_date or lr.start_date
+            worked = list(
+                AttendanceActivity.objects.filter(
+                    employee_id=lr.employee_id,
+                    attendance_date__range=[lr.start_date, end],
+                )
+                .values_list("attendance_date", flat=True)
+                .distinct()
+            )
+            if only_conflicts and not worked:
+                continue
+            wi = getattr(lr.employee_id, "employee_work_info", None)
+            results.append({
+                "id": lr.id,
+                "employee_id": lr.employee_id_id,
+                "employee_name": str(lr.employee_id),
+                "badge_id": lr.employee_id.badge_id,
+                "department": wi.department_id.department if wi and wi.department_id else None,
+                "company": wi.company_id.company if wi and wi.company_id else None,
+                "leave_type": lr.leave_type_id.name,
+                "start_date": lr.start_date.isoformat(),
+                "end_date": end.isoformat(),
+                "requested_days": lr.requested_days,
+                "description": lr.description,
+                "has_conflict": bool(worked),
+                "worked_days": sorted(d.isoformat() for d in worked),
+            })
+        return Response(results)
 
 
 class HNHCompensatoryProposalListCreateView(APIView):

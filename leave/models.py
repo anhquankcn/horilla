@@ -937,6 +937,22 @@ class LeaveRequest(HorillaModel):
     reject_reason = models.TextField(
         blank=True, verbose_name=_("Reject Reason"), max_length=255
     )
+    # HNH #5 — C&B hủy đơn ĐÃ DUYỆT khi NV không nghỉ nữa (vẫn đi làm). KHÔNG tự
+    # hoàn số dư — C&B tự chỉnh tay qua /api/leave/hnh-adjust-balance/ nếu cần.
+    cancelled_by = models.ForeignKey(
+        Employee,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="leave_request_cancelled",
+        verbose_name=_("Cancelled By"),
+    )
+    cancel_reason = models.TextField(
+        blank=True, default="", verbose_name=_("Cancel Reason")
+    )
+    cancelled_at = models.DateTimeField(
+        null=True, blank=True, verbose_name=_("Cancelled At")
+    )
     history = HorillaAuditLog(
         related_name="history_set",
         bases=[
