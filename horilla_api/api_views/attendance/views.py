@@ -1790,34 +1790,21 @@ class AttendanceActivityOverviewView(APIView):
 
         grid = []
         if grid_mode:
-            SLOTS_AM = []
-            t = datetime(2000, 1, 1, 7, 30)
-            end_am = datetime(2000, 1, 1, 9, 0)
-            while t < end_am:
-                SLOTS_AM.append(t.time())
-                t += timedelta(minutes=15)
-
-            SLOTS_PM = []
-            t = datetime(2000, 1, 1, 16, 30)
-            end_pm = datetime(2000, 1, 1, 18, 0)
-            while t < end_pm:
-                SLOTS_PM.append(t.time())
-                t += timedelta(minutes=15)
-
-            all_slots = SLOTS_AM + SLOTS_PM
-
+            # 24 khung giờ, mỗi khung = 1 tiếng (00:00 → 23:00). Đếm MỌI lượt chấm
+            # (vào + ra) rơi vào từng khung → heatmap hoạt động cả ngày. FE tự tách
+            # buổi sáng (giờ < 12) / buổi chiều (giờ >= 12).
             for d in dates:
                 day_acts = [a for a in activities if a.attendance_date == d]
                 slots_data = []
-                for slot_start in all_slots:
-                    slot_end_dt = datetime.combine(d, slot_start) + timedelta(minutes=15)
-                    slot_end = slot_end_dt.time()
+                for h in range(24):
                     count = 0
                     for a in day_acts:
-                        if a.clock_in and slot_start <= a.clock_in < slot_end:
+                        if a.clock_in and a.clock_in.hour == h:
+                            count += 1
+                        if a.clock_out and a.clock_out.hour == h:
                             count += 1
                     slots_data.append({
-                        "time": slot_start.strftime("%H:%M"),
+                        "time": f"{h:02d}:00",
                         "count": count,
                     })
                 grid.append({

@@ -90,9 +90,9 @@ function GridView({ data }: { data: OverviewData }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Morning block */}
+      {/* Morning block — 12 khung giờ 00:00 → 11:00 */}
       <SlotBlock
-        label="Sáng (7:30 – 9:00)"
+        label="Buổi sáng (00:00 – 11:00)"
         icon="arrow-up"
         slots={amSlots}
         days={data.grid}
@@ -100,9 +100,9 @@ function GridView({ data }: { data: OverviewData }) {
         isSingleDay={isSingleDay}
         tone="navy"
       />
-      {/* Afternoon block */}
+      {/* Afternoon block — 12 khung giờ 12:00 → 23:00 */}
       <SlotBlock
-        label="Chiều (16:30 – 18:00)"
+        label="Buổi chiều (12:00 – 23:00)"
         icon="logout"
         slots={pmSlots}
         days={data.grid}
@@ -178,7 +178,7 @@ function SlotBlock({ label, icon, slots, days, total, isSingleDay, tone }: {
                   const pct = total > 0 ? count / total : 0
                   return (
                     <td key={d.date} style={{ ...tdStyle, textAlign: 'center' }}>
-                      <CellBubble count={count} total={total} pct={pct} tone={tone} />
+                      <CellBubble count={count} pct={pct} tone={tone} />
                     </td>
                   )
                 })}
@@ -200,8 +200,8 @@ const tdStyle: React.CSSProperties = {
   padding: '7px 6px', fontSize: 12,
 }
 
-function CellBubble({ count, total, pct, tone }: {
-  count: number; total: number; pct: number; tone: 'navy' | 'gold'
+function CellBubble({ count, pct, tone }: {
+  count: number; pct: number; tone: 'navy' | 'gold'
 }) {
   if (count === 0) {
     return <span style={{ color: HNH.ink4, fontSize: 11 }}>—</span>
@@ -215,17 +215,30 @@ function CellBubble({ count, total, pct, tone }: {
 
   return (
     <span style={{
-      display: 'inline-block', minWidth: 44,
+      display: 'inline-block', minWidth: 34,
       padding: '3px 8px', borderRadius: 8,
       background: bg, color: fg,
       fontSize: 11, fontWeight: 700, lineHeight: 1.3,
     }}>
-      {count}/{total}
+      {count}
     </span>
   )
 }
 
-/* ── List View ── */
+/* ── List View — chuỗi LƯỢT CHẤM theo NV/ngày (Lượt chấm Đầu → các lượt tiếp) ── */
+interface DayPunch { time: string; source?: PunchSource }
+
+// Gộp mọi lượt (vào + ra) của 1 NV trong ngày thành chuỗi theo thứ tự thời gian.
+function flattenDayPunches(acts: Activity[]): DayPunch[] {
+  const out: DayPunch[] = []
+  for (const a of acts) {
+    if (a.clock_in) out.push({ time: a.clock_in, source: a.clock_in_source })
+    if (a.clock_out) out.push({ time: a.clock_out, source: a.clock_out_source })
+  }
+  out.sort((x, y) => x.time.localeCompare(y.time))
+  return out
+}
+
 function ListView({ data }: { data: OverviewData }) {
   if (data.activities.length === 0) {
     return (
@@ -235,95 +248,97 @@ function ListView({ data }: { data: OverviewData }) {
     )
   }
 
-  const grouped: Record<string, Activity[]> = {}
+  const byDate: Record<string, Activity[]> = {}
   for (const a of data.activities) {
-    if (!grouped[a.date]) grouped[a.date] = []
-    grouped[a.date].push(a)
+    if (!byDate[a.date]) byDate[a.date] = []
+    byDate[a.date].push(a)
   }
-  const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a))
+  const sortedDates = Object.keys(byDate).sort((a, b) => b.localeCompare(a))
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      {sortedDates.map(d => (
-        <div key={d}>
-          <div className="flex items-center gap-2" style={{ marginBottom: 6 }}>
-            <Icon name="cal" size={13} color={HNH.navy} stroke={2} />
-            <span style={{ fontSize: 12, fontWeight: 700, color: HNH.navy }}>
-              {formatDateFull(d)}
-            </span>
-            <span style={{
-              fontSize: 10.5, fontWeight: 600, color: HNH.ink3,
-              background: HNH.cream2, borderRadius: 6, padding: '2px 7px',
+      {sortedDates.map(d => {
+        // Gom theo nhân viên trong ngày
+        const byEmp = new Map<number, { name: string; badge: string | null; acts: Activity[] }>()
+        for (const a of byDate[d]) {
+          const g = byEmp.get(a.employee_id) ?? { name: a.employee_name, badge: a.badge_id, acts: [] }
+          g.acts.push(a)
+          byEmp.set(a.employee_id, g)
+        }
+        const emps = [...byEmp.values()].sort((x, y) => x.name.localeCompare(y.name, 'vi'))
+
+        return (
+          <div key={d}>
+            <div className="flex items-center gap-2" style={{ marginBottom: 6 }}>
+              <Icon name="cal" size={13} color={HNH.navy} stroke={2} />
+              <span style={{ fontSize: 12, fontWeight: 700, color: HNH.navy }}>
+                {formatDateFull(d)}
+              </span>
+              <span style={{
+                fontSize: 10.5, fontWeight: 600, color: HNH.ink3,
+                background: HNH.cream2, borderRadius: 6, padding: '2px 7px',
+              }}>
+                {emps.length} NV
+              </span>
+            </div>
+            <div style={{
+              background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`,
+              overflow: 'hidden',
             }}>
-              {grouped[d].length} lượt
-            </span>
-          </div>
-          <div style={{
-            background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`,
-            overflow: 'hidden',
-          }}>
-            {grouped[d].map((a, i) => (
-              <div
-                key={a.id}
-                className="flex items-center gap-3"
-                style={{
-                  padding: '10px 14px',
-                  borderBottom: i < grouped[d].length - 1 ? `1px solid ${HNH.line}` : 'none',
-                }}
-              >
-                <div
-                  className="flex items-center justify-center shrink-0"
-                  style={{
-                    width: 36, height: 36, borderRadius: 10,
-                    background: a.clock_out ? HNH.success50 : HNH.navy50,
-                  }}
-                >
-                  <Icon
-                    name={a.clock_out ? 'check' : 'clock'}
-                    size={16}
-                    color={a.clock_out ? HNH.success : HNH.navy}
-                    stroke={2}
-                  />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div style={{ fontSize: 13, fontWeight: 700, color: HNH.ink }}>
-                    {a.employee_name}
-                  </div>
-                  <div style={{ fontSize: 11, color: HNH.ink3, fontWeight: 500, marginTop: 1 }}>
-                    {a.badge_id ? `${a.badge_id} · ` : ''}
-                    Lần đầu {a.clock_in || '—'}
-                    {a.clock_out ? ` · Gần nhất ${a.clock_out}` : ' · chưa có lượt sau'}
-                  </div>
-                  {(a.clock_in_source || a.clock_out_source) && (
-                    <div className="flex items-center gap-1" style={{ marginTop: 4, flexWrap: 'wrap' }}>
-                      {a.clock_in_source && (
-                        <span className="flex items-center gap-1">
-                          <span style={{ fontSize: 9, color: HNH.ink3, fontWeight: 600 }}>Vào:</span>
-                          <PunchSourceBadge source={a.clock_in_source} size="xs" />
-                        </span>
-                      )}
-                      {a.clock_out_source && (
-                        <span className="flex items-center gap-1">
-                          <span style={{ fontSize: 9, color: HNH.ink3, fontWeight: 600 }}>Ra:</span>
-                          <PunchSourceBadge source={a.clock_out_source} size="xs" />
-                        </span>
-                      )}
+              {emps.map((emp, i) => {
+                const punches = flattenDayPunches(emp.acts)
+                return (
+                  <div
+                    key={emp.name + i}
+                    style={{
+                      padding: '10px 14px',
+                      borderBottom: i < emps.length - 1 ? `1px solid ${HNH.line}` : 'none',
+                    }}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 700, color: HNH.ink }}>
+                      {emp.name}
+                      {emp.badge && <span style={{ fontSize: 11, color: HNH.ink3, fontWeight: 500 }}> · {emp.badge}</span>}
                     </div>
-                  )}
-                </div>
-                <div style={{
-                  fontSize: 11, fontWeight: 700,
-                  color: a.clock_out ? HNH.success : HNH.warn,
-                  background: a.clock_out ? HNH.success50 : HNH.warn50,
-                  borderRadius: 8, padding: '3px 8px',
-                }}>
-                  {a.clock_in || ''}
-                </div>
-              </div>
-            ))}
+                    {/* Chuỗi lượt chấm: Lượt chấm Đầu → Lượt 2, 3… */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 7 }}>
+                      {punches.length === 0 && (
+                        <span style={{ fontSize: 11, color: HNH.ink3 }}>Chưa có lượt chấm</span>
+                      )}
+                      {punches.map((p, pi) => {
+                        const first = pi === 0
+                        return (
+                          <div key={pi} className="flex items-center gap-2">
+                            <span style={{
+                              width: 20, height: 20, borderRadius: 6, flexShrink: 0,
+                              background: first ? HNH.success50 : HNH.navy50,
+                              color: first ? HNH.success : HNH.navy,
+                              fontSize: 10, fontWeight: 800,
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            }}>{pi + 1}</span>
+                            <span style={{
+                              fontSize: 11, fontWeight: 700, minWidth: 96,
+                              color: first ? HNH.success : HNH.ink2,
+                            }}>
+                              {first ? 'Lượt chấm Đầu' : `Lượt ${pi + 1}`}
+                            </span>
+                            <span style={{
+                              fontSize: 13, fontWeight: 800, color: HNH.ink,
+                              fontFamily: "'Plus Jakarta Sans', monospace",
+                            }}>
+                              {p.time}
+                            </span>
+                            {p.source && <PunchSourceBadge source={p.source} size="xs" />}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
