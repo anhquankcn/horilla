@@ -8,7 +8,7 @@ import { api } from '../lib/api'
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const CELL_W = 44
-const NAME_W = 108
+const NAME_W = 124   // khớp cột NHÂN VIÊN của CC Tháng (MonthlyAttendanceDetail)
 const ROW_H = 44
 const BAL_W = 52   // cột Phép đầu / Phép cuối
 
@@ -421,66 +421,100 @@ export function LeaveOverviewPage() {
         background: '#fff', borderBottom: `1px solid ${HNH.line}`,
         padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 8, flexShrink: 0,
       }}>
-        <div className="flex items-center justify-between gap-2">
-          {/* Month nav */}
-          <div className="flex items-center gap-1">
-            <button
-              onClick={prevMonth}
-              style={{
-                border: 'none', background: HNH.cream, borderRadius: 8,
-                width: 30, height: 30, cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}
-            >
-              <Icon name="chev-l" size={16} color={HNH.ink2} stroke={2} />
-            </button>
-            <div style={{ fontSize: 14, fontWeight: 800, color: HNH.ink, minWidth: 88, textAlign: 'center' }}>
-              T{month}/{year}
-            </div>
-            <button
-              onClick={nextMonth}
-              style={{
-                border: 'none', background: HNH.cream, borderRadius: 8,
-                width: 30, height: 30, cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}
-            >
-              <Icon name="chev-r" size={16} color={HNH.ink2} stroke={2} />
-            </button>
+        {/* Month nav */}
+        <div className="flex items-center gap-1">
+          <button
+            onClick={prevMonth}
+            style={{
+              border: 'none', background: HNH.cream, borderRadius: 8,
+              width: 30, height: 30, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <Icon name="chev-l" size={16} color={HNH.ink2} stroke={2} />
+          </button>
+          <div style={{ fontSize: 14, fontWeight: 800, color: HNH.ink, minWidth: 88, textAlign: 'center' }}>
+            T{month}/{year}
           </div>
-
-          {/* Lọc công ty + phòng ban (default: tất cả) */}
-          {companies.length > 0 && (
-            <select
-              value={companyFilter}
-              onChange={e => { setCompanyFilter(e.target.value); setDeptFilter('') }}
-              style={{
-                flex: 1, minWidth: 0, padding: '6px 8px', borderRadius: 8,
-                border: `1px solid ${HNH.line}`, fontSize: 12, color: HNH.ink2,
-                background: '#fff', outline: 'none',
-              }}
-            >
-              <option value="">Tất cả công ty</option>
-              {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-          )}
-          {deptOptions.length > 0 && (
-            <select
-              value={deptFilter}
-              onChange={e => setDeptFilter(e.target.value)}
-              style={{
-                flex: 1, minWidth: 0, padding: '6px 8px', borderRadius: 8,
-                border: `1px solid ${HNH.line}`, fontSize: 12, color: HNH.ink2,
-                background: '#fff', outline: 'none',
-              }}
-            >
-              <option value="">Tất cả phòng ban</option>
-              {deptOptions.map(d => (
-                <option key={d.id} value={d.id}>{d.name}</option>
-              ))}
-            </select>
-          )}
+          <button
+            onClick={nextMonth}
+            style={{
+              border: 'none', background: HNH.cream, borderRadius: 8,
+              width: 30, height: 30, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+          >
+            <Icon name="chev-r" size={16} color={HNH.ink2} stroke={2} />
+          </button>
         </div>
+
+        {/* Lọc công ty — pills navy (giống CC Tháng) */}
+        {companies.length > 0 && (
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto' }}>
+            <button
+              onClick={() => { setCompanyFilter(''); setDeptFilter('') }}
+              style={{
+                flexShrink: 0, height: 28, borderRadius: 20, border: 'none', cursor: 'pointer',
+                padding: '0 12px', whiteSpace: 'nowrap', fontSize: 11.5, fontWeight: 600,
+                background: companyFilter === '' ? HNH.navy : HNH.cream2,
+                color: companyFilter === '' ? '#fff' : HNH.ink2,
+              }}
+            >
+              Tất cả công ty
+            </button>
+            {companies.map(c => {
+              const on = companyFilter === String(c.id)
+              return (
+                <button
+                  key={c.id}
+                  onClick={() => { setCompanyFilter(String(c.id)); setDeptFilter('') }}
+                  style={{
+                    flexShrink: 0, height: 28, borderRadius: 20, border: 'none', cursor: 'pointer',
+                    padding: '0 12px', whiteSpace: 'nowrap', fontSize: 11.5, fontWeight: 600,
+                    background: on ? HNH.navy : HNH.cream2,
+                    color: on ? '#fff' : HNH.ink2,
+                  }}
+                >
+                  {c.name}
+                </button>
+              )
+            })}
+          </div>
+        )}
+
+        {/* Lọc phòng ban — pills đỏ (giống CC Tháng) */}
+        {deptOptions.length > 0 && (
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto' }}>
+            <button
+              onClick={() => setDeptFilter('')}
+              style={{
+                flexShrink: 0, height: 28, borderRadius: 20, border: 'none', cursor: 'pointer',
+                padding: '0 12px', whiteSpace: 'nowrap', fontSize: 11.5, fontWeight: 600,
+                background: deptFilter === '' ? HNH.red : HNH.cream2,
+                color: deptFilter === '' ? '#fff' : HNH.ink2,
+              }}
+            >
+              Tất cả phòng
+            </button>
+            {deptOptions.map(d => {
+              const on = deptFilter === String(d.id)
+              return (
+                <button
+                  key={d.id}
+                  onClick={() => setDeptFilter(String(d.id))}
+                  style={{
+                    flexShrink: 0, height: 28, borderRadius: 20, border: 'none', cursor: 'pointer',
+                    padding: '0 12px', whiteSpace: 'nowrap', fontSize: 11.5, fontWeight: 600,
+                    background: on ? HNH.red : HNH.cream2,
+                    color: on ? '#fff' : HNH.ink2,
+                  }}
+                >
+                  {d.name}
+                </button>
+              )
+            })}
+          </div>
+        )}
 
         {/* Search: Họ tên / Mã HRM / Mã Kế toán */}
         <div
@@ -620,19 +654,24 @@ export function LeaveOverviewPage() {
                     display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 1,
                   }}>
                   <div style={{
-                    fontSize: 12, fontWeight: 700, color: HNH.ink,
+                    fontSize: 13, fontWeight: 700, color: HNH.ink,
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    maxWidth: NAME_W - 16,
                   }}>
                     {emp.name.split(' ').slice(-1)[0]}
                   </div>
                   <div style={{
-                    fontSize: 9.5, color: HNH.ink3, fontWeight: 500,
+                    fontSize: 10, color: HNH.ink3, fontWeight: 500,
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                    maxWidth: NAME_W - 16,
                   }}>
                     {emp.name.split(' ').slice(0, -1).join(' ')}
                   </div>
                   {/* Mã NV tô màu theo công ty để phân biệt các công ty khác nhau */}
-                  <div style={{ fontSize: 8.5, color: companyColor(emp.company_id), fontWeight: 800, letterSpacing: 0.2 }}>
+                  <div style={{
+                    fontSize: 9.5, color: companyColor(emp.company_id), fontWeight: 800, letterSpacing: 0.2,
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: NAME_W - 16,
+                  }}>
                     {emp.badge_id}{emp.accounting_code ? ` · ${emp.accounting_code}` : ''}
                   </div>
                 </div>
