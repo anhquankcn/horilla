@@ -653,6 +653,7 @@ export function LeaveOverviewPage() {
                     padding: '0 8px', height: ROW_H,
                     display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 1,
                   }}>
+                  {/* Tên gọi — dòng đầu, đậm (giống CC Tháng) */}
                   <div style={{
                     fontSize: 13, fontWeight: 700, color: HNH.ink,
                     whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
@@ -660,20 +661,25 @@ export function LeaveOverviewPage() {
                   }}>
                     {emp.name.split(' ').slice(-1)[0]}
                   </div>
-                  <div style={{
-                    fontSize: 10, color: HNH.ink3, fontWeight: 500,
-                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                    maxWidth: NAME_W - 16,
-                  }}>
-                    {emp.name.split(' ').slice(0, -1).join(' ')}
-                  </div>
-                  {/* Mã NV tô màu theo công ty để phân biệt các công ty khác nhau */}
-                  <div style={{
-                    fontSize: 9.5, color: companyColor(emp.company_id), fontWeight: 800, letterSpacing: 0.2,
-                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: NAME_W - 16,
-                  }}>
-                    {emp.badge_id}{emp.accounting_code ? ` · ${emp.accounting_code}` : ''}
-                  </div>
+                  {/* Họ đệm — chỉ hiện khi tên có nhiều hơn 1 từ (giống CC Tháng) */}
+                  {emp.name.split(' ').length > 1 && (
+                    <div style={{
+                      fontSize: 10, color: HNH.ink3, fontWeight: 500,
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                      maxWidth: NAME_W - 16,
+                    }}>
+                      {emp.name.split(' ').slice(0, -1).join(' ')}
+                    </div>
+                  )}
+                  {/* Mã NV — dòng cuối, nhỏ nhất (giống CC Tháng); giữ màu theo công ty */}
+                  {emp.badge_id && (
+                    <div style={{
+                      fontSize: 9.5, color: companyColor(emp.company_id), fontWeight: 600, letterSpacing: 0.2,
+                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: NAME_W - 16,
+                    }}>
+                      {emp.badge_id}
+                    </div>
+                  )}
                 </div>
 
                 {/* Cột tổng hợp: Phép đầu · [Trừ phép · Không lương] · Còn lại */}
