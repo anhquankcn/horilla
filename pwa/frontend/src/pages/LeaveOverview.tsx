@@ -30,13 +30,6 @@ interface EmpInfo {
   leave_end: number
 }
 
-// Màu phân biệt công ty ở cột Mã NV (theo company_id).
-const COMPANY_COLORS = ['#142b6f', '#c0222b', '#a87908', '#1f8a5b', '#7c3aed', '#0e7490', '#be185d']
-function companyColor(id: number | null): string {
-  if (!id) return '#64748b'
-  return COMPANY_COLORS[(id - 1) % COMPANY_COLORS.length]
-}
-
 // Bỏ dấu tiếng Việt để tìm không dấu ra tên có dấu (gõ "nguyen" ra "NGUYỄN").
 function noAccent(s: string): string {
   return (s || '')
@@ -672,16 +665,16 @@ export function LeaveOverviewPage() {
               display: 'flex', position: 'sticky', top: 0,
               background: '#fff', borderBottom: `1px solid ${HNH.line}`, zIndex: 2,
             }}>
-              {/* Corner cell — sticky top + left */}
+              {/* Corner cell — sticky top + left; header navy "NHÂN VIÊN" (giống CC Tháng) */}
               <div style={{
                 width: NAME_W, flexShrink: 0,
-                position: 'sticky', left: 0, zIndex: 3, background: '#fff',
+                position: 'sticky', left: 0, zIndex: 3, background: HNH.navy,
                 borderRight: `1px solid ${HNH.line}`,
                 padding: '5px 8px',
-                fontSize: 10, fontWeight: 700, color: HNH.ink3,
+                fontSize: 11, fontWeight: 600, color: '#c7d7f4',
                 display: 'flex', alignItems: 'center',
               }}>
-                NV ({employees.length})
+                NHÂN VIÊN
               </div>
               {/* Cột tổng hợp dồn lên đầu: Phép đầu · [Trừ phép · Không lương = Phát sinh] · Còn lại */}
               <div style={{ width: BAL_W, flexShrink: 0, textAlign: 'center', padding: '3px 2px', borderLeft: `1px solid ${HNH.line}`, background: HNH.navy50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -756,10 +749,10 @@ export function LeaveOverviewPage() {
                       {emp.name.split(' ').slice(0, -1).join(' ')}
                     </div>
                   )}
-                  {/* Mã NV — dòng cuối, nhỏ nhất (giống CC Tháng); giữ màu theo công ty */}
+                  {/* Mã NV — dòng cuối, nhỏ nhất, màu navy (giống CC Tháng) */}
                   {emp.badge_id && (
                     <div style={{
-                      fontSize: 9.5, color: companyColor(emp.company_id), fontWeight: 600, letterSpacing: 0.2,
+                      fontSize: 9.5, color: HNH.navy, fontWeight: 600, letterSpacing: 0.2,
                       whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: NAME_W - 16,
                     }}>
                       {emp.badge_id}
