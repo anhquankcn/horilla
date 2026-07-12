@@ -1,14 +1,15 @@
 # Technical Design Document (TDD)
-## Horilla HRM — Công ty Du lịch Hồng Ngọc Hà (HNH Travel)
+## HRM Platform — Portable Technical Design
 
 | | |
 |---|---|
-| Phiên bản | 1.0 |
-| Ngày | 2026-06-25 |
-| Branch | `horilla_aqv10` |
-| Nguồn | Sinh từ codebase (39 Django apps, PWA React/Vite, Keycloak, Postgres) |
+| Phiên bản | 2.0 (portable) |
+| Ngày | 2026-07-12 |
+| Nguồn | Codebase Horilla-based (39 Django apps, PWA React/Vite, Keycloak, Postgres) |
+| Reference Implementation (RI) | HNH Travel — production (branch `horilla_aqv10`) |
+| Baseline nghiệp vụ | [SRS.md](./SRS.md), [FRD.md](./FRD.md), [BRD.md](./BRD.md) |
 
-> Tài liệu thiết kế kỹ thuật. Yêu cầu nghiệp vụ xem [SRS.md](./SRS.md). Mọi secret dùng placeholder `<env>` — không ghi giá trị thật.
+> Tài liệu thiết kế kỹ thuật. Mọi secret dùng placeholder `<env>` — không ghi giá trị thật. Chi tiết gắn doanh nghiệp tham chiếu đánh dấu **`[RI]`**; điểm cần điều chỉnh cho tổ chức khác **`[Adopter]`**.
 
 ---
 
@@ -18,7 +19,7 @@
                          Internet (HTTPS)
                               │
                     ┌─────────▼──────────┐
-                    │  Cloudflare Tunnel  │  (cloudflared container)
+                    │  Edge / Tunnel      │  [RI] Cloudflare Tunnel
                     └─────────┬──────────┘
                               │
                     ┌─────────▼──────────┐
@@ -27,7 +28,7 @@
           /pwa, /bff    │         │  /api, /admin, /oidc
               ┌─────────▼──┐   ┌──▼─────────────┐
               │  PWA (dist) │   │   Django web    │  gunicorn
-              │  React/Vite │   │  (horilla)      │
+              │  React/Vite │   │  (monolith)     │
               └──────┬──────┘   └──┬───────┬──────┘
             /bff/*   │             │       │
               ┌──────▼──────┐      │       │
@@ -36,22 +37,23 @@
               └──────┬───────┘              │
                      │ OIDC                 │ ORM
             ┌────────▼─────────┐    ┌───────▼────────┐   ┌─────────┐
-            │  Keycloak (KC)   │    │  PostgreSQL 16  │   │  Redis  │
-            │  HNHTravel-SGN   │    │  horilla_prod   │   │ cache/q │
+            │  IdP (Keycloak)  │    │  PostgreSQL 16  │   │  Redis  │
             └──────────────────┘    └────────┬────────┘   └─────────┘
                      ▲                        │ streaming replication
-            Microsoft 365 IdP        ┌────────▼────────┐
-                                     │ Standby replica  │ (stage host)
+       [Adopter] Azure AD/AD FS      ┌────────▼────────┐
+                                     │ Standby replica  │
                                      └──────────────────┘
 ```
 
 **Thành phần:**
-- **Django monolith** (`horilla`) — server-rendered admin + REST API (`horilla_api`) + business logic. Chạy bằng gunicorn.
+- **Django monolith** — server-rendered admin + REST API (`horilla_api`) + business logic. gunicorn.
 - **PWA** (`pwa/frontend`) — React 18 + Vite, build tĩnh, phục vụ tại `/pwa/`.
-- **BFF** (`pwa/bff`) — Node Fastify: điều phối OIDC (PKCE), proxy `/bff/api/*` → `/api/*` với JWT server-side (httpOnly cookie), tránh CORS cho PWA.
-- **Keycloak** — IdP tập trung (realm HNHTravel-SGN, client horilla-hrm), liên kết Microsoft 365.
-- **PostgreSQL 16** — dữ liệu chính; có standby replica (streaming) phục vụ giám sát + đồng bộ sang stage.
-- **Redis** — cache + queue. **nginx** — reverse proxy. **cloudflared** — expose qua Cloudflare Tunnel.
+- **BFF** (`pwa/bff`) — Node Fastify: điều phối OIDC (PKCE), proxy `/bff/api/*` → `/api/*` với JWT server-side (httpOnly cookie), tránh CORS; giữ **Outlook refresh_token** per-user để gọi Microsoft Graph.
+- **IdP** — `[RI]` Keycloak (realm HNHTravel-SGN, client horilla-hrm), liên kết Microsoft 365. `[Adopter]` Azure AD/AD FS.
+- **PostgreSQL 16** — dữ liệu chính; standby replica (streaming) phục vụ giám sát + đồng bộ stage.
+- **Redis** — cache + queue + **session persist** (BFF), giúp deploy web không buộc re-login.
+
+> **`[Adopter]` ngân hàng:** thay Cloudflare Tunnel bằng WAF/LB nội bộ; đặt IdP = AD doanh nghiệp; bổ sung HA (multi-AZ) + DR; bật mã hóa at-rest cho DB.
 
 ---
 
@@ -61,11 +63,11 @@
 |-----|-----------|
 | Backend | Python / Django, Django REST Framework, SimpleJWT, mozilla_django_oidc, python-keycloak |
 | Frontend | React 18.3, Vite 6, TypeScript 5.8 (strict), Tailwind CSS 3.4, react-router v7, vite-plugin-pwa (Workbox) |
-| BFF | Node.js, Fastify, Undici |
-| Auth/SSO | Keycloak 26.2 (OIDC, RS256), Microsoft 365 federation |
+| BFF | Node.js, Fastify, Undici; Microsoft Graph (Calendars.Read) |
+| Auth/SSO | `[RI]` Keycloak 26.2 (OIDC, RS256) + Microsoft 365 federation; `[Adopter]` Azure AD |
 | DB / Cache | PostgreSQL 16, Redis |
-| Hạ tầng | Docker Compose, nginx, Cloudflare Tunnel |
-| Tích hợp | SMTP (Gmail), VAPID Web Push, biometric (pyzk/Dahua), geofencing, wttr.in |
+| Hạ tầng | Docker Compose, nginx, `[RI]` Cloudflare Tunnel |
+| Tích hợp | SMTP, VAPID Web Push, biometric (pyzk/Dahua), geofencing, Microsoft Graph |
 
 ---
 
@@ -76,101 +78,109 @@ Hệ thống gồm **39 Django apps**. Module cốt lõi và quan hệ:
 ```
 Company ──< Department ──< JobPosition ──< JobRole
    │         (M2M)
-   ├──< EmployeeShift ──< EmployeeShiftSchedule (day, start/end, core_start/end, min_hour, coefficient)
+   ├──< EmployeeShift ──< EmployeeShiftSchedule (day, start/end, core_start/end, min_hour, coefficient, check_mode)
    └──< MultipleApprovalCondition
 
 Employee (1-1 auth.User, FK WorkLevel)
    ├── 1-1 EmployeeWorkInformation (department, job_position, reporting_manager, shift, company, salary)
-   ├── 1-1 HNHEmployeeProfile (CCCD, BHXH, thuế, hộ khẩu, last_password_reset_sent_at/by)
+   ├── 1-1 HNHEmployeeProfile [RI] (CCCD, BHXH, thuế, hộ khẩu, last_password_reset_sent_at/by)
    ├── 1-1 EmployeeBankDetails
    ├──< AttendanceActivity / Attendance / GPSCheckInLog / LateComeEarlyOut / OverTime
    ├──< LeaveRequest ──< LeaveRequestConditionApproval (sequence, manager)
    │                  └──< LeaveRequestWatcher
    ├──< AvailableLeave (×LeaveType)
    ├──< TrialContract / OfficialContract / PerformanceContract (kế thừa ContractBase)
-   │        └──< ContractKPIAppendix (Phụ lục 1)
+   │        └──< ContractKPIAppendix
    └──< MonthlyPayrollEntry / Payslip / LoanAccount / Reimbursement
 
-CBLeaveManager (company?, department?, manager)  — config C&B duyệt phép, match cụ thể nhất thắng
+CBLeaveManager (company?, department?, manager)  — config bộ phận duyệt phép cố định; match cụ thể nhất thắng
+OutlookToken (1-1 User) — refresh_token mã hóa (Fernet) cho Microsoft Graph
+CalendarToken (1-1 User) — token feed .ics cá nhân
 ```
 
-**Model HNH-custom đáng chú ý:**
-- `WorkLevel` — cấp bậc 1–8 + quyền lợi (BHXH, BHNT, WFH, phụ cấp) theo cấp.
-- `HNHEmployeeProfile` — mở rộng hồ sơ (CCCD, BHXH, thuế, hộ khẩu, theo dõi reset mật khẩu).
-- `EmployeeShiftSchedule.core_start_time/core_end_time` — giờ lõi tính trễ/sớm (ALD26 = 08:00/17:30), tách khỏi khung ca.
-- `CBLeaveManager` + `LeaveRequestWatcher` — C&B cố định + người theo dõi đơn nghỉ.
-- `HNHCompensatoryProposal` — đề xuất phép bù manager→C&B.
-- `TrialContract / OfficialContract / PerformanceContract / ContractKPIAppendix / MonthlyPayrollEntry` — hệ thống hợp đồng & lương HNH.
-- `SystemHealthLog` (base) — log giám sát replication + backup SSO.
+**Model đáng chú ý (RI-custom, adopter thay được):**
+- `WorkLevel` — cấp bậc 1–8 + quyền lợi theo cấp. `[Adopter]` → ngạch/bậc ngân hàng.
+- `EmployeeShiftSchedule.core_start_time/core_end_time` — **giờ lõi** tính trễ/sớm, tách khỏi khung ca (`[RI]` ALD26 = 08:00/17:30). **Điểm cấu hình then chốt** để đổi mô hình ca.
+- `CBLeaveManager` + `LeaveRequestWatcher` — bộ phận duyệt cố định + người theo dõi.
+- `HNHCompensatoryProposal` — đề xuất phép bù.
+- `TrialContract/OfficialContract/PerformanceContract/ContractKPIAppendix/MonthlyPayrollEntry` — hệ hợp đồng & lương. `[Adopter]` thay công thức, giữ khung.
+- `OutlookToken` / `CalendarToken` — tích hợp lịch.
+- `SystemHealthLog` — log giám sát replication + backup.
 
-Migration được quản lý chuẩn Django; các thay đổi gần đây: `leave.0007` (CBLeaveManager + Watcher, seed C&B toàn cục), `base.0037` (core times + seed ALD26 08:00/17:30).
+Migration quản lý chuẩn Django. Thay đổi gần đây: `leave.0007+` (CBLeaveManager + Watcher, seed bộ phận duyệt toàn cục), `base.0037+` (core times + seed ca `[RI]` 08:00/17:30), `base.0039` (OutlookToken).
 
 ---
 
 ## 4. Thiết kế API
 
-API REST nằm trong `horilla_api/`, nhóm theo module: `attendance`, `leave`, `employee`, `payroll`, `base`, `notifications`, `asset`, `expenses`, `m2m`, `auth`...
+API REST trong `horilla_api/`, nhóm theo module: **16 nhóm** — `asset, attendance, auth, base, calendar, employee, eoffice, expenses, helpdesk, leave, m2m, notifications, payroll, project, tourism, wc2026`.
 
 ### 4.1 Xác thực
-- **Người dùng (web/mobile):** Keycloak OIDC. PWA dùng **BFF flow**: PKCE → exchange code → lưu **SimpleJWT** trong httpOnly cookie; `/bff/api/*` proxy kèm JWT server-side. Backend xác thực qua `horilla/oidc_backend.py` (`HorillaOIDCBackend`): map KC claims → Horilla user theo email→email / email→username / preferred_username→username.
-- **M2M (service-to-service):** `horilla_api/m2m_auth.py` — 3 lớp: IP CIDR allowlist + token SHA256 (`X-HNH-Service-Token`) + scope `resource:action` (vd `attendance:write`).
-- **Permission classes:** `IsAuthenticated`, `ManagerPermission` / `manager_permission_required`, helper nghiệp vụ `_can_onboard` (nhóm C&B/admin), `_is_cnb`, `require_m2m_scope(...)`.
+- **Người dùng (web/mobile):** OIDC qua IdP. PWA dùng **BFF flow**: PKCE → exchange code → JWT trong httpOnly cookie; `/bff/api/*` proxy kèm JWT server-side. Backend map claims → user (`oidc_backend`): email→email / email→username / preferred_username→username.
+- **M2M:** `m2m_auth.py` — **3 lớp**: IP CIDR allowlist + token SHA256 (`X-HNH-Service-Token`) + scope `resource:action`.
+- **Permission classes:** `IsAuthenticated`, `ManagerPermission`, helper nghiệp vụ `_can_onboard`, `_is_cnb`, `require_m2m_scope(...)`.
 
 ### 4.2 Nhóm endpoint chính (đại diện)
 
 | Nhóm | Endpoint tiêu biểu |
 |------|--------------------|
-| Attendance | `POST /api/attendance/clock-in/`, `clock-out/`, `biometric-punch/`, `GET /api/attendance/export-monthly/[/xlsx/]` (from_date/to_date/page/page_size) |
-| Leave | `POST /api/leave/user-request-days/`, `user-request-hours/`, `pwa-approve/<id>/`, `GET /api/leave/cb-managers/`, `select-candidates/`, `watching/`, `available-managers/` |
-| Employee | `GET /api/employee/me/`, `directory/`, `POST /api/employee/onboard/`, `<pk>/kc-account/` (GET/POST/PATCH), `<pk>/kc-account/identity/` (GET preview / POST apply) |
-| Payroll | `GET /api/payroll/my-payslip/`, `payroll-management/`, `contract/` |
-| Base | `GET /api/base/system-health/`, `weather/`, `keycloak/sync-*` |
-| Notifications | `GET /api/notifications/summary/`, `push/vapid-key/`, `POST push/subscribe/`, announcements feed/like |
-| M2M | `GET /api/m2m/whoami/`, `employees/`, `attendance/`, `accounts/<id>/rotate/` |
+| Attendance | `POST clock-in/`, `clock-out/`, `biometric-punch/`; `GET export-monthly/[/xlsx/]`, `activity-overview/`, `activity-detail/` |
+| Leave | `POST user-request-days/`, `user-request-hours/`, `pwa-approve/<id>/`, `pwa-reject/<id>/`; `GET hnh-approved-leaves/?status=`, `hnh-leave-overview/`, `cb-managers/`, `watching/`; `DELETE user-request/<id>/` |
+| Employee | `GET me/`, `me/day-detail/`, `directory/`; `POST onboard/`, `<pk>/kc-account/`, `<pk>/kc-account/identity/` |
+| Payroll | `GET my-payslip/`, `payroll-management/`, `contract/` |
+| Calendar | `GET events/`, `token/`, `outlook-token/`; BFF `/bff/api/calendar/outlook`, `/bff/outlook/status` |
+| Base | `GET system-health/`, `weather/`, `keycloak/sync-*` |
+| Notifications | `GET summary/`, `push/vapid-key/`; `POST push/subscribe/`; announcements feed/like |
+| M2M | `GET whoami/`, `employees/`, `attendance/`; `accounts/<id>/rotate/` |
 
-Tất cả dùng DRF, JSON. Endpoint list quan trọng dùng `annotate()` để tránh N+1.
+Tất cả DRF/JSON. Endpoint list quan trọng dùng `annotate()` tránh N+1.
 
 ---
 
 ## 5. Thuật toán & Logic nghiệp vụ trọng yếu
 
-### 5.1 Chấm công (clock-in/out) — `horilla_api/api_views/attendance/views.py`
-1. `_clock_device_guard`: chặn **desktop** (403) và **thiếu ảnh camera** (400 "Bắt buộc bật camera"). → "không chấm được" thường là **lỗi camera**, không phải GPS.
+### 5.1 Chấm công — `horilla_api/api_views/attendance/views.py`
+1. `_clock_device_guard`: `[RI]` chặn **desktop** (403) + **thiếu ảnh camera** (400). → "không chấm được" thường là **lỗi camera**, không phải GPS.
 2. Tạo `AttendanceActivity`, lưu GPS + ảnh selfie, device/UA.
-3. `_check_geofence`: chỉ **flag** `geo_valid` (True/False/None), **KHÔNG chặn** chấm công.
-4. Logger `hnh.clock` (INFO→stdout) ghi `CLOCK IN/OUT ok` + `CLOCK BLOCKED reason=...` kèm user/device/UA để chẩn đoán (`docker logs ... | grep CLOCK`).
-5. **Gia cố PWA** (`ClockModal.tsx`): capture ảnh ≤720px (giảm RAM, tránh iOS reload/"văng"); chống chấm lặp <45s qua `localStorage` (sống sót qua reload).
+3. `_check_geofence`: chỉ **flag** `geo_valid`, **KHÔNG chặn**; ngoài vùng → notify quản lý (redirect trang duyệt).
+4. Logger chẩn đoán ghi `CLOCK IN/OUT ok` + `CLOCK BLOCKED reason=...`.
+5. **Gia cố PWA** (`ClockModal`): ảnh ≤720px (giảm RAM iOS); chống chấm lặp <45s qua localStorage.
 
 ### 5.2 Tính công ngày
-- **ALD26** (`recompute_ald26_day`): gom mọi clock_in/out trong ngày, sắp xếp; ≥2 lượt → công = (lượt cuối − lượt đầu), không trừ trưa; 1 lượt → NCO (ra=NULL); 0 lượt → vắng. `minimum_working_hour` 09:35 = 100% công.
-- **Giờ lõi**: đi trễ tính theo `core_start_time || start_time` (+ grace), về sớm theo `core_end_time || end_time`. ALD26 = 08:00/17:30 dù khung ca 00:00–23:58.
-- **One-way shifts**: ca có `check_mode` clock_in_only/clock_out_only tính theo mép ca tương ứng.
+- **`[RI]` ALD26** (`recompute_ald26_day`): gom clock in/out, sắp xếp; ≥2 lượt → công = (cuối − đầu), không trừ trưa; 1 lượt → NCO; 0 → vắng. Min 09:35 = 100%.
+- **Giờ lõi**: trễ theo `core_start_time || start_time` (+grace), sớm theo `core_end_time || end_time`.
+- **One-way shifts**: `check_mode` clock_in_only/clock_out_only tính theo mép ca. **`[Adopter]`**: cấu hình ca mới qua `EmployeeShiftSchedule` (không sửa code).
 
-### 5.3 Lương (payroll) — `payroll/views/contract_hnh_views.py`
-- **G/H** theo loại HĐ (xem SRS FR-5.2). Bảng lương tháng `MonthlyPayrollEntry` tính cột J→AK:
-  - LCB thực nhận J = G×(F/E); LHS Pool K = H−G−L+I; OT T = Σ(giờ×đơn giá/giờ×hệ số); KPI thực nhận V = KPI%×K; Gross thực tế AB; BHXH 8% / BHYT 1.5% / BHTN 1% (có **trần**); **thuế TNCN lũy tiến 7 bậc**; giảm trừ bản thân 11tr + NPT; thực lĩnh AK.
+### 5.3 Lương — `payroll/views/contract_hnh_views.py`
+- `[RI]` **G/H** theo loại HĐ (SRS FR-5.2). `MonthlyPayrollEntry` tính cột dẫn xuất: lương thực nhận, quỹ hiệu suất, OT (Σ giờ×đơn giá×hệ số), KPI, gross thực tế, bảo hiểm (BHXH 8%/BHYT 1.5%/BHTN 1%, có trần), **thuế TNCN lũy tiến 7 bậc**, giảm trừ, thực lĩnh.
 - Công thức đồng bộ **Python (server) + JavaScript (realtime UI)**.
-- Tuân thủ trần BHXH/BHYT, BHTN và bậc thuế theo Luật VN (cấu hình qua management command `setup_hnh_payroll`).
+- **`[Adopter]`**: thay công thức + bậc thuế qua management command tương tự `setup_hnh_payroll`.
 
 ### 5.4 Duyệt nghỉ phép
-- Đơn tạo ra sinh `LeaveRequestConditionApproval` cho từng người duyệt; **C&B cố định** (`resolve_cb_manager`) luôn được chèn server-side vào approver + watcher.
-- **Bất kỳ 1 người duyệt** approve → `LeaveRequest.status="approved"` (PWA flow); guard thẩm quyền: chỉ reporting manager / approver có ConditionApproval / C&B / staff được duyệt.
-- Watcher lưu `LeaveRequestWatcher`, notify khi tạo/duyệt/từ chối.
+- Đơn sinh `LeaveRequestConditionApproval` cho từng approver; **bộ phận duyệt cố định** (`resolve_cb_manager`) chèn server-side vào approver + watcher.
+- **Bất kỳ 1 approver** approve → `status="approved"`; guard thẩm quyền: reporting manager / ConditionApproval / bộ phận duyệt / staff (`_can_approve_leave`, cho phép cả nhóm C&B toàn tổ chức).
+- APPR xem đơn `requested` toàn tổ chức (`hnh-approved-leaves?status=requested`) không phụ thuộc routing per-employee.
+- Watcher lưu `LeaveRequestWatcher`, notify khi tạo/duyệt/từ chối/hủy.
 
-### 5.5 Import & đồng bộ
-- Import chấm công Excel (`attendance/views/hnh_import.py`): match badge_id, parse ngày/giờ, bỏ ngày vắng, chống trùng (badge_id, date).
-- Sync standby→stage (`deploy/sync_standby_to_stage.sh`): upsert `auth_user` → employee/shift → replace attendance; reset sequence; đối chiếu số bản ghi.
+### 5.5 Lịch & Outlook
+- Lịch tổng hợp: `CalendarEventsView` trả sự kiện HRM (nghỉ phép + lễ, all_day). Outlook merge **client-side** qua BFF (`/bff/api/calendar/outlook` → Microsoft Graph `calendarView`), token per-user (`OutlookToken`, Fernet).
+- Timeline 24h cá nhân (`me/day-detail` + `activity-detail` + Outlook): lồng lượt chấm + sự kiện có giờ vào **đúng khung giờ** (map theo `HH`).
+
+### 5.6 Import & đồng bộ
+- Import chấm công Excel (`attendance/views/hnh_import.py`): match badge_id, bỏ ngày vắng, chống trùng (badge_id, date).
+- Sync standby→stage (`deploy/sync_standby_to_stage.sh`): upsert auth_user → employee/shift → replace attendance; reset sequence; đối chiếu row count.
 
 ---
 
 ## 6. Thiết kế Frontend (PWA)
 
-- **Cấu trúc:** `main.tsx` (AuthProvider → BrowserRouter → App) → `App.tsx` routing → `AppShell` (TopBar + BottomNav/SideNav) → 77 pages.
-- **State:** React Context (`AuthProvider`, `ToastProvider`) + local useState. Không lưu JWT ở client — **cookie auth** (`credentials: 'include'`), API base `/bff`.
-- **Hooks lib:** `useApi` (fetch), `useClock` (chấm công), `useGeolocation` (GPS + geofence HNH office), `useNotificationPolling` (15s + âm thanh + badge), `useAutoClockOut`, `useTablet`.
-- **Theme:** `lib/theme.ts` — màu HNH (navy #142B6F, red #c0222b, gold). Mobile-first, safe-area.
-- **PWA:** vite-plugin-pwa (Workbox autoUpdate), `manifest.webmanifest`, custom `push-sw.js` (Web Push), install banner iOS/Android, offline cache fonts, pull-to-refresh.
-- **Component dùng chung:** `ClockModal` (GPS+camera+minimap), `ProfileTabs` (Overview/Contracts/Leave/Account), `ui/*` (Icon, Badge, Toast, Avatar...).
+- **Cấu trúc:** `main.tsx` (AuthProvider → BrowserRouter → App) → `App.tsx` (**81 routes**) → `AppShell` (TopBar + BottomNav/SideNav) → **81 pages**.
+- **State:** React Context (`AuthProvider`, `ToastProvider`) + local useState. **Không lưu JWT client** — cookie auth (`credentials:'include'`), API base `/bff`.
+- **Hooks lib:** `useApi`, `useClock`, `useGeolocation`, `useNotificationPolling`, `useAutoClockOut`, `useOutlookEvents`, `useTablet`.
+- **Theme:** `lib/theme.ts` — `[RI]` navy #142B6F / red #c0222b / gold. Mobile-first, safe-area.
+- **PWA:** vite-plugin-pwa (Workbox autoUpdate), manifest, `push-sw.js` (Web Push), install banner iOS/Android, offline cache, pull-to-refresh.
+- **Component dùng chung:** `ClockModal` (GPS+camera+minimap), `AttendanceActivityDetail` (flattenPunches → chuỗi lượt chấm), `ProfileTabs`, `ui/*`.
+- **`[Adopter]`**: swap `theme.ts` (brand), gỡ route module `[RI]` (tourism/wc2026), thêm/bớt page theo module bật.
 
 ---
 
@@ -178,88 +188,88 @@ Tất cả dùng DRF, JSON. Endpoint list quan trọng dùng `annotate()` để 
 
 | Tích hợp | Thiết kế |
 |----------|----------|
-| Keycloak | OIDC login (BFF PKCE) + Admin REST (`keycloak_service.py`: create/rename/reset/disable user; toggle realm editUsernameAllowed khi đổi username). Sync role/user. |
-| Máy chấm công | `biometric_ingest.py` nhận M2M punch (Ronald Jack pyzk / Dahua), dedup 120s, match badge_id. |
-| Email | SMTP động (`DynamicEmailConfiguration`, ưu tiên Gmail) — welcome, reset, bảng lương. |
-| Geofencing | `geofencing/utils.check_geofence(lat, lng, company)` — validate vùng văn phòng. |
-| Web Push | VAPID; `push.ts` subscribe; `push-sw.js` hiển thị + click→điều hướng. |
-| Weather | Proxy `/api/base/weather/` → wttr.in (tránh CORS iOS). |
-| App nội bộ | M2M integration config (token/base_url) + embed session handoff (Arkon, EOffice, 1StopShop, IAM, AppVMB). |
+| IdP (SSO) | OIDC login (BFF PKCE) + Admin REST (`keycloak_service.py`: create/rename/reset/disable; toggle `editUsernameAllowed` khi đổi username). `[Adopter]` → Azure AD Graph. |
+| Máy chấm công | `biometric_ingest.py` nhận M2M punch (pyzk/Dahua), dedup 120s, match badge_id. |
+| Email | SMTP động (`DynamicEmailConfiguration`) — welcome, reset, payslip. |
+| Geofencing | `geofencing/utils.check_geofence(lat, lng, company)`. |
+| Web Push | VAPID; `push.ts` subscribe; `push-sw.js` hiển thị + điều hướng. |
+| Outlook | BFF Microsoft Graph (Calendars.Read), refresh_token per-user (`OutlookToken`). |
+| App nội bộ | M2M integration config + embed session handoff (`[RI]` Arkon, EOffice, 1StopShop, IAM). |
 
 ---
 
 ## 8. Thiết kế Bảo mật
 
-- **SSO-only**: local login tắt; bắt buộc Keycloak OIDC (RS256, JWKS, clock skew 5'). `oidc_backend` không tự tạo user.
-- **M2M 3 lớp**: IP CIDR (Wireguard/Docker/localhost) + token SHA256 + scope. Token rotate được.
-- **Chấm công**: bắt buộc camera + chặn desktop; GPS flag (không lộ vị trí làm hard gate); log device/UA để truy vết.
-- **Secrets**: qua biến môi trường (`OIDC_RP_CLIENT_SECRET`, `KC_ADMIN_*`, `EMAIL_*`, `VAPID_*`, `DATABASE_URL`...). Không commit `.env`/`.env.stage`. KC admin creds chỉ truy cập qua container env, không in ra.
-- **Proxy SSL**: `SECURE_PROXY_SSL_HEADER`, `USE_X_FORWARDED_*` cho Cloudflare→nginx.
-- **Audit**: `horilla_audit` / `auditlog` ghi lịch sử thay đổi.
+- **SSO-only**: local login tắt; OIDC (RS256, JWKS, clock skew 5'). `oidc_backend` không tự tạo user.
+- **M2M 3 lớp**: IP CIDR + token SHA256 + scope. Token rotate được.
+- **Chấm công**: bắt buộc camera; GPS flag (không dùng làm hard gate); log device/UA để truy vết.
+- **Secrets**: qua env (`OIDC_RP_CLIENT_SECRET`, `KC_ADMIN_*`, `EMAIL_*`, `VAPID_*`, `DATABASE_URL`, Outlook Fernet key). Không commit `.env`.
+- **Proxy SSL**: `SECURE_PROXY_SSL_HEADER`, `USE_X_FORWARDED_*`.
+- **Audit**: `horilla_audit`/`auditlog` ghi lịch sử thay đổi.
+- **`[Adopter]` ngân hàng (bắt buộc):** MFA ở IdP; **phân tách nhiệm vụ** (tạo tài khoản ≠ duyệt quyền); audit **bất biến** + giữ đủ lâu; mã hóa dữ liệu nhạy cảm at-rest; review IP allowlist M2M theo chuẩn nội bộ.
 
 ---
 
 ## 9. Triển khai & Hạ tầng
 
-### 9.1 Topology
+### 9.1 Topology (`[RI]`)
 
 | | Production | Stage |
 |---|-----------|-------|
-| Server | `100.99.164.24` (hnhlive) | `100.88.75.106` (azurestage) |
-| Key SSH | `es-hrm.pem` | `naquan.pem` |
+| Server | `100.99.164.24` | `100.88.75.106` |
 | Checkout | `/opt/hnh/horilla` | `/opt/horilla` |
 | Compose | `docker-compose.prod.yml` | `docker-compose.stage.yml` |
 | DB | `horilla_prod` | `horilla_stage` (+ standby replica của prod) |
 | Site | qlns.hnhtravel.work | qlns-stage.hnhtravel.work |
-| Keycloak | container `HNHSSO` (chung cho cả 2 môi trường) | (trỏ về prod KC) |
 
-Cả 2 deploy từ branch **`horilla_aqv10`**. Container: web, db (postgres:16), redis, nginx, cloudflared (+ pwa, bff).
+Container: web, db (postgres:16), redis, nginx, cloudflared (+ pwa, bff). Cả 2 deploy từ branch `horilla_aqv10`.
 
 ### 9.2 Quy trình deploy
-1. Local: commit + `git push origin horilla_aqv10`.
-2. Server: `cd <checkout> && git pull --ff-only`.
-3. `docker compose -f <compose> build web` (+ `build --no-cache pwa` nếu đổi frontend).
-4. `docker compose ... up -d`.
-5. `docker compose ... exec web python manage.py migrate`.
-- Stage có `deploy.sh` tự so HEAD trước/sau pull để quyết rebuild web/pwa/bff. Prod chạy thủ công.
-- **Quy tắc:** test migration trên stage trước prod; deploy 1 commit = deploy cả branch tích lũy → luôn kiểm `git log HEAD..origin/horilla_aqv10`.
+1. Local: commit + `git push`.
+2. Server: `cd <checkout> && sudo git pull --ff-only`.
+3. `docker compose -f <compose> up -d --no-deps --build web pwa` (chọn service theo thay đổi: chỉ web nếu đổi Django, chỉ pwa nếu đổi frontend, cả hai nếu đụng cả).
+4. `docker exec <nginx> nginx -s reload` (lấy IP container mới).
+5. Nếu có migration: `docker compose ... exec -T web python manage.py migrate --no-input`.
+- **Quy tắc:** test migration trên **stage trước prod**; deploy 1 commit = deploy cả branch tích lũy → kiểm `git log HEAD..origin/<branch>`. Đổi frontend cần **rebuild pwa** (code bake vào image); người dùng cần hard refresh PWA. Đụng web/pwa (không bff) → không buộc re-login (Redis session).
 
 ### 9.3 Cấu hình hệ thống (`horilla/settings.py`)
-- `LANGUAGE_CODE="vi"`, `TIME_ZONE="Asia/Ho_Chi_Minh"`, `WHITE_LABELLING=True`, `THEME_APP="horilla_theme"`.
-- OIDC: `KC_BASE` (realm HNHTravel-SGN), `OIDC_RP_CLIENT_ID="horilla-hrm"`, `OIDC_REDIRECT_BASE_URL`, `LOGIN_REDIRECT_URL="/pwa/"`.
-- KC Admin: `KC_SERVER_URL`, `KC_REALM`, `KC_ADMIN_*` (qua env).
-- `LOGGING`: logger `hnh.clock` (INFO→stdout) cho chẩn đoán chấm công.
+- `[RI]` `LANGUAGE_CODE="vi"`, `TIME_ZONE="Asia/Ho_Chi_Minh"`, `WHITE_LABELLING=True`, `THEME_APP="horilla_theme"`.
+- OIDC: `KC_BASE`, `OIDC_RP_CLIENT_ID`, `OIDC_REDIRECT_BASE_URL`, `LOGIN_REDIRECT_URL="/pwa/"`.
+- IdP Admin: `KC_SERVER_URL`, `KC_REALM`, `KC_ADMIN_*` (env).
 - DB Postgres qua `DATABASE_URL`/`DB_*`. `.env` symlink → `.env.prod`/`.env.stage`.
 
 ---
 
 ## 10. Vận hành (Operations)
 
-### 10.1 Management commands chính
+### 10.1 Management commands chính (`[RI]`)
 | Command | Mục đích |
 |---------|----------|
 | `setup_hnh_company` | Khởi tạo công ty, phòng ban, vị trí, ca, loại nghỉ |
-| `setup_hnh_payroll` | FilingStatus thuế TNCN 7 bậc + deductions/allowances chuẩn |
-| `setup_ald26` / `backfill_ald26` | Tạo ca ALD26 + gán NV / recompute công 1 tháng |
+| `setup_hnh_payroll` | FilingStatus thuế TNCN 7 bậc + deductions/allowances |
+| `setup_ald26` / `backfill_ald26` | Tạo ca 24h + gán NV / recompute công |
 | `import_hnh_employees` | Import DSNV từ Excel |
-| `setup_hnh_leave_types` | Loại nghỉ Nhóm 2 |
-| `record_standby_sync` | Ghi log đồng bộ standby |
+
+> **`[Adopter]`**: viết command tương tự để seed danh mục tổ chức mình (công ty/phòng/ca/loại nghỉ/bậc lương/thuế).
 
 ### 10.2 Giám sát & backup
-- `SystemHealthLog`: cron stage (mỗi 1h) kiểm tra replication prod↔standby (so row count thật qua SSH) + tuổi backup SSO; push log sang prod (`X-Sync-Token`).
-- Backup SSO (Keycloak) cron prod 02:00 → sync sang stage.
-- Sync standby→stage cron 05:00/13:00.
+- `SystemHealthLog`: cron kiểm tra replication primary↔standby (so row count qua SSH) + tuổi backup; push log qua `X-Sync-Token`.
+- Backup IdP (Keycloak) cron + sync sang stage. Sync standby→stage định kỳ.
 
 ### 10.3 Chẩn đoán nhanh
 - Lỗi chấm công: `docker compose -f docker-compose.prod.yml logs web | grep CLOCK`.
-- Lưu ý: `GPSCheckInLog` là **legacy, rỗng** — không dùng chẩn đoán; dùng `attendance_attendanceactivity` + log `hnh.clock`.
+- Lưu ý `[RI]`: `GPSCheckInLog` là **legacy, rỗng**; dùng `attendance_attendanceactivity` + log chẩn đoán.
 
 ---
 
-## Phụ lục: cập nhật bản dịch
-```bash
-python manage.py makemessages -l vi --ignore=node_modules --ignore=venv
-python manage.py compilemessages -l vi
-```
+## 11. Hướng dẫn tái sử dụng cho tổ chức mới (Adopter Technical Playbook)
 
-> Tài liệu này phản ánh codebase tại 2026-06-25 (branch `horilla_aqv10`). Một số chi tiết công thức/endpoint cần đối chiếu trực tiếp với mã nguồn khi triển khai thay đổi.
+1. **Fork** branch nền (vd `horilla_banktmov10`); giữ core apps (§SRS 6), gỡ `tourism`/`wc2026` + route PWA tương ứng.
+2. **Đổi IdP** sang AD doanh nghiệp (OIDC config + claims mapping giữ nguyên logic `oidc_backend`).
+3. **Cấu hình ca & công** qua `EmployeeShiftSchedule` (`core_*_time`, `check_mode`) — không sửa thuật toán.
+4. **Thay công thức lương & thuế** (command seed riêng); giữ khung `ContractBase` + `MonthlyPayrollEntry`.
+5. **Thay bậc/ngạch** (`WorkLevel`), loại nghỉ (`LeaveType`), branding (`theme.ts`, WHITE_LABELLING).
+6. **Nâng bảo mật** (§8 `[Adopter]`): MFA, phân tách nhiệm vụ, audit bất biến, mã hóa at-rest, HA/DR.
+7. **Tích hợp Core-HR/AD** qua M2M (đồng bộ nhân sự 2 chiều).
+
+> Tài liệu phản ánh codebase tại 2026-07-12 (branch `horilla_aqv10`). Chi tiết công thức/endpoint cần đối chiếu mã nguồn khi triển khai thay đổi.

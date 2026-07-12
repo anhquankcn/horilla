@@ -2,16 +2,19 @@
 
 Tài liệu kỹ thuật cho hệ thống HRM của Công ty Du lịch Hồng Ngọc Hà.
 
-### Tài liệu tổng quan
+### Tài liệu tổng quan (bộ portable — HNH là Reference Implementation)
+> Bộ SRS/BRD/FRD/TDD phiên bản **2.0 portable**: viết theo **model năng lực HRM chung**, chi tiết gắn HNH đánh dấu `[RI]`, gợi ý tổ chức khác (vd **bank TMO HRM**) đánh dấu `[Adopter]`. Dùng làm đầu vào để một dự án/Claude khác viết lại BRD/FRD cho HRM subsystem của mình.
+
 | Tài liệu | Mô tả |
 |----------|-------|
-| [SRS.md](./SRS.md) | **Software Requirements Specification** — baseline yêu cầu: phạm vi, đối tượng, chức năng (FR) **+ phi chức năng (NFR)** + giao diện ngoài |
-| [FRD.md](./FRD.md) | **Functional Requirements Document** — đặc tả **chi tiết từng chức năng** (luồng chính/ngoại lệ, business rules, validation, endpoint), truy vết về FR của SRS |
-| [TDD.md](./TDD.md) | **Technical Design Document** — kiến trúc, tech stack, mô hình dữ liệu, API, thuật toán, bảo mật, triển khai, vận hành |
+| [BRD.md](./BRD.md) | **Business Requirements Document** — bối cảnh, mục tiêu kinh doanh (G1–G6), quy trình nghiệp vụ (BP-1..8), giá trị, rủi ro, lộ trình. Trả lời "tại sao / đạt được gì" |
+| [SRS.md](./SRS.md) | **Software Requirements Specification** — yêu cầu hệ thống: phạm vi, actor, chức năng (FR) + phi chức năng (NFR) + giao diện ngoài + **Capability Inventory** theo module |
+| [FRD.md](./FRD.md) | **Functional Requirements Document** — đặc tả **chi tiết từng chức năng** (luồng, business rules, validation, endpoint), truy vết FR của SRS |
+| [TDD.md](./TDD.md) | **Technical Design Document** — kiến trúc, tech stack, mô hình dữ liệu, API, thuật toán, bảo mật, triển khai, + **Adopter Technical Playbook** |
 | [edu-hrm-architecture-plan.md](./edu-hrm-architecture-plan.md) | Kế hoạch kiến trúc mở rộng sang vertical HRM giáo dục ĐH/CĐ |
-| [SRS-education.md](./SRS-education.md) | SRS vertical giáo dục — case pilot **Trường ĐH Quảng Nam** (viên chức, giờ giảng, lương hệ số) |
+| [SRS-education.md](./SRS-education.md) | SRS vertical giáo dục — case pilot **Trường ĐH Quảng Nam** |
 
-**Quan hệ:** SRS (yêu cầu trọn gói gồm NFR) ⊃ phần functional → **FRD** đào sâu thành đặc tả chức năng → **TDD** mô tả cách hiện thực. SRS↔FRD↔TDD truy vết lẫn nhau.
+**Quan hệ:** **BRD** (tại sao/giá trị) → **SRS** (hệ thống cần gì, gồm NFR) → **FRD** (đặc tả chức năng) → **TDD** (hiện thực thế nào). Bốn tài liệu truy vết lẫn nhau; đổi phần `[RI]` để dẫn xuất cho tổ chức mới.
 
 ### Tài liệu chuyên đề (có sẵn)
 | Tài liệu | Mô tả |
