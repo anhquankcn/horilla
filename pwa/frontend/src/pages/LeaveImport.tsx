@@ -12,6 +12,8 @@ interface PreviewRow {
   name: string
   annual_before: number
   annual_after: number
+  seniority_before: number
+  seniority_after: number
   bu_before: number
   bu_after: number
   carry_before: number
@@ -24,6 +26,7 @@ interface ImportResult {
   rows_processed: number
   updated: number
   skipped: number
+  seniority_supported?: boolean
   errors: { row: number; badge_id: string; message: string }[]
   preview: PreviewRow[]
 }
@@ -79,55 +82,36 @@ export function LeaveImportPage() {
     }
   }
 
-  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const f = e.target.files?.[0]
     if (!f) return
     setFile(f)
     setError(null)
-    setLoading(true)
-    try {
-      const form = new FormData()
-      form.append('file', f)
-      const resp = await fetch('/api/leave/hnh-leave-import/?dry_run=true', {
-        method: 'POST',
-        credentials: 'include',
-        body: form,
-      })
-      const data: ImportResult = await resp.json()
-      if (!resp.ok) {
-        setError((data as any).detail || 'Lỗi xử lý file')
-        return
-      }
-      setResult(data)
-      setStep('preview')
-    } catch {
-      setError('Không thể đọc file. Đảm bảo file đúng định dạng .xlsx từ mẫu.')
-    } finally {
-      setLoading(false)
-    }
+    setResult(null)
   }
 
-  async function handleImport() {
+  // Gọi import: dryRun=true → xem trước (không ghi DB); dryRun=false → ghi thật.
+  async function run(dryRun: boolean) {
     if (!file) return
     setLoading(true)
     setError(null)
     try {
       const form = new FormData()
       form.append('file', file)
-      const resp = await fetch('/api/leave/hnh-leave-import/', {
+      const resp = await fetch(`/api/leave/hnh-leave-import/?dry_run=${dryRun}`, {
         method: 'POST',
         credentials: 'include',
         body: form,
       })
       const data: ImportResult = await resp.json()
       if (!resp.ok) {
-        setError((data as any).detail || 'Lỗi nhập dữ liệu')
+        setError((data as any).detail || (dryRun ? 'Lỗi xử lý file' : 'Lỗi nhập dữ liệu'))
         return
       }
       setResult(data)
-      setStep('done')
+      setStep(dryRun ? 'preview' : 'done')
     } catch {
-      setError('Lỗi kết nối. Vui lòng thử lại.')
+      setError(dryRun ? 'Không thể đọc file. Đảm bảo file đúng định dạng .xlsx.' : 'Lỗi kết nối. Vui lòng thử lại.')
     } finally {
       setLoading(false)
     }
@@ -192,8 +176,9 @@ export function LeaveImportPage() {
                 Bước 1 — Tải file mẫu
               </div>
               <div style={{ fontSize: 12.5, color: HNH.ink3, marginBottom: 12, lineHeight: 1.5 }}>
-                File mẫu chứa danh sách toàn bộ nhân viên và số ngày phép hiện tại.
-                Điền vào các ô vàng: <strong>Phép đầu năm</strong>, <strong>Phép bù</strong>, <strong>Phép tồn</strong>.
+                File mẫu chứa danh sách nhân viên + số phép hiện tại. Điền các ô vàng:
+                <strong> Phép trong năm</strong>, <strong>Phép thâm niên</strong>, <strong>Phép bù</strong>, <strong>Phép tồn</strong>.
+                Ô trống = giữ nguyên; dấu "-" = 0. Số thập phân dùng dấu phẩy (vd 9,92).
               </div>
               <button
                 onClick={downloadTemplate}
@@ -216,33 +201,69 @@ export function LeaveImportPage() {
               border: `1px solid ${HNH.line}`, marginBottom: 14,
             }}>
               <div style={{ fontSize: 14, fontWeight: 700, color: HNH.ink, marginBottom: 4 }}>
-                Bước 2 — Tải file lên
+                Bước 2 — Tải file lên & chạy
               </div>
               <div style={{ fontSize: 12.5, color: HNH.ink3, marginBottom: 12, lineHeight: 1.5 }}>
-                Sau khi điền xong, chọn file .xlsx để xem trước trước khi nhập.
+                Chọn file .xlsx, rồi <strong>Dryrun</strong> để xem trước thay đổi (không ghi),
+                hoặc <strong>Chạy</strong> để cập nhật ngay.
               </div>
 
-              {loading ? (
-                <div style={{ textAlign: 'center', padding: '12px 0', color: HNH.ink3, fontSize: 13 }}>
-                  Đang đọc file...
-                </div>
-              ) : (
-                <label style={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
-                  width: '100%', height: 44, borderRadius: 12, fontSize: 14, fontWeight: 700,
-                  border: `2px dashed ${HNH.red}60`, background: HNH.red50,
-                  color: HNH.red, cursor: 'pointer',
-                }}>
-                  <Icon name="upload" size={18} color={HNH.red} stroke={2} />
-                  Chọn file .xlsx
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    accept=".xlsx"
-                    style={{ display: 'none' }}
-                    onChange={handleFileChange}
-                  />
-                </label>
+              <label style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10,
+                width: '100%', height: 44, borderRadius: 12, fontSize: 14, fontWeight: 700,
+                border: `2px dashed ${HNH.red}60`, background: HNH.red50,
+                color: HNH.red, cursor: 'pointer',
+              }}>
+                <Icon name="upload" size={18} color={HNH.red} stroke={2} />
+                {file ? 'Đổi file khác' : 'Chọn file .xlsx'}
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept=".xlsx"
+                  style={{ display: 'none' }}
+                  onChange={handleFileChange}
+                />
+              </label>
+
+              {file && (
+                <>
+                  <div style={{
+                    marginTop: 10, padding: '8px 12px', borderRadius: 10,
+                    background: HNH.cream, fontSize: 12.5, color: HNH.ink2,
+                    display: 'flex', alignItems: 'center', gap: 8,
+                  }}>
+                    <Icon name="doc" size={15} color={HNH.ink3} stroke={2} />
+                    <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</span>
+                  </div>
+                  <div className="flex gap-2" style={{ marginTop: 12 }}>
+                    <button
+                      onClick={() => run(true)}
+                      disabled={loading}
+                      style={{
+                        flex: 1, height: 46, borderRadius: 12, fontSize: 14, fontWeight: 700,
+                        border: `1.5px solid ${HNH.navy}`, background: '#fff', color: HNH.navy,
+                        cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.6 : 1,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                      }}
+                    >
+                      <Icon name="search" size={16} color={HNH.navy} stroke={2} />
+                      {loading ? 'Đang xử lý...' : 'Dryrun (thử)'}
+                    </button>
+                    <button
+                      onClick={() => run(false)}
+                      disabled={loading}
+                      style={{
+                        flex: 1, height: 46, borderRadius: 12, fontSize: 14, fontWeight: 700,
+                        border: 'none', background: HNH.red, color: '#fff',
+                        cursor: loading ? 'default' : 'pointer', opacity: loading ? 0.7 : 1,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                      }}
+                    >
+                      <Icon name="check" size={16} color="#fff" stroke={2.5} />
+                      {loading ? 'Đang chạy...' : 'Chạy (nhập)'}
+                    </button>
+                  </div>
+                </>
               )}
             </div>
 
@@ -331,12 +352,12 @@ export function LeaveImportPage() {
               {/* Table header */}
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: '3fr 1.8fr 1.8fr 1.8fr',
+                gridTemplateColumns: '2.6fr 1.5fr 1.5fr 1.5fr 1.5fr',
                 padding: '8px 12px',
                 background: HNH.cream,
                 borderBottom: `1px solid ${HNH.line}`,
               }}>
-                {['Nhân viên', 'Phép năm', 'Phép bù', 'Phép tồn'].map(h => (
+                {['Nhân viên', 'Phép năm', 'Phép TN', 'Phép bù', 'Phép tồn'].map(h => (
                   <div key={h} style={{ fontSize: 10, fontWeight: 700, color: HNH.ink3 }}>{h}</div>
                 ))}
               </div>
@@ -351,7 +372,7 @@ export function LeaveImportPage() {
                     key={row.badge_id}
                     style={{
                       display: 'grid',
-                      gridTemplateColumns: '3fr 1.8fr 1.8fr 1.8fr',
+                      gridTemplateColumns: '2.6fr 1.5fr 1.5fr 1.5fr 1.5fr',
                       padding: '10px 12px',
                       borderBottom: i < displayRows.length - 1 ? `1px solid ${HNH.line}` : 'none',
                       background: row.changed ? '#fffbf0' : '#fff',
@@ -364,6 +385,9 @@ export function LeaveImportPage() {
                     </div>
                     <div style={{ fontSize: 12, display: 'flex', alignItems: 'center' }}>
                       <DiffCell before={row.annual_before} after={row.annual_after} />
+                    </div>
+                    <div style={{ fontSize: 12, display: 'flex', alignItems: 'center' }}>
+                      <DiffCell before={row.seniority_before} after={row.seniority_after} />
                     </div>
                     <div style={{ fontSize: 12, display: 'flex', alignItems: 'center' }}>
                       <DiffCell before={row.bu_before} after={row.bu_after} />
@@ -405,7 +429,7 @@ export function LeaveImportPage() {
                 Chọn lại
               </button>
               <button
-                onClick={handleImport}
+                onClick={() => run(false)}
                 disabled={loading || changedCount === 0}
                 style={{
                   flex: 2, height: 48, borderRadius: 14, fontSize: 14, fontWeight: 700,
@@ -417,7 +441,7 @@ export function LeaveImportPage() {
                   display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                 }}
               >
-                {loading ? 'Đang nhập...' : `Xác nhận nhập ${changedCount} bản ghi`}
+                {loading ? 'Đang chạy...' : `Chạy — nhập ${changedCount} bản ghi`}
               </button>
             </div>
           </>

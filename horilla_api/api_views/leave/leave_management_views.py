@@ -1220,6 +1220,7 @@ class LeaveImportTemplateView(APIView):
             return None
 
         annual_type = _find_type("phép năm", "annual")
+        seniority_type = _find_type("thâm niên", "seniority")
         bu_type = _find_type("phép bù")
 
         emps = list(
@@ -1229,26 +1230,16 @@ class LeaveImportTemplateView(APIView):
         )
         emp_ids = [e.id for e in emps]
 
-        # Used days this year for annual leave
-        used_map: dict[int, float] = {}
-        if annual_type:
-            for row in (
-                LeaveRequest.objects.filter(
-                    employee_id__in=emp_ids,
-                    leave_type_id=annual_type,
-                    status="approved",
-                    start_date__year=year,
-                )
-                .values("employee_id_id")
-                .annotate(total=Sum("requested_days"))
-            ):
-                used_map[row["employee_id_id"]] = float(row["total"] or 0)
-
-        # Current balances
+        # Current balances theo từng loại phép
         annual_map: dict[int, AvailableLeave] = {}
         if annual_type:
             for av in AvailableLeave.objects.filter(leave_type_id=annual_type, employee_id__in=emp_ids):
                 annual_map[av.employee_id_id] = av
+
+        seniority_map: dict[int, AvailableLeave] = {}
+        if seniority_type:
+            for av in AvailableLeave.objects.filter(leave_type_id=seniority_type, employee_id__in=emp_ids):
+                seniority_map[av.employee_id_id] = av
 
         bu_map_av: dict[int, AvailableLeave] = {}
         if bu_type:
@@ -1271,73 +1262,66 @@ class LeaveImportTemplateView(APIView):
         center = Alignment(horizontal="center", vertical="center")
         left   = Alignment(horizontal="left", vertical="center")
 
+        # Cột: 1 STT · 2 Mã NS · 3 Tên · 4 Ngày vào làm · 5 Tổng phép (tự tính) ·
+        # 6 Phép trong năm · 7 Phép thâm niên · 8 Phép bù · 9 Phép tồn (ô vàng = nhập).
         HEADERS = [
-            "STT", "Mã NV", "Họ tên", "Phòng ban",
-            "Phép đầu năm", "Phép đã dùng", "Phép bù", "Phép tồn",
+            "STT", "Mã nhân sự", "Tên nhân sự", "Ngày vào làm",
+            "Tổng ngày phép đang có", "Phép trong năm", "Phép thâm niên",
+            "Phép bù", "Phép tồn",
         ]
-        COL_W = [5, 10, 24, 18, 14, 14, 10, 10]
+        COL_W = [5, 12, 26, 14, 18, 14, 14, 10, 10]
+        EDIT_COLS = {6, 7, 8, 9}   # các cột được phép nhập
+        CALC_COLS = {5}            # cột tự tính (bỏ qua khi import)
 
         for col, (h, w) in enumerate(zip(HEADERS, COL_W), 1):
             cell = ws.cell(row=1, column=col, value=h)
             cell.font = hdr_font
             cell.fill = hdr_fill
-            cell.alignment = center
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
             cell.border = thin
             ws.column_dimensions[get_column_letter(col)].width = w
-        ws.row_dimensions[1].height = 26
-
-        # Sub-header note row
-        note_row = ["", "", "", "",
-                    "Số ngày còn được dùng", "Tự động tính (bỏ qua khi nhập)",
-                    "Phép bù hiện có", "Ngày chuyển sang năm sau"]
-        ws.append(note_row)
-        for col in range(1, 9):
-            cell = ws.cell(row=2, column=col)
-            cell.font = Font(italic=True, color="888888", size=8)
-            cell.alignment = center
-            cell.fill = info_fill if col <= 4 else (calc_fill if col == 6 else edit_fill)
-            cell.border = thin
-        ws.row_dimensions[2].height = 14
+        ws.row_dimensions[1].height = 32
 
         for stt, emp in enumerate(emps, 1):
-            dept = ""
-            try:
-                dept = str(emp.employee_work_info.department_id)
-            except Exception:
-                pass
+            wi = getattr(emp, "employee_work_info", None)
+            date_joining = getattr(wi, "date_joining", None) if wi else None
+            date_str = date_joining.strftime("%d/%m/%Y") if date_joining else ""
 
             av   = annual_map.get(emp.id)
+            sav  = seniority_map.get(emp.id)
             bu_a = bu_map_av.get(emp.id)
             annual_avail = float(av.available_days or 0) if av else 0.0
             annual_carry = float(av.carryforward_days or 0) if av else 0.0
-            used  = used_map.get(emp.id, 0.0)
+            seniority_avail = float(sav.available_days or 0) if sav else 0.0
             bu_av = float(bu_a.available_days or 0) if bu_a else 0.0
+            total_avail = round(annual_avail + seniority_avail + bu_av, 2)
 
             row_vals = [
                 stt,
                 emp.badge_id or "",
                 f"{emp.employee_first_name} {emp.employee_last_name or ''}".strip(),
-                dept,
+                date_str,
+                total_avail,
                 annual_avail,
-                used,
+                seniority_avail,
                 bu_av,
                 annual_carry,
             ]
-            data_row = stt + 2  # rows 1-2 are header + note
+            data_row = stt + 1  # dòng 1 = header, data từ dòng 2
             for col, val in enumerate(row_vals, 1):
                 cell = ws.cell(row=data_row, column=col, value=val)
                 cell.border = thin
-                cell.alignment = center if col in (1, 2, 5, 6, 7, 8) else left
-                if col <= 4:
-                    cell.fill = info_fill
-                elif col == 6:
+                cell.alignment = center if col in (1, 2, 4, 5, 6, 7, 8, 9) else left
+                if col in EDIT_COLS:
+                    cell.fill = edit_fill
+                elif col in CALC_COLS:
                     cell.fill = calc_fill
                     cell.font = Font(italic=True, color="888888", size=10)
                 else:
-                    cell.fill = edit_fill
+                    cell.fill = info_fill
             ws.row_dimensions[data_row].height = 18
 
-        ws.freeze_panes = "E3"  # freeze cols A-D + rows 1-2
+        ws.freeze_panes = "D2"  # freeze cột A-C (STT/Mã/Tên) + dòng header
 
         import io
         buf = io.BytesIO()
@@ -1383,6 +1367,7 @@ class LeaveImportView(APIView):
             return None
 
         annual_type = _find_type("phép năm", "annual")
+        seniority_type = _find_type("thâm niên", "seniority")
         bu_type     = _find_type("phép bù")
 
         emp_map = {
@@ -1396,25 +1381,43 @@ class LeaveImportView(APIView):
         updated = 0
         skipped = 0
 
-        # Rows start at row 3 (row 1 = header, row 2 = note)
-        all_rows = list(ws.iter_rows(min_row=3, values_only=True))
+        # Data bắt đầu từ dòng 2 (dòng 1 = header). Dòng chú thích (nếu có) không có
+        # mã NV nên tự bị bỏ qua ở guard badge_id rỗng bên dưới → nhận cả 2 kiểu file.
+        all_rows = list(ws.iter_rows(min_row=2, values_only=True))
 
         def _parse_num(val, label):
-            if val is None or val == "":
+            """Parse số kiểu VN: '9,92' (phẩy thập phân), '-' = 0, ô trống = None (giữ nguyên).
+            Trả (value, error); value=None nghĩa là KHÔNG đổi giá trị hiện tại."""
+            if val is None:
                 return None, None
-            try:
-                n = float(val)
-                if n < 0:
-                    return None, f"{label} không thể âm"
-                return round(n, 2), None
-            except (ValueError, TypeError):
-                return None, f"{label} không hợp lệ: '{val}'"
+            if isinstance(val, str):
+                s = val.strip().replace(" ", "").replace("\xa0", "")
+                if s == "":
+                    return None, None
+                if s in ("-", "–", "—"):
+                    return 0.0, None                     # dấu gạch (kế toán) = 0 rõ ràng
+                if "," in s:
+                    s = s.replace(".", "").replace(",", ".")  # '.'=phân tách nghìn, ','=thập phân
+                try:
+                    n = float(s)
+                except ValueError:
+                    return None, f"{label} không hợp lệ: '{val}'"
+            else:
+                try:
+                    n = float(val)
+                except (ValueError, TypeError):
+                    return None, f"{label} không hợp lệ: '{val}'"
+            if n < 0:
+                return None, f"{label} không thể âm"
+            return round(n, 2), None
 
-        for row_idx, row in enumerate(all_rows, 3):
+        # Cột file mẫu mới (0-index): 0 STT · 1 Mã NS · 2 Tên · 3 Ngày vào làm ·
+        # 4 Tổng phép (hiển thị) · 5 Phép trong năm · 6 Phép thâm niên · 7 Phép bù · 8 Phép tồn.
+        for row_idx, row in enumerate(all_rows, 2):
             if not row or not any(row):
                 continue
 
-            badge_id = str(row[1]).strip() if row[1] is not None else ""
+            badge_id = str(row[1]).strip() if len(row) > 1 and row[1] is not None else ""
             if not badge_id:
                 skipped += 1
                 continue
@@ -1425,19 +1428,28 @@ class LeaveImportView(APIView):
                 skipped += 1
                 continue
 
-            annual_new, err = _parse_num(row[4], "Phép đầu năm")
+            def _cell(i):
+                return row[i] if len(row) > i else None
+
+            annual_new, err = _parse_num(_cell(5), "Phép trong năm")
             if err:
                 errors.append({"row": row_idx, "badge_id": badge_id, "message": err})
                 skipped += 1
                 continue
 
-            bu_new, err = _parse_num(row[6], "Phép bù")
+            seniority_new, err = _parse_num(_cell(6), "Phép thâm niên")
             if err:
                 errors.append({"row": row_idx, "badge_id": badge_id, "message": err})
                 skipped += 1
                 continue
 
-            carry_new, err = _parse_num(row[7], "Phép tồn")
+            bu_new, err = _parse_num(_cell(7), "Phép bù")
+            if err:
+                errors.append({"row": row_idx, "badge_id": badge_id, "message": err})
+                skipped += 1
+                continue
+
+            carry_new, err = _parse_num(_cell(8), "Phép tồn")
             if err:
                 errors.append({"row": row_idx, "badge_id": badge_id, "message": err})
                 skipped += 1
@@ -1446,6 +1458,7 @@ class LeaveImportView(APIView):
             # Read current values for diff preview
             annual_before = 0.0
             carry_before  = 0.0
+            seniority_before = 0.0
             bu_before     = 0.0
 
             if annual_type:
@@ -1454,19 +1467,26 @@ class LeaveImportView(APIView):
                     annual_before = float(av.available_days or 0)
                     carry_before  = float(av.carryforward_days or 0)
 
+            if seniority_type:
+                sav = AvailableLeave.objects.filter(employee_id=emp, leave_type_id=seniority_type).first()
+                if sav:
+                    seniority_before = float(sav.available_days or 0)
+
             if bu_type:
                 bav = AvailableLeave.objects.filter(employee_id=emp, leave_type_id=bu_type).first()
                 if bav:
                     bu_before = float(bav.available_days or 0)
 
-            annual_after = annual_new if annual_new is not None else annual_before
-            bu_after     = bu_new     if bu_new     is not None else bu_before
-            carry_after  = carry_new  if carry_new  is not None else carry_before
+            annual_after    = annual_new    if annual_new    is not None else annual_before
+            seniority_after = seniority_new if seniority_new is not None else seniority_before
+            bu_after        = bu_new        if bu_new        is not None else bu_before
+            carry_after     = carry_new     if carry_new     is not None else carry_before
 
             changed = (
-                annual_after != annual_before or
-                bu_after     != bu_before     or
-                carry_after  != carry_before
+                annual_after    != annual_before or
+                seniority_after != seniority_before or
+                bu_after        != bu_before     or
+                carry_after     != carry_before
             )
 
             preview.append({
@@ -1475,6 +1495,8 @@ class LeaveImportView(APIView):
                 "name": str(emp),
                 "annual_before": annual_before,
                 "annual_after": annual_after,
+                "seniority_before": seniority_before,
+                "seniority_after": seniority_after,
                 "bu_before": bu_before,
                 "bu_after": bu_after,
                 "carry_before": carry_before,
@@ -1497,6 +1519,17 @@ class LeaveImportView(APIView):
                     av.is_active = True
                     av.save()
 
+                if seniority_type and seniority_new is not None:
+                    sav, _ = AvailableLeave.objects.get_or_create(
+                        employee_id=emp,
+                        leave_type_id=seniority_type,
+                        defaults={"available_days": 0, "total_leave_days": 0, "is_active": True},
+                    )
+                    sav.available_days = seniority_new
+                    sav.total_leave_days = seniority_new
+                    sav.is_active = True
+                    sav.save()
+
                 if bu_type and bu_new is not None:
                     bav, _ = AvailableLeave.objects.get_or_create(
                         employee_id=emp,
@@ -1515,6 +1548,7 @@ class LeaveImportView(APIView):
             "rows_processed": updated + skipped,
             "updated": updated,
             "skipped": skipped,
+            "seniority_supported": bool(seniority_type),
             "errors": errors[:30],
             "preview": preview[:200],
         })
