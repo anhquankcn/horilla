@@ -337,6 +337,7 @@ function DetailModal({ emp: initialEmp, onClose, isTablet, onEmpUpdated, onViewP
   const [profileLoading, setProfileLoading] = useState(true)
   const [showAssign, setShowAssign] = useState(false)
   const [revoking, setRevoking] = useState(false)
+  const [reactivating, setReactivating] = useState(false)
 
   useEffect(() => {
     setProfileLoading(true)
@@ -366,6 +367,27 @@ function DetailModal({ emp: initialEmp, onClose, isTablet, onEmpUpdated, onViewP
     setEmp(updated)
     setShowAssign(false)
     onEmpUpdated?.(updated)
+  }
+
+  // "Làm việc lại" — kích hoạt lại NV Tạm nghỉ: bật Employee + User + Keycloak.
+  const handleReactivate = async () => {
+    if (!confirm('Cho nhân viên này làm việc lại?\n\nTài khoản sẽ được kích hoạt để đăng nhập và chấm công bình thường.')) return
+    setReactivating(true)
+    try {
+      const res = await api.post<{ ok: boolean; is_active: boolean; kc_enabled: boolean; kc_error?: string }>(
+        `/api/employee/employees/${emp.id}/reactivate/`, {},
+      )
+      if (res.ok) {
+        const updated = { ...emp, is_active: true }
+        setEmp(updated)
+        onEmpUpdated?.(updated)
+        if (!res.kc_enabled) {
+          alert('Đã kích hoạt trong hệ thống, nhưng CHƯA mở lại được tài khoản SSO (Keycloak). Vui lòng kiểm tra tài khoản SSO của nhân viên.')
+        }
+      }
+    } catch (e) {
+      alert('Lỗi khi kích hoạt lại: ' + (e instanceof Error ? e.message : ''))
+    } finally { setReactivating(false) }
   }
 
   const handleRoleChanged = (role: string) => {
@@ -459,6 +481,30 @@ function DetailModal({ emp: initialEmp, onClose, isTablet, onEmpUpdated, onViewP
                 {tab === 'overview' && (
                   <>
                     <ProfileTabContent tab="overview" data={profileData} canEdit={canEdit} />
+                    {/* Làm việc lại — chỉ hiện khi NV đang Tạm nghỉ (is_active=false) */}
+                    {emp.is_active === false && (
+                      <div style={{
+                        background: '#fff', borderRadius: 18,
+                        border: `1px solid ${HNH.success}55`, padding: '12px 16px', marginTop: 4,
+                      }}>
+                        <div style={{ fontSize: 12.5, color: HNH.ink2, marginBottom: 10, lineHeight: 1.5 }}>
+                          Nhân viên đang <strong style={{ color: HNH.red }}>Tạm nghỉ</strong> — không đăng nhập/chấm công được.
+                        </div>
+                        <button
+                          onClick={handleReactivate}
+                          disabled={reactivating}
+                          className="w-full flex items-center justify-center gap-2 border-none cursor-pointer"
+                          style={{
+                            padding: '12px', borderRadius: 12,
+                            background: HNH.success, color: '#fff',
+                            fontSize: 14, fontWeight: 700, opacity: reactivating ? 0.6 : 1,
+                          }}
+                        >
+                          <Icon name="refresh" size={16} color="#fff" stroke={2.2} />
+                          {reactivating ? 'Đang kích hoạt...' : 'Làm việc lại'}
+                        </button>
+                      </div>
+                    )}
                     {/* Work management actions (assign/revoke position) */}
                     <div style={{
                       background: '#fff', borderRadius: 18,

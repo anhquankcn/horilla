@@ -35,6 +35,61 @@ def _can_onboard(user):
     return any("c&b" in g or "c & b" in g or "chuyên viên c" in g or "admin hệ thống" in g for g in gnames)
 
 
+class ReactivateEmployeeView(APIView):
+    """POST /api/employee/employees/<pk>/reactivate/ — C&B "Làm việc lại": kích hoạt
+    lại NV đang Tạm nghỉ. Bật ĐỦ 3 lớp để NV đăng nhập + chấm công lại bình thường:
+    Employee.is_active + auth User.is_active + Keycloak enabled (khắc phục việc
+    EmployeeArchiveView chỉ đổi cờ Django, không mở lại tài khoản KC)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        if not _can_onboard(request.user):
+            return Response({"detail": "Chỉ C&B mới có thể kích hoạt lại nhân viên."}, status=403)
+
+        from employee.models import Employee
+
+        emp = Employee.objects.filter(pk=pk).first()
+        if emp is None:
+            return Response({"detail": "Không tìm thấy nhân viên."}, status=404)
+        if emp.is_active:
+            return Response({"detail": "Nhân viên đang hoạt động.", "is_active": True}, status=400)
+
+        # 1) HRM: bật cờ Employee + tài khoản auth (đăng nhập Django/JWT)
+        emp.is_active = True
+        emp.save(update_fields=["is_active"])
+        user = emp.employee_user_id
+        if user and not user.is_active:
+            user.is_active = True
+            user.save(update_fields=["is_active"])
+
+        # 2) Keycloak: enable lại (best-effort — không chặn nếu KC lỗi)
+        kc_enabled = False
+        kc_error = None
+        try:
+            from horilla.keycloak_admin import sync_employee_to_kc
+            res = sync_employee_to_kc(emp) or {}
+            kc_enabled = bool(res.get("ok"))
+            if not kc_enabled:
+                kc_error = res.get("error")
+        except Exception as e:  # noqa: BLE001
+            kc_error = str(e)
+
+        logger.info(
+            "REACTIVATE by=%s emp=%s(%s) user_active=%s kc_enabled=%s err=%s",
+            getattr(request.user, "username", "?"), emp.id, emp.badge_id,
+            bool(user and user.is_active), kc_enabled, kc_error,
+        )
+
+        return Response({
+            "ok": True,
+            "id": emp.id,
+            "is_active": True,
+            "kc_enabled": kc_enabled,
+            "kc_error": kc_error,
+        })
+
+
 class OnboardOptionsView(APIView):
     """Danh sách để dựng form onboarding."""
     permission_classes = [IsAuthenticated]

@@ -65,23 +65,35 @@ export function EmployeeProfilePage() {
     if (!data) return
     const newStatus = !data.personal.is_active
     const msg = newStatus
-      ? 'Kích hoạt lại nhân viên này?'
+      ? 'Cho nhân viên này làm việc lại?\n\nTài khoản sẽ được kích hoạt để đăng nhập và chấm công bình thường.'
       : 'Chuyển nhân viên sang Tạm nghỉ/Dừng?\n\nNhân viên sẽ không thể đăng nhập và chấm công.'
     if (!confirm(msg)) return
     setToggling(true)
     try {
-      await fetch(`/bff/api/employee/employees/${data.personal.id}/`, {
-        method: 'PUT', credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          employee_first_name: data.personal.first_name,
-          employee_last_name: data.personal.last_name,
-          email: data.personal.email,
-          phone: data.personal.phone,
-          gender: data.personal.gender,
-          is_active: newStatus,
-        }),
-      })
+      if (newStatus) {
+        // Kích hoạt lại: bật đủ Employee + User + Keycloak (endpoint reactivate).
+        const r = await fetch(`/bff/api/employee/employees/${data.personal.id}/reactivate/`, {
+          method: 'POST', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' }, body: '{}',
+        })
+        const rd = await r.json().catch(() => ({}))
+        if (r.ok && rd && rd.kc_enabled === false) {
+          alert('Đã kích hoạt trong hệ thống, nhưng CHƯA mở lại được tài khoản SSO (Keycloak). Vui lòng kiểm tra tài khoản SSO của nhân viên.')
+        }
+      } else {
+        await fetch(`/bff/api/employee/employees/${data.personal.id}/`, {
+          method: 'PUT', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            employee_first_name: data.personal.first_name,
+            employee_last_name: data.personal.last_name,
+            email: data.personal.email,
+            phone: data.personal.phone,
+            gender: data.personal.gender,
+            is_active: newStatus,
+          }),
+        })
+      }
       load()
     } catch { /* ignore */ }
     setToggling(false)

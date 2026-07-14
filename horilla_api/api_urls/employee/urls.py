@@ -5,12 +5,14 @@ from ...api_views.employee import shift_management_views as smv
 from ...api_views.employee import keycloak_account_views as kav
 from ...api_views.employee.onboard_views import (
     OnboardOptionsView, OnboardEmployeeView, OnboardScanIdView,
+    ReactivateEmployeeView,
 )
 
 urlpatterns = [
     path("onboard/options/", OnboardOptionsView.as_view(), name="api-onboard-options"),
     path("onboard/scan-id/", OnboardScanIdView.as_view(), name="api-onboard-scan-id"),
     path("onboard/", OnboardEmployeeView.as_view(), name="api-onboard-employee"),
+    path("employees/<int:pk>/reactivate/", ReactivateEmployeeView.as_view(), name="api-employee-reactivate"),
     path("me/", views.EmployeeMeAPIView.as_view(), name="api-employee-me"),
     path("me/bank/", views.EmployeeBankView.as_view(), name="api-employee-me-bank"),
     path("me/schedule/", views.EmployeeScheduleView.as_view(), name="api-employee-schedule"),
