@@ -98,26 +98,50 @@ def _build_rows(year, month, company_id=None, department_id=None, search=None,
         "event": "Ngoài VP",
     }
 
+    # Cache lịch ca theo (shift, thứ) — vì giờ lặp MỌI ngày (cả tháng × mọi NV),
+    # tránh query EmployeeShiftSchedule lặp lại từng ngày.
+    from base.models import EmployeeShiftSchedule, EmployeeShiftDay
+    _day_objs = {do.day: do for do in EmployeeShiftDay.objects.all()}
+    _sched_cache: dict = {}
+
+    def _get_sched(shift, day_name):
+        if not shift:
+            return None
+        key = (shift.id, day_name)
+        if key not in _sched_cache:
+            day_obj = _day_objs.get(day_name)
+            _sched_cache[key] = (
+                EmployeeShiftSchedule.objects.filter(shift_id=shift, day=day_obj).first()
+                if day_obj else None
+            )
+        return _sched_cache[key]
+
     for emp in employees:
         wi = getattr(emp, "employee_work_info", None)
         shift = wi.shift_id if wi else None
         department = str(wi.department_id) if (wi and wi.department_id) else ""
 
-        atts = Attendance.objects.filter(
-            employee_id=emp,
-            attendance_date__gte=first,
-            attendance_date__lte=last,
-        ).order_by("attendance_date")
+        # Prefetch 1 lần/NV: bản ghi Attendance + hoạt động chấm, gom theo ngày.
+        att_by_date = {
+            a.attendance_date: a
+            for a in Attendance.objects.filter(
+                employee_id=emp, attendance_date__gte=first, attendance_date__lte=last,
+            )
+        }
+        acts_by_date: dict = {}
+        for a in AttendanceActivity.objects.filter(
+            employee_id=emp, attendance_date__gte=first, attendance_date__lte=last,
+        ).order_by("clock_in"):
+            acts_by_date.setdefault(a.attendance_date, []).append(a)
 
-        for att in atts:
+        # Hiển thị MỌI ngày trong khoảng (full tuần, gồm Chủ nhật) — kể cả ngày không chấm.
+        d = first
+        while d <= last:
+            att = att_by_date.get(d)
+            acts = acts_by_date.get(d, [])
             stt += 1
-            d = att.attendance_date
             weekday = DAY_NAMES_VI.get(d.weekday(), "")
-
-            acts = AttendanceActivity.objects.filter(
-                employee_id=emp,
-                attendance_date=d,
-            ).order_by("clock_in")
+            is_weekend = d.weekday() >= 5
 
             # ALD26: gom mọi lượt chấm phẳng (clock_in + clock_out), sắp theo thời gian.
             # Lượt 1 = giờ vào; lượt cuối (ngày đã qua) = giờ ra; chỉ 1 lượt → NCO.
@@ -160,7 +184,7 @@ def _build_rows(year, month, company_id=None, department_id=None, search=None,
             earliest_in = punch_times[0] if punch_times else None
             latest_out = punch_times[-1] if len(punch_times) >= 2 else None
 
-            worked = att.attendance_worked_hour or "00:00"
+            worked = (att.attendance_worked_hour if att else None) or "00:00"
             earliest_str = str(earliest_in)[:5] if earliest_in else "--:--"
             if len(punch_times) >= 2:
                 latest_str = _hm(punch_times[-1])
@@ -178,13 +202,9 @@ def _build_rows(year, month, company_id=None, department_id=None, search=None,
             notes = []
 
             if shift:
-                from base.models import EmployeeShiftSchedule, EmployeeShiftDay
                 day_name = d.strftime("%A").lower()
                 try:
-                    day_obj = EmployeeShiftDay.objects.get(day=day_name)
-                    sched = EmployeeShiftSchedule.objects.filter(
-                        shift_id=shift, day=day_obj
-                    ).first()
+                    sched = _get_sched(shift, day_name)
                     if sched:
                         coefficient = float(sched.work_day_coefficient)
                         min_hour_str = sched.minimum_working_hour or "08:00"
@@ -238,6 +258,10 @@ def _build_rows(year, month, company_id=None, department_id=None, search=None,
             elif pct > 100:
                 notes.append(f"Đạt {pct}% ngày công")
 
+            # Ngày không có lượt chấm: đánh dấu Cuối tuần (T7/CN) để phân biệt.
+            if not punch_times and is_weekend:
+                notes.append("Cuối tuần")
+
             note_str = " | ".join(notes)
 
             rows.append({
@@ -264,7 +288,10 @@ def _build_rows(year, month, company_id=None, department_id=None, search=None,
                 "work_pct": pct,
                 "cong": cong,
                 "note": note_str,
+                "is_weekend": is_weekend,
             })
+
+            d += timedelta(days=1)
 
     return rows
 
@@ -381,6 +408,7 @@ class AttendanceExportExcelView(APIView):
 
         late_fill = PatternFill(start_color="FDE2E2", end_color="FDE2E2", fill_type="solid")
         early_fill = PatternFill(start_color="FFF3CD", end_color="FFF3CD", fill_type="solid")
+        weekend_fill = PatternFill(start_color="EEF1F6", end_color="EEF1F6", fill_type="solid")
 
         for i, r in enumerate(rows, 2):
             vals = [
@@ -394,10 +422,13 @@ class AttendanceExportExcelView(APIView):
                 r["coefficient"], f'{r["work_pct"]}%', r["cong"],
                 r["note"],
             ]
+            is_weekend = r.get("is_weekend", False)
             for col, v in enumerate(vals, 1):
                 cell = ws.cell(row=i, column=col, value=v)
                 cell.border = thin_border
                 cell.alignment = Alignment(vertical="center")
+                if is_weekend:
+                    cell.fill = weekend_fill
                 if r["is_late"] and col == 16:
                     cell.fill = late_fill
                 if r["is_early"] and col == 17:

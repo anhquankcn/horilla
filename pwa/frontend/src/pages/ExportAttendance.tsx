@@ -28,6 +28,7 @@ interface Row {
   work_pct: number
   cong: number
   note: string
+  is_weekend?: boolean
 }
 
 interface Opt { id: number; name: string }
@@ -267,7 +268,7 @@ export function ExportAttendancePage() {
             </thead>
             <tbody>
               {rows.map((r, i) => (
-                <tr key={i} style={{ background: i % 2 === 0 ? '#fff' : HNH.cream }}>
+                <tr key={i} style={{ background: r.is_weekend ? '#eef1f6' : i % 2 === 0 ? '#fff' : HNH.cream }}>
                   <td style={{ padding: '6px', borderBottom: `1px solid ${HNH.line}` }}>{r.stt}</td>
                   <td style={{ padding: '6px', borderBottom: `1px solid ${HNH.line}`, fontWeight: 600 }}>{r.employee_code}</td>
                   <td style={{ padding: '6px', borderBottom: `1px solid ${HNH.line}` }}>{r.accounting_code}</td>
