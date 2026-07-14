@@ -428,7 +428,7 @@ export function LeaveOverviewPage() {
     setExporting(true)
     try {
       const params = new URLSearchParams({ year: String(year), month: String(month) })
-      const resp = await fetch(`/api/leave/export-excel/?${params}`, { credentials: 'include' })
+      const resp = await fetch(`/bff/api/leave/export-excel/?${params}`, { credentials: 'include' })
       if (!resp.ok) throw new Error()
       const blob = await resp.blob()
       const link = document.createElement('a')

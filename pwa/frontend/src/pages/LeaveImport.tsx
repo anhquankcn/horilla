@@ -67,7 +67,7 @@ export function LeaveImportPage() {
   async function downloadTemplate() {
     setDownloadingTemplate(true)
     try {
-      const resp = await fetch(`/api/leave/hnh-leave-import/template/?year=${year}`, { credentials: 'include' })
+      const resp = await fetch(`/bff/api/leave/hnh-leave-import/template/?year=${year}`, { credentials: 'include' })
       if (!resp.ok) throw new Error('Lỗi tải file')
       const blob = await resp.blob()
       const link = document.createElement('a')
@@ -98,7 +98,7 @@ export function LeaveImportPage() {
     try {
       const form = new FormData()
       form.append('file', file)
-      const resp = await fetch(`/api/leave/hnh-leave-import/?dry_run=${dryRun}`, {
+      const resp = await fetch(`/bff/api/leave/hnh-leave-import/?dry_run=${dryRun}`, {
         method: 'POST',
         credentials: 'include',
         body: form,
