@@ -10,12 +10,16 @@ interface Row {
   accounting_code: string
   first_name: string
   full_name: string
+  department: string
   date: string
   weekday: string
   clock_in: string
   clock_out: string
   worked: string
   detail: string
+  location: string
+  punch_type: string
+  other_reason: string
   is_late: boolean
   is_early: boolean
   late_mins: number
@@ -256,7 +260,7 @@ export function ExportAttendancePage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, minWidth: 1200 }}>
             <thead>
               <tr style={{ background: HNH.navy, color: '#fff' }}>
-                {['STT','Mã NV','Mã KT','Tên','Họ tên','Ngày','Thứ','Vào','Ra','Giờ làm','Lượt chấm','Trễ','Sớm','Hệ số','% NC','Công','Ghi chú'].map(h => (
+                {['STT','Mã NV','Mã KT','Tên','Họ tên','Phòng Ban','Ngày','Thứ','Vào','Ra','Giờ làm','Lượt chấm','Nơi chấm','Loại hình','Lý do (Khác)','Trễ','Sớm','Hệ số','% NC','Công','Ghi chú'].map(h => (
                   <th key={h} style={{ padding: '8px 6px', fontWeight: 700, textAlign: 'left', whiteSpace: 'nowrap', borderBottom: `2px solid ${HNH.navy2}` }}>{h}</th>
                 ))}
               </tr>
@@ -269,6 +273,7 @@ export function ExportAttendancePage() {
                   <td style={{ padding: '6px', borderBottom: `1px solid ${HNH.line}` }}>{r.accounting_code}</td>
                   <td style={{ padding: '6px', borderBottom: `1px solid ${HNH.line}` }}>{r.first_name}</td>
                   <td style={{ padding: '6px', borderBottom: `1px solid ${HNH.line}`, whiteSpace: 'nowrap' }}>{r.full_name}</td>
+                  <td style={{ padding: '6px', borderBottom: `1px solid ${HNH.line}`, whiteSpace: 'nowrap' }}>{r.department}</td>
                   <td style={{ padding: '6px', borderBottom: `1px solid ${HNH.line}`, whiteSpace: 'nowrap' }}>
                     {new Date(r.date).toLocaleDateString('vi-VN')}
                   </td>
@@ -277,6 +282,9 @@ export function ExportAttendancePage() {
                   <td style={{ padding: '6px', borderBottom: `1px solid ${HNH.line}`, fontFamily: 'monospace' }}>{r.clock_out}</td>
                   <td style={{ padding: '6px', borderBottom: `1px solid ${HNH.line}`, fontFamily: 'monospace', fontWeight: 700 }}>{r.worked}</td>
                   <td style={{ padding: '6px', borderBottom: `1px solid ${HNH.line}`, fontSize: 10, color: HNH.ink3 }}>{r.detail}</td>
+                  <td style={{ padding: '6px', borderBottom: `1px solid ${HNH.line}`, fontSize: 10, color: HNH.ink3, maxWidth: 180, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={r.location}>{r.location}</td>
+                  <td style={{ padding: '6px', borderBottom: `1px solid ${HNH.line}`, fontSize: 10, whiteSpace: 'nowrap' }}>{r.punch_type}</td>
+                  <td style={{ padding: '6px', borderBottom: `1px solid ${HNH.line}`, fontSize: 10, color: HNH.ink3, maxWidth: 160, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={r.other_reason}>{r.other_reason}</td>
                   <td style={{
                     padding: '6px', borderBottom: `1px solid ${HNH.line}`,
                     color: r.is_late ? HNH.red : HNH.ink4, fontWeight: r.is_late ? 700 : 400,

@@ -61,7 +61,8 @@ def _build_rows(year, month, company_id=None, department_id=None, search=None,
         last = month_last
 
     employees = Employee.objects.filter(is_active=True).select_related(
-        "employee_work_info__shift_id"
+        "employee_work_info__shift_id",
+        "employee_work_info__department_id",
     ).order_by("stt", "employee_first_name")
     if company_id:
         employees = employees.filter(employee_work_info__company_id=company_id)
@@ -88,9 +89,19 @@ def _build_rows(year, month, company_id=None, department_id=None, search=None,
 
     rows = []
     stt = 0
+    # Nhãn loại hình chấm gộp về 4 nhóm user yêu cầu: Trong VP / Ngoài VP / Công tác / Khác.
+    _PUNCH_TYPE_LABEL = {
+        "business_trip": "Công tác",
+        "other": "Khác",
+        "remote": "Ngoài VP",
+        "client": "Ngoài VP",
+        "event": "Ngoài VP",
+    }
+
     for emp in employees:
         wi = getattr(emp, "employee_work_info", None)
         shift = wi.shift_id if wi else None
+        department = str(wi.department_id) if (wi and wi.department_id) else ""
 
         atts = Attendance.objects.filter(
             employee_id=emp,
@@ -110,13 +121,35 @@ def _build_rows(year, month, company_id=None, department_id=None, search=None,
 
             # ALD26: gom mọi lượt chấm phẳng (clock_in + clock_out), sắp theo thời gian.
             # Lượt 1 = giờ vào; lượt cuối (ngày đã qua) = giờ ra; chỉ 1 lượt → NCO.
+            # Đồng thời tổng hợp Nơi chấm / Loại hình / Lý do (nếu Khác) của các lượt trong ngày.
             punch_times = []
+            locations = []       # địa chỉ chấm (distinct, không rỗng)
+            punch_types = []     # Trong VP / Ngoài VP / Công tác / Khác (distinct)
+            other_reasons = []   # lý do khi loại hình = Khác (distinct)
             for act in acts:
                 if act.clock_in:
                     punch_times.append(act.clock_in)
                 if act.clock_out:
                     punch_times.append(act.clock_out)
+                for addr in (act.clock_in_address, act.clock_out_address):
+                    a = (addr or "").strip()
+                    if a and a not in locations:
+                        locations.append(a)
+                if act.work_location == "out_of_office":
+                    label = _PUNCH_TYPE_LABEL.get(act.out_of_office_type or "", "Ngoài VP")
+                else:
+                    label = "Trong VP"
+                if label not in punch_types:
+                    punch_types.append(label)
+                if act.out_of_office_type == "other":
+                    note = (act.out_of_office_note or "").strip()
+                    if note and note not in other_reasons:
+                        other_reasons.append(note)
             punch_times.sort()
+
+            location_str = " · ".join(locations)
+            punch_type_str = ", ".join(punch_types)
+            reason_str = " · ".join(other_reasons)
 
             def _hm(t):
                 s = str(t)[:5]
@@ -213,12 +246,16 @@ def _build_rows(year, month, company_id=None, department_id=None, search=None,
                 "accounting_code": emp.accounting_code or "",
                 "first_name": emp.employee_first_name,
                 "full_name": f"{emp.employee_last_name or ''} {emp.employee_first_name}".strip(),
+                "department": department,
                 "date": d.isoformat(),
                 "weekday": weekday,
                 "clock_in": earliest_str,
                 "clock_out": latest_str,
                 "worked": worked[:5] if len(worked) >= 5 else worked,
                 "detail": detail,
+                "location": location_str,
+                "punch_type": punch_type_str,
+                "other_reason": reason_str,
                 "is_late": is_late,
                 "is_early": is_early,
                 "late_mins": late_mins,
@@ -319,9 +356,10 @@ class AttendanceExportExcelView(APIView):
         ws.title = f"CC T{month}-{year}"
 
         headers = [
-            "STT", "Mã N.Viên", "Mã KT", "Tên", "Họ tên đầy đủ",
+            "STT", "Mã N.Viên", "Mã KT", "Tên", "Họ tên đầy đủ", "Phòng Ban",
             "Ngày", "Thứ", "Giờ vào", "Giờ ra", "Giờ làm",
-            "Lượt chấm", "Đi trễ", "Về sớm",
+            "Lượt chấm", "Nơi chấm", "Loại hình chấm", "Lý do (nếu Khác)",
+            "Đi trễ", "Về sớm",
             "Hệ số", "% Ngày công", "Công", "Ghi chú",
         ]
 
@@ -347,9 +385,10 @@ class AttendanceExportExcelView(APIView):
         for i, r in enumerate(rows, 2):
             vals = [
                 r["stt"], r["employee_code"], r["accounting_code"],
-                r["first_name"], r["full_name"],
+                r["first_name"], r["full_name"], r["department"],
                 r["date"], r["weekday"], r["clock_in"], r["clock_out"],
                 r["worked"], r["detail"],
+                r["location"], r["punch_type"], r["other_reason"],
                 "Có" if r["is_late"] else "",
                 "Có" if r["is_early"] else "",
                 r["coefficient"], f'{r["work_pct"]}%', r["cong"],
@@ -359,12 +398,12 @@ class AttendanceExportExcelView(APIView):
                 cell = ws.cell(row=i, column=col, value=v)
                 cell.border = thin_border
                 cell.alignment = Alignment(vertical="center")
-                if r["is_late"] and col == 12:
+                if r["is_late"] and col == 16:
                     cell.fill = late_fill
-                if r["is_early"] and col == 13:
+                if r["is_early"] and col == 17:
                     cell.fill = early_fill
 
-        col_widths = [6, 14, 10, 15, 25, 12, 6, 10, 10, 10, 35, 8, 8, 8, 12, 8, 30]
+        col_widths = [6, 14, 10, 15, 25, 20, 12, 6, 10, 10, 10, 30, 40, 16, 30, 8, 8, 8, 12, 8, 30]
         for i, w in enumerate(col_widths, 1):
             ws.column_dimensions[chr(64 + i) if i <= 26 else ""].width = w
 
