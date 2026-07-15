@@ -14,6 +14,7 @@ import { roundCong } from '../lib/cong'
 import { useToast } from '../components/ui/Toast'
 import { AttendanceDetailModal } from '../components/AttendanceDetailModal'
 import { useOutlookEvents, type OutlookEvent } from '../lib/outlook'
+import { IosInstallHint } from '../components/IosInstallHint'
 
 interface AttendanceRecord {
   id: number
@@ -1535,6 +1536,11 @@ export function HomePage() {
             <Icon name="stamp" size={isSmall ? 16 : 18} color="#fff" stroke={2.2} />
           </button>
         </div>
+      </div>
+
+      {/* iOS: nhắc cài PWA vào Màn hình chính để nhận push (chỉ hiện iPhone chưa cài) */}
+      <div style={{ padding: `0 ${px}px` }}>
+        <IosInstallHint />
       </div>
 
       {/* Notification strip */}

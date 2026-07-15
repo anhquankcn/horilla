@@ -20,7 +20,7 @@ self.addEventListener("push", (event) => {
 
   const options = {
     body,
-    icon: "/pwa/icons/icon-192.png",
+    icon: payload.icon || "/pwa/icons/icon-192.png",
     badge: "/pwa/icons/icon-192.png",
     tag,
     renotify: true,

@@ -4,7 +4,7 @@ import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { TopBar } from '../components/layout/TopBar'
 import { useToast } from '../components/ui/Toast'
-import { subscribeToPush, unsubscribeFromPush, isPushSubscribed } from '../lib/push'
+import { subscribeToPush, unsubscribeFromPush, isPushSubscribed, PushError } from '../lib/push'
 import { api } from '../lib/api'
 
 /* ── Helpers ── */
@@ -176,20 +176,27 @@ export function SettingsPage() {
         setPushState('off')
         showToast('Đã tắt thông báo đẩy')
       } else {
-        const ok = await subscribeToPush()
-        if (ok) {
-          setPushState('on')
-          showToast('Thông báo đẩy đã bật')
-        } else {
-          setPushState(Notification.permission === 'denied' ? 'denied' : 'off')
-          if (Notification.permission === 'denied') {
-            showToast('Quyền thông báo bị chặn')
-          }
-        }
+        await subscribeToPush()
+        setPushState('on')
+        showToast('Thông báo đẩy đã bật')
       }
-    } catch {
-      setPushState('off')
-      showToast('Lỗi khi cài đặt thông báo đẩy')
+    } catch (e) {
+      const code = e instanceof PushError ? e.code : 'unknown'
+      if (code === 'denied') {
+        setPushState('denied')
+        showToast('Bạn chưa cho phép quyền thông báo cho ứng dụng.')
+      } else {
+        setPushState('off')
+        const msg =
+          code === 'no_push'
+            ? 'iPhone chỉ nhận thông báo khi đã Thêm ứng dụng vào Màn hình chính (Chia sẻ → Thêm vào MH chính), rồi mở app từ biểu tượng đó.'
+            : code === 'sw_timeout'
+              ? 'Service Worker chưa sẵn sàng. Tải lại trang rồi thử lại.'
+              : code === 'server'
+                ? 'Máy chủ không lưu được đăng ký. Thử lại sau ít phút.'
+                : 'Không bật được thông báo đẩy. Vui lòng thử lại.'
+        showToast(msg)
+      }
     }
   }
 

@@ -1,5 +1,17 @@
 import { api, apiFetch } from './api'
 
+export type PushErrorCode = 'no_push' | 'denied' | 'sw_timeout' | 'server' | 'unknown'
+
+/** Lỗi bật push có mã theo từng bước → Settings hiện đúng câu, không đoán mò. */
+export class PushError extends Error {
+  code: PushErrorCode
+  constructor(code: PushErrorCode, message: string) {
+    super(message)
+    this.name = 'PushError'
+    this.code = code
+  }
+}
+
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
@@ -10,26 +22,36 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
 }
 
 export async function subscribeToPush(): Promise<boolean> {
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return false
+  // iOS ẩn hẳn 2 API này khi mở trong Safari thường (chưa cài PWA vào MH chính).
+  if (!('serviceWorker' in navigator) || !('PushManager' in window))
+    throw new PushError('no_push', 'Trình duyệt/thiết bị chưa hỗ trợ thông báo đẩy')
 
   const permission = await Notification.requestPermission()
-  if (permission !== 'granted') return false
+  if (permission !== 'granted')
+    throw new PushError('denied', 'Chưa cấp quyền thông báo')
 
-  const reg = await navigator.serviceWorker.ready
+  // serviceWorker.ready có thể treo nếu SW chưa active → chặn bằng timeout.
+  const reg = await Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new PushError('sw_timeout', 'Service Worker chưa sẵn sàng')), 10000),
+    ),
+  ])
 
-  const existing = await reg.pushManager.getSubscription()
-  if (existing) {
-    await sendSubscriptionToServer(existing)
-    return true
+  let sub = await reg.pushManager.getSubscription()
+  if (!sub) {
+    const { public_key } = await api.get<{ public_key: string }>('/api/notifications/push/vapid-key/')
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(public_key).buffer as ArrayBuffer,
+    })
   }
 
-  const { public_key } = await api.get<{ public_key: string }>('/api/notifications/push/vapid-key/')
-  const sub = await reg.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: urlBase64ToUint8Array(public_key).buffer as ArrayBuffer,
-  })
-
-  await sendSubscriptionToServer(sub)
+  try {
+    await sendSubscriptionToServer(sub)
+  } catch {
+    throw new PushError('server', 'Máy chủ không lưu được đăng ký')
+  }
   return true
 }
 
