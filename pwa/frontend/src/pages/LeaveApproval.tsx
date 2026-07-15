@@ -93,6 +93,14 @@ function dateRange(r: PendingRequest) {
   return `${fmtDateShort(r.start_date)} → ${fmtDateShort(r.end_date)}`
 }
 
+// Nhãn thời gian cho thẻ danh sách: nghỉ theo giờ hiện Ngày + khoảng giờ Từ–Đến.
+function whenLabel(r: PendingRequest) {
+  if (r.is_hourly && r.start_time && r.end_time) {
+    return `${fmtDateShort(r.start_date)} · ${fmtTime(r.start_time)}–${fmtTime(r.end_time)}`
+  }
+  return dateRange(r)
+}
+
 // ── Detail modal ──────────────────────────────────────────────────────────────
 
 function DetailModal({ req, onClose, onApproved, onRejected }: {
@@ -153,7 +161,8 @@ function DetailModal({ req, onClose, onApproved, onRejected }: {
   // CA ĐỀ XUẤT rows
   const caRows: { date: string; detail: string }[] = []
   if (req.is_hourly && req.start_time && req.end_time) {
-    caRows.push({ date: fmtDate(req.start_date), detail: `${fmtTime(req.start_time)} – ${fmtTime(req.end_time)}${req.requested_hours ? ` (${req.requested_hours}h)` : ''}` })
+    // Nghỉ theo giờ: hiện Ngày + khoảng giờ Từ–Đến (không phải từ ngày đến ngày).
+    caRows.push({ date: `Ngày ${fmtDate(req.start_date)}`, detail: `Từ ${fmtTime(req.start_time)} đến ${fmtTime(req.end_time)}${req.requested_hours ? ` (${req.requested_hours}h)` : ''}` })
   } else if (req.start_date === req.end_date) {
     caRows.push({ date: fmtDate(req.start_date), detail: bdLabel(req.start_date_breakdown) })
   } else {
@@ -358,7 +367,7 @@ function RequestCard({ req, onClick, last }: { req: PendingRequest; onClick: () 
           <span style={{ fontSize: 11, color: HNH.ink3, fontWeight: 500, marginLeft: 5 }}>{req.badge_id}</span>
         </div>
         <div style={{ fontSize: 12.5, color: HNH.ink2, marginBottom: 2 }}>{req.leave_type}</div>
-        <div style={{ fontSize: 11.5, color: HNH.ink3 }}>{dateRange(req)} · {daysLabel(req)}</div>
+        <div style={{ fontSize: 11.5, color: HNH.ink3 }}>{whenLabel(req)} · {daysLabel(req)}</div>
         {req.description?.trim() && (
           <div style={{ fontSize: 11.5, color: HNH.ink3, marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 220 }}>
             "{req.description}"

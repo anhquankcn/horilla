@@ -24,6 +24,10 @@ interface LeaveRequest {
   requested_date: string | null
   start_date_breakdown: string
   end_date_breakdown: string
+  is_hourly?: boolean
+  requested_hours?: number | null
+  start_time?: string | null
+  end_time?: string | null
 }
 
 interface ShiftRequest {
@@ -177,11 +181,14 @@ function LeaveCard({ req, onTap }: { req: LeaveRequest; onTap: () => void }) {
           </div>
           <div style={{ fontSize: 12, color: HNH.navy, fontWeight: 600, marginTop: 2 }}>
             {req.leave_type || 'Nghỉ phép'}
-            {req.requested_days ? ` · ${req.requested_days} ngày` : ''}
+            {req.is_hourly
+              ? (req.requested_hours ? ` · ${req.requested_hours}h` : '')
+              : (req.requested_days ? ` · ${req.requested_days} ngày` : '')}
           </div>
           <div style={{ fontSize: 11.5, color: HNH.ink3, fontWeight: 500, marginTop: 2 }}>
-            {formatDate(req.start_date)}
-            {req.end_date && req.end_date !== req.start_date ? ` → ${formatDate(req.end_date)}` : ''}
+            {req.is_hourly && req.start_time && req.end_time
+              ? `${formatDate(req.start_date)} · ${req.start_time.slice(0, 5)}–${req.end_time.slice(0, 5)}`
+              : `${formatDate(req.start_date)}${req.end_date && req.end_date !== req.start_date ? ` → ${formatDate(req.end_date)}` : ''}`}
           </div>
         </div>
         <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -557,9 +564,20 @@ function LeaveDetailModal({ req, onClose, onAction }: {
         display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px 16px',
       }}>
         <DetailField label="Loại nghỉ" value={req.leave_type || '—'} />
-        <DetailField label="Số ngày" value={req.requested_days ? `${req.requested_days} ngày` : '—'} />
-        <DetailField label="Từ ngày" value={`${formatDate(req.start_date)} (${BREAKDOWN_VI[req.start_date_breakdown] || ''})`} />
-        <DetailField label="Đến ngày" value={`${formatDate(req.end_date)} (${BREAKDOWN_VI[req.end_date_breakdown] || ''})`} />
+        {req.is_hourly && req.start_time && req.end_time ? (
+          <>
+            <DetailField label="Số giờ" value={req.requested_hours ? `${req.requested_hours}h` : '—'} />
+            <DetailField label="Ngày" value={formatDate(req.start_date)} />
+            <DetailField label="Từ giờ" value={req.start_time.slice(0, 5)} />
+            <DetailField label="Đến giờ" value={req.end_time.slice(0, 5)} />
+          </>
+        ) : (
+          <>
+            <DetailField label="Số ngày" value={req.requested_days ? `${req.requested_days} ngày` : '—'} />
+            <DetailField label="Từ ngày" value={`${formatDate(req.start_date)} (${BREAKDOWN_VI[req.start_date_breakdown] || ''})`} />
+            <DetailField label="Đến ngày" value={`${formatDate(req.end_date)} (${BREAKDOWN_VI[req.end_date_breakdown] || ''})`} />
+          </>
+        )}
         <div style={{ gridColumn: '1/-1' }}>
           <DetailField label="Lý do" value={req.description || '—'} />
         </div>
