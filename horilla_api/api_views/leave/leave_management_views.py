@@ -196,6 +196,26 @@ class HNHLeaveSummaryView(APIView):
 _DEDUCT_LEAVE_NAMES = ["Nghỉ phép năm", "Phép Bù", "Phép Thâm Niên"]
 
 
+def _find_leave_type(*keywords):
+    """Tìm LeaveType theo tên (icontains, thử lần lượt từng keyword)."""
+    from leave.models import LeaveType
+    for kw in keywords:
+        t = LeaveType.objects.filter(name__icontains=kw).first()
+        if t:
+            return t
+    return None
+
+
+# 4 trường phép cốt lõi HNH luôn phải hiển thị (kể cả NV chưa có số dư → 0 để C&B
+# sửa tay). Phép tồn = carryforward_days nằm trong card Phép năm, nên chỉ cần đảm
+# bảo 3 loại row: Phép năm, Phép thâm niên, Phép bù.
+_CORE_LEAVE_TYPE_KEYWORDS = [
+    ("phép năm", "annual"),
+    ("thâm niên", "seniority"),
+    ("phép bù",),
+]
+
+
 def _can_view_employee(request, me, emp):
     """C&B xem mọi NV; quản lý xem NV dưới quyền; NV xem chính mình."""
     if me and emp and emp.id == me.id:
@@ -264,6 +284,28 @@ class HNHLeaveDetailView(APIView):
             })
             if deduct:
                 total_start += start
+
+        # Luôn hiện đủ các loại phép cốt lõi — NV chưa có row (VD nhân sự mới up
+        # lên) vẫn hiện 0 để C&B sửa tay. hnh-adjust-balance get_or_create theo
+        # leave_type_id nên lưu được dù id=None.
+        present_ids = {b["leave_type_id"] for b in balances}
+        for kws in _CORE_LEAVE_TYPE_KEYWORDS:
+            lt = _find_leave_type(*kws)
+            if lt is None or lt.id in present_ids:
+                continue
+            u = usage.get(lt.id, {})
+            balances.append({
+                "id": None,
+                "leave_type_id": lt.id,
+                "name": lt.name,
+                "available_days": 0.0,
+                "carryforward_days": 0.0,
+                "start": 0.0,
+                "taken_this_year": u.get("days", 0.0),
+                "count_this_year": u.get("count", 0),
+                "deduct": lt.name in _DEDUCT_LEAVE_NAMES,
+            })
+            present_ids.add(lt.id)
 
         # loại trừ-dư lên đầu, rồi theo tên
         balances.sort(key=lambda b: (not b["deduct"], b["name"]))

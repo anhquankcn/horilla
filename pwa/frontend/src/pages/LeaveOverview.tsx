@@ -265,7 +265,7 @@ function LeaveDetailModal({ emp, onClose, onChanged }: {
                         <input value={eAvail} onChange={e => setEAvail(e.target.value)} type="number" step="0.5" style={inpStyle} />
                       </label>
                       <label style={{ flex: 1 }}>
-                        <div style={{ fontSize: 10, color: HNH.ink3, marginBottom: 3, fontWeight: 600 }}>Chuyển kỳ</div>
+                        <div style={{ fontSize: 10, color: HNH.ink3, marginBottom: 3, fontWeight: 600 }}>{/phép năm/i.test(b.name) ? 'Phép tồn' : 'Chuyển kỳ'}</div>
                         <input value={eCarry} onChange={e => setECarry(e.target.value)} type="number" step="0.5" style={inpStyle} />
                       </label>
                     </div>
