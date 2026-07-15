@@ -2010,7 +2010,8 @@ class EmployeeProfileView(APIView):
                 "employee_work_info__employee_type_id",
                 "employee_work_info__reporting_manager_id",
                 "work_level",
-            ).get(pk=pk, is_active=True)
+            ).get(pk=pk)  # KHÔNG lọc is_active: C&B phải xem được hồ sơ NV Tạm
+            # nghỉ để "Làm việc lại". Quyền vẫn chặn bên dưới (is_self/perm/manager).
         except Employee.DoesNotExist:
             return Response({"error": "Not found"}, status=404)
 
