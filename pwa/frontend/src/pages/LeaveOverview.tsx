@@ -8,7 +8,8 @@ import { api } from '../lib/api'
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const CELL_W = 44
-const NAME_W = 124   // khớp cột NHÂN VIÊN của CC Tháng (MonthlyAttendanceDetail)
+const CODE_W = 66    // cột Mã nhân viên (sticky)
+const NAME_W = 124   // cột Tên nhân viên (Họ đệm + Tên), sticky sau Mã
 const ROW_H = 44
 const BAL_W = 52   // cột Phép đầu / Phép cuối
 
@@ -665,16 +666,26 @@ export function LeaveOverviewPage() {
               display: 'flex', position: 'sticky', top: 0,
               background: '#fff', borderBottom: `1px solid ${HNH.line}`, zIndex: 2,
             }}>
-              {/* Corner cell — sticky top + left; header navy "NHÂN VIÊN" (giống CC Tháng) */}
+              {/* Corner cells — sticky top + left; 2 cột cố định: Mã NV + Tên NV (navy) */}
+              <div style={{
+                width: CODE_W, flexShrink: 0,
+                position: 'sticky', left: 0, zIndex: 3, background: HNH.navy,
+                borderRight: `1px solid ${HNH.line}`,
+                padding: '5px 6px',
+                fontSize: 10, fontWeight: 600, color: '#c7d7f4',
+                display: 'flex', alignItems: 'center',
+              }}>
+                MÃ NV
+              </div>
               <div style={{
                 width: NAME_W, flexShrink: 0,
-                position: 'sticky', left: 0, zIndex: 3, background: HNH.navy,
+                position: 'sticky', left: CODE_W, zIndex: 3, background: HNH.navy,
                 borderRight: `1px solid ${HNH.line}`,
                 padding: '5px 8px',
                 fontSize: 11, fontWeight: 600, color: '#c7d7f4',
                 display: 'flex', alignItems: 'center',
               }}>
-                NHÂN VIÊN
+                TÊN NHÂN VIÊN
               </div>
               {/* Cột tổng hợp dồn lên đầu: Phép đầu · [Trừ phép · Không lương = Phát sinh] · Còn lại */}
               <div style={{ width: BAL_W, flexShrink: 0, textAlign: 'center', padding: '3px 2px', borderLeft: `1px solid ${HNH.line}`, background: HNH.navy50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -720,44 +731,39 @@ export function LeaveOverviewPage() {
                 key={emp.id}
                 style={{ display: 'flex', borderBottom: `1px solid ${HNH.line}` }}
               >
-                {/* Name col — sticky left, bấm để xem chi tiết phép NV */}
+                {/* Mã NV — cột cố định 1, sticky left, bấm để xem chi tiết phép */}
+                <div
+                  onClick={() => setDetailEmp({ id: emp.id, name: emp.name })}
+                  title="Xem chi tiết phép"
+                  style={{
+                    width: CODE_W, flexShrink: 0, cursor: 'pointer',
+                    position: 'sticky', left: 0, zIndex: 1, background: '#fff',
+                    borderRight: `1px solid ${HNH.line}`,
+                    padding: '0 6px', height: ROW_H,
+                    display: 'flex', alignItems: 'center',
+                    fontSize: 10.5, color: HNH.navy, fontWeight: 700, letterSpacing: 0.2,
+                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                  }}>
+                  {emp.badge_id || '—'}
+                </div>
+                {/* Tên NV (Họ đệm + Tên) — cột cố định 2, sticky sau Mã */}
                 <div
                   onClick={() => setDetailEmp({ id: emp.id, name: emp.name })}
                   title="Xem chi tiết phép"
                   style={{
                     width: NAME_W, flexShrink: 0, cursor: 'pointer',
-                    position: 'sticky', left: 0, zIndex: 1, background: '#fff',
+                    position: 'sticky', left: CODE_W, zIndex: 1, background: '#fff',
                     borderRight: `1px solid ${HNH.line}`,
                     padding: '0 8px', height: ROW_H,
-                    display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 1,
+                    display: 'flex', alignItems: 'center',
                   }}>
-                  {/* Tên gọi — dòng đầu, đậm (giống CC Tháng) */}
-                  <div style={{
-                    fontSize: 13, fontWeight: 700, color: HNH.ink,
-                    whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                    maxWidth: NAME_W - 16,
+                  <span style={{
+                    fontSize: 12.5, fontWeight: 700, color: HNH.ink, lineHeight: 1.2,
+                    display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden', textOverflow: 'ellipsis',
                   }}>
-                    {emp.name.split(' ').slice(-1)[0]}
-                  </div>
-                  {/* Họ đệm — chỉ hiện khi tên có nhiều hơn 1 từ (giống CC Tháng) */}
-                  {emp.name.split(' ').length > 1 && (
-                    <div style={{
-                      fontSize: 10, color: HNH.ink3, fontWeight: 500,
-                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-                      maxWidth: NAME_W - 16,
-                    }}>
-                      {emp.name.split(' ').slice(0, -1).join(' ')}
-                    </div>
-                  )}
-                  {/* Mã NV — dòng cuối, nhỏ nhất, màu navy (giống CC Tháng) */}
-                  {emp.badge_id && (
-                    <div style={{
-                      fontSize: 9.5, color: HNH.navy, fontWeight: 600, letterSpacing: 0.2,
-                      whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: NAME_W - 16,
-                    }}>
-                      {emp.badge_id}
-                    </div>
-                  )}
+                    {emp.name}
+                  </span>
                 </div>
 
                 {/* Cột tổng hợp: Phép đầu · [Trừ phép · Không lương] · Còn lại */}
