@@ -15,6 +15,7 @@ import { useToast } from '../components/ui/Toast'
 import { AttendanceDetailModal } from '../components/AttendanceDetailModal'
 import { useOutlookEvents, type OutlookEvent } from '../lib/outlook'
 import { IosInstallHint } from '../components/IosInstallHint'
+import { PushToggle } from '../components/PushToggle'
 
 interface AttendanceRecord {
   id: number
@@ -996,12 +997,8 @@ export function HomePage() {
   const [kcValid, setKcValid] = useState<boolean | null>(null)
   const [kcChecking, setKcChecking] = useState(false)
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false)
-  const [pushPermission, setPushPermission] = useState<NotificationPermission>(
-    () => ('Notification' in window ? Notification.permission : 'default')
-  )
-  // Avatar menu checkbox selections
+  // Avatar menu checkbox selections (Thông báo đẩy đã chuyển ra công tắc Top Bar)
   const [chkKc, setChkKc] = useState(false)
-  const [chkPush, setChkPush] = useState(false)
   const [chkCache, setChkCache] = useState(false)
 
   // Password change sub-view
@@ -1046,21 +1043,6 @@ export function HomePage() {
     }
   }, [showToast])
 
-  const enablePushNotif = useCallback(async () => {
-    if (!('Notification' in window)) {
-      showToast('Trình duyệt không hỗ trợ thông báo đẩy')
-      return
-    }
-    if (Notification.permission === 'denied') {
-      showToast('Thông báo bị chặn — vào Cài đặt trình duyệt để bật lại')
-      return
-    }
-    const perm = await Notification.requestPermission()
-    setPushPermission(perm)
-    if (perm === 'granted') showToast('Đã bật thông báo đẩy ✓')
-    else showToast('Chưa cấp quyền thông báo')
-  }, [showToast])
-
   useEffect(() => { checkKcSession() }, [checkKcSession])
 
   const refreshAll = useCallback(async () => {
@@ -1068,7 +1050,7 @@ export function HomePage() {
   }, [rTasks, rAtt, rLeave, rNotif, rPay])
 
   const openAvatarMenu = useCallback(() => {
-    setChkKc(false); setChkPush(false); setChkCache(false)
+    setChkKc(false); setChkCache(false)
     setPwView(false); setPwOld(''); setPwNew(''); setPwConfirm(''); setPwMsg(null); setPwEmailSent(false)
     setAvatarMenuOpen(true)
   }, [])
@@ -1089,9 +1071,8 @@ export function HomePage() {
   const handleAvatarConfirm = useCallback(async () => {
     setAvatarMenuOpen(false)
     if (chkKc) await refreshKcSession()
-    if (chkPush) await enablePushNotif()
     if (chkCache) await clearCacheAndReload()
-  }, [chkKc, chkPush, chkCache, refreshKcSession, enablePushNotif, clearCacheAndReload])
+  }, [chkKc, chkCache, refreshKcSession, clearCacheAndReload])
 
   const handleSendResetEmail = useCallback(async () => {
     setPwLoading(true); setPwMsg(null)
@@ -1319,15 +1300,6 @@ export function HomePage() {
                   badgeColor: kcValid ? '#16a34a' : '#ef4444',
                 },
                 {
-                  key: 'push', checked: chkPush, onChange: setChkPush,
-                  icon: 'bell', iconBg: '#f0fdf4', iconColor: '#16a34a',
-                  label: 'Thông báo đẩy',
-                  desc: pushPermission === 'granted' ? 'Đang bật' : pushPermission === 'denied' ? 'Bị chặn — mở Cài đặt' : 'Chưa bật',
-                  badgeText: pushPermission === 'granted' ? 'Bật' : 'Tắt',
-                  badgeBg: pushPermission === 'granted' ? '#f0fdf4' : HNH.cream,
-                  badgeColor: pushPermission === 'granted' ? '#16a34a' : HNH.ink3,
-                },
-                {
                   key: 'cache', checked: chkCache, onChange: setChkCache,
                   icon: 'refresh', iconBg: '#fff7ed', iconColor: '#ea580c',
                   label: 'Xóa Cache & Tải lại',
@@ -1384,14 +1356,14 @@ export function HomePage() {
                 onClick={handleAvatarConfirm}
                 style={{
                   width: '100%', padding: '11px 0', borderRadius: 13,
-                  background: (chkKc || chkPush || chkCache) ? HNH.navy : HNH.cream,
-                  color: (chkKc || chkPush || chkCache) ? '#fff' : HNH.ink3,
+                  background: (chkKc || chkCache) ? HNH.navy : HNH.cream,
+                  color: (chkKc || chkCache) ? '#fff' : HNH.ink3,
                   border: 'none', cursor: 'pointer',
                   fontSize: 14, fontWeight: 700,
                   transition: 'all 0.15s',
                 }}
               >
-                Đồng ý{(chkKc || chkPush || chkCache) ? ` (${[chkKc, chkPush, chkCache].filter(Boolean).length})` : ''}
+                Đồng ý{(chkKc || chkCache) ? ` (${[chkKc, chkCache].filter(Boolean).length})` : ''}
               </button>
             </div>
 
@@ -1489,6 +1461,9 @@ export function HomePage() {
             {isClockedIn ? '● live' : duration === '00:00:00' ? '—' : 'hôm nay'}
           </div>
         </div>
+
+        {/* Công tắc bật/tắt Thông báo đẩy */}
+        <PushToggle small={isSmall} />
 
         {/* Bell */}
         <button
