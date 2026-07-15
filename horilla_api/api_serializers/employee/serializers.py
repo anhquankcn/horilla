@@ -167,6 +167,11 @@ class DocumentSerializer(serializers.ModelSerializer):
 
 
 class EmployeeSelectorSerializer(serializers.ModelSerializer):
+    # Thêm mã kế toán + phòng ban/công ty để lọc & tìm ở picker (Announcement Hub).
+    department_name = serializers.SerializerMethodField()
+    department_id = serializers.SerializerMethodField()
+    company_id = serializers.SerializerMethodField()
+
     class Meta:
         model = Employee
         fields = [
@@ -174,8 +179,28 @@ class EmployeeSelectorSerializer(serializers.ModelSerializer):
             "employee_first_name",
             "employee_last_name",
             "badge_id",
+            "accounting_code",
             "employee_profile",
+            "department_name",
+            "department_id",
+            "company_id",
         ]
+
+    @staticmethod
+    def _wi(obj):
+        return getattr(obj, "employee_work_info", None)
+
+    def get_department_name(self, obj):
+        wi = self._wi(obj)
+        return wi.department_id.department if wi and wi.department_id else ""
+
+    def get_department_id(self, obj):
+        wi = self._wi(obj)
+        return wi.department_id_id if wi else None
+
+    def get_company_id(self, obj):
+        wi = self._wi(obj)
+        return wi.company_id_id if wi else None
 
 
 class EmployeeMeSerializer(serializers.ModelSerializer):

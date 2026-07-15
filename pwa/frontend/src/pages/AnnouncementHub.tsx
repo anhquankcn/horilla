@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
@@ -11,7 +11,10 @@ import { api } from '../lib/api'
 type Tab = 'create' | 'history' | 'received'
 type TargetType = 'individual' | 'multi_user' | 'department' | 'company'
 
-interface Emp { id: number; name: string; badge_id: string; department?: string }
+interface Emp {
+  id: number; name: string; badge_id: string; department?: string
+  accounting_code?: string; company_id?: number | null; department_id?: number | null
+}
 interface Dept { id: number; department: string }
 interface Company { id: number; company: string }
 
@@ -120,16 +123,71 @@ function TargetTypeSelector({ value, onChange }: { value: TargetType; onChange: 
   )
 }
 
-function EmployeePicker({ selected, onToggle, employees, search, onSearch }: {
+function noAccent(s: string): string {
+  return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/đ/g, 'd')
+}
+
+function EmployeePicker({ selected, onToggle, employees, search, onSearch, companies }: {
   selected: Set<number>; onToggle: (id: number) => void
   employees: Emp[]; search: string; onSearch: (s: string) => void
+  companies: Company[]
 }) {
-  const filtered = employees.filter(e =>
-    e.name.toLowerCase().includes(search.toLowerCase()) ||
-    e.badge_id.toLowerCase().includes(search.toLowerCase())
-  )
+  const [fCompany, setFCompany] = useState<number | null>(companies.length === 1 ? companies[0].id : null)
+  const [fDept, setFDept] = useState<number | null>(null)
+
+  // Phòng ban khả dụng suy ra từ nhân sự thuộc công ty đang lọc (không cần map riêng)
+  const deptOptions = useMemo(() => {
+    const m = new Map<number, string>()
+    for (const e of employees) {
+      if (fCompany != null && e.company_id !== fCompany) continue
+      if (e.department_id != null && e.department) m.set(e.department_id, e.department)
+    }
+    return [...m.entries()]
+      .map(([id, label]) => ({ id, label }))
+      .sort((a, b) => a.label.localeCompare(b.label))
+  }, [employees, fCompany])
+
+  const q = noAccent(search.trim())
+  const filtered = employees.filter(e => {
+    if (fCompany != null && e.company_id !== fCompany) return false
+    if (fDept != null && e.department_id !== fDept) return false
+    if (!q) return true
+    return (
+      noAccent(e.name).includes(q) ||
+      (e.badge_id || '').toLowerCase().includes(q) ||
+      (e.accounting_code || '').toLowerCase().includes(q)
+    )
+  })
+
+  const selStyle: React.CSSProperties = {
+    flex: 1, minWidth: 0, padding: '9px 10px', borderRadius: 10, fontSize: 12.5,
+    border: `1.5px solid ${HNH.line}`, background: '#fff', color: HNH.ink, fontWeight: 600,
+    appearance: 'auto',
+  }
+
   return (
     <div>
+      {/* Lọc Công ty → Phòng ban */}
+      <div className="flex gap-2" style={{ marginBottom: 8 }}>
+        {companies.length > 1 && (
+          <select
+            value={fCompany ?? ''}
+            onChange={e => { const v = e.target.value; setFCompany(v ? Number(v) : null); setFDept(null) }}
+            style={selStyle}
+          >
+            <option value="">Tất cả công ty</option>
+            {companies.map(c => <option key={c.id} value={c.id}>{c.company}</option>)}
+          </select>
+        )}
+        <select
+          value={fDept ?? ''}
+          onChange={e => { const v = e.target.value; setFDept(v ? Number(v) : null) }}
+          style={selStyle}
+        >
+          <option value="">Tất cả phòng ban</option>
+          {deptOptions.map(d => <option key={d.id} value={d.id}>{d.label}</option>)}
+        </select>
+      </div>
       <div className="flex items-center gap-2" style={{
         background: '#fff', border: `1px solid ${HNH.line}`, borderRadius: 12, padding: '8px 12px', marginBottom: 8,
       }}>
@@ -137,7 +195,7 @@ function EmployeePicker({ selected, onToggle, employees, search, onSearch }: {
         <input
           value={search}
           onChange={e => onSearch(e.target.value)}
-          placeholder="Tìm nhân viên..."
+          placeholder="Mã nhân sự, mã kế toán, họ tên..."
           style={{
             border: 'none', outline: 'none', flex: 1, fontSize: 13,
             color: HNH.ink, background: 'transparent',
@@ -170,7 +228,7 @@ function EmployeePicker({ selected, onToggle, employees, search, onSearch }: {
             </div>
             <div className="flex-1 min-w-0">
               <div style={{ fontSize: 13, fontWeight: 600, color: HNH.ink }}>{e.name}</div>
-              <div style={{ fontSize: 11, color: HNH.ink3 }}>{e.badge_id}{e.department ? ` · ${e.department}` : ''}</div>
+              <div style={{ fontSize: 11, color: HNH.ink3 }}>{e.badge_id}{e.accounting_code ? ` · KT ${e.accounting_code}` : ''}{e.department ? ` · ${e.department}` : ''}</div>
             </div>
           </button>
         ))}
@@ -471,7 +529,10 @@ export function AnnouncementHubPage() {
             ? `${e.employee_first_name} ${e.employee_last_name ?? ''}`.trim()
             : e.employee_name ?? `#${e.id}`,
           badge_id: e.badge_id ?? '',
-          department: e.department ?? '',
+          department: e.department_name ?? e.department ?? '',
+          accounting_code: e.accounting_code ?? '',
+          company_id: e.company_id ?? null,
+          department_id: e.department_id ?? null,
         })))
       })
       .catch(() => {})
@@ -589,6 +650,7 @@ export function AnnouncementHubPage() {
                   employees={employees}
                   search={empSearch}
                   onSearch={setEmpSearch}
+                  companies={companies}
                 />
               )}
 

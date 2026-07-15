@@ -1127,7 +1127,13 @@ class EmployeeSelectorView(APIView):
 
     def get(self, request):
         employee = request.user.employee_get
-        employees = Employee.objects.filter(employee_user_id=request.user, is_active=True)
+        _sel = (
+            "employee_work_info__department_id",
+            "employee_work_info__company_id",
+        )
+        employees = Employee.objects.filter(
+            employee_user_id=request.user, is_active=True
+        ).select_related(*_sel)
 
         is_manager = EmployeeWorkInformation.objects.filter(
             reporting_manager_id=employee
@@ -1137,11 +1143,15 @@ class EmployeeSelectorView(APIView):
             employees = Employee.objects.filter(
                 Q(pk=employee.pk) | Q(employee_work_info__reporting_manager_id=employee),
                 is_active=True,
-            )
+            ).select_related(*_sel)
         if request.user.has_perm("employee.view_employee"):
-            employees = Employee.objects.filter(is_active=True)
+            employees = Employee.objects.filter(is_active=True).select_related(*_sel)
 
+        # Picker Announcement Hub cần đủ NV để lọc Công ty/Phòng ban → trả trang lớn.
         paginator = PageNumberPagination()
+        paginator.page_size = 1000
+        paginator.page_size_query_param = "page_size"
+        paginator.max_page_size = 5000
         page = paginator.paginate_queryset(employees, request)
         serializer = EmployeeSelectorSerializer(page, many=True)
         return paginator.get_paginated_response(serializer.data)
