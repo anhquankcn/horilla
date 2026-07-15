@@ -206,6 +206,14 @@ def _find_leave_type(*keywords):
     return None
 
 
+def _vn_full_name(emp) -> str:
+    """Tên NV chuẩn VN: Họ đệm + Tên (last_name + first_name), KHÔNG kèm mã.
+    Khác Employee.__str__ (= 'first_name last_name (badge)') vốn sai thứ tự VN."""
+    last = (emp.employee_last_name or "").strip()
+    first = (emp.employee_first_name or "").strip()
+    return f"{last} {first}".strip()
+
+
 # 4 trường phép cốt lõi HNH luôn phải hiển thị (kể cả NV chưa có số dư → 0 để C&B
 # sửa tay). Phép tồn = carryforward_days nằm trong card Phép năm, nên chỉ cần đảm
 # bảo 3 loại row: Phép năm, Phép thâm niên, Phép bù.
@@ -317,7 +325,7 @@ class HNHLeaveDetailView(APIView):
         return Response({
             "employee": {
                 "id": emp.id,
-                "name": str(emp),
+                "name": _vn_full_name(emp),
                 "badge_id": emp.badge_id or "",
                 "master_data_code": getattr(emp, "master_data_code", "") or "",
                 "department": dept,
@@ -664,7 +672,7 @@ class HNHApproverMapView(APIView):
             cb = resolve_cb_manager(e)
             data.append({
                 "id": e.id,
-                "name": str(e),
+                "name": _vn_full_name(e),
                 "badge_id": e.badge_id,
                 "department": wi.department_id.department if wi and wi.department_id else None,
                 "company": wi.company_id.company if wi and wi.company_id else None,
@@ -871,7 +879,7 @@ class HNHTeamEmployeesView(APIView):
         for e in qs[:200]:
             data.append({
                 "id": e.id,
-                "name": str(e),
+                "name": _vn_full_name(e),
                 "badge_id": e.badge_id or "",
                 "department": str(e.employee_work_info.department_id) if hasattr(e, "employee_work_info") and e.employee_work_info and e.employee_work_info.department_id else "",
             })
@@ -1126,7 +1134,7 @@ class HNHLeaveOverviewView(APIView):
             unpaid_v = round(taken_unpaid.get(e.id, 0.0), 2)   # Phát sinh: Không lương
             emp_data.append({
                 "id": e.id,
-                "name": str(e),
+                "name": _vn_full_name(e),
                 "badge_id": e.badge_id or "",
                 "accounting_code": getattr(e, "accounting_code", None) or "",
                 "department": dept_name,
@@ -1534,7 +1542,7 @@ class LeaveImportView(APIView):
             preview.append({
                 "row": row_idx,
                 "badge_id": badge_id,
-                "name": str(emp),
+                "name": _vn_full_name(emp),
                 "annual_before": annual_before,
                 "annual_after": annual_after,
                 "seniority_before": seniority_before,
