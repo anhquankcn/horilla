@@ -245,7 +245,7 @@ function LeaveDetailModal({ emp, onClose, onChanged }: {
               <span style={{ fontSize: 20, fontWeight: 800, color: HNH.navy }}>{data.total_start}</span>
             </div>
 
-            {data.balances.map(b => (
+            {data.balances.filter(b => !/ốm|sick/i.test(b.name)).map(b => (
               <div key={b.leave_type_id} style={{ border: `1px solid ${HNH.line}`, borderRadius: 12, padding: '10px 12px', marginBottom: 8, background: b.deduct ? '#fff' : HNH.cream }}>
                 <div className="flex items-center justify-between gap-2">
                   <div style={{ fontSize: 13, fontWeight: 700, color: HNH.ink }}>
@@ -284,7 +284,7 @@ function LeaveDetailModal({ emp, onClose, onChanged }: {
                 )}
               </div>
             ))}
-            {data.balances.length === 0 && (
+            {data.balances.filter(b => !/ốm|sick/i.test(b.name)).length === 0 && (
               <div style={{ padding: 20, textAlign: 'center', color: HNH.ink3, fontSize: 13 }}>NV chưa có số dư phép nào.</div>
             )}
           </>
