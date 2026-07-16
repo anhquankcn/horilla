@@ -1,24 +1,30 @@
 # PostgreSQL Streaming Replication — Production → Standby
 
-## Kiến trúc
+## Kiến trúc (cập nhật 2026-07-17 — tách standby & stage sang 2 máy mới)
 
 ```
-Production (100.99.164.24)              Staging (100.88.75.106)
-┌──────────────────┐                   ┌──────────────────────────┐
-│  horilla_prod     │                   │  horilla_stage (port 5432)│
-│  postgres:16      │ ── WAL stream ──► │  standby_db  (port 5433) │
-│  port 5432        │    Tailscale      │  postgres:16 (read-only) │
-│  (Tailscale only) │                   └──────────────────────────┘
+Production (100.99.164.24)         Standby (100.112.134.39)      Stage (100.71.141.71, máy local)
+┌──────────────────┐              ┌──────────────────────────┐   ┌──────────────────────────┐
+│  horilla_prod     │              │  standby-db (port 5433)   │   │  horilla_stage (port 5432)│
+│  postgres:16      │ ─ WAL stream►│  postgres:16 (read-only)  │─► │  copy định kỳ (sync job)  │
+│  port 5432        │   Tailscale  │  slot: standby_staging    │   │                           │
+│  (Tailscale only) │              └──────────────────────────┘   └──────────────────────────┘
 └──────────────────┘
 ```
+
+> Máy cũ **100.88.75.106** (giữ cả standby + stage) đã chết 07/2026 → chuyển:
+> standby → **100.112.134.39** (ubuntu, key `naquanlv.pem`), stage → **100.71.141.71** (máy local).
 
 ## Thông tin kết nối
 
 | Thành phần | Server | IP Tailscale | Port | DB Name |
 |-----------|--------|-------------|------|---------|
 | Production DB (primary) | ecs-hrm | 100.99.164.24 | 5432 | horilla_prod |
-| Standby DB (replica) | hnhstage | 100.88.75.106 | 5433 | horilla_prod (read-only) |
-| Staging DB (dev/test) | hnhstage | 100.88.75.106 | 5432 | horilla_stage |
+| Standby DB (replica) | ubuntu | 100.112.134.39 | 5433 | horilla_prod (read-only) |
+| Staging DB (dev/test) | máy local | 100.71.141.71 | 5432 | horilla_stage |
+
+Standby compose: `~/hnh-standby/docker-compose.standby.yml` trên 100.112.134.39
+(volume external `horilla_standby_pgdata`, container `horilla-standby-db-1`).
 
 ## Replication User
 
@@ -147,6 +153,10 @@ sudo docker compose -f docker-compose.standby.yml up -d
 
 ## Ngày thiết lập
 
-- **2026-06-13**: Setup streaming replication production → staging
+- **2026-06-13**: Setup streaming replication production → staging (100.88.75.106)
 - Replication user: `replicator`, slot: `standby_staging`
 - Lag tại thời điểm setup: **0 bytes**
+- **2026-07-17**: Máy 100.88.75.106 chết → dựng lại standby trên **100.112.134.39**
+  (`pg_basebackup` reuse slot `standby_staging`, `-R` nhúng conninfo). Verify:
+  `pg_is_in_recovery()=t`, prod `pg_stat_replication` = 100.112.134.39 · streaming ·
+  lag **0**. Stage chuyển sang máy local **100.71.141.71** (đang setup).
