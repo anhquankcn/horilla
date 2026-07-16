@@ -462,6 +462,10 @@ export function LeaveNewPage() {
   const deductingIds = new Set(leaveTypes.map(t => t.leave_type_id.id))
   const NHOM2_RE = /(công tác|hiếu|hỷ|phúc lợi|không lương)/i
   const nonDeductTypes = (allTypesResp?.results ?? []).filter(t => NHOM2_RE.test(t.name) && !deductingIds.has(t.id))
+  // HNH: gộp 3 loại trừ dư (bù/thâm niên/năm) thành 1 "Nghỉ phép" — số dư = tổng
+  // pool, khi duyệt trừ bậc thang bù → thâm niên → năm. Đơn mang loại đại diện.
+  const poolTotal = Math.round(leaveTypes.reduce((s, t) => s + (t.available_days || 0) + (t.carryforward_days || 0), 0) * 100) / 100
+  const poolRepId = (leaveTypes.find(t => /phép năm|annual/i.test(t.leave_type_id.name)) ?? leaveTypes[0])?.leave_type_id.id ?? null
 
   const [selectedTypeId, setSelectedTypeId] = useState<number | null>(null)
   const [mode, setMode] = useState<Mode>('day')
@@ -513,15 +517,14 @@ export function LeaveNewPage() {
 
   useEffect(() => {
     if (selectedTypeId !== null || leaveTypes.length === 0) return
-    const bu = leaveTypes.find(t => t.leave_type_id.name.toLowerCase().includes('bù') && t.available_days > 0)
-    const annual = leaveTypes.find(t => t.leave_type_id.name.toLowerCase().includes('phép năm'))
-    setSelectedTypeId((bu ?? annual ?? leaveTypes[0])?.leave_type_id?.id ?? null)
-  }, [leaveTypes, selectedTypeId])
+    setSelectedTypeId(poolRepId)
+  }, [leaveTypes, selectedTypeId, poolRepId])
 
-  const selected = leaveTypes.find(t => t.leave_type_id.id === selectedTypeId)
+  const isPoolSelected = selectedTypeId != null && deductingIds.has(selectedTypeId)
   const isNonDeduct = !!selectedTypeId && nonDeductTypes.some(t => t.id === selectedTypeId)
-  const selectedTypeName = selected?.leave_type_id.name
-    ?? nonDeductTypes.find(t => t.id === selectedTypeId)?.name ?? '—'
+  const selectedTypeName = isPoolSelected
+    ? 'Nghỉ phép'
+    : (nonDeductTypes.find(t => t.id === selectedTypeId)?.name ?? '—')
   const totalHours = hourDays.reduce((s, d) => s + dayHours(d), 0)
   const totalDays = mode === 'day'
     ? days.reduce((s, d) => s + coefOf(d.bd), 0)
@@ -582,7 +585,7 @@ export function LeaveNewPage() {
   }
 
   const seniorityDays = summary?.seniority_days ?? 0
-  const overBalance = !!selected && totalDays > selected.total_leave_days && selected.leave_type_id.total_days > 1
+  const overBalance = isPoolSelected && totalDays > poolTotal + 1e-6
   const bdLabel = (bd: Breakdown) => BD_OPTS.find(o => o.id === bd)?.label ?? ''
   const approverNames = approverIds.map(id => peopleCache[id]?.name).filter(Boolean) as string[]
   const watcherNames = watcherIds.map(id => peopleCache[id]?.name).filter(Boolean) as string[]
@@ -625,36 +628,26 @@ export function LeaveNewPage() {
         <div style={{ fontSize: 11, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.4, padding: '14px 6px 6px' }}>LOẠI NGHỈ — TRỪ PHÉP</div>
         <div style={{ background: '#fff', borderRadius: 16, border: `1px solid ${HNH.line}`, overflow: 'hidden' }}>
           {leaveTypes.length === 0 && <div style={{ padding: 16, textAlign: 'center', color: HNH.ink3, fontSize: 13 }}>Đang tải...</div>}
-          {leaveTypes.map((opt, i) => {
-            const isSelected = selectedTypeId === opt.leave_type_id.id
-            const avail = opt.available_days % 1 === 0 ? opt.available_days : opt.available_days.toFixed(1)
-            const total = opt.leave_type_id.total_days
-            const remainStr = total > 1 ? `${avail} / ${total % 1 === 0 ? total : total.toFixed(1)} ngày` : `${avail} ngày`
-            const isBu = opt.leave_type_id.name.toLowerCase().includes('bù')
-            const meta = leaveIcon(opt.leave_type_id.name)
-            const displayRemain = isBu && summary?.compensatory
-              ? `${summary.compensatory.available_days % 1 === 0 ? summary.compensatory.available_days : summary.compensatory.available_days.toFixed(1)} ngày`
-              : remainStr
+          {leaveTypes.length > 0 && (() => {
+            const meta = leaveIcon('phép năm')
+            const availStr = poolTotal % 1 === 0 ? `${poolTotal}` : poolTotal.toFixed(1)
             return (
-              <button key={opt.leave_type_id.id} onClick={() => setSelectedTypeId(opt.leave_type_id.id)}
+              <button onClick={() => setSelectedTypeId(poolRepId)}
                 className="flex items-center gap-3 w-full bg-transparent border-none cursor-pointer text-left"
-                style={{ padding: '12px 14px', borderBottom: i === leaveTypes.length - 1 ? 'none' : `1px solid ${HNH.line}`, background: isSelected ? (isBu ? '#faf1d6' : HNH.red50) : 'transparent' }}>
-                <div className="flex items-center justify-center shrink-0" style={{ width: 22, height: 22, borderRadius: '50%', border: `2px solid ${isSelected ? (isBu ? '#a87908' : HNH.red) : HNH.line2}`, background: isSelected ? (isBu ? '#a87908' : HNH.red) : '#fff' }}>
-                  {isSelected && <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />}
+                style={{ padding: '12px 14px', background: isPoolSelected ? HNH.red50 : 'transparent' }}>
+                <div className="flex items-center justify-center shrink-0" style={{ width: 22, height: 22, borderRadius: '50%', border: `2px solid ${isPoolSelected ? HNH.red : HNH.line2}`, background: isPoolSelected ? HNH.red : '#fff' }}>
+                  {isPoolSelected && <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />}
                 </div>
                 <div className="flex items-center justify-center shrink-0" style={{ width: 28, height: 28, borderRadius: 8, background: meta.bg }}>
                   <Icon name={meta.icon} size={13} color={meta.color} stroke={2} />
                 </div>
                 <div className="flex-1">
-                  <div className="flex items-center gap-1.5" style={{ fontSize: 14, fontWeight: 600, color: HNH.ink }}>
-                    {opt.leave_type_id.name}
-                    {isBu && <span style={{ fontSize: 10, color: '#a87908', fontWeight: 700, background: '#fceac9', borderRadius: 4, padding: '1px 5px' }}>Ưu tiên</span>}
-                  </div>
-                  <div style={{ fontSize: 11.5, color: HNH.ink3, marginTop: 1 }}>{displayRemain}</div>
+                  <div style={{ fontSize: 14, fontWeight: 600, color: HNH.ink }}>Nghỉ phép</div>
+                  <div style={{ fontSize: 11.5, color: HNH.ink3, marginTop: 1 }}>Còn {availStr} ngày · trừ lần lượt Phép bù → Thâm niên → Phép năm</div>
                 </div>
               </button>
             )
-          })}
+          })()}
         </div>
 
         {/* Nhóm 2 — KHÔNG trừ phép */}
@@ -756,7 +749,7 @@ export function LeaveNewPage() {
           )}
           {overBalance && (
             <div style={{ marginTop: 8, fontSize: 11.5, color: HNH.red, fontWeight: 600 }}>
-              Vượt quá số ngày phép còn lại ({selected?.total_leave_days} ngày)
+              Vượt quá số ngày phép còn lại ({poolTotal} ngày)
             </div>
           )}
         </div>
@@ -845,7 +838,7 @@ export function LeaveNewPage() {
         )}
         {mode === 'hour' && overBalance && (
           <div style={{ marginTop: 8, fontSize: 11.5, color: HNH.red, fontWeight: 600 }}>
-            Vượt quá số ngày phép còn lại ({selected?.total_leave_days} ngày)
+            Vượt quá số ngày phép còn lại ({poolTotal} ngày)
           </div>
         )}
         </>)}

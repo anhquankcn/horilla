@@ -239,6 +239,46 @@ class EmployeeLeaveRequestGetCreateAPIView(APIView):
         return Response(serializer.errors, status=400)
 
 
+# ── HNH: gộp 3 loại phép TRỪ DƯ thành 1 pool ──────────────────────────────────
+# Người dùng chỉ chọn 1 "Nghỉ phép" chung; khi duyệt trừ lần lượt:
+# Phép Bù → Phép Thâm Niên → Nghỉ phép năm (hết loại nào sang loại kế).
+
+def _hnh_pool_rank(name: str):
+    n = (name or "").lower()
+    if "bù" in n:
+        return 0
+    if "thâm niên" in n or "seniority" in n:
+        return 1
+    if "phép năm" in n or "annual" in n:
+        return 2
+    return 99
+
+
+def _is_pool_type(lt) -> bool:
+    """LeaveType có thuộc pool trừ dư HNH (bù / thâm niên / năm) không."""
+    return bool(lt) and _hnh_pool_rank(getattr(lt, "name", "")) < 99
+
+
+def _hnh_pool_rows(employee):
+    """AvailableLeave của NV theo thứ tự trừ: bù → thâm niên → năm (chỉ loại đang có)."""
+    from leave.models import AvailableLeave
+    rows = [
+        al for al in AvailableLeave.objects.filter(
+            employee_id=employee, is_active=True
+        ).select_related("leave_type_id")
+        if al.leave_type_id and _hnh_pool_rank(al.leave_type_id.name) < 99
+    ]
+    rows.sort(key=lambda al: _hnh_pool_rank(al.leave_type_id.name))
+    return rows
+
+
+def _hnh_pool_balance(employee) -> float:
+    total = 0.0
+    for al in _hnh_pool_rows(employee):
+        total += (al.available_days or 0) + (al.carryforward_days or 0)
+    return round(total, 2)
+
+
 class EmployeeLeaveRequestDaysAPIView(APIView):
     """P1 — Đơn nghỉ phép/bù THEO NGÀY: chọn nhiều ngày rời, mỗi ngày Sáng/Chiều/
     Cả ngày. Tạo LeaveRequest tối ưu: gộp các ngày 'cả ngày' liên tiếp thành 1 range,
@@ -306,20 +346,26 @@ class EmployeeLeaveRequestDaysAPIView(APIView):
                 segments.append((cur["date"], cur["date"], cur["breakdown"], cur["breakdown"]))
                 i += 1
 
-        # Pre-check tổng số ngày xin so với số dư (chỉ với loại TRỪ phép)
-        avail = AvailableLeave.objects.filter(employee_id=employee, leave_type_id=lt).first()
+        # Pre-check tổng số ngày xin so với số dư
         total_req = 0.0
         for (sd, ed, sbd, ebd) in segments:
             rd = calculate_requested_days(sd, ed, sbd, ebd)
             rd = cal_effective_requested_days(start_date=sd, end_date=ed, leave_type_id=lt, requested_days=rd)
             total_req += rd
         total_req = round(total_req, 2)
-        if avail is not None:
-            balance = (avail.available_days or 0) + (avail.carryforward_days or 0)
+        if _is_pool_type(lt):
+            # Loại trừ dư (bù/thâm niên/năm): kiểm theo TỔNG pool 3 loại.
+            balance = _hnh_pool_balance(employee)
             if total_req > balance + 1e-6:
                 return Response({"error": f"Vượt số phép: xin {total_req} ngày nhưng còn {round(balance,2)} ngày"}, status=400)
-        elif lt.payment == "paid":
-            return Response({"error": "Bạn chưa được cấp loại phép này"}, status=400)
+        else:
+            avail = AvailableLeave.objects.filter(employee_id=employee, leave_type_id=lt).first()
+            if avail is not None:
+                balance = (avail.available_days or 0) + (avail.carryforward_days or 0)
+                if total_req > balance + 1e-6:
+                    return Response({"error": f"Vượt số phép: xin {total_req} ngày nhưng còn {round(balance,2)} ngày"}, status=400)
+            elif lt.payment == "paid":
+                return Response({"error": "Bạn chưa được cấp loại phép này"}, status=400)
 
         created = []
         try:
@@ -438,13 +484,18 @@ class EmployeeLeaveRequestHoursAPIView(APIView):
         total_hours = round(sum(p["hours"] for p in parsed), 2)
         total_days = round(total_hours / 8.0, 2)
 
-        avail = AvailableLeave.objects.filter(employee_id=employee, leave_type_id=lt).first()
-        if avail is not None:
-            balance = (avail.available_days or 0) + (avail.carryforward_days or 0)
+        if _is_pool_type(lt):
+            balance = _hnh_pool_balance(employee)
             if total_days > balance + 1e-6:
                 return Response({"error": f"Vượt số phép: xin {total_days} ngày ({total_hours}h) nhưng còn {round(balance,2)} ngày"}, status=400)
-        elif lt.payment == "paid":
-            return Response({"error": "Bạn chưa được cấp loại phép này"}, status=400)
+        else:
+            avail = AvailableLeave.objects.filter(employee_id=employee, leave_type_id=lt).first()
+            if avail is not None:
+                balance = (avail.available_days or 0) + (avail.carryforward_days or 0)
+                if total_days > balance + 1e-6:
+                    return Response({"error": f"Vượt số phép: xin {total_days} ngày ({total_hours}h) nhưng còn {round(balance,2)} ngày"}, status=400)
+            elif lt.payment == "paid":
+                return Response({"error": "Bạn chưa được cấp loại phép này"}, status=400)
 
         created = []
         try:
@@ -1767,22 +1818,47 @@ class ApproveLeaveView(APIView):
         if not _can_approve_leave(request.user, lr):
             return Response({"error": "Bạn không có quyền duyệt đơn này"}, status=403)
 
-        available_leave = AvailableLeave.objects.filter(
-            employee_id=lr.employee_id,
-            leave_type_id=lr.leave_type_id,
-        ).first()
+        if _is_pool_type(lr.leave_type_id) and lr.requested_days:
+            # HNH: trừ bậc thang qua pool — Phép Bù → Phép Thâm Niên → Nghỉ phép năm.
+            # Mỗi loại trừ available trước, rồi tới carryforward (phép tồn).
+            remaining = round(lr.requested_days, 2)
+            taken_avail = 0.0
+            taken_cf = 0.0
+            for al in _hnh_pool_rows(lr.employee_id):
+                if remaining <= 1e-9:
+                    break
+                av = al.available_days or 0
+                t = min(av, remaining)
+                if t > 0:
+                    al.available_days = round(av - t, 2)
+                    remaining = round(remaining - t, 2)
+                    taken_avail += t
+                if remaining > 1e-9 and (al.carryforward_days or 0) > 0:
+                    cf = al.carryforward_days or 0
+                    tc = min(cf, remaining)
+                    al.carryforward_days = round(cf - tc, 2)
+                    remaining = round(remaining - tc, 2)
+                    taken_cf += tc
+                al.save()
+            lr.approved_available_days = round(taken_avail, 2)
+            lr.approved_carryforward_days = round(taken_cf, 2)
+        else:
+            available_leave = AvailableLeave.objects.filter(
+                employee_id=lr.employee_id,
+                leave_type_id=lr.leave_type_id,
+            ).first()
 
-        if available_leave and lr.requested_days:
-            if lr.requested_days > available_leave.available_days:
-                overflow = lr.requested_days - available_leave.available_days
-                lr.approved_available_days = available_leave.available_days
-                available_leave.available_days = 0
-                available_leave.carryforward_days -= overflow
-                lr.approved_carryforward_days = overflow
-            else:
-                available_leave.available_days -= lr.requested_days
-                lr.approved_available_days = lr.requested_days
-            available_leave.save()
+            if available_leave and lr.requested_days:
+                if lr.requested_days > available_leave.available_days:
+                    overflow = lr.requested_days - available_leave.available_days
+                    lr.approved_available_days = available_leave.available_days
+                    available_leave.available_days = 0
+                    available_leave.carryforward_days -= overflow
+                    lr.approved_carryforward_days = overflow
+                else:
+                    available_leave.available_days -= lr.requested_days
+                    lr.approved_available_days = lr.requested_days
+                available_leave.save()
 
         lr.status = "approved"
         lr.save()
