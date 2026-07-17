@@ -160,3 +160,8 @@ TestDB.sqlite3
 
 # HNH internal notes (contains secrets)
 logs_note/
+
+# HNH env files (secrets — không commit)
+.env.stage
+.env.prod
+.env.failover
