@@ -116,6 +116,18 @@ function parseNotifAction(n: Notification): { route: string; label: string } | n
   return null
 }
 
+/** Lấy danh sách id đơn nghỉ từ notification (để duyệt nhanh tại chỗ). */
+function getLeaveIds(n: Notification): number[] {
+  if (!n.data) return []
+  let d: Record<string, unknown>
+  if (typeof n.data === 'string') {
+    try { d = JSON.parse(n.data) } catch { return [] }
+  } else { d = n.data }
+  const raw = d.leave_request_ids
+  if (Array.isArray(raw)) return raw.map(Number).filter(x => !Number.isNaN(x))
+  return []
+}
+
 type Filter = 'all' | 'unread'
 
 /* ── Notification Detail Sheet ── */
@@ -123,14 +135,24 @@ function NotifDetailSheet({
   n,
   onClose,
   onRead,
+  onActed,
 }: {
   n: Notification
   onClose: () => void
   onRead: () => void
+  onActed?: () => void
 }) {
   const navigate = useNavigate()
+  const { toast } = useToast()
   const meta = notifMeta(n.verb, n.level)
   const action = parseNotifAction(n)
+  const leaveIds = getLeaveIds(n)
+  // Duyệt nhanh tại chỗ: chỉ khi thông báo là ĐƠN CẦN DUYỆT (route /approvals) +
+  // có id đơn. Backend tự chặn nếu không đủ quyền.
+  const canQuickApprove = leaveIds.length > 0 && action?.route === '/approvals'
+  const [acting, setActing] = useState(false)
+  const [rejectMode, setRejectMode] = useState(false)
+  const [reason, setReason] = useState('')
 
   useEffect(() => {
     if (n.unread) onRead()
@@ -140,6 +162,39 @@ function NotifDetailSheet({
     if (!action) return
     onClose()
     navigate(action.route)
+  }
+
+  const doApprove = async () => {
+    setActing(true)
+    let ok = 0, done = 0, denied = false
+    for (const id of leaveIds) {
+      try {
+        await api.post(`/api/leave/pwa-approve/${id}/`, {})
+        ok++
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : ''
+        if (/quyền|403/i.test(msg)) denied = true
+        else if (/processed|đã/i.test(msg)) done++
+      }
+    }
+    setActing(false)
+    if (ok > 0) toast(`Đã duyệt ${ok} đơn`, 'success')
+    else if (denied) toast('Bạn không có quyền duyệt đơn này')
+    else if (done > 0) toast('Đơn đã được xử lý trước đó')
+    else toast('Không duyệt được, thử lại')
+    onActed?.()
+  }
+
+  const doReject = async () => {
+    if (!reason.trim()) { toast('Nhập lý do từ chối'); return }
+    setActing(true)
+    let ok = 0
+    for (const id of leaveIds) {
+      try { await api.post(`/api/leave/pwa-reject/${id}/`, { reason: reason.trim() }); ok++ } catch { /* ignore */ }
+    }
+    setActing(false)
+    toast(ok > 0 ? `Đã từ chối ${ok} đơn` : 'Không từ chối được', ok > 0 ? 'error' : undefined)
+    onActed?.()
   }
 
   return (
@@ -203,7 +258,55 @@ function NotifDetailSheet({
 
         {/* CTA */}
         <div style={{ padding: '8px 20px calc(32px + env(safe-area-inset-bottom, 0px))' }}>
-          {action ? (
+          {canQuickApprove ? (
+            rejectMode ? (
+              <>
+                <textarea
+                  value={reason}
+                  onChange={e => setReason(e.target.value)}
+                  placeholder="Nhập lý do từ chối..."
+                  rows={3}
+                  style={{
+                    width: '100%', boxSizing: 'border-box', padding: '10px 12px', borderRadius: 12,
+                    fontSize: 13, border: `1.5px solid ${HNH.red}`, resize: 'none', outline: 'none',
+                    fontFamily: 'inherit', color: HNH.ink, background: HNH.red50, marginBottom: 8,
+                  }}
+                />
+                <div className="flex gap-2">
+                  <button onClick={() => { setRejectMode(false); setReason('') }} disabled={acting}
+                    className="flex-1 border-none cursor-pointer"
+                    style={{ height: 46, borderRadius: 14, fontSize: 14, fontWeight: 700, background: HNH.cream2, color: HNH.ink2, border: `1.5px solid ${HNH.line}` }}>
+                    Huỷ
+                  </button>
+                  <button onClick={doReject} disabled={acting}
+                    className="flex-1 border-none cursor-pointer"
+                    style={{ height: 46, borderRadius: 14, fontSize: 14, fontWeight: 800, background: HNH.red, color: '#fff', opacity: acting ? 0.6 : 1 }}>
+                    {acting ? 'Đang gửi...' : 'Xác nhận từ chối'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="flex gap-2">
+                  <button onClick={() => setRejectMode(true)} disabled={acting}
+                    className="flex items-center justify-center gap-1 border-none cursor-pointer"
+                    style={{ flex: 1, height: 50, borderRadius: 16, fontSize: 15, fontWeight: 800, background: HNH.red50, color: HNH.red, border: `1.5px solid ${HNH.red}44` }}>
+                    <Icon name="x" size={16} color={HNH.red} stroke={2.4} /> Từ chối
+                  </button>
+                  <button onClick={doApprove} disabled={acting}
+                    className="flex items-center justify-center gap-1 border-none cursor-pointer"
+                    style={{ flex: 1.4, height: 50, borderRadius: 16, fontSize: 15, fontWeight: 800, background: HNH.success, color: '#fff', opacity: acting ? 0.6 : 1 }}>
+                    <Icon name="check" size={16} color="#fff" stroke={2.4} /> {acting ? 'Đang duyệt...' : 'Duyệt ngay'}
+                  </button>
+                </div>
+                <button onClick={handleAction}
+                  className="w-full border-none cursor-pointer bg-transparent"
+                  style={{ marginTop: 8, height: 38, fontSize: 12.5, fontWeight: 600, color: HNH.ink3 }}>
+                  Xem chi tiết trong màn Phê duyệt →
+                </button>
+              </>
+            )
+          ) : action ? (
             <button
               onClick={handleAction}
               className="flex items-center justify-center gap-2 w-full border-none cursor-pointer"
@@ -526,6 +629,7 @@ export function NotificationsPage() {
           n={detail}
           onClose={() => setDetail(null)}
           onRead={() => markRead(detail.id)}
+          onActed={() => { setDetail(null); fetchNotifications(filter) }}
         />
       )}
     </div>

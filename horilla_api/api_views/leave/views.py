@@ -279,6 +279,33 @@ def _hnh_pool_balance(employee) -> float:
     return round(total, 2)
 
 
+def _leave_notif_desc(created, lt, total_req, reason) -> str:
+    """Mô tả ĐẦY ĐỦ đơn nghỉ cho thông báo — để người duyệt đọc đủ thông tin và
+    Duyệt nhanh ngay trên màn Xem thông báo (không cần mở màn khác)."""
+    if not created:
+        return ""
+    rows = sorted(created, key=lambda r: (r.start_date, str(r.start_time or "")))
+    first, last = rows[0], rows[-1]
+    parts = [f"Loại nghỉ: {getattr(lt, 'name', '')}"]
+    if getattr(first, "is_hourly", False) and first.start_time and first.end_time:
+        for r in rows:
+            parts.append(
+                f"• {r.start_date.strftime('%d/%m/%Y')} "
+                f"{r.start_time.strftime('%H:%M')}–{r.end_time.strftime('%H:%M')}"
+            )
+        parts.append(f"Tổng: {total_req} ngày")
+    elif first.start_date == last.end_date:
+        parts.append(f"Ngày: {first.start_date.strftime('%d/%m/%Y')} — {total_req} ngày")
+    else:
+        parts.append(
+            f"Từ {first.start_date.strftime('%d/%m/%Y')} "
+            f"đến {last.end_date.strftime('%d/%m/%Y')} — {total_req} ngày"
+        )
+    if reason:
+        parts.append(f"Lý do: {reason}")
+    return "\n".join(parts)
+
+
 class EmployeeLeaveRequestDaysAPIView(APIView):
     """P1 — Đơn nghỉ phép/bù THEO NGÀY: chọn nhiều ngày rời, mỗi ngày Sáng/Chiều/
     Cả ngày. Tạo LeaveRequest tối ưu: gộp các ngày 'cả ngày' liên tiếp thành 1 range,
@@ -406,16 +433,20 @@ class EmployeeLeaveRequestDaysAPIView(APIView):
 
         _persist_watchers(created, watcher_ids)
 
-        # Notify quản lý + approvers/watchers (1 lần, gộp)
+        # Notify quản lý + approvers/watchers (1 lần, gộp) — kèm mô tả đầy đủ +
+        # id đơn để duyệt nhanh ngay trên màn Xem thông báo.
         actor = employee
         emp_name = f"{actor.employee_first_name} {actor.employee_last_name or ''}".strip()
+        _desc = _leave_notif_desc(created, lt, total_req, description)
+        _ids = [lr.id for lr in created]
         notified = set()
         with contextlib.suppress(Exception):
             rm = actor.employee_work_info.reporting_manager_id
             if rm:
                 notify.send(actor, recipient=rm.employee_user_id,
-                            verb=f"{emp_name} gửi đề xuất nghỉ phép {total_req} ngày",
-                            icon="people-circle", redirect="/leave/request-view")
+                            verb=f"{emp_name} gửi đề xuất nghỉ phép {total_req} ngày cần phê duyệt",
+                            description=_desc, icon="people-circle",
+                            redirect="/leave/request-view", leave_request_ids=_ids)
                 notified.add(rm.employee_user_id.id)
         from employee.models import Employee as _Emp
         for uid in list(approver_ids) + list(watcher_ids):
@@ -424,14 +455,15 @@ class EmployeeLeaveRequestDaysAPIView(APIView):
                 if u.employee_user_id.id not in notified:
                     notify.send(actor, recipient=u.employee_user_id,
                                 verb=f"{emp_name} gửi đề xuất nghỉ phép {total_req} ngày cần phê duyệt",
-                                icon="people-circle", redirect="/leave/request-view")
+                                description=_desc, icon="people-circle",
+                                redirect="/leave/request-view", leave_request_ids=_ids)
                     notified.add(u.employee_user_id.id)
 
         return Response({
             "ok": True,
             "created": len(created),
             "total_days": total_req,
-            "request_ids": [lr.id for lr in created],
+            "request_ids": _ids,
         }, status=201)
 
 
@@ -533,13 +565,16 @@ class EmployeeLeaveRequestHoursAPIView(APIView):
 
         actor = employee
         emp_name = f"{actor.employee_first_name} {actor.employee_last_name or ''}".strip()
+        _desc = _leave_notif_desc(created, lt, total_days, description)
+        _ids = [lr.id for lr in created]
         notified = set()
         with contextlib.suppress(Exception):
             rm = actor.employee_work_info.reporting_manager_id
             if rm:
                 notify.send(actor, recipient=rm.employee_user_id,
-                            verb=f"{emp_name} gửi đề xuất nghỉ phép {total_hours}h ({total_days} ngày)",
-                            icon="people-circle", redirect="/leave/request-view")
+                            verb=f"{emp_name} gửi đề xuất nghỉ phép {total_hours}h cần phê duyệt",
+                            description=_desc, icon="people-circle",
+                            redirect="/leave/request-view", leave_request_ids=_ids)
                 notified.add(rm.employee_user_id.id)
         for uid in list(approver_ids) + list(watcher_ids):
             with contextlib.suppress(Exception):
@@ -547,13 +582,14 @@ class EmployeeLeaveRequestHoursAPIView(APIView):
                 if u.employee_user_id.id not in notified:
                     notify.send(actor, recipient=u.employee_user_id,
                                 verb=f"{emp_name} gửi đề xuất nghỉ phép {total_hours}h cần phê duyệt",
-                                icon="people-circle", redirect="/leave/request-view")
+                                description=_desc, icon="people-circle",
+                                redirect="/leave/request-view", leave_request_ids=_ids)
                     notified.add(u.employee_user_id.id)
 
         return Response({
             "ok": True, "created": len(created),
             "total_hours": total_hours, "total_days": total_days,
-            "request_ids": [lr.id for lr in created],
+            "request_ids": _ids,
         }, status=201)
 
 
