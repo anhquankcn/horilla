@@ -90,6 +90,31 @@ class ReactivateEmployeeView(APIView):
         })
 
 
+def _suggest_next_hnh_code():
+    """Gợi ý Mã NV kế tiếp dạng HNH00XXX (HNH + 5 số zero-pad, khớp mã hiện có):
+    số = MAX đã cấp + 1 (loại sentinel admin HNH00999), đảm bảo KHÔNG trùng
+    badge_id/employee_code đang có."""
+    import re
+    from employee.models import Employee
+    nums = set()
+    used = set()
+    for badge, code in Employee.objects.values_list("badge_id", "employee_code"):
+        for v in (badge, code):
+            if not v:
+                continue
+            v = v.strip()
+            used.add(v)
+            m = re.match(r"^HNH0*([0-9]+)$", v, re.IGNORECASE)
+            if m:
+                n = int(m.group(1))
+                if n < 900:  # bỏ sentinel admin (HNH00999) khỏi tính max
+                    nums.add(n)
+    nxt = (max(nums) + 1) if nums else 1
+    while f"HNH{nxt:05d}" in used:
+        nxt += 1
+    return f"HNH{nxt:05d}"
+
+
 class OnboardOptionsView(APIView):
     """Danh sách để dựng form onboarding."""
     permission_classes = [IsAuthenticated]
@@ -118,6 +143,7 @@ class OnboardOptionsView(APIView):
             "shifts": lst(EmployeeShift.objects.all(), "employee_shift"),
             "groups": [{"id": g.id, "name": g.name} for g in Group.objects.all().order_by("name")],
             "default_shift_id": ald26.id if ald26 else None,
+            "suggested_badge_id": _suggest_next_hnh_code(),
             "marital_statuses": [
                 {"id": "single", "name": "Độc thân"},
                 {"id": "married", "name": "Đã kết hôn"},
@@ -256,6 +282,7 @@ class OnboardEmployeeView(APIView):
                     email=email,
                     phone=phone or None,
                     badge_id=badge_id,
+                    employee_code=badge_id,  # NV mới: Mã HRM = Badge ID (đồng bộ từ đầu)
                     gender=d.get("gender") or "male",
                     is_active=True,
                 )

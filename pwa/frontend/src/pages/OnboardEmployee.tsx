@@ -12,7 +12,7 @@ interface RoleOpt extends Opt { job_position_id: number | null }
 interface Options {
   companies: Opt[]; departments: Opt[]; job_positions: PosOpt[]; job_roles: RoleOpt[]
   work_types: Opt[]; shifts: Opt[]; groups: Opt[]; default_shift_id: number | null
-  marital_statuses: StrOpt[]; education_levels: StrOpt[]
+  marital_statuses: StrOpt[]; education_levels: StrOpt[]; suggested_badge_id?: string
 }
 
 interface Form {
@@ -175,7 +175,7 @@ export function OnboardEmployeePage() {
 
   useEffect(() => {
     api.get<Options>('/api/employee/onboard/options/')
-      .then(o => { setOpts(o); setF(p => ({ ...p, shift_id: o.default_shift_id })) })
+      .then(o => { setOpts(o); setF(p => ({ ...p, shift_id: o.default_shift_id, badge_id: p.badge_id || o.suggested_badge_id || '' })) })
       .catch(e => setErr(e instanceof Error ? e.message : 'Lỗi tải dữ liệu'))
   }, [])
 
@@ -302,6 +302,17 @@ export function OnboardEmployeePage() {
                 </Field>
                 <Field label="Mã nhân viên (badge) *">
                   <TextInput value={f.badge_id} onChange={v => set('badge_id', v)} placeholder="VD: HNH00xxx" />
+                  {opts?.suggested_badge_id && (
+                    <div style={{ fontSize: 11, color: HNH.ink3, marginTop: 3 }}>
+                      Gợi ý: <b style={{ color: HNH.navy }}>{opts.suggested_badge_id}</b> (mã kế tiếp chưa cấp)
+                      {f.badge_id !== opts.suggested_badge_id && (
+                        <button type="button" onClick={() => set('badge_id', opts.suggested_badge_id!)}
+                          style={{ marginLeft: 6, border: 'none', background: 'transparent', color: HNH.red, fontWeight: 700, fontSize: 11, cursor: 'pointer', padding: 0 }}>
+                          Dùng mã này
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </Field>
                 <Field label="Số điện thoại *">
                   <TextInput type="tel" value={f.phone} onChange={v => set('phone', v)} placeholder="SĐT" />
