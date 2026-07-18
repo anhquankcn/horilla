@@ -366,7 +366,13 @@ class EmployeeAPIView(APIView):
             employee
             in [user.employee_get, request.user.employee_get.get_reporting_manager()]
         ) or user.has_perm("employee.change_employee"):
-            serializer = EmployeeSerializer(employee, data=request.data, partial=True)
+            # HNH: "Mã Nhân viên HRM" (employee_code) là nguồn chuẩn → cập nhật nó
+            # thì ĐỒNG BỘ LUÔN Badge ID của hệ thống Horilla (badge_id).
+            data = request.data.copy() if hasattr(request.data, "copy") else dict(request.data)
+            ec = data.get("employee_code")
+            if ec is not None and str(ec).strip():
+                data["badge_id"] = str(ec).strip()
+            serializer = EmployeeSerializer(employee, data=data, partial=True)
             if serializer.is_valid():
                 serializer.save()
                 return Response(serializer.data)
