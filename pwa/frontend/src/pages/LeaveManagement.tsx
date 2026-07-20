@@ -40,6 +40,7 @@ interface ApprovedLeave {
   employee_id: number
   employee_name: string
   badge_id: string
+  accounting_code?: string
   company?: string | null
   department?: string | null
   leave_type: string
@@ -383,10 +384,38 @@ function LeaveDetailModal({ id, onClose }: { id: number; onClose: () => void }) 
   )
 }
 
-function ApprovedLeaveCard({ leave, isCnb, onCancel }: {
+// Toggle nhanh: đánh dấu đơn đã được C&B xem xét hay chưa.
+function SeenToggle({ seen, onToggle }: { seen: boolean; onToggle: (next: boolean) => void }) {
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); onToggle(!seen) }}
+      title={seen ? 'Đã C&B xem xét — bấm để bỏ đánh dấu' : 'Chưa xem xét — bấm để đánh dấu đã xem'}
+      className="flex items-center gap-1 border-none cursor-pointer"
+      style={{
+        fontSize: 10, fontWeight: 800, borderRadius: 20, padding: '2px 5px 2px 8px',
+        background: seen ? HNH.success50 : HNH.cream2,
+        color: seen ? HNH.success : HNH.ink3, letterSpacing: 0.2, whiteSpace: 'nowrap',
+      }}
+    >
+      {seen ? 'Đã xem xét' : 'Chưa xem'}
+      <span style={{
+        width: 26, height: 15, borderRadius: 10, position: 'relative',
+        background: seen ? HNH.success : HNH.line, display: 'inline-block', transition: 'background .15s',
+      }}>
+        <span style={{
+          position: 'absolute', top: 2, left: seen ? 13 : 2, width: 11, height: 11,
+          borderRadius: '50%', background: '#fff', transition: 'left .15s',
+        }} />
+      </span>
+    </button>
+  )
+}
+
+function ApprovedLeaveCard({ leave, isCnb, onCancel, onMarkSeen }: {
   leave: ApprovedLeave
   isCnb: boolean
   onCancel: (id: number, reason: string) => void
+  onMarkSeen: (id: number, seen: boolean) => void
 }) {
   const [showDetail, setShowDetail] = useState(false)
   const [reason, setReason] = useState('')
@@ -407,7 +436,10 @@ function ApprovedLeaveCard({ leave, isCnb, onCancel }: {
             <div style={{ fontSize: 11, color: HNH.navy, marginTop: 1 }}>{[leave.department, leave.company].filter(Boolean).join(' · ')}</div>
           )}
         </div>
-        <Badge tone="success" size="s">Đã duyệt</Badge>
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          {isCnb && <SeenToggle seen={leave.seen !== false} onToggle={(next) => onMarkSeen(leave.id, next)} />}
+          <Badge tone="success" size="s">Đã duyệt</Badge>
+        </div>
       </div>
 
       <div style={{ marginTop: 8, fontSize: 12.5, color: HNH.ink2 }}>
@@ -490,7 +522,7 @@ function PendingLeaveCard({ leave, isCnb, onApprove, onReject, onMarkSeen }: {
   isCnb: boolean
   onApprove: (id: number) => void
   onReject: (id: number, reason: string) => void
-  onMarkSeen: (id: number) => void
+  onMarkSeen: (id: number, seen: boolean) => void
 }) {
   const [reason, setReason] = useState('')
   const [showReject, setShowReject] = useState(false)
@@ -501,7 +533,7 @@ function PendingLeaveCard({ leave, isCnb, onApprove, onReject, onMarkSeen }: {
   const isNew = isCnb && leave.seen === false
   const openDetail = () => {
     setExpanded(v => !v)
-    if (isNew) onMarkSeen(leave.id)  // mở xem chi tiết → đánh dấu đã xem
+    if (isNew) onMarkSeen(leave.id, true)  // mở xem chi tiết → đánh dấu đã xem
   }
 
   return (
@@ -517,15 +549,10 @@ function PendingLeaveCard({ leave, isCnb, onApprove, onReject, onMarkSeen }: {
           )}
         </div>
         <div className="flex flex-col items-end gap-1 shrink-0">
-          {isCnb && (
-            isNew ? (
-              <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', background: HNH.red, borderRadius: 6, padding: '2px 7px', letterSpacing: 0.3 }}>NEW</span>
-            ) : (
-              <span className="flex items-center gap-1" style={{ fontSize: 10, fontWeight: 700, color: HNH.ink3, background: HNH.cream2, borderRadius: 6, padding: '2px 7px' }}>
-                <Icon name="check" size={9} color={HNH.ink3} stroke={2.5} /> Đã xem
-              </span>
-            )
+          {isCnb && isNew && (
+            <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', background: HNH.red, borderRadius: 6, padding: '2px 7px', letterSpacing: 0.3 }}>NEW</span>
           )}
+          {isCnb && <SeenToggle seen={leave.seen !== false} onToggle={(next) => onMarkSeen(leave.id, next)} />}
           <Badge tone="warn" size="s">Chờ duyệt</Badge>
         </div>
       </div>
@@ -614,6 +641,13 @@ export function LeaveManagementPage() {
   const [month, setMonth] = useState(thisMonth())
   const [leaveStatus, setLeaveStatus] = useState<'requested' | 'approved'>('requested')
   const [showCreate, setShowCreate] = useState(false)
+  // Tìm kiếm đơn nghỉ theo Họ tên / Mã NV HRM / Mã Kế toán (debounce 300ms).
+  const [leaveSearch, setLeaveSearch] = useState('')
+  const [leaveSearchQ, setLeaveSearchQ] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setLeaveSearchQ(leaveSearch.trim()), 300)
+    return () => clearTimeout(t)
+  }, [leaveSearch])
 
   const propUrl = (() => {
     const p = new URLSearchParams({ status: statusFilter })
@@ -637,6 +671,7 @@ export function LeaveManagementPage() {
     if (leaveStatus === 'approved') p.set('month', month)
     if (company) p.set('company', String(company))
     if (department) p.set('department', String(department))
+    if (leaveSearchQ) p.set('q', leaveSearchQ)
     return `/api/leave/hnh-approved-leaves/?${p.toString()}`
   })()
   const { data: approvedLeaves, refresh: refreshApproved } = useApi<ApprovedLeave[]>(
@@ -682,10 +717,10 @@ export function LeaveManagementPage() {
     }
   }
 
-  const handleMarkSeen = async (id: number) => {
+  const handleMarkSeen = async (id: number, seen: boolean) => {
     try {
-      await api.post(`/api/leave/hnh-mark-seen/${id}/`, {})
-      refreshApproved()  // cập nhật badge New → Đã xem
+      await api.post(`/api/leave/hnh-mark-seen/${id}/`, { seen })
+      refreshApproved()  // cập nhật trạng thái đã xem xét
     } catch { /* ignore */ }
   }
 
@@ -843,6 +878,28 @@ export function LeaveManagementPage() {
                 }}
               />
             )}
+            {isCnb() && (
+              <div style={{ position: 'relative', marginBottom: 12 }}>
+                <input
+                  value={leaveSearch}
+                  onChange={e => setLeaveSearch(e.target.value)}
+                  placeholder="Tìm theo Họ tên / Mã NV HRM / Mã Kế toán…"
+                  style={{
+                    width: '100%', padding: '9px 34px 9px 12px', borderRadius: 12,
+                    border: `1px solid ${HNH.line}`, fontSize: 13.5, color: HNH.ink,
+                    background: '#fff', fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none',
+                  }}
+                />
+                {leaveSearch && (
+                  <button
+                    onClick={() => setLeaveSearch('')}
+                    className="border-none bg-transparent cursor-pointer"
+                    style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', color: HNH.ink3, fontSize: 16, lineHeight: 1, padding: 4 }}
+                    aria-label="Xóa tìm kiếm"
+                  >×</button>
+                )}
+              </div>
+            )}
           </>
         )}
 
@@ -913,6 +970,7 @@ export function LeaveManagementPage() {
                   leave={l}
                   isCnb={isCnb()}
                   onCancel={handleCancelApproved}
+                  onMarkSeen={handleMarkSeen}
                 />
               )
             ))}

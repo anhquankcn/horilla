@@ -523,6 +523,15 @@ class HNHApprovedLeavesView(APIView):
             qs = qs.filter(employee_id__employee_work_info__company_id=company_id)
         if dept_id:
             qs = qs.filter(employee_id__employee_work_info__department_id=dept_id)
+        # Tìm theo Họ tên, Mã nhân sự HRM (badge_id) và Mã Kế toán (accounting_code).
+        q = (request.query_params.get("q") or "").strip()
+        if q:
+            qs = qs.filter(
+                Q(employee_id__employee_first_name__icontains=q)
+                | Q(employee_id__employee_last_name__icontains=q)
+                | Q(employee_id__badge_id__icontains=q)
+                | Q(employee_id__accounting_code__icontains=q)
+            )
         qs = qs.select_related(
             "employee_id",
             "leave_type_id",
@@ -539,9 +548,10 @@ class HNHApprovedLeavesView(APIView):
 
         lrs = list(qs[:500])
 
-        # Đơn chờ NÀO C&B hiện tại đã XEM chi tiết (badge New / Đã xem).
+        # Đơn NÀO C&B hiện tại đã đánh dấu "đã xem xét" (toggle nhanh) — áp dụng
+        # cho cả đơn chờ duyệt lẫn đã duyệt.
         seen_ids: set = set()
-        if status_param == "requested" and lrs:
+        if lrs:
             me = _get_employee(request)
             if me is not None:
                 from leave.models import HNHLeaveRequestSeen
@@ -574,6 +584,7 @@ class HNHApprovedLeavesView(APIView):
                 "employee_id": lr.employee_id_id,
                 "employee_name": str(lr.employee_id),
                 "badge_id": lr.employee_id.badge_id,
+                "accounting_code": getattr(lr.employee_id, "accounting_code", None) or "",
                 "department": wi.department_id.department if wi and wi.department_id else None,
                 "company": wi.company_id.company if wi and wi.company_id else None,
                 "leave_type": lr.leave_type_id.name,
@@ -588,14 +599,15 @@ class HNHApprovedLeavesView(APIView):
                 "requested_date": (lr.created_at.isoformat() if lr.created_at
                                    else (lr.requested_date.isoformat() if lr.requested_date else None)),
                 "approved_at": lr.approved_at.isoformat() if getattr(lr, "approved_at", None) else None,
-                "seen": (lr.id in seen_ids) if status_param == "requested" else True,
+                "seen": lr.id in seen_ids,
             })
         return Response(results)
 
 
 class HNHMarkLeaveSeenView(APIView):
-    """POST /api/leave/hnh-mark-seen/<pk>/ — C&B đánh dấu ĐÃ XEM chi tiết 1 đơn
-    chờ duyệt (chuyển badge New → Đã xem). Mỗi C&B có trạng thái xem riêng."""
+    """POST /api/leave/hnh-mark-seen/<pk>/ {seen?: bool} — C&B TOGGLE đánh dấu 1
+    đơn (chờ duyệt hoặc đã duyệt) "đã xem xét" hay chưa. Body `seen=false` để bỏ
+    đánh dấu; mặc định (hoặc true) để đánh dấu đã xem. Mỗi C&B có trạng thái riêng."""
 
     permission_classes = [IsAuthenticated]
 
@@ -608,8 +620,13 @@ class HNHMarkLeaveSeenView(APIView):
         from leave.models import HNHLeaveRequestSeen, LeaveRequest
         if not LeaveRequest.objects.filter(id=pk).exists():
             return Response({"detail": "Không tìm thấy đơn"}, status=404)
-        HNHLeaveRequestSeen.objects.get_or_create(leave_request_id=pk, employee=me)
-        return Response({"seen": True})
+        raw = request.data.get("seen", True)
+        seen = raw if isinstance(raw, bool) else str(raw).strip().lower() not in ("false", "0", "no", "")
+        if seen:
+            HNHLeaveRequestSeen.objects.get_or_create(leave_request_id=pk, employee=me)
+        else:
+            HNHLeaveRequestSeen.objects.filter(leave_request_id=pk, employee=me).delete()
+        return Response({"seen": seen})
 
 
 class HNHLeaveRequestDetailView(APIView):
