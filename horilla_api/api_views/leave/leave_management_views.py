@@ -528,10 +528,31 @@ class HNHApprovedLeavesView(APIView):
             "leave_type_id",
             "employee_id__employee_work_info__department_id",
             "employee_id__employee_work_info__company_id",
-        ).order_by("-start_date")
+        )
+        # Sắp xếp: Đơn CHỜ = ngày gửi CŨ nhất trên cùng (ưu tiên xử lý đơn chờ lâu);
+        #          Đơn ĐÃ DUYỆT = ngày DUYỆT mới nhất trên cùng.
+        if status_param == "requested":
+            qs = qs.order_by("created_at", "id")
+        else:
+            from django.db.models.functions import Coalesce
+            qs = qs.order_by(Coalesce("approved_at", "created_at").desc(), "-id")
+
+        lrs = list(qs[:500])
+
+        # Đơn chờ NÀO C&B hiện tại đã XEM chi tiết (badge New / Đã xem).
+        seen_ids: set = set()
+        if status_param == "requested" and lrs:
+            me = _get_employee(request)
+            if me is not None:
+                from leave.models import HNHLeaveRequestSeen
+                seen_ids = set(
+                    HNHLeaveRequestSeen.objects.filter(
+                        employee=me, leave_request_id__in=[lr.id for lr in lrs]
+                    ).values_list("leave_request_id", flat=True)
+                )
 
         results = []
-        for lr in qs[:500]:
+        for lr in lrs:
             end = lr.end_date or lr.start_date
             # Chỉ đơn đã duyệt mới cần dò xung đột chấm công.
             if status_param == "approved":
@@ -563,8 +584,32 @@ class HNHApprovedLeavesView(APIView):
                 "status": lr.status,
                 "has_conflict": bool(worked),
                 "worked_days": sorted(d.isoformat() for d in worked),
+                # Ngày gửi (để hiện + tham chiếu), ngày duyệt, trạng thái đã xem.
+                "requested_date": (lr.created_at.isoformat() if lr.created_at
+                                   else (lr.requested_date.isoformat() if lr.requested_date else None)),
+                "approved_at": lr.approved_at.isoformat() if getattr(lr, "approved_at", None) else None,
+                "seen": (lr.id in seen_ids) if status_param == "requested" else True,
             })
         return Response(results)
+
+
+class HNHMarkLeaveSeenView(APIView):
+    """POST /api/leave/hnh-mark-seen/<pk>/ — C&B đánh dấu ĐÃ XEM chi tiết 1 đơn
+    chờ duyệt (chuyển badge New → Đã xem). Mỗi C&B có trạng thái xem riêng."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        if not _is_cnb(request):
+            return Response({"detail": "Chỉ C&B"}, status=403)
+        me = _get_employee(request)
+        if me is None:
+            return Response({"detail": "Không có hồ sơ nhân viên"}, status=400)
+        from leave.models import HNHLeaveRequestSeen, LeaveRequest
+        if not LeaveRequest.objects.filter(id=pk).exists():
+            return Response({"detail": "Không tìm thấy đơn"}, status=404)
+        HNHLeaveRequestSeen.objects.get_or_create(leave_request_id=pk, employee=me)
+        return Response({"seen": True})
 
 
 def _cb_rule_dict(r):

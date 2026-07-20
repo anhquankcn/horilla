@@ -50,6 +50,9 @@ interface ApprovedLeave {
   status?: string
   has_conflict: boolean
   worked_days: string[]
+  requested_date?: string | null
+  approved_at?: string | null
+  seen?: boolean
 }
 
 function fmtDate(s: string | null) {
@@ -325,6 +328,9 @@ function ApprovedLeaveCard({ leave, isCnb, onCancel }: {
         {' · '}{range}
         {leave.requested_days != null && <> · {leave.requested_days} ngày</>}
       </div>
+      {leave.approved_at && (
+        <div style={{ fontSize: 11.5, color: HNH.success, marginTop: 3, fontWeight: 600 }}>Duyệt ngày {fmtDate(leave.approved_at)}</div>
+      )}
       {leave.description && (
         <div style={{ fontSize: 12, color: HNH.ink3, marginTop: 3, fontStyle: 'italic' }}>"{leave.description}"</div>
       )}
@@ -381,17 +387,24 @@ function ApprovedLeaveCard({ leave, isCnb, onCancel }: {
   )
 }
 
-function PendingLeaveCard({ leave, isCnb, onApprove, onReject }: {
+function PendingLeaveCard({ leave, isCnb, onApprove, onReject, onMarkSeen }: {
   leave: ApprovedLeave
   isCnb: boolean
   onApprove: (id: number) => void
   onReject: (id: number, reason: string) => void
+  onMarkSeen: (id: number) => void
 }) {
   const [reason, setReason] = useState('')
   const [showReject, setShowReject] = useState(false)
+  const [expanded, setExpanded] = useState(false)
   const range = leave.end_date && leave.end_date !== leave.start_date
     ? `${fmtDate(leave.start_date)} → ${fmtDate(leave.end_date)}`
     : fmtDate(leave.start_date)
+  const isNew = isCnb && leave.seen === false
+  const openDetail = () => {
+    setExpanded(v => !v)
+    if (isNew) onMarkSeen(leave.id)  // mở xem chi tiết → đánh dấu đã xem
+  }
 
   return (
     <div style={{
@@ -405,7 +418,18 @@ function PendingLeaveCard({ leave, isCnb, onApprove, onReject }: {
             <div style={{ fontSize: 11, color: HNH.navy, marginTop: 1 }}>{[leave.department, leave.company].filter(Boolean).join(' · ')}</div>
           )}
         </div>
-        <Badge tone="warn" size="s">Chờ duyệt</Badge>
+        <div className="flex flex-col items-end gap-1 shrink-0">
+          {isCnb && (
+            isNew ? (
+              <span style={{ fontSize: 10, fontWeight: 800, color: '#fff', background: HNH.red, borderRadius: 6, padding: '2px 7px', letterSpacing: 0.3 }}>NEW</span>
+            ) : (
+              <span className="flex items-center gap-1" style={{ fontSize: 10, fontWeight: 700, color: HNH.ink3, background: HNH.cream2, borderRadius: 6, padding: '2px 7px' }}>
+                <Icon name="check" size={9} color={HNH.ink3} stroke={2.5} /> Đã xem
+              </span>
+            )
+          )}
+          <Badge tone="warn" size="s">Chờ duyệt</Badge>
+        </div>
       </div>
 
       <div style={{ marginTop: 8, fontSize: 12.5, color: HNH.ink2 }}>
@@ -413,8 +437,18 @@ function PendingLeaveCard({ leave, isCnb, onApprove, onReject }: {
         {' · '}{range}
         {leave.requested_days != null && <> · {leave.requested_days} ngày</>}
       </div>
-      {leave.description && (
-        <div style={{ fontSize: 12, color: HNH.ink3, marginTop: 3, fontStyle: 'italic' }}>"{leave.description}"</div>
+      {leave.requested_date && (
+        <div style={{ fontSize: 11, color: HNH.ink3, marginTop: 2 }}>Gửi ngày {fmtDate(leave.requested_date)}</div>
+      )}
+      {(leave.description || expanded) && (
+        <div style={{ fontSize: 12, color: HNH.ink3, marginTop: 3, fontStyle: 'italic' }}>{leave.description ? `"${leave.description}"` : 'Không có lý do'}</div>
+      )}
+      {isCnb && (
+        <button onClick={openDetail}
+          className="border-none bg-transparent cursor-pointer"
+          style={{ marginTop: 6, fontSize: 12, fontWeight: 700, color: HNH.navy, padding: 0 }}>
+          {expanded ? 'Thu gọn' : 'Xem chi tiết'}
+        </button>
       )}
 
       {isCnb && (
@@ -536,6 +570,13 @@ export function LeaveManagementPage() {
     } catch (e) {
       alert('Lỗi khi từ chối: ' + (e instanceof Error ? e.message : ''))
     }
+  }
+
+  const handleMarkSeen = async (id: number) => {
+    try {
+      await api.post(`/api/leave/hnh-mark-seen/${id}/`, {})
+      refreshApproved()  // cập nhật badge New → Đã xem
+    } catch { /* ignore */ }
   }
 
   const handleApprove = async (id: number) => {
@@ -740,6 +781,7 @@ export function LeaveManagementPage() {
                   isCnb={isCnb()}
                   onApprove={handleApproveLeave}
                   onReject={handleRejectLeave}
+                  onMarkSeen={handleMarkSeen}
                 />
               ) : (
                 <ApprovedLeaveCard

@@ -953,6 +953,10 @@ class LeaveRequest(HorillaModel):
     cancelled_at = models.DateTimeField(
         null=True, blank=True, verbose_name=_("Cancelled At")
     )
+    # HNH — mốc thời gian DUYỆT đơn (để sắp xếp "Đơn đã duyệt" theo ngày duyệt).
+    approved_at = models.DateTimeField(
+        null=True, blank=True, verbose_name=_("Approved At")
+    )
     # HNH #4 — nhắc người duyệt đơn treo. reminder_count: số lần đã nhắc (0..3);
     # dùng làm khoá atomic (CAS) chống nhắc trùng khi job chạy nhiều worker.
     reminder_count = models.IntegerField(default=0, verbose_name=_("Reminder Count"))
@@ -2552,3 +2556,24 @@ class LeaveRequestWatcher(models.Model):
 
     def __str__(self):
         return f"{self.employee_id} theo dõi #{self.leave_request_id_id}"
+
+
+class HNHLeaveRequestSeen(models.Model):
+    """HNH — đánh dấu C&B đã XEM chi tiết 1 đơn nghỉ (badge New / Đã xem).
+    Mỗi C&B có trạng thái xem riêng cho từng đơn."""
+
+    leave_request = models.ForeignKey(
+        LeaveRequest, on_delete=models.CASCADE, related_name="cb_seen_set"
+    )
+    employee = models.ForeignKey(
+        Employee, on_delete=models.CASCADE, related_name="leave_seen_set"
+    )
+    seen_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ("leave_request", "employee")
+        verbose_name = "C&B đã xem đơn nghỉ"
+        verbose_name_plural = "C&B đã xem đơn nghỉ"
+
+    def __str__(self):
+        return f"{self.employee_id} đã xem #{self.leave_request_id}"
