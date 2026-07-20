@@ -643,10 +643,22 @@ export function LeaveManagementPage() {
     isCnb() && view === 'leave' ? approvedUrl : null,
   )
 
+  // Số lượng hiển thị cạnh nhãn tab: đơn chờ duyệt, đơn đã duyệt (tháng đang
+  // xem), đề xuất Phép Bù đang chờ — luôn tải cho C&B để badge hiện ở mọi tab.
+  const countsUrl = (() => {
+    const p = new URLSearchParams({ month })
+    if (company) p.set('company', String(company))
+    if (department) p.set('department', String(department))
+    return `/api/leave/hnh-leave-counts/?${p.toString()}`
+  })()
+  const { data: leaveCounts, refresh: refreshCounts } = useApi<{ pending: number; approved: number; bu_pending: number }>(
+    isCnb() ? countsUrl : null,
+  )
+
   const handleCancelApproved = async (id: number, reason: string) => {
     try {
       await api.post(`/api/leave/hnh-cancel-approved/${id}/`, { reason })
-      refreshApproved()
+      refreshApproved(); refreshCounts()
     } catch (e) {
       alert('Lỗi khi hủy đơn: ' + (e instanceof Error ? e.message : ''))
     }
@@ -655,7 +667,7 @@ export function LeaveManagementPage() {
   const handleApproveLeave = async (id: number) => {
     try {
       await api.post(`/api/leave/pwa-approve/${id}/`, {})
-      refreshApproved()
+      refreshApproved(); refreshCounts()
     } catch (e) {
       alert('Lỗi khi duyệt: ' + (e instanceof Error ? e.message : ''))
     }
@@ -664,7 +676,7 @@ export function LeaveManagementPage() {
   const handleRejectLeave = async (id: number, reason: string) => {
     try {
       await api.post(`/api/leave/pwa-reject/${id}/`, { reason })
-      refreshApproved()
+      refreshApproved(); refreshCounts()
     } catch (e) {
       alert('Lỗi khi từ chối: ' + (e instanceof Error ? e.message : ''))
     }
@@ -680,7 +692,7 @@ export function LeaveManagementPage() {
   const handleApprove = async (id: number) => {
     try {
       await api.post(`/api/leave/hnh-compensatory/${id}/approve/`, {})
-      refreshProposals()
+      refreshProposals(); refreshCounts()
     } catch (e) {
       alert('Lỗi khi duyệt: ' + (e instanceof Error ? e.message : ''))
     }
@@ -689,7 +701,7 @@ export function LeaveManagementPage() {
   const handleReject = async (id: number, reason = '') => {
     try {
       await api.post(`/api/leave/hnh-compensatory/${id}/reject/`, { reason })
-      refreshProposals()
+      refreshProposals(); refreshCounts()
     } catch (e) {
       alert('Lỗi khi từ chối: ' + (e instanceof Error ? e.message : ''))
     }
@@ -699,7 +711,7 @@ export function LeaveManagementPage() {
     if (!confirm('Xóa đề xuất này?')) return
     try {
       await api.del(`/api/leave/hnh-compensatory/${id}/`)
-      refreshProposals()
+      refreshProposals(); refreshCounts()
     } catch (e) {
       alert('Lỗi: ' + (e instanceof Error ? e.message : ''))
     }
@@ -707,6 +719,16 @@ export function LeaveManagementPage() {
 
   const list = proposals ?? []
   const employees = teamEmployees ?? []
+
+  // Badge số lượng cạnh nhãn tab (Chờ duyệt / Đã duyệt / Phép Bù).
+  const renderCount = (n: number, active: boolean) => (
+    <span style={{
+      marginLeft: 6, fontSize: 11, fontWeight: 800, padding: '0 7px',
+      borderRadius: 10, display: 'inline-block', lineHeight: '17px',
+      background: active ? 'rgba(255,255,255,0.28)' : '#fdecec',
+      color: active ? '#fff' : HNH.red,
+    }}>{n}</span>
+  )
 
   const FILTERS = [
     { key: 'requested', label: 'Chờ duyệt' },
@@ -759,6 +781,7 @@ export function LeaveManagementPage() {
                 }}
               >
                 {label}
+                {key === 'bu' && (leaveCounts?.bu_pending ?? 0) > 0 && renderCount(leaveCounts!.bu_pending, view === key)}
               </button>
             ))}
           </div>
@@ -789,21 +812,24 @@ export function LeaveManagementPage() {
         {view === 'leave' && (
           <>
             <div className="flex gap-2" style={{ marginBottom: 12 }}>
-              {([['requested', 'Chờ duyệt'], ['approved', 'Đã duyệt']] as const).map(([key, label]) => (
-                <button
-                  key={key}
-                  onClick={() => setLeaveStatus(key)}
-                  className="flex-1 border-none cursor-pointer"
-                  style={{
-                    height: 36, borderRadius: 10, fontSize: 12.5, fontWeight: 700,
-                    background: leaveStatus === key ? HNH.red : '#fff',
-                    color: leaveStatus === key ? '#fff' : HNH.ink3,
-                    border: `1.5px solid ${leaveStatus === key ? HNH.red : HNH.line}`,
-                  }}
-                >
-                  {label}
-                </button>
-              ))}
+              {([['requested', 'Chờ duyệt'], ['approved', 'Đã duyệt']] as const).map(([key, label]) => {
+                const n = key === 'requested' ? (leaveCounts?.pending ?? 0) : (leaveCounts?.approved ?? 0)
+                return (
+                  <button
+                    key={key}
+                    onClick={() => setLeaveStatus(key)}
+                    className="flex-1 border-none cursor-pointer"
+                    style={{
+                      height: 36, borderRadius: 10, fontSize: 12.5, fontWeight: 700,
+                      background: leaveStatus === key ? HNH.red : '#fff',
+                      color: leaveStatus === key ? '#fff' : HNH.ink3,
+                      border: `1.5px solid ${leaveStatus === key ? HNH.red : HNH.line}`,
+                    }}
+                  >
+                    {label}{renderCount(n, leaveStatus === key)}
+                  </button>
+                )
+              })}
             </div>
             {leaveStatus === 'approved' && (
               <input

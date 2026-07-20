@@ -686,6 +686,51 @@ class HNHLeaveRequestDetailView(APIView):
         })
 
 
+class HNHLeaveCountsView(APIView):
+    """GET /api/leave/hnh-leave-counts/?month=&company=&department= — số lượng để
+    hiển thị cạnh nhãn tab: đơn CHỜ duyệt, đơn ĐÃ duyệt (trong tháng đang xem),
+    đề xuất Phép Bù đang chờ. Chỉ C&B (khớp scope các list tương ứng)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not _is_cnb(request):
+            return Response({"pending": 0, "approved": 0, "bu_pending": 0})
+        from leave.models import LeaveRequest
+
+        company_id = request.query_params.get("company")
+        dept_id = request.query_params.get("department")
+
+        def _scope(qs):
+            if company_id:
+                qs = qs.filter(employee_id__employee_work_info__company_id=company_id)
+            if dept_id:
+                qs = qs.filter(employee_id__employee_work_info__department_id=dept_id)
+            return qs
+
+        pending = _scope(LeaveRequest.objects.filter(status="requested")).count()
+
+        today = timezone.localdate()
+        try:
+            y, m = (int(x) for x in request.query_params.get("month", "").split("-"))
+            date(y, m, 1)
+        except (AttributeError, ValueError):
+            y, m = today.year, today.month
+        m_start = date(y, m, 1)
+        m_end = date(y, m, monthrange(y, m)[1])
+        approved = _scope(
+            LeaveRequest.objects.filter(status="approved", start_date__lte=m_end).filter(
+                Q(end_date__gte=m_start) | Q(end_date__isnull=True)
+            )
+        ).count()
+
+        bu_pending = _scope(
+            HNHCompensatoryProposal.objects.filter(status="requested")
+        ).count()
+
+        return Response({"pending": pending, "approved": approved, "bu_pending": bu_pending})
+
+
 def _cb_rule_dict(r):
     return {
         "id": r.id,
