@@ -432,6 +432,11 @@ function ApprovedLeaveCard({ leave, isCnb, onCancel, onMarkSeen }: {
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div style={{ fontSize: 14, fontWeight: 700, color: HNH.ink }}>{leave.employee_name}</div>
+          {(leave.badge_id || leave.accounting_code) && (
+            <div style={{ fontSize: 10.5, color: HNH.ink3, marginTop: 1, fontWeight: 600 }}>
+              {[leave.badge_id && `Mã NV: ${leave.badge_id}`, leave.accounting_code && `Mã KT: ${leave.accounting_code}`].filter(Boolean).join(' · ')}
+            </div>
+          )}
           {(leave.company || leave.department) && (
             <div style={{ fontSize: 11, color: HNH.navy, marginTop: 1 }}>{[leave.department, leave.company].filter(Boolean).join(' · ')}</div>
           )}
@@ -544,6 +549,11 @@ function PendingLeaveCard({ leave, isCnb, onApprove, onReject, onMarkSeen }: {
       <div className="flex items-start justify-between gap-2">
         <div className="flex-1 min-w-0">
           <div style={{ fontSize: 14, fontWeight: 700, color: HNH.ink }}>{leave.employee_name}</div>
+          {(leave.badge_id || leave.accounting_code) && (
+            <div style={{ fontSize: 10.5, color: HNH.ink3, marginTop: 1, fontWeight: 600 }}>
+              {[leave.badge_id && `Mã NV: ${leave.badge_id}`, leave.accounting_code && `Mã KT: ${leave.accounting_code}`].filter(Boolean).join(' · ')}
+            </div>
+          )}
           {(leave.company || leave.department) && (
             <div style={{ fontSize: 11, color: HNH.navy, marginTop: 1 }}>{[leave.department, leave.company].filter(Boolean).join(' · ')}</div>
           )}
