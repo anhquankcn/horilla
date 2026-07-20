@@ -953,9 +953,17 @@ class LeaveRequest(HorillaModel):
     cancelled_at = models.DateTimeField(
         null=True, blank=True, verbose_name=_("Cancelled At")
     )
-    # HNH — mốc thời gian DUYỆT đơn (để sắp xếp "Đơn đã duyệt" theo ngày duyệt).
+    # HNH — mốc thời gian + người DUYỆT đơn (sắp xếp + hiện chi tiết "người duyệt").
     approved_at = models.DateTimeField(
         null=True, blank=True, verbose_name=_("Approved At")
+    )
+    approved_by = models.ForeignKey(
+        Employee,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="leave_request_approved",
+        verbose_name=_("Approved By"),
     )
     # HNH #4 — nhắc người duyệt đơn treo. reminder_count: số lần đã nhắc (0..3);
     # dùng làm khoá atomic (CAS) chống nhắc trùng khi job chạy nhiều worker.

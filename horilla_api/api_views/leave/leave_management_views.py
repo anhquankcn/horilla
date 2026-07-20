@@ -612,6 +612,80 @@ class HNHMarkLeaveSeenView(APIView):
         return Response({"seen": True})
 
 
+class HNHLeaveRequestDetailView(APIView):
+    """GET /api/leave/hnh-leave-request-detail/<pk>/ — chi tiết ĐẦY ĐỦ 1 đơn nghỉ:
+    thông tin đơn, người gửi, ngày gửi, ngày duyệt, người duyệt, người theo dõi.
+    Quyền: C&B / quản lý NV / chính chủ đơn."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, pk):
+        from leave.models import LeaveRequest, LeaveRequestWatcher
+        lr = (
+            LeaveRequest.objects.select_related(
+                "employee_id", "leave_type_id", "created_by", "approved_by",
+                "cancelled_by", "employee_id__employee_work_info__department_id",
+                "employee_id__employee_work_info__company_id",
+            )
+            .filter(id=pk)
+            .first()
+        )
+        if lr is None:
+            return Response({"detail": "Không tìm thấy đơn"}, status=404)
+        me = _get_employee(request)
+        if not (
+            _is_cnb(request)
+            or (me and lr.employee_id_id == me.id)
+            or _can_view_employee(request, me, lr.employee_id)
+        ):
+            return Response({"detail": "Không có quyền xem đơn này"}, status=403)
+
+        wi = getattr(lr.employee_id, "employee_work_info", None)
+        watchers = [
+            {
+                "id": w.employee_id_id,
+                "name": _vn_full_name(w.employee_id),
+                "badge_id": w.employee_id.badge_id,
+            }
+            for w in LeaveRequestWatcher.objects.filter(
+                leave_request_id=lr
+            ).select_related("employee_id")
+        ]
+        end = lr.end_date or lr.start_date
+        return Response({
+            "id": lr.id,
+            "employee_name": _vn_full_name(lr.employee_id),
+            "badge_id": lr.employee_id.badge_id,
+            "department": wi.department_id.department if wi and wi.department_id else None,
+            "company": wi.company_id.company if wi and wi.company_id else None,
+            "leave_type": lr.leave_type_id.name if lr.leave_type_id else None,
+            "start_date": lr.start_date.isoformat() if lr.start_date else None,
+            "end_date": end.isoformat() if end else None,
+            "is_hourly": bool(getattr(lr, "is_hourly", False)),
+            "start_time": lr.start_time.strftime("%H:%M") if getattr(lr, "start_time", None) else None,
+            "end_time": lr.end_time.strftime("%H:%M") if getattr(lr, "end_time", None) else None,
+            "start_date_breakdown": getattr(lr, "start_date_breakdown", None),
+            "requested_days": lr.requested_days,
+            "requested_hours": getattr(lr, "requested_hours", None),
+            "description": lr.description or "",
+            "status": lr.status,
+            "reject_reason": getattr(lr, "reject_reason", "") or "",
+            # Người gửi + thời gian gửi
+            "requested_date": (lr.created_at.isoformat() if lr.created_at
+                               else (lr.requested_date.isoformat() if lr.requested_date else None)),
+            "created_by": _vn_full_name(lr.created_by) if lr.created_by else _vn_full_name(lr.employee_id),
+            # Người duyệt + thời gian duyệt
+            "approved_at": lr.approved_at.isoformat() if getattr(lr, "approved_at", None) else None,
+            "approved_by": _vn_full_name(lr.approved_by) if getattr(lr, "approved_by", None) else None,
+            # Hủy (nếu có)
+            "cancelled_at": lr.cancelled_at.isoformat() if getattr(lr, "cancelled_at", None) else None,
+            "cancelled_by": _vn_full_name(lr.cancelled_by) if getattr(lr, "cancelled_by", None) else None,
+            "cancel_reason": getattr(lr, "cancel_reason", "") or "",
+            # Người theo dõi
+            "watchers": watchers,
+        })
+
+
 def _cb_rule_dict(r):
     return {
         "id": r.id,

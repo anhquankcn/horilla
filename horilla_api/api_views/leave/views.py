@@ -1899,6 +1899,7 @@ class ApproveLeaveView(APIView):
         from django.utils import timezone as _tz
         lr.status = "approved"
         lr.approved_at = _tz.now()  # mốc duyệt để sắp xếp "Đơn đã duyệt"
+        lr.approved_by = getattr(request.user, "employee_get", None)  # người duyệt
         lr.save()
 
         import contextlib
