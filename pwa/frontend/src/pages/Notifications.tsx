@@ -141,6 +141,117 @@ function getLeaveIds(n: Notification): number[] {
   return []
 }
 
+/** id đơn nghỉ để mở chi tiết — lấy từ mảng leave_request_ids HOẶC redirect
+ * kiểu /leave/request-view?id=N (đa số tin thực tế). */
+function firstLeaveId(n: Notification): number | null {
+  const arr = getLeaveIds(n)
+  if (arr.length) return arr[0]
+  if (!n.data) return null
+  let d: Record<string, unknown>
+  if (typeof n.data === 'string') { try { d = JSON.parse(n.data) } catch { return null } } else { d = n.data }
+  const redirect = typeof d.redirect === 'string' ? d.redirect : ''
+  if (/\/leave\/(user-)?request-view/.test(redirect)) {
+    const m = redirect.match(/[?&]id=(\d+)/)
+    if (m) return Number(m[1])
+  }
+  return null
+}
+
+/* ── Chi tiết đơn nghỉ (nội dung + quá trình duyệt/từ chối) ── */
+interface LeaveDetail {
+  id: number; employee_name: string; badge_id: string
+  department?: string | null; company?: string | null
+  leave_type: string | null; start_date: string | null; end_date: string | null
+  is_hourly: boolean; start_time: string | null; end_time: string | null
+  requested_days: number | null; requested_hours: number | null
+  description: string; status: string; reject_reason: string
+  requested_date: string | null; created_by: string | null
+  approved_at: string | null; approved_by: string | null
+  cancelled_at: string | null; cancelled_by: string | null; cancel_reason: string
+  watchers: { id: number; name: string; badge_id: string }[]
+}
+
+function fmtLeaveDate(s: string | null): string {
+  if (!s) return ''
+  const d = new Date(s)
+  return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
+}
+function fmtLeaveDateTime(s: string | null): string {
+  if (!s) return ''
+  const d = new Date(s)
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} · ${fmtLeaveDate(s)}`
+}
+
+function LDRow({ label, value }: { label: string; value: React.ReactNode }) {
+  if (value == null || value === '') return null
+  return (
+    <div className="flex justify-between gap-3" style={{ padding: '8px 0', borderBottom: `1px solid ${HNH.line}` }}>
+      <span style={{ fontSize: 12.5, color: HNH.ink3, flexShrink: 0 }}>{label}</span>
+      <span style={{ fontSize: 12.5, color: HNH.ink, fontWeight: 600, textAlign: 'right' }}>{value}</span>
+    </div>
+  )
+}
+
+function LeaveDetailModal({ id, onClose }: { id: number; onClose: () => void }) {
+  const [d, setD] = useState<LeaveDetail | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [err, setErr] = useState('')
+  useEffect(() => {
+    api.get<LeaveDetail>(`/api/leave/hnh-leave-request-detail/${id}/`)
+      .then(setD)
+      .catch(() => setErr('Không tải được chi tiết đơn (có thể bạn không có quyền xem).'))
+      .finally(() => setLoading(false))
+  }, [id])
+  const range = d && d.start_date && d.end_date && d.end_date !== d.start_date
+    ? `${fmtLeaveDate(d.start_date)} → ${fmtLeaveDate(d.end_date)}` : (d ? fmtLeaveDate(d.start_date) : '')
+  return (
+    <div className="fixed inset-0 flex items-center justify-center" style={{ zIndex: 300, background: 'rgba(0,0,0,0.45)', padding: 16 }} onClick={e => { e.stopPropagation(); onClose() }}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 460, maxHeight: '88vh', background: '#fff', borderRadius: 20, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <div className="flex items-center justify-between" style={{ padding: '14px 18px', borderBottom: `1px solid ${HNH.line}` }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: HNH.ink }}>Chi tiết đơn nghỉ</div>
+          <button onClick={onClose} className="border-none bg-transparent cursor-pointer" style={{ padding: 4 }}><Icon name="x" size={18} color={HNH.ink3} stroke={2} /></button>
+        </div>
+        <div style={{ padding: '12px 18px 20px', overflowY: 'auto' }}>
+          {loading ? (
+            <div style={{ textAlign: 'center', padding: 30, color: HNH.ink3, fontSize: 13 }}>Đang tải...</div>
+          ) : !d ? (
+            <div style={{ textAlign: 'center', padding: 30, color: HNH.ink3, fontSize: 13 }}>{err || 'Không tải được chi tiết đơn.'}</div>
+          ) : (
+            <>
+              <div style={{ fontSize: 15, fontWeight: 800, color: HNH.ink }}>{d.employee_name}</div>
+              <div style={{ fontSize: 11.5, color: HNH.navy, marginBottom: 8 }}>{[d.badge_id, d.department, d.company].filter(Boolean).join(' · ')}</div>
+              <LDRow label="Loại nghỉ" value={d.leave_type} />
+              <LDRow label="Thời gian" value={range} />
+              {d.is_hourly && d.start_time && d.end_time && <LDRow label="Khung giờ" value={`${d.start_time} – ${d.end_time}`} />}
+              <LDRow label="Số ngày" value={d.requested_days != null ? `${d.requested_days} ngày${d.requested_hours ? ` (${d.requested_hours}h)` : ''}` : null} />
+              <LDRow label="Lý do" value={d.description || '—'} />
+              <LDRow label="Người gửi" value={d.created_by} />
+              <LDRow label="Thời gian gửi" value={d.requested_date ? fmtLeaveDateTime(d.requested_date) : null} />
+              <LDRow label="Người duyệt" value={d.approved_by || '—'} />
+              <LDRow label="Thời gian duyệt" value={d.approved_at ? fmtLeaveDateTime(d.approved_at) : null} />
+              {d.status === 'rejected' && <LDRow label="Lý do từ chối" value={d.reject_reason || '—'} />}
+              {d.cancelled_at && <LDRow label="Đã hủy" value={`${fmtLeaveDateTime(d.cancelled_at)}${d.cancelled_by ? ` · ${d.cancelled_by}` : ''}`} />}
+              {d.cancel_reason && <LDRow label="Lý do hủy" value={d.cancel_reason} />}
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontSize: 12.5, color: HNH.ink3, marginBottom: 4 }}>Người theo dõi</div>
+                {d.watchers.length === 0 ? (
+                  <div style={{ fontSize: 12.5, color: HNH.ink4 }}>Không có</div>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {d.watchers.map(w => (
+                      <span key={w.id} style={{ fontSize: 11.5, fontWeight: 600, color: HNH.navy, background: HNH.navy50, borderRadius: 8, padding: '3px 9px' }}>{w.name}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  )
+}
+
 type Filter = 'all' | 'unread'
 
 /* ── Notification Detail Sheet ── */
@@ -166,9 +277,12 @@ function NotifDetailSheet({
   // không đủ quyền.
   const decided = n.leave_status === 'approved' || n.leave_status === 'rejected' || n.leave_status === 'cancelled'
   const canQuickApprove = leaveIds.length > 0 && action?.route === '/approvals' && !decided
+  // Đơn đã duyệt/từ chối/huỷ → bỏ "Duyệt ngay", cho "Xem chi tiết" đơn.
+  const detailLeaveId = decided ? firstLeaveId(n) : null
   const [acting, setActing] = useState(false)
   const [rejectMode, setRejectMode] = useState(false)
   const [reason, setReason] = useState('')
+  const [showLeaveDetail, setShowLeaveDetail] = useState(false)
 
   useEffect(() => {
     if (n.unread) onRead()
@@ -336,6 +450,19 @@ function NotifDetailSheet({
                 </button>
               </>
             )
+          ) : detailLeaveId ? (
+            <button
+              onClick={() => { onRead(); setShowLeaveDetail(true) }}
+              className="flex items-center justify-center gap-2 w-full border-none cursor-pointer"
+              style={{
+                height: 50, borderRadius: 16, fontSize: 15, fontWeight: 800,
+                background: `linear-gradient(135deg, ${HNH.navy} 0%, #0a1e3d 100%)`,
+                color: '#fff',
+              }}
+            >
+              <Icon name="doc" size={16} color="#fff" stroke={2.2} />
+              Xem chi tiết
+            </button>
           ) : action ? (
             <button
               onClick={handleAction}
@@ -364,6 +491,9 @@ function NotifDetailSheet({
           )}
         </div>
       </div>
+      {showLeaveDetail && detailLeaveId && (
+        <LeaveDetailModal id={detailLeaveId} onClose={() => setShowLeaveDetail(false)} />
+      )}
     </div>
   )
 }

@@ -650,10 +650,16 @@ class HNHLeaveRequestDetailView(APIView):
         if lr is None:
             return Response({"detail": "Không tìm thấy đơn"}, status=404)
         me = _get_employee(request)
+        is_watcher = bool(
+            me and LeaveRequestWatcher.objects.filter(
+                leave_request_id=lr, employee_id=me
+            ).exists()
+        )
         if not (
             _is_cnb(request)
             or (me and lr.employee_id_id == me.id)
             or _can_view_employee(request, me, lr.employee_id)
+            or is_watcher
         ):
             return Response({"detail": "Không có quyền xem đơn này"}, status=403)
 
