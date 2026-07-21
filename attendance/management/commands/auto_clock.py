@@ -218,4 +218,11 @@ class Command(BaseCommand):
                 _time.sleep(60)
         else:
             run_auto_clock()
+            # Chạy one-shot (vd cron mỗi phút) cũng nhắc họp — cửa sổ [15,16) phút
+            # tự dedup mỗi lần chạy.
+            try:
+                from notifications.meeting_reminders import run_meeting_reminders
+                run_meeting_reminders()
+            except Exception:
+                logger.exception("run_meeting_reminders failed")
             self.stdout.write("Auto-clock run complete")
