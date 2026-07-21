@@ -365,6 +365,12 @@ class ClockInAPIView(APIView):
 
             inside, distance_m, _ = check_geofence(lat, lng, company)
             geo_approval = HRMConfig.get_value("geo_approval_required", True)
+            # Tuỳ chọn cá nhân (Thiết lập Cá nhân): NV được phép chấm công ngoài
+            # VP → coi outside là hợp lệ (vẫn giữ flag để HR nắm được).
+            allow_outside = bool(getattr(
+                getattr(employee, "hnh_profile", None),
+                "allow_outside_office_checkin", False,
+            ))
 
             # GPS ngoài geofence nhưng khai 'in_office' → sửa về sự thật + flag.
             if inside is False and activity is not None and activity.work_location == "in_office":
@@ -376,8 +382,10 @@ class ClockInAPIView(APIView):
             if inside:
                 attendance.attendance_validated = True
                 attendance.save(update_fields=["attendance_validated"])
-            elif not geo_approval:
-                # setting tắt — bỏ qua duyệt, coi như hợp lệ
+            elif allow_outside or not geo_approval:
+                # NV được phép ngoài VP HOẶC setting tắt duyệt → coi như hợp lệ
+                attendance.attendance_validated = True
+                attendance.save(update_fields=["attendance_validated"])
                 return True
             return inside
         except Exception:

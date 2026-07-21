@@ -7,6 +7,7 @@ from ...api_views.employee.onboard_views import (
     OnboardOptionsView, OnboardEmployeeView, OnboardScanIdView,
     ReactivateEmployeeView,
 )
+from ...api_views.employee.personal_settings_views import HNHPersonalSettingsView
 
 urlpatterns = [
     path("onboard/options/", OnboardOptionsView.as_view(), name="api-onboard-options"),
@@ -14,6 +15,7 @@ urlpatterns = [
     path("onboard/", OnboardEmployeeView.as_view(), name="api-onboard-employee"),
     path("employees/<int:pk>/reactivate/", ReactivateEmployeeView.as_view(), name="api-employee-reactivate"),
     path("me/", views.EmployeeMeAPIView.as_view(), name="api-employee-me"),
+    path("me/personal-settings/", HNHPersonalSettingsView.as_view(), name="api-employee-personal-settings"),
     path("me/bank/", views.EmployeeBankView.as_view(), name="api-employee-me-bank"),
     path("me/schedule/", views.EmployeeScheduleView.as_view(), name="api-employee-schedule"),
     path("me/ten-day-schedule/", views.TenDayScheduleView.as_view(), name="api-ten-day-schedule"),

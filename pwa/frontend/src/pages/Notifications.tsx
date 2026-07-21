@@ -420,6 +420,139 @@ function NotifCard({ n, onOpen, onDelete }: {
 }
 
 /* ── Main ── */
+/* ── Thiết lập cá nhân ── */
+interface PersonalSettings {
+  allow_outside_office_checkin: boolean
+  meeting_reminder_enabled: boolean
+}
+
+function Switch({ on, busy, onClick }: { on: boolean; busy?: boolean; onClick: () => void }) {
+  const w = 46, h = 26, knob = h - 6
+  return (
+    <button
+      onClick={onClick}
+      disabled={busy}
+      className="border-none shrink-0"
+      style={{
+        width: w, height: h, padding: 0, position: 'relative', borderRadius: h / 2,
+        cursor: busy ? 'default' : 'pointer', background: on ? HNH.success : HNH.ink4,
+        opacity: busy ? 0.6 : 1, transition: 'background .15s',
+      }}
+    >
+      <span style={{
+        position: 'absolute', top: 3, left: on ? w - knob - 3 : 3, width: knob, height: knob,
+        borderRadius: '50%', background: '#fff', transition: 'left .15s', boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
+      }} />
+    </button>
+  )
+}
+
+function SettingRow({ icon, title, desc, on, busy, onToggle }: {
+  icon: string; title: string; desc: string; on: boolean; busy: boolean; onToggle: () => void
+}) {
+  return (
+    <div className="flex items-start gap-3" style={{ padding: '14px 4px' }}>
+      <div className="flex items-center justify-center shrink-0" style={{
+        width: 38, height: 38, borderRadius: 11, background: HNH.navy50,
+      }}>
+        <Icon name={icon} size={18} color={HNH.navy} stroke={2} />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div style={{ fontSize: 14, fontWeight: 700, color: HNH.ink }}>{title}</div>
+        <div style={{ fontSize: 12, color: HNH.ink3, marginTop: 2, lineHeight: 1.4 }}>{desc}</div>
+      </div>
+      <div style={{ paddingTop: 4 }}>
+        <Switch on={on} busy={busy} onClick={onToggle} />
+      </div>
+    </div>
+  )
+}
+
+function PersonalSettingsModal({ onClose }: { onClose: () => void }) {
+  const { toast } = useToast()
+  const [s, setS] = useState<PersonalSettings | null>(null)
+  const [saving, setSaving] = useState<string | null>(null)
+
+  useEffect(() => {
+    api.get<PersonalSettings>('/api/employee/me/personal-settings/')
+      .then(setS)
+      .catch(() => toast('Không tải được thiết lập'))
+  }, [toast])
+
+  const toggle = async (key: keyof PersonalSettings) => {
+    if (!s || saving) return
+    const next = !s[key]
+    setS({ ...s, [key]: next })   // optimistic
+    setSaving(key)
+    try {
+      const res = await api.put<PersonalSettings>('/api/employee/me/personal-settings/', { [key]: next })
+      setS(res)
+    } catch {
+      setS(prev => (prev ? { ...prev, [key]: !next } : prev))  // revert
+      toast('Lưu thất bại, thử lại')
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-end justify-center"
+      style={{ background: 'rgba(15,20,40,0.4)' }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: '#fff', width: '100%', maxWidth: 600, borderRadius: '20px 20px 0 0',
+          padding: '8px 20px calc(24px + env(safe-area-inset-bottom, 0px))',
+          maxHeight: '85vh', overflowY: 'auto',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 4 }}>
+          <div style={{ width: 36, height: 4, borderRadius: 2, background: HNH.line }} />
+        </div>
+        <div style={{ fontSize: 17, fontWeight: 800, color: HNH.ink, margin: '14px 4px 4px' }}>
+          Thiết lập cá nhân
+        </div>
+        {s === null ? (
+          <div style={{ textAlign: 'center', padding: 30, color: HNH.ink3, fontSize: 13 }}>Đang tải...</div>
+        ) : (
+          <div style={{ marginTop: 6 }}>
+            <SettingRow
+              icon="clock"
+              title="Chấm công ngoài văn phòng"
+              desc="Cho phép chấm công khi ở ngoài khu vực văn phòng (ngoài geofence). Phù hợp cho HDV, lái xe, đi tour."
+              on={s.allow_outside_office_checkin}
+              busy={saving === 'allow_outside_office_checkin'}
+              onToggle={() => toggle('allow_outside_office_checkin')}
+            />
+            <div style={{ height: 1, background: HNH.line, margin: '2px 0' }} />
+            <SettingRow
+              icon="bell"
+              title="Nhắc lịch họp"
+              desc="Nhận thông báo trước 15 phút khi có lịch họp trong Lịch làm việc."
+              on={s.meeting_reminder_enabled}
+              busy={saving === 'meeting_reminder_enabled'}
+              onToggle={() => toggle('meeting_reminder_enabled')}
+            />
+          </div>
+        )}
+        <button
+          onClick={onClose}
+          className="border-none cursor-pointer"
+          style={{
+            width: '100%', height: 44, borderRadius: 12, marginTop: 14,
+            background: HNH.cream2, color: HNH.ink2, fontSize: 14, fontWeight: 700,
+          }}
+        >
+          Đóng
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export function NotificationsPage() {
   const navigate = useNavigate()
   const { toast } = useToast()
@@ -431,6 +564,7 @@ export function NotificationsPage() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [markingAll, setMarkingAll] = useState(false)
   const [detail, setDetail] = useState<Notification | null>(null)
+  const [showSettings, setShowSettings] = useState(false)
 
   const fetchNotifications = useCallback(async (f: Filter) => {
     setLoading(true)
@@ -510,22 +644,34 @@ export function NotificationsPage() {
         title="Thông báo"
         onBack={() => navigate(-1)}
         trailing={
-          unreadCount > 0 ? (
+          <>
+            {unreadCount > 0 && (
+              <button
+                onClick={markAllRead}
+                disabled={markingAll}
+                className="border-none cursor-pointer"
+                style={{
+                  fontSize: 11.5, fontWeight: 700, color: HNH.navy,
+                  background: HNH.navy50, borderRadius: 8, padding: '5px 10px',
+                  opacity: markingAll ? 0.5 : 1,
+                }}
+              >
+                Đọc tất cả
+              </button>
+            )}
             <button
-              onClick={markAllRead}
-              disabled={markingAll}
-              className="border-none cursor-pointer"
-              style={{
-                fontSize: 11.5, fontWeight: 700, color: HNH.navy,
-                background: HNH.navy50, borderRadius: 8, padding: '5px 10px',
-                opacity: markingAll ? 0.5 : 1,
-              }}
+              onClick={() => setShowSettings(true)}
+              aria-label="Thiết lập cá nhân"
+              title="Thiết lập cá nhân"
+              className="flex items-center justify-center border-none cursor-pointer shrink-0"
+              style={{ width: 40, height: 40, borderRadius: 12, background: '#fff', boxShadow: '0 1px 4px rgba(15,20,40,0.09)' }}
             >
-              Đọc tất cả
+              <Icon name="gear" size={19} color={HNH.ink2} stroke={2} />
             </button>
-          ) : undefined
+          </>
         }
       />
+      {showSettings && <PersonalSettingsModal onClose={() => setShowSettings(false)} />}
 
       <PullToRefresh onRefresh={handleRefresh}>
       <div style={{ padding: '0 16px 32px', maxWidth: 600, margin: '0 auto' }}>

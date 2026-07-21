@@ -1421,6 +1421,14 @@ class HNHEmployeeProfile(models.Model):
     household_address = models.TextField(max_length=255, null=True, blank=True, verbose_name=_("Địa chỉ hộ khẩu thường trú"))
     household_relation = models.CharField(max_length=50, null=True, blank=True, verbose_name=_("Quan hệ với chủ hộ"))
 
+    # Thiết lập cá nhân (App Feature Thông báo → Thiết lập Cá nhân)
+    allow_outside_office_checkin = models.BooleanField(
+        default=False, verbose_name=_("Cho phép chấm công ngoài văn phòng")
+    )
+    meeting_reminder_enabled = models.BooleanField(
+        default=True, verbose_name=_("Nhận thông báo nhắc họp trước 15 phút")
+    )
+
     # Tracking hỗ trợ đặt lại mật khẩu
     last_password_reset_sent_at = models.DateTimeField(
         null=True, blank=True, verbose_name=_("Lần gửi đặt lại mật khẩu gần nhất")

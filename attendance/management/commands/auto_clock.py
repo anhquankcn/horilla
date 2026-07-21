@@ -191,6 +191,12 @@ class Command(BaseCommand):
                 close_old_connections()
                 try:
                     run_auto_clock()
+                    # Nhắc họp trước 15 phút (tuỳ chọn cá nhân meeting_reminder_enabled)
+                    try:
+                        from notifications.meeting_reminders import run_meeting_reminders
+                        run_meeting_reminders()
+                    except Exception:
+                        logger.exception("run_meeting_reminders failed")
                     # Cuối ngày ~23:50: chốt công ca một chiều + nhắc giải trình (1 lần/ngày)
                     _ln = django_tz.localtime(django_tz.now())
                     if _ln.hour == 23 and _ln.minute >= 50 and last_finalize != _ln.date():
