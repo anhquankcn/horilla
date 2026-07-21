@@ -22,7 +22,24 @@ from notifications.models import (
 )
 from notifications.signals import notify
 
-from ...api_serializers.notifications.serializers import NotificationSerializer
+from ...api_serializers.notifications.serializers import (
+    NotificationSerializer,
+    leave_ids_from_data,
+)
+
+
+def _leave_status_map(notifications):
+    """1 query duy nhất → {leave_request_id: status} cho cả trang thông báo,
+    tránh N+1 khi serializer cần trạng thái đơn nghỉ."""
+    all_ids = set()
+    for n in notifications or []:
+        all_ids.update(leave_ids_from_data(getattr(n, "data", None)))
+    if not all_ids:
+        return {}
+    from leave.models import LeaveRequest
+    return dict(
+        LeaveRequest.objects.filter(id__in=all_ids).values_list("id", "status")
+    )
 
 
 class NotificationPagination(PageNumberPagination):
@@ -44,7 +61,10 @@ class NotificationView(APIView):
 
         pagination = NotificationPagination()
         page = pagination.paginate_queryset(queryset, request)
-        serializer = NotificationSerializer(page, many=True)
+        serializer = NotificationSerializer(
+            page, many=True,
+            context={"leave_status_map": _leave_status_map(page)},
+        )
         return pagination.get_paginated_response(serializer.data)
 
 

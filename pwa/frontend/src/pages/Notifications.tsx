@@ -18,6 +18,7 @@ interface Notification {
   deleted: boolean
   data: Record<string, unknown> | string | null
   actor_name: string | null
+  leave_status?: string | null
 }
 
 interface Paginated<T> { count: number; next: string | null; results: T[] }
@@ -44,6 +45,18 @@ function notifMeta(verb: string, level: string): { initials: string; bg: string;
   if (level === 'error')
     return { initials: '!', bg: HNH.red, tone: 'red', icon: 'x' }
   return { initials: 'TB', bg: HNH.ink2, tone: 'ink', icon: 'bell' }
+}
+
+/** Meta badge trạng thái đơn nghỉ (approved/rejected/requested/cancelled). */
+function leaveStatusMeta(status: string | null | undefined):
+  { label: string; color: string; bg: string; strong: boolean } | null {
+  switch (status) {
+    case 'approved': return { label: 'Đã duyệt', color: HNH.success, bg: HNH.success50, strong: true }
+    case 'rejected': return { label: 'Từ chối', color: HNH.red, bg: HNH.red50, strong: true }
+    case 'cancelled': return { label: 'Đã huỷ', color: HNH.ink3, bg: HNH.cream2, strong: false }
+    case 'requested': return { label: 'Chờ duyệt', color: '#a8730a', bg: `${HNH.warn}22`, strong: false }
+    default: return null
+  }
 }
 
 function relativeTime(ts: string): string {
@@ -147,9 +160,12 @@ function NotifDetailSheet({
   const meta = notifMeta(n.verb, n.level)
   const action = parseNotifAction(n)
   const leaveIds = getLeaveIds(n)
+  const ls = leaveStatusMeta(n.leave_status)
   // Duyệt nhanh tại chỗ: chỉ khi thông báo là ĐƠN CẦN DUYỆT (route /approvals) +
-  // có id đơn. Backend tự chặn nếu không đủ quyền.
-  const canQuickApprove = leaveIds.length > 0 && action?.route === '/approvals'
+  // có id đơn VÀ đơn CÒN đang chờ (chưa duyệt/từ chối). Backend tự chặn nếu
+  // không đủ quyền.
+  const decided = n.leave_status === 'approved' || n.leave_status === 'rejected' || n.leave_status === 'cancelled'
+  const canQuickApprove = leaveIds.length > 0 && action?.route === '/approvals' && !decided
   const [acting, setActing] = useState(false)
   const [rejectMode, setRejectMode] = useState(false)
   const [reason, setReason] = useState('')
@@ -243,6 +259,20 @@ function NotifDetailSheet({
 
         {/* Body */}
         <div style={{ padding: '12px 20px', overflowY: 'auto', flex: 1 }}>
+          {ls && (
+            <div className="flex items-center gap-2" style={{
+              padding: '10px 14px', background: ls.bg, borderRadius: 12, marginBottom: 12,
+              border: `1px solid ${ls.color}33`,
+            }}>
+              <Icon
+                name={n.leave_status === 'approved' ? 'check' : n.leave_status === 'rejected' ? 'x' : 'clock'}
+                size={16} color={ls.color} stroke={2.5}
+              />
+              <span style={{ fontSize: 13.5, fontWeight: 800, color: ls.color }}>
+                Trạng thái đơn: {ls.label}
+              </span>
+            </div>
+          )}
           {n.description && (
             <div style={{
               padding: '14px 16px', background: HNH.cream, borderRadius: 14,
@@ -346,13 +376,17 @@ function NotifCard({ n, onOpen, onDelete }: {
 }) {
   const meta = notifMeta(n.verb, n.level)
   const time = relativeTime(n.timestamp)
+  const ls = leaveStatusMeta(n.leave_status)
 
   return (
     <div
       className="flex items-start gap-3"
       style={{
         padding: '13px 14px',
-        background: n.unread ? `${HNH.navy}08` : 'transparent',
+        // Đơn đã Duyệt/Từ chối → nổi bật: viền trái màu + nền nhạt theo trạng thái.
+        paddingLeft: ls?.strong ? 11 : 14,
+        borderLeft: ls?.strong ? `3px solid ${ls.color}` : undefined,
+        background: ls?.strong ? ls.bg : (n.unread ? `${HNH.navy}08` : 'transparent'),
         cursor: 'pointer',
         position: 'relative',
       }}
@@ -373,11 +407,22 @@ function NotifCard({ n, onOpen, onDelete }: {
       <div className="flex-1 min-w-0">
         <div className="flex items-start gap-2">
           <div className="flex-1 min-w-0">
-            <div style={{
-              fontSize: 13, fontWeight: n.unread ? 700 : 600, color: HNH.ink,
-              lineHeight: 1.4,
-            }}>
-              {n.verb}
+            <div className="flex items-center gap-2" style={{ flexWrap: 'wrap' }}>
+              <div style={{
+                fontSize: 13, fontWeight: n.unread ? 700 : 600, color: HNH.ink,
+                lineHeight: 1.4,
+              }}>
+                {n.verb}
+              </div>
+              {ls && (
+                <span style={{
+                  fontSize: 10.5, fontWeight: 800, color: ls.color, background: ls.bg,
+                  borderRadius: 6, padding: '2px 8px', whiteSpace: 'nowrap',
+                  border: `1px solid ${ls.color}33`, letterSpacing: 0.2,
+                }}>
+                  {ls.label}
+                </span>
+              )}
             </div>
             {n.description && (
               <div style={{
