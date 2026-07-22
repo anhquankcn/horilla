@@ -759,11 +759,13 @@ export function AppAccountTab({ employeeId, employeeEmail, can_edit, department 
   const handleAction = async (action: string, payload?: object) => {
     setActionBusy(action); setErr(''); setMsg('')
     try {
-      const res = await api.patch<{ success: boolean; message?: string; required_actions?: string[] }>(
+      const res = await api.patch<{ success: boolean; message?: string; required_actions?: string[]; email_sent?: boolean }>(
         `/api/employee/${employeeId}/kc-account/`,
         { action, ...payload },
       )
-      if (res.message) setMsg(res.message)
+      // Reset OK nhưng email lỗi (SMTP hỏng) → hiện cảnh báo thay vì báo thành công.
+      if (res.email_sent === false) setErr(res.message || 'Đã reset nhưng gửi email thất bại')
+      else if (res.message) setMsg(res.message)
       if (res.required_actions !== undefined && account) {
         setAccount({ ...account, required_actions: res.required_actions })
       } else if (action !== 'set_force_change') {

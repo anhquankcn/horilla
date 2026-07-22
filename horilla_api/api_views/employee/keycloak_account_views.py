@@ -168,17 +168,39 @@ class KcAccountView(APIView):
                 return Response({"success": True, "message": f"Đã gửi email chào mừng tới {email}"})
 
             elif action == "reset_password":
+                # Reset ở Keycloak TRƯỚC — đây là hành động chính. Nếu lỗi thì
+                # để except trả 502 (thực sự chưa reset được).
                 kc.reset_password(uid, DEFAULT_PASSWORD)
-                _send_welcome_email(emp, email, first, last)
+                # Đã reset thành công → LƯU tracking NGAY, không phụ thuộc email.
                 from django.utils import timezone
                 from employee.models import HNHEmployeeProfile
                 prof, _ = HNHEmployeeProfile.objects.get_or_create(employee_id=emp)
                 prof.last_password_reset_sent_at = timezone.now()
                 prof.last_password_reset_sent_by = request.user
                 prof.save(update_fields=["last_password_reset_sent_at", "last_password_reset_sent_by"])
+                # Gửi email chỉ là thông báo phụ — lỗi SMTP KHÔNG được che mất việc
+                # mật khẩu đã đổi (trước đây exception ở đây trả 502 gây hiểu nhầm
+                # "reset thất bại" dù mật khẩu đã bị đổi).
+                email_ok, email_err = True, ""
+                try:
+                    _send_welcome_email(emp, email, first, last)
+                except Exception as mail_exc:  # noqa: BLE001
+                    email_ok = False
+                    email_err = str(mail_exc)
+                    logger.warning(
+                        "reset_password: đã reset KC nhưng gửi email thất bại emp=%s email=%s: %s",
+                        emp.id, email, email_err,
+                    )
+                if email_ok:
+                    msg = f"Đã reset mật khẩu về {DEFAULT_PASSWORD} và gửi email tới {email}"
+                else:
+                    msg = (f"Đã reset mật khẩu về {DEFAULT_PASSWORD}, NHƯNG gửi email thất bại "
+                           f"(kiểm tra cấu hình SMTP). Hãy báo mật khẩu cho nhân viên thủ công.")
                 return Response({
                     "success": True,
-                    "message": f"Đã reset mật khẩu về {DEFAULT_PASSWORD} và gửi email tới {email}",
+                    "email_sent": email_ok,
+                    "email_error": email_err,
+                    "message": msg,
                 })
 
             elif action == "set_force_change":
