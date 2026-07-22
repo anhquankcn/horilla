@@ -37,9 +37,12 @@ def run_meeting_reminders():
 
     now = timezone.now()
     lo, hi = now + timedelta(minutes=15), now + timedelta(minutes=16)
-    meetings = GoogleMeeting.objects.filter(
-        start_time__gte=lo, start_time__lt=hi
-    ).select_related("employee_id")
+    meetings = (
+        GoogleMeeting.objects.filter(start_time__gte=lo, start_time__lt=hi)
+        # Chỉ lịch CHÍNH THỨC: bỏ lịch đã huỷ (Outlook đặt tiêu đề "Canceled: ...").
+        .exclude(title__icontains="cancel")
+        .select_related("employee_id")
+    )
 
     for m in meetings:
         if m.id in _reminded:
@@ -60,13 +63,13 @@ def run_meeting_reminders():
             )
 
         start_local = timezone.localtime(m.start_time)
-        title = "Nhắc họp — 15 phút nữa"
+        title = "Nhắc lịch bận — 15 phút nữa"
         body = f"{m.title} bắt đầu lúc {start_local:%H:%M}"
 
         for e in candidates:
             prof = getattr(e, "hnh_profile", None)
             if prof is not None and not prof.meeting_reminder_enabled:
-                continue  # NV đã tắt nhắc họp
+                continue  # NV đã tắt nhắc lịch bận
             user = getattr(e, "employee_user_id", None)
             if user is None or user.id in recipients:
                 continue

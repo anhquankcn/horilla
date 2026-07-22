@@ -705,8 +705,8 @@ function PersonalSettingsModal({ onClose }: { onClose: () => void }) {
             <div style={{ height: 1, background: HNH.line, margin: '2px 0' }} />
             <SettingRow
               icon="bell"
-              title="Nhắc lịch họp"
-              desc="Nhận thông báo trước 15 phút khi có lịch họp trong Lịch làm việc."
+              title="Nhắc lịch bận sắp tới"
+              desc="Tự động báo trước 15 phút cho lịch bận chính thức trong Lịch làm việc 10 ngày (đồng bộ từ Outlook, bỏ qua lịch đã huỷ)."
               on={s.meeting_reminder_enabled}
               busy={saving === 'meeting_reminder_enabled'}
               onToggle={() => toggle('meeting_reminder_enabled')}
