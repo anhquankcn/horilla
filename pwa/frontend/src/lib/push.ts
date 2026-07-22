@@ -78,6 +78,34 @@ export async function isPushSubscribed(): Promise<boolean> {
   return !!sub
 }
 
+/**
+ * Giữ push "dính" BẬT: iOS/Android định kỳ thu hồi subscription khi app đóng —
+ * nếu SW không kịp bắt 'pushsubscriptionchange', lần mở app kế tiếp browser mất
+ * sub → công tắc hiện TẮT. Hàm này chạy khi mở app: nếu ĐÃ cấp quyền thông báo
+ * mà thiếu sub thì tự đăng ký lại âm thầm; nếu còn sub thì đồng bộ lại lên server
+ * (phòng khi server mất bản ghi). Trả về true nếu cuối cùng có sub hợp lệ.
+ * Không tự xin quyền — chỉ tái lập cái user đã bật trước đó.
+ */
+export async function ensurePushSubscribed(): Promise<boolean> {
+  if (!('serviceWorker' in navigator) || !('PushManager' in window)) return false
+  if (Notification.permission !== 'granted') return false
+  try {
+    const reg = await navigator.serviceWorker.ready
+    let sub = await reg.pushManager.getSubscription()
+    if (!sub) {
+      const { public_key } = await api.get<{ public_key: string }>('/api/notifications/push/vapid-key/')
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(public_key).buffer as ArrayBuffer,
+      })
+    }
+    await sendSubscriptionToServer(sub)
+    return true
+  } catch {
+    return false
+  }
+}
+
 function arrayBufferToBase64url(buf: ArrayBuffer): string {
   const bytes = new Uint8Array(buf)
   let binary = ''

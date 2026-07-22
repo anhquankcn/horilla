@@ -6,6 +6,7 @@ import {
   subscribeToPush,
   unsubscribeFromPush,
   isPushSubscribed,
+  ensurePushSubscribed,
   PushError,
 } from '../lib/push'
 
@@ -25,7 +26,17 @@ export function PushToggle({ small }: { small?: boolean }) {
       setSupported(false)
       return
     }
-    isPushSubscribed().then(setOn).catch(() => {})
+    // Nếu user đã từng cấp quyền, tự tái lập subscription (iOS hay thu hồi khi
+    // app đóng) để công tắc giữ BẬT thay vì tự nhảy về TẮT. Chỉ hiện TẮT thật
+    // khi chưa cấp quyền / chưa bật bao giờ.
+    if (Notification.permission === 'granted') {
+      ensurePushSubscribed().then(ok => {
+        if (ok) setOn(true)
+        else isPushSubscribed().then(setOn).catch(() => {})
+      }).catch(() => { isPushSubscribed().then(setOn).catch(() => {}) })
+    } else {
+      isPushSubscribed().then(setOn).catch(() => {})
+    }
   }, [])
 
   if (!supported) return null
