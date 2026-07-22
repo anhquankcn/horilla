@@ -146,7 +146,12 @@ class EmployeeLeaveRequestGetCreateAPIView(APIView):
 
     def get(self, request):
         employee = request.user.employee_get
-        leave_request = employee.leaverequest_set.all().order_by("-id")
+        # Ẩn đơn NV đã tự hủy (status='cancelled') khỏi danh sách của chính mình —
+        # giữ UX như cũ (trước đây hủy = xóa hẳn). Bản ghi vẫn tồn tại để thông
+        # báo phía quản lý hiển thị trạng thái "Đã huỷ".
+        leave_request = (
+            employee.leaverequest_set.exclude(status="cancelled").order_by("-id")
+        )
         filterset = self.filterset_class(request.GET, queryset=leave_request)
         paginator = PageNumberPagination()
         field_name = request.GET.get("groupby_field", None)
@@ -641,9 +646,18 @@ class EmployeeLeaveRequestUpdateDeleteAPIView(APIView):
             leave_request.status == "requested"
             and leave_request.employee_id == employee_id
         ):
-            leave_request.delete()
+            # Hủy MỀM (status='cancelled') thay vì xóa cứng: giữ lại bản ghi để
+            # thông báo "cần duyệt" đã gửi cho quản lý CẬP NHẬT được trạng thái
+            # "Đã huỷ" khi mở ra xem (trước đây xóa hẳn → notif trỏ tới đơn không
+            # còn tồn tại, quản lý không biết NV đã hủy). Đơn 'cancelled' được ẩn
+            # khỏi danh sách đơn của NV nên không gây rối UX (xem GET ở trên).
+            from django.utils import timezone as _tz
+            leave_request.status = "cancelled"
+            leave_request.cancelled_at = _tz.now()
+            leave_request.cancelled_by = employee_id
+            leave_request.save(update_fields=["status", "cancelled_at", "cancelled_by"])
             return Response(
-                {"message": "Leave request deleted successfully.."}, status=200
+                {"message": "Leave request cancelled successfully.."}, status=200
             )
         raise serializers.ValidationError({"error": "Access Denied.."})
 

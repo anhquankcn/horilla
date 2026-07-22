@@ -134,13 +134,13 @@ export function LeavePage() {
   // Xóa đơn CHỜ DUYỆT của chính mình (backend chỉ cho xóa khi status=requested).
   // Sửa đơn = xóa rồi tạo lại (đơn nhiều ngày bị tách nhiều bản ghi, không sửa tại chỗ).
   const handleDeleteReq = async (id: number) => {
-    if (!confirm('Xóa đơn nghỉ này? Đơn đang chờ duyệt sẽ bị gỡ bỏ.')) return
+    if (!confirm('Hủy đơn nghỉ này? Đơn sẽ được gỡ khỏi danh sách chờ duyệt và quản lý sẽ thấy trạng thái "Đã huỷ".')) return
     try {
       await api.del(`/api/leave/user-request/${id}/`)
       setDetailReq(null)
       refreshReqs()
     } catch (e) {
-      alert('Lỗi khi xóa đơn: ' + (e instanceof Error ? e.message : ''))
+      alert('Lỗi khi hủy đơn: ' + (e instanceof Error ? e.message : ''))
     }
   }
   const balances = balResp?.results ?? []
@@ -414,10 +414,10 @@ export function LeavePage() {
               {st === 'pending' && (
                 <div style={{ padding: '12px 18px', borderTop: `1px solid ${HNH.line}` }}>
                   <button onClick={() => handleDeleteReq(r.id)} className="flex items-center justify-center gap-2 w-full border-none cursor-pointer" style={{ height: 46, borderRadius: 12, background: HNH.red50, color: HNH.red, fontWeight: 700, fontSize: 14 }}>
-                    <Icon name="trash" size={16} color={HNH.red} /> Xóa đơn
+                    <Icon name="trash" size={16} color={HNH.red} /> Hủy đơn
                   </button>
                   <div style={{ fontSize: 11, color: HNH.ink3, textAlign: 'center', marginTop: 8 }}>
-                    Cần sửa? Xóa đơn này rồi tạo lại cho đúng.
+                    Cần sửa? Hủy đơn này rồi tạo lại cho đúng.
                   </div>
                 </div>
               )}
