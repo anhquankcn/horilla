@@ -30,6 +30,7 @@ services:
       MS_CLIENT_ID: ${MS_CLIENT_ID:-}
       MS_CLIENT_SECRET: ${MS_CLIENT_SECRET:-}
       MS_REDIRECT_URI: ${MS_REDIRECT_URI:-https://qlns.hnhtravel.work/bff/outlook/callback}
+      HNH_SERVICE_TOKEN: ${HNH_SERVICE_TOKEN:-}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       REDIS_PASSWORD: ${REDIS_PASSWORD}

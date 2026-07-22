@@ -6,6 +6,7 @@ import { authRoutes } from "./auth.js";
 import { proxyRoutes } from "./proxy.js";
 import { calendarRoutes } from "./calendar.js";
 import { outlookRoutes } from "./outlook.js";
+import { startMeetingReminderLoop } from "./meetingReminders.js";
 import { initSessions, flushSessions, startSessionAutosave } from "./session.js";
 
 // bodyLimit 15MB: ảnh CCCD/selfie base64 (Fastify mặc định chỉ 1MB → 413).
@@ -32,6 +33,9 @@ app.log.info(`BFF listening on http://localhost:${env.BFF_PORT}`);
 
 // Ghi snapshot phiên định kỳ + khi tắt (deploy gửi SIGTERM) → không mất phiên.
 startSessionAutosave();
+
+// Nhắc lịch bận Outlook — báo web-push trước 15 phút (loop mỗi 60s).
+startMeetingReminderLoop(app);
 for (const sig of ["SIGTERM", "SIGINT"] as const) {
   process.on(sig, async () => {
     app.log.info(`${sig} — flush sessions & shutdown`);

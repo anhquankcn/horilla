@@ -20,6 +20,8 @@ export const env = {
   MS_CLIENT_ID: process.env.MS_CLIENT_ID ?? "",
   MS_CLIENT_SECRET: process.env.MS_CLIENT_SECRET ?? "",
   MS_REDIRECT_URI: process.env.MS_REDIRECT_URI ?? "https://qlns.hnhtravel.work/bff/outlook/callback",
+  // Service token M2M gọi Django (nhắc lịch bận Outlook). Thiếu → loop tắt.
+  HNH_SERVICE_TOKEN: process.env.HNH_SERVICE_TOKEN ?? "",
   // Redis — lưu snapshot phiên để sống qua restart BFF (không bắt cả cty re-login).
   // Không kết nối được → BFF vẫn chạy in-memory (degrade an toàn).
   REDIS_HOST: process.env.REDIS_HOST ?? "redis",

@@ -9,6 +9,9 @@ urlpatterns = [
     path("employees/<int:pk>/", views.M2MEmployeeDetailView.as_view()),
     path("attendance/", views.M2MAttendanceView.as_view()),
     path("leave-balances/", views.M2MLeaveBalanceView.as_view()),
+    # Nhắc lịch bận Outlook (BFF poll Graph)
+    path("outlook-reminder-targets/", views.M2MOutlookReminderTargetsView.as_view()),
+    path("send-meeting-push/", views.M2MSendMeetingPushView.as_view()),
     # Admin CRUD (user JWT auth)
     path("scopes/", views.M2MScopesListView.as_view()),
     path("accounts/", views.ServiceAccountAdminView.as_view()),

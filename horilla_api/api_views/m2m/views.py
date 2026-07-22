@@ -29,6 +29,7 @@ AVAILABLE_SCOPES = [
     ("leave:read", "Đọc số dư nghỉ phép"),
     ("payroll:read", "Đọc dữ liệu lương"),
     ("embed:login", "Nhúng UI với SSO handoff"),
+    ("outlook:remind", "Nhắc lịch bận Outlook (BFF đọc target + đẩy push)"),
     ("*", "Full access — tất cả scope"),
 ]
 
@@ -397,3 +398,60 @@ class IntegrationDetailView(APIView):
             config.notes = request.data["notes"]
         config.save()
         return Response({"status": "updated"})
+
+
+# ── Nhắc lịch bận Outlook (BFF poll Graph → gọi 2 endpoint này) ──────────────
+
+class M2MOutlookReminderTargetsView(APIView):
+    """GET /api/m2m/outlook-reminder-targets/ — danh sách user cần nhắc lịch bận:
+    đã BẬT meeting_reminder_enabled VÀ đã kết nối Outlook (có refresh_token).
+    Trả refresh_token để BFF tự fetch Microsoft Graph."""
+
+    authentication_classes = [M2MAuthentication]
+    permission_classes = [require_m2m_scope("outlook:remind")]
+
+    def get(self, request):
+        from base.models import OutlookToken
+        from employee.models import HNHEmployeeProfile
+
+        enabled_user_ids = set(
+            HNHEmployeeProfile.objects.filter(
+                meeting_reminder_enabled=True,
+                employee_id__employee_user_id__isnull=False,
+            ).values_list("employee_id__employee_user_id", flat=True)
+        )
+        targets = []
+        for tok in OutlookToken.objects.all():
+            if tok.user_id not in enabled_user_ids:
+                continue
+            rt = tok.get_refresh_token()
+            if rt:
+                targets.append({"user_id": tok.user_id, "refresh_token": rt})
+        return Response({"targets": targets})
+
+
+class M2MSendMeetingPushView(APIView):
+    """POST /api/m2m/send-meeting-push/ {user_id,title,body,tag?,url?} — đẩy web-push
+    tới 1 user (BFF gọi khi có lịch bận sắp tới)."""
+
+    authentication_classes = [M2MAuthentication]
+    permission_classes = [require_m2m_scope("outlook:remind")]
+
+    def post(self, request):
+        from django.contrib.auth import get_user_model
+        from notifications.push import send_web_push
+
+        User = get_user_model()
+        uid = request.data.get("user_id")
+        title = (request.data.get("title") or "Nhắc lịch bận").strip()
+        body = (request.data.get("body") or "").strip()
+        tag = request.data.get("tag") or ""
+        url = request.data.get("url") or "/pwa/notifications"
+        u = User.objects.filter(id=uid).first()
+        if u is None:
+            return Response({"sent": False, "error": "user not found"}, status=404)
+        try:
+            send_web_push(u, title=title, body=body, url=url, require_interaction=False, tag=tag)
+        except Exception as e:  # noqa: BLE001
+            return Response({"sent": False, "error": str(e)}, status=502)
+        return Response({"sent": True})
