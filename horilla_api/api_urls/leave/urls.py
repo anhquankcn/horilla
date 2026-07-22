@@ -68,6 +68,7 @@ urlpatterns = [
     path("hnh-team-employees/", lmv.HNHTeamEmployeesView.as_view(), name="api-leave-hnh-team"),
     path("export-excel/", lmv.LeaveExcelExportView.as_view(), name="api-leave-export-excel"),
     path("hnh-leave-overview/", lmv.HNHLeaveOverviewView.as_view(), name="api-leave-hnh-overview"),
+    path("hnh-leave-overview/export/", lmv.HNHLeaveOverviewExportView.as_view(), name="api-leave-hnh-overview-export"),
     path("hnh-leave-detail/", lmv.HNHLeaveDetailView.as_view(), name="api-leave-hnh-detail"),
     path("hnh-adjust-balance/", lmv.HNHAdjustBalanceView.as_view(), name="api-leave-hnh-adjust-balance"),
     path("hnh-approved-leaves/", lmv.HNHApprovedLeavesView.as_view(), name="api-leave-hnh-approved-leaves"),

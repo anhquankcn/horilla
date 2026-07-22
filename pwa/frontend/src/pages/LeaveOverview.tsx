@@ -428,13 +428,19 @@ export function LeaveOverviewPage() {
   async function handleExport() {
     setExporting(true)
     try {
+      // Xuất ĐÚNG lưới Tổng quan đang hiển thị: kèm cả bộ lọc công ty/phòng ban +
+      // tìm kiếm + phát sinh để các dòng/cột trùng khớp màn hình.
       const params = new URLSearchParams({ year: String(year), month: String(month) })
-      const resp = await fetch(`/bff/api/leave/export-excel/?${params}`, { credentials: 'include' })
+      if (deptFilter) params.set('dept_id', deptFilter)
+      if (companyFilter) params.set('company_id', companyFilter)
+      if (search.trim()) params.set('search', search.trim())
+      if (arisingFilter !== 'all') params.set('arising', arisingFilter)
+      const resp = await fetch(`/bff/api/leave/hnh-leave-overview/export/?${params}`, { credentials: 'include' })
       if (!resp.ok) throw new Error()
       const blob = await resp.blob()
       const link = document.createElement('a')
       link.href = URL.createObjectURL(blob)
-      link.download = `NghiPhep_T${String(month).padStart(2, '0')}-${year}.xlsx`
+      link.download = `TongQuanNghiPhep_T${String(month).padStart(2, '0')}-${year}.xlsx`
       link.click()
       URL.revokeObjectURL(link.href)
     } catch {

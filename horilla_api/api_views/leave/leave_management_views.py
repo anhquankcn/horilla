@@ -1433,6 +1433,202 @@ class HNHLeaveOverviewView(APIView):
         })
 
 
+class HNHLeaveOverviewExportView(APIView):
+    """GET /api/leave/hnh-leave-overview/export/?year=&month=&dept_id=&company_id=&search=&arising=
+    Xuất Excel ĐÚNG lưới Tổng quan Nghỉ phép đang hiển thị: cột cố định (Mã NV,
+    Tên NV, Mã kế toán, Phòng ban, Công ty, Phép đầu, Trừ phép, Không lương, Còn
+    lại) + từng NGÀY trong tháng (Gantt — mã loại phép mỗi ô). Tái dùng logic của
+    HNHLeaveOverviewView để dữ liệu không lệch; lọc search + phát sinh để khớp
+    đúng các dòng đang hiển thị trên màn hình.
+    """
+
+    def get(self, request):
+        # Tái dùng nguyên khối tính toán của view tổng quan (cùng scope + filter).
+        overview = HNHLeaveOverviewView().get(request)
+        if getattr(overview, "status_code", 200) != 200:
+            return overview
+        data = overview.data
+        employees = list(data["employees"])
+        cells = data["cells"]
+        day_strs = data["days"]  # ['YYYY-MM-DD', ...]
+        year = data["year"]
+        month = data["month"]
+
+        # Lọc phía client (search + phát sinh) để khớp đúng bảng đang hiển thị.
+        import unicodedata
+
+        def _no_accent(s: str) -> str:
+            s = unicodedata.normalize("NFD", s or "")
+            return "".join(c for c in s if unicodedata.category(c) != "Mn").lower()
+
+        search = (request.query_params.get("search") or "").strip()
+        arising = (request.query_params.get("arising") or "all").strip()
+
+        def _match(e) -> bool:
+            taken = e.get("leave_taken") or 0
+            if arising == "yes" and not (taken > 0):
+                return False
+            if arising == "no" and taken > 0:
+                return False
+            if search:
+                qn = _no_accent(search)
+                if not (
+                    qn in _no_accent(e.get("name", ""))
+                    or qn in (e.get("badge_id", "") or "").lower()
+                    or qn in (e.get("accounting_code", "") or "").lower()
+                ):
+                    return False
+            return True
+
+        employees = [e for e in employees if _match(e)]
+
+        # Map mã viết tắt → tên loại phép đầy đủ (cho sheet chú thích).
+        code_to_name: dict = {}
+        for lst in cells.values():
+            for en in lst:
+                c = (en.get("code") or "").strip()
+                if c and c not in code_to_name:
+                    code_to_name[c] = en.get("name") or c
+
+        from django.http import HttpResponse
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+        WD_VI = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"]
+        thin = Border(
+            left=Side(style="thin", color="D9D9D9"), right=Side(style="thin", color="D9D9D9"),
+            top=Side(style="thin", color="D9D9D9"), bottom=Side(style="thin", color="D9D9D9"),
+        )
+        hdr_font = Font(bold=True, color="FFFFFF", size=9)
+        hdr_fill = PatternFill(start_color="C0222B", end_color="C0222B", fill_type="solid")
+        we_fill = PatternFill(start_color="F2F2F2", end_color="F2F2F2", fill_type="solid")
+        we_hdr_fill = PatternFill(start_color="8A1A20", end_color="8A1A20", fill_type="solid")
+        st_fill = {
+            "approved": PatternFill(start_color="E8F5E9", end_color="E8F5E9", fill_type="solid"),
+            "requested": PatternFill(start_color="FFF8E1", end_color="FFF8E1", fill_type="solid"),
+            "rejected": PatternFill(start_color="FFEBEE", end_color="FFEBEE", fill_type="solid"),
+        }
+        center = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        left_al = Alignment(horizontal="left", vertical="center")
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = f"TongQuan T{month:02d}-{year}"
+
+        fixed = [
+            ("STT", 5), ("Mã NV", 11), ("Tên nhân viên", 24), ("Mã kế toán", 12),
+            ("Phòng ban", 20), ("Công ty", 22),
+            ("Phép đầu", 8), ("Trừ phép", 8), ("Không lương", 9), ("Còn lại", 8),
+        ]
+        nfix = len(fixed)
+
+        # Hàng tiêu đề
+        for col, (title, w) in enumerate(fixed, 1):
+            c = ws.cell(row=1, column=col, value=title)
+            c.font = hdr_font
+            c.fill = hdr_fill
+            c.alignment = center
+            c.border = thin
+            ws.column_dimensions[c.column_letter].width = w
+        day_dates = [date(year, month, i + 1) for i in range(len(day_strs))]
+        for i, d in enumerate(day_dates):
+            col = nfix + 1 + i
+            wd = d.weekday()
+            c = ws.cell(row=1, column=col, value=f"{d.day}\n{WD_VI[wd]}")
+            c.font = hdr_font
+            c.fill = we_hdr_fill if wd >= 5 else hdr_fill
+            c.alignment = center
+            c.border = thin
+            ws.column_dimensions[c.column_letter].width = 5
+        ws.row_dimensions[1].height = 30
+
+        def _cell_text(entries) -> tuple:
+            """Trả (text, status_ưu_tiên) cho 1 ô ngày."""
+            if not entries:
+                return "", None
+            parts = []
+            statuses = []
+            for en in entries:
+                code = en.get("code") or "?"
+                statuses.append(en.get("status"))
+                if en.get("is_hourly") and en.get("time_range"):
+                    parts.append(f"{code} {en['time_range']}")
+                else:
+                    half = ""
+                    m, a = en.get("is_morning", True), en.get("is_afternoon", True)
+                    if m and not a:
+                        half = "(S)"
+                    elif a and not m:
+                        half = "(C)"
+                    parts.append(f"{code}{half}")
+            # Ưu tiên tô màu: approved > requested > rejected
+            for s in ("approved", "requested", "rejected"):
+                if s in statuses:
+                    return "/".join(parts), s
+            return "/".join(parts), statuses[0]
+
+        r = 2
+        for idx, e in enumerate(employees, 1):
+            vals = [
+                idx, e.get("badge_id", ""), e.get("name", ""), e.get("accounting_code", ""),
+                e.get("department", ""), e.get("company", ""),
+                e.get("leave_start", 0), e.get("leave_deduct", 0),
+                e.get("leave_unpaid", 0), e.get("leave_end", 0),
+            ]
+            for col, v in enumerate(vals, 1):
+                c = ws.cell(row=r, column=col, value=v)
+                c.border = thin
+                c.alignment = left_al if col in (3, 5, 6) else center
+            for i, ds in enumerate(day_strs):
+                col = nfix + 1 + i
+                text, status = _cell_text(cells.get(f"{e['id']}_{ds}", []))
+                c = ws.cell(row=r, column=col, value=text)
+                c.border = thin
+                c.alignment = center
+                c.font = Font(size=8, bold=True)
+                if status and status in st_fill:
+                    c.fill = st_fill[status]
+                elif day_dates[i].weekday() >= 5:
+                    c.fill = we_fill
+            ws.row_dimensions[r].height = 16
+            r += 1
+
+        # Cố định tiêu đề + cột thông tin khi cuộn.
+        ws.freeze_panes = ws.cell(row=2, column=nfix + 1).coordinate
+
+        # Sheet chú thích: mã loại phép + ký hiệu.
+        ws2 = wb.create_sheet("Chú thích")
+        ws2.cell(row=1, column=1, value="Mã").font = Font(bold=True)
+        ws2.cell(row=1, column=2, value="Loại phép").font = Font(bold=True)
+        ws2.column_dimensions["A"].width = 8
+        ws2.column_dimensions["B"].width = 30
+        rr = 2
+        for code, name in sorted(code_to_name.items()):
+            ws2.cell(row=rr, column=1, value=code)
+            ws2.cell(row=rr, column=2, value=name)
+            rr += 1
+        rr += 1
+        for note in [
+            "(S) = nghỉ buổi Sáng", "(C) = nghỉ buổi Chiều",
+            "Nền xanh = Đã duyệt", "Nền vàng = Chờ duyệt", "Nền đỏ = Từ chối",
+            "Cột nền xám = ngày cuối tuần (T7/CN)",
+        ]:
+            ws2.cell(row=rr, column=1, value=note)
+            rr += 1
+
+        import io
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        fname = f"TongQuanNghiPhep_T{month:02d}-{year}.xlsx"
+        resp = HttpResponse(
+            buf.read(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        resp["Content-Disposition"] = f'attachment; filename="{fname}"'
+        return resp
+
+
 class LeaveImportTemplateView(APIView):
     """GET /api/leave/hnh-leave-import/template/?year= — export blank+prefilled Excel template."""
 
