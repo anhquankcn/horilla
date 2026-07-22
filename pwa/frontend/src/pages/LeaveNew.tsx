@@ -230,6 +230,8 @@ function TimePickerModal({ open, onClose, value, onChange }: {
   const colStyle: React.CSSProperties = {
     height: 240, overflowY: 'auto', width: 80,
     scrollbarWidth: 'none', msOverflowStyle: 'none',
+    // Số phải nổi TRÊN thanh highlight (thanh absolute nếu không sẽ vẽ đè che số).
+    position: 'relative', zIndex: 1,
   }
 
   return (
@@ -244,9 +246,9 @@ function TimePickerModal({ open, onClose, value, onChange }: {
 
         {/* Drum columns */}
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
-          {/* Highlight bar at center — nền trung tính để số giờ đang chọn (chữ đỏ)
-              nổi rõ, không bị trùng màu như nền đỏ nhạt trước đây. */}
-          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 180, height: ITEM_H, background: HNH.cream2, border: `1.5px solid ${HNH.red}`, borderRadius: 12, pointerEvents: 'none' }} />
+          {/* Highlight bar at center — vẽ DƯỚI số (zIndex 0) để không che số; nền
+              trung tính + viền đỏ để số giờ đang chọn (chữ đỏ) nổi rõ trên đó. */}
+          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 180, height: ITEM_H, background: HNH.cream2, border: `1.5px solid ${HNH.red}`, borderRadius: 12, pointerEvents: 'none', zIndex: 0 }} />
 
           <div ref={hrRef} style={colStyle}>
             <div style={{ height: ITEM_H * 2 }} />
@@ -259,7 +261,7 @@ function TimePickerModal({ open, onClose, value, onChange }: {
             <div style={{ height: ITEM_H * 2 }} />
           </div>
 
-          <div style={{ fontSize: 24, fontWeight: 900, color: HNH.ink, padding: '0 4px', lineHeight: 1 }}>:</div>
+          <div style={{ fontSize: 24, fontWeight: 900, color: HNH.ink, padding: '0 4px', lineHeight: 1, position: 'relative', zIndex: 1 }}>:</div>
 
           <div ref={mnRef} style={colStyle}>
             <div style={{ height: ITEM_H * 2 }} />
