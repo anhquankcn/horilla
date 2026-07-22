@@ -244,8 +244,9 @@ function TimePickerModal({ open, onClose, value, onChange }: {
 
         {/* Drum columns */}
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', position: 'relative' }}>
-          {/* Highlight bar at center */}
-          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 180, height: ITEM_H, background: HNH.red50, borderRadius: 12, pointerEvents: 'none' }} />
+          {/* Highlight bar at center — nền trung tính để số giờ đang chọn (chữ đỏ)
+              nổi rõ, không bị trùng màu như nền đỏ nhạt trước đây. */}
+          <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', width: 180, height: ITEM_H, background: HNH.cream2, border: `1.5px solid ${HNH.red}`, borderRadius: 12, pointerEvents: 'none' }} />
 
           <div ref={hrRef} style={colStyle}>
             <div style={{ height: ITEM_H * 2 }} />
