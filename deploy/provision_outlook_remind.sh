@@ -8,7 +8,8 @@ cd "$(dirname "$0")/.."   # repo root (/opt/hnh/horilla)
 ENV_FILE=".env.prod"
 [ -f "$ENV_FILE" ] || { echo "❌ Không thấy $ENV_FILE"; exit 1; }
 
-# 1) Tạo/cập nhật service account + lấy token (token chỉ ghi ra file tạm, không in).
+# 1) Tạo/cập nhật service account + lấy token. Python chạy TRONG container web,
+#    in token qua marker 'SATOKEN='; host bắt từ stdout (không echo ra terminal).
 cat > /tmp/_prov_outlook.py <<'PY'
 from base.models import M2MServiceAccount
 raw = M2MServiceAccount.generate_token()
@@ -24,12 +25,13 @@ M2MServiceAccount.objects.update_or_create(
         "status": "active",
     },
 )
-open("/tmp/_sa_token", "w").write(raw)
-print("service account OK (slug=bff-outlook-remind, scope=outlook:remind)")
+print("SATOKEN=%s" % raw)
 PY
-docker exec -i horilla-web-1 python manage.py shell < /tmp/_prov_outlook.py
-TOKEN="$(cat /tmp/_sa_token)"
-rm -f /tmp/_prov_outlook.py /tmp/_sa_token
+OUT="$(docker exec -i horilla-web-1 python manage.py shell < /tmp/_prov_outlook.py 2>/dev/null)"
+rm -f /tmp/_prov_outlook.py
+TOKEN="$(printf '%s\n' "$OUT" | sed -n 's/^SATOKEN=//p')"
+[ -n "$TOKEN" ] || { echo "❌ Không lấy được token từ service account"; exit 1; }
+echo "✅ Service account OK (slug=bff-outlook-remind, scope=outlook:remind)"
 
 # 2) Ghi HNH_SERVICE_TOKEN vào .env.prod (idempotent).
 grep -v '^HNH_SERVICE_TOKEN=' "$ENV_FILE" > "${ENV_FILE}.tmp" || true
