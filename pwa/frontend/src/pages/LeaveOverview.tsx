@@ -489,14 +489,16 @@ export function LeaveOverviewPage() {
           <button
             onClick={handleExport}
             disabled={exporting}
-            className="flex items-center justify-center border-none cursor-pointer"
+            className="flex items-center border-none cursor-pointer"
             style={{
-              width: 38, height: 38, borderRadius: 12,
-              background: HNH.cream, opacity: exporting ? 0.6 : 1,
+              height: 38, borderRadius: 12, padding: '0 14px', gap: 6,
+              background: HNH.success, color: '#fff', fontWeight: 800, fontSize: 13,
+              opacity: exporting ? 0.6 : 1, whiteSpace: 'nowrap',
             }}
             title="Xuất Excel"
           >
-            <Icon name="download" size={18} color={HNH.ink} stroke={2} />
+            <Icon name="download" size={16} color="#fff" stroke={2.2} />
+            {exporting ? 'Đang xuất…' : 'Excel'}
           </button>
         }
       />
