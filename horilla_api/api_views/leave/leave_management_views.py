@@ -538,13 +538,9 @@ class HNHApprovedLeavesView(APIView):
             "employee_id__employee_work_info__department_id",
             "employee_id__employee_work_info__company_id",
         )
-        # Sắp xếp: Đơn CHỜ = ngày gửi CŨ nhất trên cùng (ưu tiên xử lý đơn chờ lâu);
-        #          Đơn ĐÃ DUYỆT = ngày DUYỆT mới nhất trên cùng.
-        if status_param == "requested":
-            qs = qs.order_by("created_at", "id")
-        else:
-            from django.db.models.functions import Coalesce
-            qs = qs.order_by(Coalesce("approved_at", "created_at").desc(), "-id")
+        # Sắp xếp: cả Đơn CHỜ lẫn Đơn ĐÃ DUYỆT đều theo ĐƠN MỚI NHẤT (ngày gửi)
+        # trên cùng, đơn cũ hơn ở dưới.
+        qs = qs.order_by("-created_at", "-id")
 
         lrs = list(qs[:500])
 
