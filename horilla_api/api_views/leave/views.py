@@ -615,29 +615,110 @@ class EmployeeLeaveRequestUpdateDeleteAPIView(APIView):
         return Response(serializer.data, status=200)
 
     def put(self, request, pk):
+        """Sửa TẠI CHỖ đơn đang CHỜ DUYỆT của chính mình (không cần hủy + tạo lại).
+        Sửa được: loại nghỉ, ngày, buổi (theo ngày) hoặc khung giờ (theo giờ), lý do.
+        Giữ nguyên chế độ ngày/giờ của đơn; đổi chế độ thì tạo đơn mới."""
+        from datetime import datetime as _dt
+        from leave.models import LeaveType, AvailableLeave, cal_effective_requested_days
+        from leave.methods import calculate_requested_days
+
         leave_request = self.get_leave_request(request, pk)
-        employee_id = request.user.employee_get
-        if (
-            leave_request.status == "requested"
-            and leave_request.employee_id == employee_id
-        ):
-            data = request.data
-            if isinstance(data, QueryDict):
-                data = data.dict()
-            data["employee_id"] = employee_id.id
-            data["end_date"] = (
-                data.get("start_date")
-                if not data.get("end_date")
-                else data.get("end_date")
-            )
-            serializer = LeaveRequestCreateUpdateSerializer(leave_request, data=data)
-            if serializer.is_valid():
-                leave_request = serializer.save()
-                return Response(
-                    UserLeaveRequestGetSerilaizer(leave_request).data, status=201
+        employee = request.user.employee_get
+        if not (leave_request.status == "requested" and leave_request.employee_id == employee):
+            raise serializers.ValidationError({"error": "Access Denied.."})
+
+        data = request.data
+        if isinstance(data, QueryDict):
+            data = data.dict()
+
+        lt = LeaveType.objects.filter(id=data.get("leave_type_id") or leave_request.leave_type_id_id).first()
+        if lt is None:
+            return Response({"error": "Loại nghỉ phép không tồn tại"}, status=400)
+
+        description = data.get("description")
+        description = description.strip() if description is not None else leave_request.description
+
+        def _balance_error(total_days):
+            if _is_pool_type(lt):
+                bal = _hnh_pool_balance(employee)
+                if total_days > bal + 1e-6:
+                    return f"Vượt số phép: xin {total_days} ngày nhưng còn {round(bal, 2)} ngày"
+            else:
+                avail = AvailableLeave.objects.filter(employee_id=employee, leave_type_id=lt).first()
+                if avail is not None:
+                    bal = (avail.available_days or 0) + (avail.carryforward_days or 0)
+                    if total_days > bal + 1e-6:
+                        return f"Vượt số phép: xin {total_days} ngày nhưng còn {round(bal, 2)} ngày"
+                elif lt.payment == "paid":
+                    return "Bạn chưa được cấp loại phép này"
+            return None
+
+        is_hourly = bool(data.get("is_hourly")) if "is_hourly" in data else leave_request.is_hourly
+
+        if is_hourly:
+            ds = data.get("start_date") or leave_request.start_date.isoformat()
+            st = (data.get("start_time") or "")[:5]
+            et = (data.get("end_time") or "")[:5]
+            try:
+                dt = _dt.strptime(ds, "%Y-%m-%d").date()
+                t1 = _dt.strptime(st, "%H:%M").time()
+                t2 = _dt.strptime(et, "%H:%M").time()
+            except ValueError:
+                return Response({"error": "Ngày/giờ không hợp lệ"}, status=400)
+            mins = (t2.hour * 60 + t2.minute) - (t1.hour * 60 + t1.minute)
+            if mins <= 0:
+                return Response({"error": "Giờ kết thúc phải sau giờ bắt đầu"}, status=400)
+            hours = round(mins / 60.0, 2)
+            err = _balance_error(round(hours / 8.0, 2))
+            if err:
+                return Response({"error": err}, status=400)
+            leave_request.leave_type_id = lt
+            leave_request.is_hourly = True
+            leave_request.start_date = dt
+            leave_request.end_date = dt
+            leave_request.start_date_breakdown = "full_day"
+            leave_request.end_date_breakdown = "full_day"
+            leave_request.requested_hours = hours
+            leave_request.start_time = t1
+            leave_request.end_time = t2
+            leave_request.description = description
+            leave_request.save()  # save() → requested_days = round(hours/8, 2)
+        else:
+            sd_str = data.get("start_date") or leave_request.start_date.isoformat()
+            ed_str = data.get("end_date") or sd_str
+            sbd = data.get("start_date_breakdown") or leave_request.start_date_breakdown or "full_day"
+            ebd = data.get("end_date_breakdown") or leave_request.end_date_breakdown or sbd
+            try:
+                sd = _dt.strptime(sd_str, "%Y-%m-%d").date()
+                ed = _dt.strptime(ed_str, "%Y-%m-%d").date()
+            except ValueError:
+                return Response({"error": "Ngày không hợp lệ"}, status=400)
+            if ed < sd:
+                return Response({"error": "Ngày kết thúc phải sau ngày bắt đầu"}, status=400)
+            rd = calculate_requested_days(sd, ed, sbd, ebd)
+            rd = cal_effective_requested_days(start_date=sd, end_date=ed, leave_type_id=lt, requested_days=rd)
+            err = _balance_error(round(rd, 2))
+            if err:
+                return Response({"error": err}, status=400)
+            payload = {
+                "employee_id": employee.id,
+                "leave_type_id": lt.id,
+                "start_date": sd.isoformat(),
+                "end_date": ed.isoformat(),
+                "start_date_breakdown": sbd,
+                "end_date_breakdown": ebd,
+                "description": description,
+            }
+            serializer = LeaveRequestCreateUpdateSerializer(leave_request, data=payload)
+            if not serializer.is_valid():
+                msg = next(
+                    (str(e) for errs in serializer.errors.values() for e in errs),
+                    "Dữ liệu không hợp lệ",
                 )
-            return Response(serializer.errors, status=400)
-        raise serializers.ValidationError({"error": "Access Denied.."})
+                return Response({"error": _translate_leave_err(msg)}, status=400)
+            leave_request = serializer.save()
+
+        return Response(UserLeaveRequestGetSerilaizer(leave_request).data, status=200)
 
     def delete(self, request, pk):
         leave_request = self.get_leave_request(request, pk)

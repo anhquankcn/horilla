@@ -121,6 +121,130 @@ function LeaveRequestRow({ type, dates, days, status, last, onClick }: {
   )
 }
 
+// Sửa TẠI CHỖ đơn đang chờ duyệt (không cần hủy + tạo lại). Giữ nguyên chế độ
+// theo ngày / theo giờ của đơn; sửa ngày, buổi/giờ, lý do → PUT user-request/<id>/.
+function EditLeaveSheet({ req, onClose, onSaved }: {
+  req: LeaveRequestItem; onClose: () => void; onSaved: () => void
+}) {
+  const hourly = !!req.is_hourly
+  const [startDate, setStartDate] = useState(req.start_date)
+  const [endDate, setEndDate] = useState(req.end_date)
+  const [startTime, setStartTime] = useState((req.start_time || '08:00').slice(0, 5))
+  const [endTime, setEndTime] = useState((req.end_time || '17:00').slice(0, 5))
+  const [bd, setBd] = useState(req.start_date_breakdown || 'full_day')
+  const [desc, setDesc] = useState(req.description || '')
+  const [saving, setSaving] = useState(false)
+  const [err, setErr] = useState('')
+  const singleDay = startDate === endDate
+
+  const inp: React.CSSProperties = {
+    width: '100%', padding: '10px 12px', borderRadius: 10, border: `1px solid ${HNH.line}`,
+    background: '#fff', fontSize: 14, color: HNH.ink, fontFamily: 'inherit', boxSizing: 'border-box', outline: 'none',
+  }
+  const lbl: React.CSSProperties = { fontSize: 11.5, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.3, marginBottom: 5 }
+
+  const save = async () => {
+    if (!desc.trim()) { setErr('Nhập lý do nghỉ'); return }
+    setSaving(true); setErr('')
+    try {
+      const body: Record<string, unknown> = { description: desc.trim() }
+      if (hourly) {
+        body.is_hourly = true
+        body.start_date = startDate
+        body.start_time = startTime
+        body.end_time = endTime
+      } else {
+        if (endDate < startDate) { setErr('Ngày kết thúc phải sau ngày bắt đầu'); setSaving(false); return }
+        body.start_date = startDate
+        body.end_date = endDate
+        body.start_date_breakdown = singleDay ? bd : 'full_day'
+        body.end_date_breakdown = singleDay ? bd : 'full_day'
+      }
+      await api.put(`/api/leave/user-request/${req.id}/`, body)
+      onSaved()
+    } catch (e) {
+      let msg = e instanceof Error ? e.message : 'Lỗi khi lưu đơn'
+      try { const j = JSON.parse(msg); if (j.error) msg = j.error } catch { /* keep */ }
+      setErr(msg)
+    } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center" style={{ zIndex: 320, background: 'rgba(0,0,0,0.5)', padding: 16 }} onClick={onClose}>
+      <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 460, maxHeight: '88vh', background: '#fff', borderRadius: 20, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div className="flex items-center justify-between" style={{ padding: '16px 18px', borderBottom: `1px solid ${HNH.line}` }}>
+          <div style={{ fontSize: 16, fontWeight: 800, color: HNH.ink }}>Sửa đơn nghỉ</div>
+          <button onClick={onClose} className="border-none cursor-pointer flex items-center justify-center" style={{ width: 34, height: 34, borderRadius: 10, background: HNH.cream }}>
+            <Icon name="x" size={18} color={HNH.ink} stroke={2} />
+          </button>
+        </div>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {err && (
+            <div style={{ background: HNH.red50, border: `1px solid ${HNH.red}`, borderRadius: 10, padding: '9px 12px', fontSize: 12.5, color: HNH.red, fontWeight: 600 }}>{err}</div>
+          )}
+          <div style={{ fontSize: 12.5, color: HNH.ink3 }}>
+            Loại nghỉ: <b style={{ color: HNH.ink }}>{req.leave_type_id.name}</b> · Hình thức: <b style={{ color: HNH.ink }}>{hourly ? 'Theo giờ' : 'Theo ngày'}</b>
+            <div style={{ fontSize: 11, color: HNH.ink4, marginTop: 2 }}>Đổi loại nghỉ hoặc chuyển ngày↔giờ: hãy hủy đơn rồi tạo lại.</div>
+          </div>
+
+          {hourly ? (
+            <>
+              <div>
+                <div style={lbl}>NGÀY NGHỈ</div>
+                <input type="date" value={startDate} onChange={e => { setStartDate(e.target.value); setEndDate(e.target.value) }} style={inp} />
+              </div>
+              <div className="flex gap-3">
+                <div style={{ flex: 1 }}>
+                  <div style={lbl}>TỪ GIỜ</div>
+                  <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} style={inp} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={lbl}>ĐẾN GIỜ</div>
+                  <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} style={inp} />
+                </div>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex gap-3">
+                <div style={{ flex: 1 }}>
+                  <div style={lbl}>TỪ NGÀY</div>
+                  <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} style={inp} />
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={lbl}>ĐẾN NGÀY</div>
+                  <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} style={inp} />
+                </div>
+              </div>
+              {singleDay && (
+                <div>
+                  <div style={lbl}>BUỔI</div>
+                  <select value={bd} onChange={e => setBd(e.target.value)} style={inp}>
+                    <option value="full_day">Cả ngày (1.0)</option>
+                    <option value="first_half">Sáng (0.5)</option>
+                    <option value="second_half">Chiều (0.5)</option>
+                  </select>
+                </div>
+              )}
+            </>
+          )}
+
+          <div>
+            <div style={lbl}>LÝ DO</div>
+            <textarea value={desc} onChange={e => setDesc(e.target.value)} rows={3} placeholder="Nhập lý do nghỉ..." style={{ ...inp, resize: 'vertical' }} />
+          </div>
+        </div>
+        <div className="flex gap-2" style={{ padding: '12px 18px', borderTop: `1px solid ${HNH.line}` }}>
+          <button onClick={onClose} disabled={saving} className="flex-1 border-none cursor-pointer" style={{ height: 46, borderRadius: 12, background: HNH.cream2, color: HNH.ink2, fontWeight: 700, fontSize: 14 }}>Thoát</button>
+          <button onClick={save} disabled={saving} className="border-none cursor-pointer" style={{ flex: 1.6, height: 46, borderRadius: 12, background: HNH.success, color: '#fff', fontWeight: 800, fontSize: 14.5, opacity: saving ? 0.6 : 1 }}>
+            {saving ? 'Đang lưu…' : 'Lưu thay đổi'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function LeavePage() {
   const navigate = useNavigate()
   const { data: summary } = useApi<HNHSummary>('/api/leave/hnh-leave-summary/')
@@ -130,6 +254,7 @@ export function LeavePage() {
 
   const requests = reqResp?.results ?? []
   const [detailReq, setDetailReq] = useState<LeaveRequestItem | null>(null)
+  const [editReq, setEditReq] = useState<LeaveRequestItem | null>(null)
 
   // Xóa đơn CHỜ DUYỆT của chính mình (backend chỉ cho xóa khi status=requested).
   // Sửa đơn = xóa rồi tạo lại (đơn nhiều ngày bị tách nhiều bản ghi, không sửa tại chỗ).
@@ -410,14 +535,16 @@ export function LeavePage() {
                   </button>
                 </div>
               )}
-              {/* Đơn chờ duyệt → cho nhân viên tự xóa (sửa = xóa rồi tạo lại) */}
+              {/* Đơn chờ duyệt → Sửa tại chỗ (không cần hủy + tạo lại) hoặc Hủy */}
               {st === 'pending' && (
                 <div style={{ padding: '12px 18px', borderTop: `1px solid ${HNH.line}` }}>
-                  <button onClick={() => handleDeleteReq(r.id)} className="flex items-center justify-center gap-2 w-full border-none cursor-pointer" style={{ height: 46, borderRadius: 12, background: HNH.red50, color: HNH.red, fontWeight: 700, fontSize: 14 }}>
-                    <Icon name="trash" size={16} color={HNH.red} /> Hủy đơn
-                  </button>
-                  <div style={{ fontSize: 11, color: HNH.ink3, textAlign: 'center', marginTop: 8 }}>
-                    Cần sửa? Hủy đơn này rồi tạo lại cho đúng.
+                  <div className="flex gap-2">
+                    <button onClick={() => { setEditReq(r); setDetailReq(null) }} className="flex items-center justify-center gap-2 border-none cursor-pointer" style={{ flex: 1.5, height: 46, borderRadius: 12, background: HNH.navy, color: '#fff', fontWeight: 700, fontSize: 14 }}>
+                      <Icon name="doc" size={16} color="#fff" stroke={2} /> Sửa đơn
+                    </button>
+                    <button onClick={() => handleDeleteReq(r.id)} className="flex items-center justify-center gap-2 border-none cursor-pointer" style={{ flex: 1, height: 46, borderRadius: 12, background: HNH.red50, color: HNH.red, fontWeight: 700, fontSize: 14 }}>
+                      <Icon name="trash" size={16} color={HNH.red} /> Hủy
+                    </button>
                   </div>
                 </div>
               )}
@@ -425,6 +552,15 @@ export function LeavePage() {
           </div>
         )
       })()}
+
+      {/* Sửa đơn chờ duyệt tại chỗ */}
+      {editReq && (
+        <EditLeaveSheet
+          req={editReq}
+          onClose={() => setEditReq(null)}
+          onSaved={() => { setEditReq(null); refreshReqs() }}
+        />
+      )}
 
       {/* FAB */}
       <button
