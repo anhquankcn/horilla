@@ -8,6 +8,7 @@ from ...api_views.employee.onboard_views import (
     ReactivateEmployeeView,
 )
 from ...api_views.employee.personal_settings_views import HNHPersonalSettingsView
+from ...api_views.employee import hr_master_views as hrm
 
 urlpatterns = [
     path("onboard/options/", OnboardOptionsView.as_view(), name="api-onboard-options"),
@@ -16,6 +17,11 @@ urlpatterns = [
     path("employees/<int:pk>/reactivate/", ReactivateEmployeeView.as_view(), name="api-employee-reactivate"),
     path("me/", views.EmployeeMeAPIView.as_view(), name="api-employee-me"),
     path("me/personal-settings/", HNHPersonalSettingsView.as_view(), name="api-employee-personal-settings"),
+    # HR Master Data + Danh mục
+    path("hr-master/", hrm.HRMasterDataListView.as_view(), name="api-hr-master-list"),
+    path("hr-master/export/", hrm.HRMasterDataExportView.as_view(), name="api-hr-master-export"),
+    path("hr-master/<int:pk>/", hrm.HRMasterDataDetailView.as_view(), name="api-hr-master-detail"),
+    path("hr-categories/", hrm.HRCategoriesView.as_view(), name="api-hr-categories"),
     path("me/bank/", views.EmployeeBankView.as_view(), name="api-employee-me-bank"),
     path("me/schedule/", views.EmployeeScheduleView.as_view(), name="api-employee-schedule"),
     path("me/ten-day-schedule/", views.TenDayScheduleView.as_view(), name="api-ten-day-schedule"),

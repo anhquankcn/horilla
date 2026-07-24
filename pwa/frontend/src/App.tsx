@@ -56,6 +56,8 @@ import { ShiftPlannerPage } from './pages/ShiftPlanner'
 import { LeaveManagementPage } from './pages/LeaveManagement'
 import { LeaveApprovalPage } from './pages/LeaveApproval'
 import { LeaveOverviewPage } from './pages/LeaveOverview'
+import { DataNhanSuPage } from './pages/DataNhanSu'
+import { DanhMucPage } from './pages/DanhMuc'
 import { LeaveImportPage } from './pages/LeaveImport'
 import { LeaveApproverConfigPage } from './pages/LeaveApproverConfig'
 import { AttendanceManagerViewPage } from './pages/AttendanceManagerView'
@@ -142,6 +144,8 @@ export function App() {
         <Route path="/leave-management" element={<LeaveManagementPage />} />
         <Route path="/leave/approvals" element={<LeaveApprovalPage />} />
         <Route path="/leave/overview" element={<LeaveOverviewPage />} />
+        <Route path="/data-nhan-su" element={<DataNhanSuPage />} />
+        <Route path="/danh-muc" element={<DanhMucPage />} />
         <Route path="/leave/import" element={<LeaveImportPage />} />
         <Route path="/leave/approver-config" element={<LeaveApproverConfigPage />} />
         <Route path="/attendance-manager" element={<AttendanceManagerViewPage />} />

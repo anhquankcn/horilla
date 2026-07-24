@@ -42,6 +42,8 @@ const MODULE_ORDER: ModuleGroup[] = [
 const features: AppFeature[] = [
   // ── Tổ chức & Nhân sự ──
   { slug: 'employees',     icon: 'users',   label: 'Nhân sự',         desc: 'Danh sách, hồ sơ nhân viên',               path: '/employees',      tone: 'navy',    group: 'org' },
+  { slug: 'data-nhan-su',  icon: 'grid',    label: 'Data Nhân sự',    desc: 'Master Data nhân sự dạng bảng, lọc, xuất Excel, xem/sửa chi tiết', path: '/data-nhan-su', tone: 'navy', group: 'org' },
+  { slug: 'danh-muc',      icon: 'folder',  label: 'Danh mục',        desc: 'Công ty, phòng ban, chức danh, các danh mục dùng chung', path: '/danh-muc', tone: 'gold', group: 'org' },
   { slug: 'employees',     icon: 'users',   label: 'Onboarding NV',   desc: 'Tạo NV mới: gán vị trí, vai trò, nhóm quyền, tài khoản KC', path: '/onboard-employee', tone: 'red', group: 'org' },
   { slug: 'org-chart',     icon: 'sitemap', label: 'Cây tổ chức',     desc: 'Sơ đồ phân cấp, phân công quản lý',        path: '/org-chart',      tone: 'navy',    group: 'org' },
   { slug: 'roles',         icon: 'shield',  label: 'Vai trò & Quyền', desc: 'Phân quyền, nhóm vai trò',                 path: '/roles',          tone: 'navy',    group: 'org' },
