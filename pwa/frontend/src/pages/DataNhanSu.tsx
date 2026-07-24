@@ -129,9 +129,10 @@ export function DataNhanSuPage() {
   const [companyId, setCompanyId] = useState('')
   const [deptId, setDeptId] = useState('')
   const [joinYear, setJoinYear] = useState('')
+  const [workStatus, setWorkStatus] = useState<'active' | 'inactive' | 'all'>('active')  // mặc định Đang làm việc
 
   useEffect(() => { const t = setTimeout(() => setQ(search.trim()), 300); return () => clearTimeout(t) }, [search])
-  useEffect(() => { setPage(1) }, [q, companyId, deptId, joinYear])
+  useEffect(() => { setPage(1) }, [q, companyId, deptId, joinYear, workStatus])
 
   useEffect(() => {
     api.get<{ enums: Enum[] }>('/api/employee/hr-categories/')
@@ -147,11 +148,13 @@ export function DataNhanSuPage() {
       if (companyId) p.set('company_id', companyId)
       if (deptId) p.set('department_id', deptId)
       if (joinYear) p.set('join_year', joinYear)
+      if (workStatus === 'active') p.set('active', '1')
+      else if (workStatus === 'inactive') p.set('active', '0')
       const d = await api.get<ListResp>(`/api/employee/hr-master/?${p}`)
       setRows(d.results); setCount(d.count); setCompanies(d.companies)
       setDepartments(d.departments); setJoinYears(d.join_years); setCanEdit(d.can_edit)
     } catch { setRows([]) } finally { setLoading(false) }
-  }, [page, q, companyId, deptId, joinYear])
+  }, [page, q, companyId, deptId, joinYear, workStatus])
   useEffect(() => { load() }, [load])
 
   const deptOptions = useMemo(
@@ -164,6 +167,8 @@ export function DataNhanSuPage() {
       const p = new URLSearchParams()
       if (q) p.set('q', q); if (companyId) p.set('company_id', companyId)
       if (deptId) p.set('department_id', deptId); if (joinYear) p.set('join_year', joinYear)
+      if (workStatus === 'active') p.set('active', '1')
+      else if (workStatus === 'inactive') p.set('active', '0')
       const resp = await fetch(`/bff/api/employee/hr-master/export/?${p}`, { credentials: 'include' })
       if (!resp.ok) throw new Error()
       const blob = await resp.blob()
@@ -210,6 +215,11 @@ export function DataNhanSuPage() {
           <select value={joinYear} onChange={e => setJoinYear(e.target.value)} style={selStyle}>
             <option value="">Mọi năm vào</option>
             {joinYears.map(y => <option key={y} value={y}>Vào năm {y}</option>)}
+          </select>
+          <select value={workStatus} onChange={e => setWorkStatus(e.target.value as 'active' | 'inactive' | 'all')} style={selStyle}>
+            <option value="active">Đang làm việc</option>
+            <option value="inactive">Đã nghỉ việc</option>
+            <option value="all">Tất cả trạng thái</option>
           </select>
         </div>
       </div>
