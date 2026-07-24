@@ -330,10 +330,20 @@ class HRMasterDataDetailView(APIView):
                     except (TypeError, ValueError):
                         emp.children = None
                     emp_dirty = True
+                # Chỉ đổi Mã NV khi THỰC SỰ khác giá trị hiện tại (tránh ghi thừa
+                # + tự va constraint). Kiểm tra trùng với NV khác → báo lỗi rõ.
                 if "badge_id" in d and d.get("badge_id"):
-                    emp.badge_id = d.get("badge_id")
-                    emp.employee_code = d.get("badge_id")
-                    emp_dirty = True
+                    new_badge = str(d.get("badge_id")).strip()
+                    if new_badge and new_badge != (emp.badge_id or ""):
+                        dup = Employee.objects.filter(badge_id=new_badge).exclude(id=emp.id).first()
+                        if dup is not None:
+                            raise _DupBadge(
+                                f"Mã NV '{new_badge}' đã được dùng cho nhân viên khác "
+                                f"({_vn_name(dup)} — id {dup.id}). Vui lòng dùng mã khác."
+                            )
+                        emp.badge_id = new_badge
+                        emp.employee_code = new_badge
+                        emp_dirty = True
                 # extras vào additional_info['hr_master']
                 ai = emp.additional_info if isinstance(emp.additional_info, dict) else {}
                 hm = ai.get("hr_master") if isinstance(ai.get("hr_master"), dict) else {}
@@ -405,8 +415,13 @@ class HRMasterDataDetailView(APIView):
                     if "bank_account" in d:
                         bank.account_number = d.get("bank_account") or ""
                     bank.save()
+        except _DupBadge as e:
+            return Response({"detail": str(e)}, status=400)
         except Exception as e:  # noqa: BLE001
-            return Response({"detail": f"Lỗi khi lưu: {e}"}, status=400)
+            msg = str(e)
+            if "unique_badge_id" in msg or "badge_id" in msg.lower() and "unique" in msg.lower():
+                msg = "Mã NV này đã được dùng cho nhân viên khác. Vui lòng dùng mã khác."
+            return Response({"detail": f"Lỗi khi lưu: {msg}"}, status=400)
 
         emp = self._emp(pk)
         out = serialize_employee(emp)
@@ -415,6 +430,10 @@ class HRMasterDataDetailView(APIView):
 
 
 _UNSET = object()
+
+
+class _DupBadge(Exception):
+    """Mã NV bị trùng với nhân viên khác."""
 
 
 # Thứ tự + nhãn cột cho Excel (khớp 69 cột Master Data).
