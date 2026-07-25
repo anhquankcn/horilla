@@ -2211,11 +2211,38 @@ class SystemHealthLogView(APIView):
         from base.models import SystemHealthLog
 
         d = request.data
+        check_type = d.get("check_type", "prod_standby")
+        details = d.get("details") or {}
+        message = d.get("message", "")
+        # Health check chạy TRÊN standby nên không đếm được Production primary
+        # (gửi prod_attendance=null). Endpoint này chạy TRÊN prod → tự đếm DB
+        # prod thật để đối chiếu Prod↔Standby hiển thị đúng.
+        if check_type == "prod_standby":
+            try:
+                from django.db import connection
+                with connection.cursor() as cur:
+                    cur.execute("SELECT count(*) FROM attendance_attendance")
+                    p_att = cur.fetchone()[0]
+                    cur.execute("SELECT count(*) FROM employee_employee")
+                    p_emp = cur.fetchone()[0]
+                details["prod_attendance"] = p_att
+                details["prod_employee"] = p_emp
+                s_att = details.get("standby_attendance")
+                s_emp = details.get("standby_employee")
+                # Đối chiếu: lệch bản ghi giữa prod và standby (âm = standby thiếu).
+                if isinstance(s_att, int):
+                    details["attendance_diff"] = p_att - s_att
+                if isinstance(s_emp, int):
+                    details["employee_diff"] = p_emp - s_emp
+                if message:
+                    message = f"{message} | prod att={p_att} emp={p_emp}"
+            except Exception:  # noqa: BLE001
+                pass
         log = SystemHealthLog.objects.create(
-            check_type=d.get("check_type", "prod_standby"),
+            check_type=check_type,
             status=d.get("status", "ok"),
-            details=d.get("details") or {},
-            message=d.get("message", ""),
+            details=details,
+            message=message,
         )
         return Response({"id": log.id, "status": log.status}, status=201)
 

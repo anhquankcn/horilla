@@ -168,8 +168,13 @@ function ReplicationTab() {
               <div style={{ width: 1, background: HNH.line }} />
               <div>
                 <div style={{ color: HNH.ink3, fontSize: 11 }}>Chấm công (prod/stby)</div>
-                <div style={{ fontWeight: 600 }}>
+                <div style={{ fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
                   {d.prod_attendance ?? '?'} / {d.standby_attendance ?? '?'}
+                  {typeof d.prod_attendance === 'number' && typeof d.standby_attendance === 'number' && (
+                    d.prod_attendance === d.standby_attendance
+                      ? <span style={{ fontSize: 10, fontWeight: 800, color: '#15803d', background: '#dcfce7', borderRadius: 6, padding: '1px 6px' }}>Khớp</span>
+                      : <span style={{ fontSize: 10, fontWeight: 800, color: '#c2410c', background: '#ffedd5', borderRadius: 6, padding: '1px 6px' }}>Lệch {Math.abs(d.prod_attendance - d.standby_attendance)}</span>
+                  )}
                 </div>
               </div>
               <div style={{ width: 1, background: HNH.line }} />
