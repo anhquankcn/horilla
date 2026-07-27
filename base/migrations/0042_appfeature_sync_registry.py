@@ -21,12 +21,16 @@ def sync(apps, schema_editor):
     AppFeature = apps.get_model("base", "AppFeature")
     # Xóa entry slug rỗng (rác)
     AppFeature.objects.filter(slug="").delete()
-    # Thêm feature thiếu
+    # Thêm feature thiếu — tạo mới HOẶC kích hoạt lại nếu đang inactive.
     for slug, label, group, is_base, order in ADD_FEATURES:
-        AppFeature.objects.get_or_create(
+        obj, created = AppFeature.objects.get_or_create(
             slug=slug,
             defaults=dict(label=label, group=group, is_base=is_base, order=order, is_active=True),
         )
+        if not created and not obj.is_active:
+            obj.is_active = True
+            obj.label = obj.label or label
+            obj.save(update_fields=["is_active", "label"])
     # Sửa label raw-slug
     for slug, label in FIX_LABELS.items():
         AppFeature.objects.filter(slug=slug).update(label=label)
