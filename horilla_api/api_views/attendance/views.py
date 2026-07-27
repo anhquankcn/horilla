@@ -556,7 +556,13 @@ class ClockOutAPIView(APIView):
             work_info = getattr(employee, "employee_work_info", None)
             if not work_info or not work_info.reporting_manager_id:
                 return
-            manager_user = work_info.reporting_manager_id.employee_user_id
+            manager = work_info.reporting_manager_id
+            # Quản lý có thể opt-out nhận thông báo chấm ra ngoài VP (nhiễu với
+            # quản lý nhiều NV field). Bỏ qua nếu clockout_notify_enabled=False.
+            mprof = getattr(manager, "hnh_profile", None)
+            if mprof is not None and not mprof.clockout_notify_enabled:
+                return
+            manager_user = manager.employee_user_id
             today = date.today().strftime("%d/%m/%Y")
             verb = (
                 f"{employee.employee_first_name} {employee.employee_last_name} "

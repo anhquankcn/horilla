@@ -599,6 +599,7 @@ function NotifCard({ n, onOpen, onDelete }: {
 interface PersonalSettings {
   allow_outside_office_checkin: boolean
   meeting_reminder_enabled: boolean
+  clockout_notify_enabled: boolean
 }
 
 function Switch({ on, busy, onClick }: { on: boolean; busy?: boolean; onClick: () => void }) {
@@ -710,6 +711,15 @@ function PersonalSettingsModal({ onClose }: { onClose: () => void }) {
               on={s.meeting_reminder_enabled}
               busy={saving === 'meeting_reminder_enabled'}
               onToggle={() => toggle('meeting_reminder_enabled')}
+            />
+            <div style={{ height: 1, background: HNH.line, margin: '2px 0' }} />
+            <SettingRow
+              icon="clock"
+              title="Báo NV chấm ra ngoài văn phòng"
+              desc="Nhận thông báo khi nhân viên mình quản lý chấm công ra ngoài khu vực văn phòng. Tắt nếu quản lý nhiều NV field (HDV/lái xe/tour) để tránh nhiễu."
+              on={s.clockout_notify_enabled}
+              busy={saving === 'clockout_notify_enabled'}
+              onToggle={() => toggle('clockout_notify_enabled')}
             />
           </div>
         )}

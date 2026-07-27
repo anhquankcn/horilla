@@ -1428,6 +1428,9 @@ class HNHEmployeeProfile(models.Model):
     meeting_reminder_enabled = models.BooleanField(
         default=True, verbose_name=_("Nhận thông báo nhắc họp trước 15 phút")
     )
+    clockout_notify_enabled = models.BooleanField(
+        default=True, verbose_name=_("Nhận thông báo NV chấm ra ngoài văn phòng")
+    )
 
     # Tracking hỗ trợ đặt lại mật khẩu
     last_password_reset_sent_at = models.DateTimeField(

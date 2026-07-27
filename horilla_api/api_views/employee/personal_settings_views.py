@@ -11,7 +11,7 @@ from rest_framework.views import APIView
 
 from employee.models import HNHEmployeeProfile
 
-FIELDS = ("allow_outside_office_checkin", "meeting_reminder_enabled")
+FIELDS = ("allow_outside_office_checkin", "meeting_reminder_enabled", "clockout_notify_enabled")
 
 
 def _to_bool(v):
