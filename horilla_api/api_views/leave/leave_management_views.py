@@ -393,10 +393,30 @@ class HNHAdjustBalanceView(APIView):
         })
 
 
+def _refund_leave_balance(lr):
+    """Hoàn số dư phép đã trừ lúc duyệt về AvailableLeave của loại nghỉ (chống hoàn
+    2 lần bằng cờ balance_refunded). Trả (available_hoàn, carryforward_hoàn)."""
+    from leave.models import AvailableLeave
+    if getattr(lr, "balance_refunded", False):
+        return 0.0, 0.0
+    av = round(lr.approved_available_days or 0, 2)
+    cf = round(lr.approved_carryforward_days or 0, 2)
+    lr.balance_refunded = True
+    if av <= 0 and cf <= 0:
+        return 0.0, 0.0  # đơn chưa từng trừ (huỷ khi đang chờ / nghỉ không lương)
+    al, _ = AvailableLeave.objects.get_or_create(
+        employee_id=lr.employee_id, leave_type_id=lr.leave_type_id
+    )
+    al.available_days = round((al.available_days or 0) + av, 2)
+    al.carryforward_days = round((al.carryforward_days or 0) + cf, 2)
+    al.save()
+    return av, cf
+
+
 class HNHCancelApprovedView(APIView):
     """POST /api/leave/hnh-cancel-approved/<pk>/ — C&B hủy đơn ĐÃ DUYỆT khi NV
-    không nghỉ nữa (vẫn đi làm). KHÔNG hoàn số dư (quyết định) — C&B tự chỉnh tay
-    qua hnh-adjust-balance nếu cần. Body: {reason}.
+    không nghỉ nữa (vẫn đi làm). HOÀN LẠI số dư phép đã trừ (không mất). Đơn giữ
+    lại ở trạng thái 'cancelled' (xem ở tab Đã Xóa). Body: {reason}.
     """
 
     permission_classes = [IsAuthenticated]
@@ -429,8 +449,8 @@ class HNHCancelApprovedView(APIView):
         lr.cancelled_by = me
         lr.cancel_reason = reason
         lr.cancelled_at = timezone.now()
-        # save() thường (giống LeaveRequestCancelAPIView chuẩn): set clashes=0 cho
-        # đơn cancelled + ghi history. KHÔNG hoàn số dư (quyết định #5).
+        # HOÀN số dư phép đã trừ về NV (không để mất). Chống hoàn 2 lần.
+        ref_av, ref_cf = _refund_leave_balance(lr)
         lr.save()
 
         import logging
@@ -474,6 +494,7 @@ class HNHCancelApprovedView(APIView):
             "cancelled_by": str(me) if me else None,
             "cancel_reason": lr.cancel_reason,
             "cancelled_at": lr.cancelled_at.isoformat() if lr.cancelled_at else None,
+            "refunded_days": round(ref_av + ref_cf, 2),
         })
 
 
@@ -496,7 +517,7 @@ class HNHApprovedLeavesView(APIView):
         from leave.models import LeaveRequest
 
         status_param = request.query_params.get("status", "approved")
-        if status_param not in ("approved", "requested"):
+        if status_param not in ("approved", "requested", "cancelled"):
             status_param = "approved"
 
         today = timezone.localdate()
@@ -515,6 +536,9 @@ class HNHApprovedLeavesView(APIView):
             qs = qs.filter(start_date__lte=m_end).filter(
                 Q(end_date__gte=m_start) | Q(end_date__isnull=True)
             )
+        elif status_param == "cancelled":
+            # Đơn đã xóa: lọc theo NGÀY HỦY trong tháng đang xem.
+            qs = qs.filter(cancelled_at__date__gte=m_start, cancelled_at__date__lte=m_end)
         # Đơn chờ duyệt: KHÔNG lọc tháng — hiện tất cả để C&B duyệt kịp.
 
         company_id = request.query_params.get("company")
@@ -535,12 +559,17 @@ class HNHApprovedLeavesView(APIView):
         qs = qs.select_related(
             "employee_id",
             "leave_type_id",
+            "cancelled_by",
             "employee_id__employee_work_info__department_id",
             "employee_id__employee_work_info__company_id",
         )
-        # Sắp xếp: cả Đơn CHỜ lẫn Đơn ĐÃ DUYỆT đều theo ĐƠN MỚI NHẤT (ngày gửi)
-        # trên cùng, đơn cũ hơn ở dưới.
-        qs = qs.order_by("-created_at", "-id")
+        # Sắp xếp: Đơn CHỜ/ĐÃ DUYỆT theo ngày gửi mới nhất; Đơn ĐÃ XÓA theo ngày
+        # HỦY mới nhất trên cùng.
+        if status_param == "cancelled":
+            from django.db.models.functions import Coalesce
+            qs = qs.order_by(Coalesce("cancelled_at", "created_at").desc(), "-id")
+        else:
+            qs = qs.order_by("-created_at", "-id")
 
         lrs = list(qs[:500])
 
@@ -596,6 +625,11 @@ class HNHApprovedLeavesView(APIView):
                                    else (lr.requested_date.isoformat() if lr.requested_date else None)),
                 "approved_at": lr.approved_at.isoformat() if getattr(lr, "approved_at", None) else None,
                 "seen": lr.id in seen_ids,
+                # Thông tin HỦY (cho tab Đã Xóa).
+                "cancelled_at": lr.cancelled_at.isoformat() if getattr(lr, "cancelled_at", None) else None,
+                "cancelled_by": _vn_full_name(lr.cancelled_by) if getattr(lr, "cancelled_by", None) else None,
+                "cancel_reason": getattr(lr, "cancel_reason", "") or "",
+                "refunded_days": round((lr.approved_available_days or 0) + (lr.approved_carryforward_days or 0), 2) if getattr(lr, "balance_refunded", False) else 0,
             })
         return Response(results)
 
@@ -747,7 +781,14 @@ class HNHLeaveCountsView(APIView):
             HNHCompensatoryProposal.objects.filter(status="requested")
         ).count()
 
-        return Response({"pending": pending, "approved": approved, "bu_pending": bu_pending})
+        # Đơn ĐÃ XÓA trong tháng đang xem (theo ngày huỷ) — cho badge tab Đã Xóa.
+        cancelled = _scope(
+            LeaveRequest.objects.filter(status="cancelled", cancelled_at__date__gte=m_start,
+                                        cancelled_at__date__lte=m_end)
+        ).count()
+
+        return Response({"pending": pending, "approved": approved, "bu_pending": bu_pending,
+                         "cancelled": cancelled})
 
 
 def _cb_rule_dict(r):

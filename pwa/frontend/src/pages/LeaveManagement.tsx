@@ -54,6 +54,10 @@ interface ApprovedLeave {
   requested_date?: string | null
   approved_at?: string | null
   seen?: boolean
+  cancelled_at?: string | null
+  cancelled_by?: string | null
+  cancel_reason?: string
+  refunded_days?: number
 }
 
 function fmtDate(s: string | null) {
@@ -522,6 +526,44 @@ function ApprovedLeaveCard({ leave, isCnb, onCancel, onMarkSeen }: {
   )
 }
 
+// Đơn ĐÃ XÓA (C&B huỷ đơn đã duyệt) — hiển thị thông tin huỷ + số phép đã hoàn.
+function CancelledLeaveCard({ leave }: { leave: ApprovedLeave }) {
+  const [showDetail, setShowDetail] = useState(false)
+  const range = leave.end_date && leave.end_date !== leave.start_date
+    ? `${fmtDate(leave.start_date)} → ${fmtDate(leave.end_date)}`
+    : fmtDate(leave.start_date)
+  return (
+    <div style={{ background: '#fff', borderRadius: 16, padding: 14, marginBottom: 10, border: `1px solid ${HNH.line}`, opacity: 0.96 }}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div style={{ fontSize: 14, fontWeight: 700, color: HNH.ink }}>{leave.employee_name}</div>
+          {(leave.badge_id || leave.accounting_code) && (
+            <div style={{ fontSize: 10.5, color: HNH.ink3, marginTop: 1, fontWeight: 600 }}>
+              {[leave.badge_id && `Mã NV: ${leave.badge_id}`, leave.accounting_code && `Mã KT: ${leave.accounting_code}`].filter(Boolean).join(' · ')}
+            </div>
+          )}
+        </div>
+        <span style={{ fontSize: 10.5, fontWeight: 800, color: HNH.ink3, background: HNH.cream2, borderRadius: 6, padding: '2px 8px', whiteSpace: 'nowrap' }}>Đã xóa</span>
+      </div>
+      <div style={{ marginTop: 8, fontSize: 12.5, color: HNH.ink2 }}>
+        <span style={{ fontWeight: 700, color: HNH.ink }}>{leave.leave_type}</span>{' · '}{range}
+        {leave.requested_days != null && <> · {leave.requested_days} ngày</>}
+      </div>
+      <div style={{ marginTop: 8, background: HNH.cream, borderRadius: 10, padding: '8px 10px', fontSize: 11.5, color: HNH.ink2 }}>
+        <div>Huỷ bởi <b style={{ color: HNH.ink }}>{leave.cancelled_by || '—'}</b>{leave.cancelled_at ? ` · ${fmtDateTime(leave.cancelled_at)}` : ''}</div>
+        {leave.cancel_reason && <div style={{ marginTop: 2, fontStyle: 'italic' }}>Lý do: {leave.cancel_reason}</div>}
+        <div style={{ marginTop: 3, fontWeight: 700, color: (leave.refunded_days ?? 0) > 0 ? HNH.success : HNH.ink3 }}>
+          {(leave.refunded_days ?? 0) > 0 ? `✓ Đã hoàn ${leave.refunded_days} ngày phép` : 'Không hoàn phép (đơn chưa trừ / nghỉ không lương)'}
+        </div>
+      </div>
+      <button onClick={() => setShowDetail(true)} className="flex items-center gap-1 border-none cursor-pointer" style={{ marginTop: 10, height: 34, borderRadius: 10, background: HNH.navy50, color: HNH.navy, fontWeight: 700, fontSize: 12.5, padding: '0 14px' }}>
+        <Icon name="doc" size={13} color={HNH.navy} stroke={2} /> Xem chi tiết
+      </button>
+      {showDetail && <LeaveDetailModal id={leave.id} onClose={() => setShowDetail(false)} />}
+    </div>
+  )
+}
+
 function PendingLeaveCard({ leave, isCnb, onApprove, onReject, onMarkSeen }: {
   leave: ApprovedLeave
   isCnb: boolean
@@ -649,7 +691,7 @@ export function LeaveManagementPage() {
   const [company, setCompany] = useState<number | ''>('')
   const [department, setDepartment] = useState<number | ''>('')
   const [month, setMonth] = useState(thisMonth())
-  const [leaveStatus, setLeaveStatus] = useState<'requested' | 'approved'>('requested')
+  const [leaveStatus, setLeaveStatus] = useState<'requested' | 'approved' | 'cancelled'>('requested')
   const [showCreate, setShowCreate] = useState(false)
   // Tìm kiếm đơn nghỉ theo Họ tên / Mã NV HRM / Mã Kế toán (debounce 300ms).
   const [leaveSearch, setLeaveSearch] = useState('')
@@ -678,7 +720,7 @@ export function LeaveManagementPage() {
   // duyệt trong tháng để xem/hủy — theo bộ lọc trạng thái leaveStatus.
   const approvedUrl = (() => {
     const p = new URLSearchParams({ status: leaveStatus })
-    if (leaveStatus === 'approved') p.set('month', month)
+    if (leaveStatus !== 'requested') p.set('month', month)
     if (company) p.set('company', String(company))
     if (department) p.set('department', String(department))
     if (leaveSearchQ) p.set('q', leaveSearchQ)
@@ -696,7 +738,7 @@ export function LeaveManagementPage() {
     if (department) p.set('department', String(department))
     return `/api/leave/hnh-leave-counts/?${p.toString()}`
   })()
-  const { data: leaveCounts, refresh: refreshCounts } = useApi<{ pending: number; approved: number; bu_pending: number }>(
+  const { data: leaveCounts, refresh: refreshCounts } = useApi<{ pending: number; approved: number; bu_pending: number; cancelled: number }>(
     isCnb() ? countsUrl : null,
   )
 
@@ -857,15 +899,15 @@ export function LeaveManagementPage() {
         {view === 'leave' && (
           <>
             <div className="flex gap-2" style={{ marginBottom: 12 }}>
-              {([['requested', 'Chờ duyệt'], ['approved', 'Đã duyệt']] as const).map(([key, label]) => {
-                const n = key === 'requested' ? (leaveCounts?.pending ?? 0) : (leaveCounts?.approved ?? 0)
+              {([['requested', 'Chờ duyệt'], ['approved', 'Đã duyệt'], ['cancelled', 'Đã Xóa']] as const).map(([key, label]) => {
+                const n = key === 'requested' ? (leaveCounts?.pending ?? 0) : key === 'approved' ? (leaveCounts?.approved ?? 0) : (leaveCounts?.cancelled ?? 0)
                 return (
                   <button
                     key={key}
                     onClick={() => setLeaveStatus(key)}
                     className="flex-1 border-none cursor-pointer"
                     style={{
-                      height: 36, borderRadius: 10, fontSize: 12.5, fontWeight: 700,
+                      height: 36, borderRadius: 10, fontSize: 12, fontWeight: 700,
                       background: leaveStatus === key ? HNH.red : '#fff',
                       color: leaveStatus === key ? '#fff' : HNH.ink3,
                       border: `1.5px solid ${leaveStatus === key ? HNH.red : HNH.line}`,
@@ -876,7 +918,7 @@ export function LeaveManagementPage() {
                 )
               })}
             </div>
-            {leaveStatus === 'approved' && (
+            {leaveStatus !== 'requested' && (
               <input
                 type="month"
                 value={month}
@@ -961,7 +1003,9 @@ export function LeaveManagementPage() {
                 background: '#fff', borderRadius: 16, padding: 24, textAlign: 'center',
                 color: HNH.ink3, fontSize: 13, border: `1px solid ${HNH.line}`,
               }}>
-                {leaveStatus === 'requested' ? 'Không có đơn chờ duyệt' : 'Không có đơn nghỉ đã duyệt trong tháng'}
+                {leaveStatus === 'requested' ? 'Không có đơn chờ duyệt'
+                  : leaveStatus === 'cancelled' ? 'Không có đơn đã xóa trong tháng'
+                    : 'Không có đơn nghỉ đã duyệt trong tháng'}
               </div>
             )}
             {(approvedLeaves ?? []).map(l => (
@@ -974,6 +1018,8 @@ export function LeaveManagementPage() {
                   onReject={handleRejectLeave}
                   onMarkSeen={handleMarkSeen}
                 />
+              ) : leaveStatus === 'cancelled' ? (
+                <CancelledLeaveCard key={l.id} leave={l} />
               ) : (
                 <ApprovedLeaveCard
                   key={l.id}

@@ -953,6 +953,10 @@ class LeaveRequest(HorillaModel):
     cancelled_at = models.DateTimeField(
         null=True, blank=True, verbose_name=_("Cancelled At")
     )
+    # HNH — đã hoàn số dư phép khi hủy đơn đã duyệt (chống hoàn 2 lần).
+    balance_refunded = models.BooleanField(
+        default=False, verbose_name=_("Đã hoàn số dư phép")
+    )
     # HNH — mốc thời gian + người DUYỆT đơn (sắp xếp + hiện chi tiết "người duyệt").
     approved_at = models.DateTimeField(
         null=True, blank=True, verbose_name=_("Approved At")
