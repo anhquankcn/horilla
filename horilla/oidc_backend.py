@@ -103,6 +103,23 @@ class HorillaOIDCBackend(OIDCAuthenticationBackend):
                 logger.warning("OIDC matched by preferred_username: %r", kc_username)
                 return users
 
+        # 4. HNH — KC email → email công việc (EmployeeWorkInformation).
+        # NV có User username kiểu vai trò cũ (admin3@, ca.sales1@…) nhưng danh
+        # tính KC = email công việc. Chỉ khớp khi DUY NHẤT 1 NV active + User active.
+        if email:
+            from employee.models import EmployeeWorkInformation
+
+            wis = list(
+                EmployeeWorkInformation.objects.filter(
+                    email__iexact=email, employee_id__is_active=True
+                ).select_related("employee_id__employee_user_id")[:2]
+            )
+            if len(wis) == 1:
+                cand = getattr(wis[0].employee_id, "employee_user_id", None)
+                if cand and cand.is_active:
+                    logger.warning("OIDC matched by work email: %r → %s", email, cand.username)
+                    return self.UserModel.objects.filter(pk=cand.pk)
+
         logger.warning("OIDC no matching user — email=%r kc_username=%r", email, kc_username)
         # Signal to the callback view that signup is available for this KC identity
         _thread_locals.oidc_pending_claims = claims

@@ -117,6 +117,27 @@ class OIDCLoginAPIView(APIView):
         if not user and kc_username:
             user = User.objects.filter(username=kc_username, is_active=True).first()
 
+        # HNH — fallback: khớp qua email công việc (EmployeeWorkInformation).
+        # Nhiều NV có tài khoản User username kiểu vai trò cũ (admin3@, ca.sales1@…)
+        # trong khi danh tính Keycloak = email công việc. Chỉ khớp khi DUY NHẤT
+        # 1 nhân viên active mang email này và User liên kết đang active.
+        if not user and email:
+            from employee.models import EmployeeWorkInformation
+
+            wis = list(
+                EmployeeWorkInformation.objects.filter(
+                    email__iexact=email, employee_id__is_active=True
+                ).select_related("employee_id__employee_user_id")[:2]
+            )
+            if len(wis) == 1:
+                cand = getattr(wis[0].employee_id, "employee_user_id", None)
+                if cand and cand.is_active:
+                    user = cand
+                    logger.info(
+                        "OIDC mobile login: matched via work email — %r → user=%s",
+                        email, user.username,
+                    )
+
         if not user:
             logger.warning(
                 "OIDC mobile login: no matching user — email=%r kc_username=%r",
