@@ -90,6 +90,112 @@ class ReactivateEmployeeView(APIView):
         })
 
 
+class SuspendEmployeeView(APIView):
+    """POST /api/employee/employees/<pk>/suspend/ — C&B "Tạm nghỉ": ngưng hoạt động NV.
+    Đối xứng với ReactivateEmployeeView — tắt ĐỦ 3 lớp: Employee.is_active +
+    auth User.is_active + Keycloak disabled.
+
+    CHẶN nếu NV còn là quản lý trực tiếp của người ĐANG hoạt động (tránh treo cấp
+    dưới không có quản lý) — trả 400 kèm danh sách để C&B chuyển quản lý trước.
+    Cấp dưới đã nghỉ (inactive) được BỎ QUA và gỡ FK quản lý cũ cho sạch dữ liệu
+    (đây là lý do NV có cấp dưới đã nghỉ trước đây không Tạm nghỉ được)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        if not _can_onboard(request.user):
+            return Response(
+                {"detail": "Chỉ C&B mới có thể chuyển nhân viên sang Tạm nghỉ."},
+                status=403,
+            )
+
+        from employee.models import Employee, EmployeeWorkInformation
+
+        emp = Employee.objects.filter(pk=pk).first()
+        if emp is None:
+            return Response({"detail": "Không tìm thấy nhân viên."}, status=404)
+        if not emp.is_active:
+            return Response(
+                {"detail": "Nhân viên đã ở trạng thái Tạm nghỉ.", "is_active": False},
+                status=400,
+            )
+
+        # Chặn nếu còn cấp dưới ĐANG hoạt động báo cáo trực tiếp cho NV này.
+        active_reports = EmployeeWorkInformation.objects.filter(
+            reporting_manager_id=emp.pk, employee_id__is_active=True
+        ).select_related("employee_id")
+        if active_reports.exists():
+            reports = [
+                {
+                    "id": wi.employee_id_id,
+                    "badge": wi.employee_id.badge_id,
+                    "name": (
+                        (wi.employee_id.employee_last_name or "")
+                        + " "
+                        + (wi.employee_id.employee_first_name or "")
+                    ).strip(),
+                }
+                for wi in active_reports
+            ]
+            return Response(
+                {
+                    "detail": (
+                        "Nhân viên đang là quản lý trực tiếp của %d người đang làm việc. "
+                        "Vui lòng chuyển các nhân viên này sang quản lý khác trước khi "
+                        "cho Tạm nghỉ." % len(reports)
+                    ),
+                    "blocking_reports": reports,
+                },
+                status=400,
+            )
+
+        # Cấp dưới đã nghỉ vẫn trỏ FK quản lý về NV này → gỡ cho sạch (không chặn).
+        cleared = EmployeeWorkInformation.objects.filter(
+            reporting_manager_id=emp.pk, employee_id__is_active=False
+        ).update(reporting_manager_id=None)
+
+        # 1) HRM: tắt cờ Employee. DÙNG queryset .update() để KHÔNG gọi
+        # Employee.save() — save() có guard (models.py) tự ÉP is_active=True khi
+        # get_archive_condition() != False trong ngữ cảnh request. Đây chính là
+        # lý do PUT is_active=false trước đây trả 200 nhưng NV vẫn active. Ta đã
+        # tự guard đúng policy ở trên (chỉ chặn cấp dưới ĐANG hoạt động).
+        Employee.objects.filter(pk=emp.pk).update(is_active=False)
+        emp.refresh_from_db()
+        # Tài khoản auth (chặn đăng nhập Django/JWT) — User.save() không có guard.
+        user = emp.employee_user_id
+        if user and user.is_active:
+            user.is_active = False
+            user.save(update_fields=["is_active"])
+
+        # 2) Keycloak: disable (best-effort — không chặn nếu KC lỗi)
+        kc_disabled = False
+        kc_error = None
+        try:
+            from horilla.keycloak_admin import sync_employee_to_kc
+
+            res = sync_employee_to_kc(emp) or {}
+            kc_disabled = bool(res.get("ok"))
+            if not kc_disabled:
+                kc_error = res.get("error")
+        except Exception as e:  # noqa: BLE001
+            kc_error = str(e)
+
+        logger.info(
+            "SUSPEND by=%s emp=%s(%s) user_active=%s kc_disabled=%s cleared_stale=%s err=%s",
+            getattr(request.user, "username", "?"), emp.id, emp.badge_id,
+            bool(user and user.is_active), kc_disabled, cleared, kc_error,
+        )
+
+        return Response({
+            "ok": True,
+            "id": emp.id,
+            "is_active": False,
+            "kc_disabled": kc_disabled,
+            "kc_error": kc_error,
+            "cleared_stale_reports": cleared,
+        })
+
+
 def _suggest_next_hnh_code():
     """Gợi ý Mã NV kế tiếp dạng HNH00XXX (HNH + 5 số zero-pad, khớp mã hiện có):
     số = MAX đã cấp + 1 (loại sentinel admin HNH00999), đảm bảo KHÔNG trùng

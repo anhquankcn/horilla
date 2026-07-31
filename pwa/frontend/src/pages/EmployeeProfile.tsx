@@ -81,18 +81,25 @@ export function EmployeeProfilePage() {
           alert('Đã kích hoạt trong hệ thống, nhưng CHƯA mở lại được tài khoản SSO (Keycloak). Vui lòng kiểm tra tài khoản SSO của nhân viên.')
         }
       } else {
-        await fetch(`/bff/api/employee/employees/${data.personal.id}/`, {
-          method: 'PUT', credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            employee_first_name: data.personal.first_name,
-            employee_last_name: data.personal.last_name,
-            email: data.personal.email,
-            phone: data.personal.phone,
-            gender: data.personal.gender,
-            is_active: newStatus,
-          }),
+        // Tạm nghỉ: endpoint chuyên trách — tắt Employee + User + Keycloak, và
+        // CHẶN nếu còn cấp dưới đang làm việc (báo rõ để chuyển quản lý trước).
+        // KHÔNG dùng PUT is_active nữa: Employee.save() có guard ép is_active về
+        // True khi NV còn phụ thuộc → PUT trả 200 nhưng không thực sự nghỉ.
+        const r = await fetch(`/bff/api/employee/employees/${data.personal.id}/suspend/`, {
+          method: 'POST', credentials: 'include',
+          headers: { 'Content-Type': 'application/json' }, body: '{}',
         })
+        const rd = await r.json().catch(() => ({}))
+        if (!r.ok) {
+          const reports = Array.isArray(rd?.blocking_reports) ? rd.blocking_reports : []
+          const list = reports.map((x: { badge?: string; name?: string }) => `• ${x.name || ''} (${x.badge || ''})`).join('\n')
+          alert((rd?.detail || 'Không chuyển được sang Tạm nghỉ.') + (list ? `\n\n${list}` : ''))
+          setToggling(false)
+          return
+        }
+        if (rd && rd.kc_disabled === false) {
+          alert('Đã chuyển Tạm nghỉ trong hệ thống, nhưng CHƯA khoá được tài khoản SSO (Keycloak). Vui lòng kiểm tra tài khoản SSO của nhân viên.')
+        }
       }
       load()
     } catch { /* ignore */ }

@@ -5,7 +5,7 @@ from ...api_views.employee import shift_management_views as smv
 from ...api_views.employee import keycloak_account_views as kav
 from ...api_views.employee.onboard_views import (
     OnboardOptionsView, OnboardEmployeeView, OnboardScanIdView,
-    ReactivateEmployeeView,
+    ReactivateEmployeeView, SuspendEmployeeView,
 )
 from ...api_views.employee.personal_settings_views import HNHPersonalSettingsView
 from ...api_views.employee import hr_master_views as hrm
@@ -15,6 +15,7 @@ urlpatterns = [
     path("onboard/scan-id/", OnboardScanIdView.as_view(), name="api-onboard-scan-id"),
     path("onboard/", OnboardEmployeeView.as_view(), name="api-onboard-employee"),
     path("employees/<int:pk>/reactivate/", ReactivateEmployeeView.as_view(), name="api-employee-reactivate"),
+    path("employees/<int:pk>/suspend/", SuspendEmployeeView.as_view(), name="api-employee-suspend"),
     path("me/", views.EmployeeMeAPIView.as_view(), name="api-employee-me"),
     path("me/personal-settings/", HNHPersonalSettingsView.as_view(), name="api-employee-personal-settings"),
     # HR Master Data + Danh mục

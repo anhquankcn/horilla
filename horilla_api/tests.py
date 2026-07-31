@@ -142,3 +142,78 @@ class OIDCLoginWorkEmailFallbackTests(TestCase):
         emp.save(update_fields=["is_active"])
         resp = self._post("gone.emp@hongngocha.com")
         self.assertEqual(resp.status_code, 403)
+
+
+@override_settings(ALLOWED_HOSTS=["testserver", "qlns.hnhtravel.work"])
+class SuspendEmployeeTests(TestCase):
+    """Regression (prod 2026-08-01): C&B không chuyển được NV sang Tạm nghỉ.
+
+    Root cause: Employee.save() (employee/models.py) có guard — trong ngữ cảnh
+    HTTP request, nếu set is_active=False mà get_archive_condition() != False
+    (NV còn là reporting_manager của ai đó, KỂ CẢ người đã nghỉ), nó ÉP
+    is_active=True và lưu lại. Nên PUT is_active=false trả 200 nhưng NV vẫn active.
+    SuspendEmployeeView dùng queryset .update() để bypass guard, chỉ chặn khi còn
+    cấp dưới ĐANG hoạt động, và gỡ FK quản lý của cấp dưới đã nghỉ.
+    """
+
+    def _actor(self):
+        return User.objects.create_user(
+            username="cb.super", email="cb.super@x.test", password="x", is_superuser=True
+        )
+
+    def _emp(self, first, last, badge, active=True):
+        u = User.objects.create_user(username=badge + "@x.test", email=badge + "@x.test", password="x")
+        e = Employee.objects.create(
+            employee_first_name=first, employee_last_name=last, badge_id=badge,
+            employee_user_id=u,
+        )
+        if not active:
+            Employee.objects.filter(pk=e.pk).update(is_active=False)
+            User.objects.filter(pk=u.pk).update(is_active=False)
+            e.refresh_from_db()
+        return e
+
+    def _suspend(self, actor, emp):
+        from rest_framework.test import APIClient
+        c = APIClient()
+        c.force_authenticate(user=actor)
+        return c.post(f"/api/employee/employees/{emp.pk}/suspend/", {}, format="json",
+                      HTTP_HOST="qlns.hnhtravel.work")
+
+    def test_blocked_when_active_subordinate_exists(self):
+        """Manager của người ĐANG làm việc → 400, không suspend, có blocking_reports."""
+        actor = self._actor()
+        mgr = self._emp("Quản", "Lý", "TST-MGR-1")
+        sub = self._emp("Cấp", "Dưới", "TST-SUB-1")
+        wi = EmployeeWorkInformation.objects.create(employee_id=sub)
+        wi.reporting_manager_id = mgr
+        wi.save()
+        resp = self._suspend(actor, mgr)
+        self.assertEqual(resp.status_code, 400, resp.content)
+        self.assertTrue(resp.json().get("blocking_reports"))
+        mgr.refresh_from_db()
+        self.assertTrue(mgr.is_active)  # vẫn active
+
+    def test_suspend_succeeds_with_only_inactive_subordinate(self):
+        """Manager chỉ còn cấp dưới ĐÃ NGHỈ → suspend được (bypass guard) + gỡ FK."""
+        actor = self._actor()
+        mgr = self._emp("Lê Hồng", "Nhân", "TST-MGR-2")
+        gone = self._emp("Đã", "Nghỉ", "TST-SUB-2", active=False)
+        wi = EmployeeWorkInformation.objects.create(employee_id=gone)
+        EmployeeWorkInformation.objects.filter(pk=wi.pk).update(reporting_manager_id=mgr.pk)
+        resp = self._suspend(actor, mgr)
+        self.assertEqual(resp.status_code, 200, resp.content)
+        mgr.refresh_from_db()
+        self.assertFalse(mgr.is_active)  # ĐÃ suspend thật (guard bị bypass)
+        self.assertFalse(mgr.employee_user_id.is_active)  # user cũng bị khoá
+        wi.refresh_from_db()
+        self.assertIsNone(wi.reporting_manager_id_id)  # FK stale đã gỡ
+
+    def test_suspend_plain_employee(self):
+        """NV thường không quản lý ai → suspend bình thường."""
+        actor = self._actor()
+        emp = self._emp("Nhân", "Viên", "TST-EMP-3")
+        resp = self._suspend(actor, emp)
+        self.assertEqual(resp.status_code, 200, resp.content)
+        emp.refresh_from_db()
+        self.assertFalse(emp.is_active)
