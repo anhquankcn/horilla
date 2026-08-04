@@ -51,18 +51,17 @@ def _is_manager(request):
 
 
 def _seniority_days(emp: Employee) -> float:
-    """Extra leave days = floor(years_service - 5) for employees >5 years."""
+    """Ngày phép thâm niên = floor(số năm làm việc / 5) — luật VN: +1 ngày mỗi
+    5 năm thâm niên (khớp số dư đã nhập từ file). Trước đây dùng floor(years-5)
+    (+1 ngày MỖI NĂM sau năm 5) → hiển thị dư khủng khiếp cho NV lâu năm."""
     try:
         join_date = emp.employee_work_info.date_joining
     except Exception:
         return 0.0
     if not join_date:
         return 0.0
-    today = date.today()
-    years = (today - join_date).days / 365.25
-    if years <= 5:
-        return 0.0
-    return float(math.floor(years - 5))
+    years = (date.today() - join_date).days / 365.25
+    return float(math.floor(years / 5))
 
 
 def _leave_summary(emp: Employee):
