@@ -10,6 +10,7 @@ import { useClock } from '../lib/useClock'
 import { useLiveClock } from '../lib/useLiveClock'
 import { ClockModal } from '../components/ClockModal'
 import { AttendanceDetailModal } from '../components/AttendanceDetailModal'
+import { ClockReminderCard } from '../components/ClockReminderCard'
 import { useTablet } from '../lib/useTablet'
 
 /* ── Types ── */
@@ -393,6 +394,7 @@ export function AttendancePage() {
             <div style={{ flex: 1, minWidth: 0 }}>{checkInCard}</div>
             <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
               {weeklyChart}
+              <ClockReminderCard />
               {historySection}
             </div>
           </div>
@@ -400,6 +402,7 @@ export function AttendancePage() {
           <>
             {checkInCard}
             <div style={{ marginTop: 14 }}>{weeklyChart}</div>
+            <div style={{ marginTop: 14 }}><ClockReminderCard /></div>
             <div style={{ marginTop: 14 }}>{historySection}</div>
           </>
         )}
