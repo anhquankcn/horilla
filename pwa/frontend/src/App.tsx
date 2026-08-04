@@ -1,4 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
+import { UpdatePrompt } from './components/UpdatePrompt'
 import { AppShell } from './components/layout/AppShell'
 import { ProtectedRoute } from './components/layout/ProtectedRoute'
 import { LoginPage } from './pages/Login'
@@ -87,6 +88,7 @@ import { WC2026_ENABLED } from './lib/flags'
 
 export function App() {
   return (
+    <>
     <Routes>
       <Route path="/login" element={<LoginPage />} />
 
@@ -179,5 +181,7 @@ export function App() {
 
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
+    <UpdatePrompt />
+    </>
   )
 }

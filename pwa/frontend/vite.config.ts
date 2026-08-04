@@ -12,7 +12,9 @@ export default defineConfig(({ command }) => ({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      // 'prompt': SW mới CHỜ, không tự chiếm quyền — App hiện banner "Có bản mới"
+      // để người dùng bấm cập nhật (UpdatePrompt). Khác 'autoUpdate' (reload ngầm).
+      registerType: 'prompt',
       manifest: {
         name: 'HNH Travel · HRM',
         short_name: 'HNH HRM',
