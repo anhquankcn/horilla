@@ -1431,6 +1431,15 @@ class HNHEmployeeProfile(models.Model):
     clockout_notify_enabled = models.BooleanField(
         default=True, verbose_name=_("Nhận thông báo NV chấm ra ngoài văn phòng")
     )
+    # Nhắc chấm công (role Nhân viên): tối đa 4 mốc giờ/ngày, phút chia hết 10.
+    # Default TẮT cho mọi NV — chỉ nhắc khi NV tự bật + đặt mốc.
+    clock_reminder_enabled = models.BooleanField(
+        default=False, verbose_name=_("Bật nhắc chấm công")
+    )
+    clock_reminder_times = models.JSONField(
+        default=list, blank=True,
+        verbose_name=_("Các mốc giờ nhắc chấm công (danh sách HH:MM, tối đa 4)"),
+    )
 
     # Tracking hỗ trợ đặt lại mật khẩu
     last_password_reset_sent_at = models.DateTimeField(

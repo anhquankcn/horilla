@@ -600,6 +600,67 @@ interface PersonalSettings {
   allow_outside_office_checkin: boolean
   meeting_reminder_enabled: boolean
   clockout_notify_enabled: boolean
+  clock_reminder_enabled: boolean
+  clock_reminder_times: string[]
+}
+
+// Mốc phút hợp lệ: 0 hoặc chia hết cho 10.
+const MINUTE_OPTS = ['00', '10', '20', '30', '40', '50']
+const HOUR_OPTS = Array.from({ length: 24 }, (_, h) => String(h).padStart(2, '0'))
+const MAX_CLOCK_REMINDERS = 4
+
+function ClockReminderSection({ times, busy, onSave }: {
+  times: string[]; busy: boolean; onSave: (t: string[]) => void
+}) {
+  const setSlot = (idx: number, next: string) => {
+    const copy = [...times]
+    copy[idx] = next
+    onSave(copy)
+  }
+  const addSlot = () => {
+    if (times.length >= MAX_CLOCK_REMINDERS) return
+    onSave([...times, '08:00'])
+  }
+  const removeSlot = (idx: number) => onSave(times.filter((_, i) => i !== idx))
+
+  const selStyle: React.CSSProperties = {
+    padding: '7px 8px', borderRadius: 9, border: `1.5px solid ${HNH.line}`,
+    fontSize: 15, fontWeight: 700, color: HNH.ink, background: '#fff', outline: 'none',
+  }
+
+  return (
+    <div style={{ padding: '4px 4px 12px 54px' }}>
+      {times.length === 0 && (
+        <div style={{ fontSize: 12, color: HNH.ink3, marginBottom: 8 }}>
+          Chưa có mốc nào. Thêm mốc giờ để được nhắc chấm công.
+        </div>
+      )}
+      {times.map((t, idx) => {
+        const [hh = '08', mm = '00'] = (t || '').split(':')
+        return (
+          <div key={idx} className="flex items-center gap-2" style={{ marginBottom: 8 }}>
+            <select value={hh} disabled={busy} onChange={e => setSlot(idx, `${e.target.value}:${mm}`)} style={selStyle}>
+              {HOUR_OPTS.map(h => <option key={h} value={h}>{h}</option>)}
+            </select>
+            <span style={{ fontWeight: 800, color: HNH.ink3 }}>:</span>
+            <select value={MINUTE_OPTS.includes(mm) ? mm : '00'} disabled={busy} onChange={e => setSlot(idx, `${hh}:${e.target.value}`)} style={selStyle}>
+              {MINUTE_OPTS.map(m => <option key={m} value={m}>{m}</option>)}
+            </select>
+            <button onClick={() => removeSlot(idx)} disabled={busy} className="border-none cursor-pointer"
+              style={{ width: 32, height: 32, borderRadius: 9, background: HNH.red50, marginLeft: 'auto' }}>
+              <Icon name="trash" size={15} color={HNH.red} stroke={2} />
+            </button>
+          </div>
+        )
+      })}
+      {times.length < MAX_CLOCK_REMINDERS && (
+        <button onClick={addSlot} disabled={busy} className="border-none cursor-pointer flex items-center gap-1.5"
+          style={{ padding: '7px 12px', borderRadius: 9, background: HNH.navy50, color: HNH.navy, fontSize: 13, fontWeight: 700, marginTop: 2 }}>
+          <Icon name="plus" size={14} color={HNH.navy} stroke={2.5} /> Thêm mốc ({times.length}/{MAX_CLOCK_REMINDERS})
+        </button>
+      )}
+    </div>
+  )
 }
 
 function Switch({ on, busy, onClick }: { on: boolean; busy?: boolean; onClick: () => void }) {
@@ -655,7 +716,7 @@ function PersonalSettingsModal({ onClose }: { onClose: () => void }) {
       .catch(() => toast('Không tải được thiết lập'))
   }, [toast])
 
-  const toggle = async (key: keyof PersonalSettings) => {
+  const toggle = async (key: 'allow_outside_office_checkin' | 'meeting_reminder_enabled' | 'clockout_notify_enabled' | 'clock_reminder_enabled') => {
     if (!s || saving) return
     const next = !s[key]
     setS({ ...s, [key]: next })   // optimistic
@@ -666,6 +727,22 @@ function PersonalSettingsModal({ onClose }: { onClose: () => void }) {
     } catch {
       setS(prev => (prev ? { ...prev, [key]: !next } : prev))  // revert
       toast('Lưu thất bại, thử lại')
+    } finally {
+      setSaving(null)
+    }
+  }
+
+  const saveTimes = async (times: string[]) => {
+    if (!s) return
+    const prevTimes = s.clock_reminder_times
+    setS({ ...s, clock_reminder_times: times })  // optimistic
+    setSaving('clock_reminder_times')
+    try {
+      const res = await api.put<PersonalSettings>('/api/employee/me/personal-settings/', { clock_reminder_times: times })
+      setS(res)
+    } catch (e) {
+      setS(prev => (prev ? { ...prev, clock_reminder_times: prevTimes } : prev))  // revert
+      toast((e as { message?: string })?.message || 'Lưu mốc giờ thất bại')
     } finally {
       setSaving(null)
     }
@@ -721,6 +798,22 @@ function PersonalSettingsModal({ onClose }: { onClose: () => void }) {
               busy={saving === 'clockout_notify_enabled'}
               onToggle={() => toggle('clockout_notify_enabled')}
             />
+            <div style={{ height: 1, background: HNH.line, margin: '2px 0' }} />
+            <SettingRow
+              icon="bell"
+              title="Nhắc chấm công"
+              desc="Tự động gửi thông báo nhắc đến giờ chấm công theo các mốc giờ bạn đặt (tối đa 4 mốc/ngày). Mặc định tắt."
+              on={s.clock_reminder_enabled}
+              busy={saving === 'clock_reminder_enabled'}
+              onToggle={() => toggle('clock_reminder_enabled')}
+            />
+            {s.clock_reminder_enabled && (
+              <ClockReminderSection
+                times={s.clock_reminder_times || []}
+                busy={saving === 'clock_reminder_times'}
+                onSave={saveTimes}
+              />
+            )}
           </div>
         )}
         <button
