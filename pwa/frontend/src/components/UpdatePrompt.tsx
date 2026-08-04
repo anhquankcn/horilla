@@ -1,28 +1,11 @@
-import { useRegisterSW } from 'virtual:pwa-register/react'
+import { useSwUpdate } from '../lib/swUpdate'
 import { HNH } from '../lib/theme'
 import { Icon } from './ui/Icon'
 
-// Thông báo khi có phiên bản app mới (service worker mới đang chờ). Người dùng
-// bấm "Cập nhật ngay" → skipWaiting + reload. Chủ động kiểm tra bản mới mỗi khi
-// mở lại app (visibilitychange) + định kỳ, để phát hiện & báo NGAY.
-const CHECK_INTERVAL_MS = 60 * 1000
-
+// Banner tự động khi có phiên bản app mới (SW mới đang chờ). Việc đăng ký SW +
+// kiểm tra định kỳ/khi mở app do SwUpdateProvider (lib/swUpdate) đảm nhiệm.
 export function UpdatePrompt() {
-  const {
-    needRefresh: [needRefresh, setNeedRefresh],
-    updateServiceWorker,
-  } = useRegisterSW({
-    onRegisteredSW(_swUrl, r) {
-      if (!r) return
-      const check = () => { r.update().catch(() => { /* offline — bỏ qua */ }) }
-      // Kiểm tra ngay khi đăng ký, định kỳ, và mỗi lần app quay lại foreground.
-      check()
-      setInterval(check, CHECK_INTERVAL_MS)
-      document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'visible') check()
-      })
-    },
-  })
+  const { needRefresh, setNeedRefresh, updateNow } = useSwUpdate()
 
   if (!needRefresh) return null
 
@@ -54,7 +37,7 @@ export function UpdatePrompt() {
         Để sau
       </button>
       <button
-        onClick={() => updateServiceWorker(true)}
+        onClick={() => updateNow()}
         className="border-none cursor-pointer shrink-0"
         style={{ background: '#fff', color: HNH.navy, fontSize: 13, fontWeight: 800, borderRadius: 10, padding: '9px 14px' }}
       >

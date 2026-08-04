@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import { AuthProvider } from './lib/auth'
 import { ToastProvider } from './components/ui/Toast'
+import { SwUpdateProvider } from './lib/swUpdate'
 import { App } from './App'
 import './styles/globals.css'
 
@@ -15,7 +16,9 @@ createRoot(document.getElementById('root')!).render(
     <BrowserRouter basename={import.meta.env.BASE_URL}>
       <AuthProvider>
         <ToastProvider>
-          <App />
+          <SwUpdateProvider>
+            <App />
+          </SwUpdateProvider>
         </ToastProvider>
       </AuthProvider>
     </BrowserRouter>

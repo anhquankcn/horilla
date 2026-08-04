@@ -16,6 +16,7 @@ import { AttendanceDetailModal } from '../components/AttendanceDetailModal'
 import { useOutlookEvents, type OutlookEvent } from '../lib/outlook'
 import { IosInstallHint } from '../components/IosInstallHint'
 import { PushToggle } from '../components/PushToggle'
+import { useSwUpdate } from '../lib/swUpdate'
 
 interface AttendanceRecord {
   id: number
@@ -997,6 +998,22 @@ export function HomePage() {
   const [kcValid, setKcValid] = useState<boolean | null>(null)
   const [kcChecking, setKcChecking] = useState(false)
   const [avatarMenuOpen, setAvatarMenuOpen] = useState(false)
+  // Cập nhật Service Worker (trong modal Avatar)
+  const { needRefresh, updateNow, checkNow } = useSwUpdate()
+  const [swChecking, setSwChecking] = useState(false)
+  const handleSwUpdate = useCallback(async () => {
+    if (swChecking) return
+    if (needRefresh) { updateNow(); return }  // đã có bản chờ → cập nhật ngay
+    setSwChecking(true)
+    try {
+      const res = await checkNow()
+      if (res === 'updated') updateNow()
+      else if (res === 'latest') showToast('Bạn đang dùng phiên bản mới nhất')
+      else showToast('Không kiểm tra được cập nhật, thử lại')
+    } finally {
+      setSwChecking(false)
+    }
+  }, [swChecking, needRefresh, updateNow, checkNow, showToast])
   // Avatar menu checkbox selections (Thông báo đẩy đã chuyển ra công tắc Top Bar)
   const [chkKc, setChkKc] = useState(false)
   const [chkCache, setChkCache] = useState(false)
@@ -1384,6 +1401,25 @@ export function HomePage() {
               </button>
             </div>
             </>)}
+
+            {/* Cập nhật ứng dụng (Service Worker) */}
+            <div style={{ padding: '0 16px 10px' }}>
+              <button
+                onClick={handleSwUpdate}
+                disabled={swChecking}
+                className="flex items-center justify-center gap-2 border-none cursor-pointer w-full"
+                style={{
+                  padding: '10px 0', borderRadius: 13,
+                  background: needRefresh ? HNH.navy : '#fff',
+                  color: needRefresh ? '#fff' : HNH.ink2,
+                  border: needRefresh ? 'none' : `1.5px solid ${HNH.line}`,
+                  fontSize: 13.5, fontWeight: 700, opacity: swChecking ? 0.6 : 1,
+                }}
+              >
+                <Icon name={needRefresh ? 'download' : 'refresh'} size={15} color={needRefresh ? '#fff' : HNH.ink2} stroke={2} />
+                {swChecking ? 'Đang kiểm tra...' : needRefresh ? 'Cập nhật ngay (có bản mới)' : 'Cập nhật ứng dụng'}
+              </button>
+            </div>
 
             {/* Version + build info */}
             <div style={{ padding: '0 16px 14px', borderTop: `1px solid ${HNH.line}`, paddingTop: 10 }}>
