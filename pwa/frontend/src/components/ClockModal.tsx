@@ -444,6 +444,7 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
   const confirmAndClock = useCallback(async () => {
     if (!pendingBody) return
     setShowConfirm(false)
+    setBlockMsg(null)
     try {
       let res: { geo_valid: boolean | null } | null = null
       if (isClockedIn) res = await onClockOut(pendingBody)
@@ -453,8 +454,27 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
       const geoValid = res?.geo_valid
       setDone(geoValid === false ? 'pending' : 'valid')
       setTimeout(() => onClose(), geoValid === false ? 2500 : 1200)
-    } catch {
-      setTimeout(() => onClose(), 1000)
+    } catch (err: unknown) {
+      // Chấm công THẤT BẠI — KHÔNG được đóng modal im lặng như thành công.
+      // Trước đây catch nuốt lỗi + đóng modal → user tưởng đã chấm nhưng server
+      // không ghi (mất chấm công). Giờ hiện lỗi rõ, giữ modal để chấm lại.
+      const e = err as { status?: number; message?: string }
+      let serverMsg: string | null = null
+      try { const j = JSON.parse(e?.message || '{}'); serverMsg = j.error || j.message || null } catch { /* not json */ }
+      if (e?.status === 400 && /already clocked-in/i.test(e?.message || '')) {
+        // Server báo đã có lượt mở hôm nay → thực ra ĐÃ chấm rồi (trạng thái client
+        // bị cũ). Coi như thành công, đồng bộ lại thay vì báo lỗi vô cớ.
+        try { localStorage.setItem(LAST_CLOCK_KEY, String(Date.now())) } catch { /* ignore */ }
+        setRapidConfirm(false)
+        setDone('valid')
+        setTimeout(() => onClose(), 1200)
+      } else {
+        setBlockMsg(
+          'Chấm công CHƯA được ghi nhận'
+          + (serverMsg ? `: ${serverMsg}` : ' — kiểm tra mạng/GPS rồi thử lại.')
+        )
+        // Giữ modal mở (không onClose) để user thấy lỗi và chấm lại.
+      }
     }
   }, [pendingBody, isClockedIn, onClockIn, onClockOut, onClose])
 
