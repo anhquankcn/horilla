@@ -17,6 +17,21 @@ const MINUTE_OPTS = ['00', '10', '20', '30', '40', '50']
 const HOUR_OPTS = Array.from({ length: 24 }, (_, h) => String(h).padStart(2, '0'))
 const MAX_REMINDERS = 4
 
+// Mốc mới = giờ TRỐNG kế tiếp (không trùng mốc đã có). Backend dedup nên nếu mặc
+// định luôn 08:00 thì thêm mốc thứ 2 sẽ bị gộp mất → "không thêm được giờ".
+function nextFreeTime(times: string[]): string {
+  const used = new Set(times)
+  const startH = times.length
+    ? (Math.max(...times.map(t => parseInt(t.split(':')[0], 10) || 0)) + 1) % 24
+    : 8
+  for (let i = 0; i < 24; i++) {
+    const h = (startH + i) % 24
+    const cand = `${String(h).padStart(2, '0')}:00`
+    if (!used.has(cand)) return cand
+  }
+  return '08:00'
+}
+
 function Switch({ on, busy, onClick }: { on: boolean; busy?: boolean; onClick: () => void }) {
   const w = 46, h = 26, knob = h - 6
   return (
@@ -72,8 +87,11 @@ export function ClockReminderCard() {
   }
 
   const times = s?.clock_reminder_times ?? []
-  const setSlot = (idx: number, next: string) => { const c = [...times]; c[idx] = next; saveTimes(c) }
-  const addSlot = () => { if (times.length < MAX_REMINDERS) saveTimes([...times, '08:00']) }
+  const setSlot = (idx: number, next: string) => {
+    if (times.some((t, i) => i !== idx && t === next)) { toast('Mốc giờ này đã có, chọn giờ khác'); return }
+    const c = [...times]; c[idx] = next; saveTimes(c)
+  }
+  const addSlot = () => { if (times.length < MAX_REMINDERS) saveTimes([...times, nextFreeTime(times)]) }
   const removeSlot = (idx: number) => saveTimes(times.filter((_, i) => i !== idx))
 
   const selStyle: React.CSSProperties = {

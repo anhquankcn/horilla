@@ -609,17 +609,33 @@ const MINUTE_OPTS = ['00', '10', '20', '30', '40', '50']
 const HOUR_OPTS = Array.from({ length: 24 }, (_, h) => String(h).padStart(2, '0'))
 const MAX_CLOCK_REMINDERS = 4
 
+// Mốc mới = giờ TRỐNG kế tiếp (backend dedup mốc trùng → mặc định luôn 08:00 sẽ
+// bị gộp mất khi thêm mốc thứ 2).
+function nextFreeTime(times: string[]): string {
+  const used = new Set(times)
+  const startH = times.length
+    ? (Math.max(...times.map(t => parseInt(t.split(':')[0], 10) || 0)) + 1) % 24
+    : 8
+  for (let i = 0; i < 24; i++) {
+    const h = (startH + i) % 24
+    const cand = `${String(h).padStart(2, '0')}:00`
+    if (!used.has(cand)) return cand
+  }
+  return '08:00'
+}
+
 function ClockReminderSection({ times, busy, onSave }: {
   times: string[]; busy: boolean; onSave: (t: string[]) => void
 }) {
   const setSlot = (idx: number, next: string) => {
+    if (times.some((t, i) => i !== idx && t === next)) return  // trùng mốc → bỏ qua
     const copy = [...times]
     copy[idx] = next
     onSave(copy)
   }
   const addSlot = () => {
     if (times.length >= MAX_CLOCK_REMINDERS) return
-    onSave([...times, '08:00'])
+    onSave([...times, nextFreeTime(times)])
   }
   const removeSlot = (idx: number) => onSave(times.filter((_, i) => i !== idx))
 
