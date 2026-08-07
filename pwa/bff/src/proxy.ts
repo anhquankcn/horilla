@@ -33,6 +33,14 @@ export async function proxyRoutes(app: FastifyInstance) {
     const contentType = req.headers["content-type"];
     if (contentType) headers["Content-Type"] = contentType;
 
+    // Forward IP THẬT của client tới Django (để chấm công WiFi kiểm tra dải IP).
+    // App đi qua BFF nên nếu không forward, Django chỉ thấy IP nội bộ của BFF.
+    // CF-Connecting-IP do Cloudflare set (tin cậy); X-Forwarded-For dự phòng.
+    const cfIp = req.headers["cf-connecting-ip"];
+    if (typeof cfIp === "string" && cfIp) headers["CF-Connecting-IP"] = cfIp;
+    const xff = req.headers["x-forwarded-for"];
+    if (typeof xff === "string" && xff) headers["X-Forwarded-For"] = xff;
+
     const hasBody = req.method !== "GET" && req.method !== "HEAD";
 
     // For multipart, forward the raw buffer directly; otherwise re-serialize JSON
