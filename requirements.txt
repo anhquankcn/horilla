@@ -10,7 +10,7 @@ charset-normalizer
 click
 cryptography
 cssselect2
-Django
+Django==6.0.7
 django-auditlog
 django-apscheduler
 django-cors-headers
@@ -23,7 +23,7 @@ django-microsoft-auth
 django-model-utils
 django-simple-history
 django-widget-tweaks
-djangorestframework
+djangorestframework==3.17.1
 djangorestframework-simplejwt
 drf-yasg
 et-xmlfile

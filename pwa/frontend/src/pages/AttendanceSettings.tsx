@@ -1118,6 +1118,131 @@ function LateEarlySection() {
 
 // ── Main Page ──────────────────────────────────────────────────────────────────
 
+// ── Thiết lập Wifi Chấm công (Admin hệ thống) ────────────────────────────────
+
+interface WifiRange { id: number; label: string; ip_cidr: string; is_active: boolean; note: string }
+interface WifiRangesData { ranges: WifiRange[]; my_ip: string; is_admin: boolean }
+
+function WifiAttendanceSection() {
+  const { toast: showToast } = useToast()
+  const [expanded, setExpanded] = useState(false)
+  const [data, setData] = useState<WifiRangesData | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [label, setLabel] = useState('')
+  const [cidr, setCidr] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [busy, setBusy] = useState<number | null>(null)
+
+  const load = useCallback(async () => {
+    if (!expanded) return
+    setLoading(true)
+    try { setData(await api.get<WifiRangesData>('/api/attendance/wifi-ranges/')) }
+    catch { showToast('Không tải được cấu hình WiFi') }
+    finally { setLoading(false) }
+  }, [expanded, showToast])
+  useEffect(() => { load() }, [load])
+
+  const add = async () => {
+    if (!label.trim() || !cidr.trim()) { showToast('Nhập tên WiFi và dải IP'); return }
+    setSaving(true)
+    try {
+      await api.post('/api/attendance/wifi-ranges/', { label: label.trim(), ip_cidr: cidr.trim() })
+      setLabel(''); setCidr(''); showToast('Đã thêm dải WiFi'); load()
+    } catch (e: any) { showToast(e?.message ?? 'Lỗi khi thêm dải IP') }
+    finally { setSaving(false) }
+  }
+  const toggleActive = async (r: WifiRange) => {
+    setBusy(r.id)
+    try { await api.put(`/api/attendance/wifi-ranges/${r.id}/`, { is_active: !r.is_active }); load() }
+    catch { showToast('Lỗi') } finally { setBusy(null) }
+  }
+  const remove = async (r: WifiRange) => {
+    if (!confirm(`Xoá dải "${r.label}" (${r.ip_cidr})?`)) return
+    setBusy(r.id)
+    try { await api.del(`/api/attendance/wifi-ranges/${r.id}/`); load() }
+    catch { showToast('Lỗi khi xoá') } finally { setBusy(null) }
+  }
+
+  const inp: React.CSSProperties = {
+    width: '100%', padding: '9px 12px', borderRadius: 10, border: `1.5px solid ${HNH.line}`,
+    fontSize: 13.5, color: HNH.ink, outline: 'none', boxSizing: 'border-box',
+  }
+
+  return (
+    <SettingCard>
+      <SettingRow
+        icon="pin" label="Thiết lập Wifi Chấm công" tone="navy"
+        detail="Dải IP WiFi văn phòng cho phép chấm công khi GPS lỗi"
+        last={!expanded}
+        onClick={() => setExpanded(e => !e)}
+        trailing={<Icon name={expanded ? 'chev-u' : 'chev-d'} size={16} color={HNH.ink4} stroke={2} />}
+      />
+      {expanded && (
+        <div style={{ borderTop: `1px solid ${HNH.line}`, padding: '12px 14px' }}>
+          {loading ? (
+            <div style={{ padding: '16px 0', display: 'flex', justifyContent: 'center' }}>
+              <div style={{ width: 22, height: 22, border: `3px solid ${HNH.line}`, borderTopColor: HNH.navy, borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+            </div>
+          ) : (
+            <>
+              {data && !data.is_admin && (
+                <div style={{ fontSize: 12, color: HNH.warn, marginBottom: 10, fontWeight: 600 }}>
+                  Chỉ Admin hệ thống mới sửa được. Bạn đang xem ở chế độ chỉ đọc.
+                </div>
+              )}
+              <div style={{ fontSize: 11.5, color: HNH.ink3, marginBottom: 8, lineHeight: 1.5 }}>
+                Khi GPS lỗi, nếu IP công cộng của điện thoại nằm trong 1 dải đang bật → cho phép chấm công (đánh dấu <strong>App Wifi</strong>). IP hiện tại của bạn: <strong style={{ color: HNH.navy }}>{data?.my_ip || '—'}</strong>
+              </div>
+
+              {/* Form thêm */}
+              {data?.is_admin && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 12, background: HNH.cream, borderRadius: 12, padding: 10 }}>
+                  <input value={label} onChange={e => setLabel(e.target.value)} placeholder="Tên WiFi / Văn phòng (VD: WiFi VP Lê Thánh Tôn)" style={inp} />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input value={cidr} onChange={e => setCidr(e.target.value)} placeholder="Dải IP: 123.45.67.0/24 hoặc IP đơn" style={{ ...inp, flex: 1 }} />
+                    <button onClick={() => setCidr(data?.my_ip || '')} title="Lấy IP hiện tại của bạn"
+                      style={{ padding: '0 12px', borderRadius: 10, border: `1.5px solid ${HNH.navy}`, background: HNH.navy50, color: HNH.navy, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                      Lấy IP
+                    </button>
+                  </div>
+                  <button onClick={add} disabled={saving}
+                    style={{ padding: '10px 0', borderRadius: 10, border: 'none', background: HNH.navy, color: '#fff', fontSize: 13.5, fontWeight: 700, cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1 }}>
+                    {saving ? 'Đang thêm...' : '+ Thêm dải WiFi'}
+                  </button>
+                </div>
+              )}
+
+              {/* Danh sách */}
+              {(data?.ranges ?? []).length === 0 && (
+                <div style={{ fontSize: 12.5, color: HNH.ink4, textAlign: 'center', padding: '10px 0' }}>Chưa có dải WiFi nào.</div>
+              )}
+              {(data?.ranges ?? []).map((r, idx) => (
+                <div key={r.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 4px', borderTop: idx === 0 ? 'none' : `1px solid ${HNH.line}` }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: HNH.ink }}>{r.label}</div>
+                    <div style={{ fontSize: 12, color: HNH.navy, fontFamily: 'monospace' }}>{r.ip_cidr}</div>
+                  </div>
+                  {data?.is_admin ? (
+                    <>
+                      <Toggle value={r.is_active} onChange={() => toggleActive(r)} disabled={busy === r.id} />
+                      <button onClick={() => remove(r)} disabled={busy === r.id}
+                        style={{ width: 32, height: 32, borderRadius: 9, border: 'none', background: HNH.red50, cursor: 'pointer' }}>
+                        <Icon name="trash" size={15} color={HNH.red} stroke={2} />
+                      </button>
+                    </>
+                  ) : (
+                    <Pill text={r.is_active ? 'Đang bật' : 'Tắt'} active={r.is_active} />
+                  )}
+                </div>
+              ))}
+            </>
+          )}
+        </div>
+      )}
+    </SettingCard>
+  )
+}
+
 export function AttendanceSettingsPage() {
   const navigate = useNavigate()
   const { toast: showToast } = useToast()
@@ -1210,6 +1335,9 @@ export function AttendanceSettingsPage() {
 
         <SectionTitle title="Đi trễ / Về sớm" />
         <LateEarlySection />
+
+        <SectionTitle title="Thiết lập Wifi Chấm công" />
+        <WifiAttendanceSection />
 
         <SectionTitle title="Thông tin" />
         <SettingCard>

@@ -146,6 +146,72 @@ def _clock_inside_geofence(request, employee):
         return None
 
 
+def _client_public_ip(request):
+    """IP công cộng THẬT của client. App đi qua Cloudflare → ưu tiên header
+    CF-Connecting-IP (Cloudflare set, tin cậy); fallback X-Forwarded-For (IP đầu)
+    rồi REMOTE_ADDR."""
+    ip = (request.META.get("HTTP_CF_CONNECTING_IP") or "").strip()
+    if ip:
+        return ip
+    xff = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.META.get("REMOTE_ADDR", "") or ""
+
+
+def _ip_in_office_wifi(ip):
+    """True nếu IP nằm trong 1 dải WiFi chấm công (WifiAttendanceRange) đang active."""
+    if not ip:
+        return False
+    import ipaddress
+
+    try:
+        addr = ipaddress.ip_address(ip)
+    except ValueError:
+        return False
+    from attendance.models import WifiAttendanceRange
+
+    for cidr in WifiAttendanceRange.objects.filter(is_active=True).values_list(
+        "ip_cidr", flat=True
+    ):
+        cidr = (cidr or "").strip()
+        if not cidr:
+            continue
+        try:
+            if addr in ipaddress.ip_network(cidr, strict=False):
+                return True
+        except ValueError:
+            continue
+    return False
+
+
+def _is_system_admin(user):
+    """Admin hệ thống: superuser/staff hoặc thuộc nhóm 'Admin hệ thống'."""
+    if user.is_superuser or user.is_staff:
+        return True
+    return any(
+        "admin hệ thống" in g.name.lower() or "admin he thong" in g.name.lower()
+        for g in user.groups.all()
+    )
+
+
+def _valid_cidr(v):
+    """Chuẩn hoá dải IP: chấp nhận CIDR hoặc IP đơn. Trả chuỗi hợp lệ hoặc None."""
+    import ipaddress
+
+    v = (v or "").strip()
+    if not v:
+        return None
+    try:
+        if "/" in v:
+            ipaddress.ip_network(v, strict=False)
+        else:
+            ipaddress.ip_address(v)
+        return v
+    except ValueError:
+        return None
+
+
 def _clock_device_guard(request):
     """Block a clock punch on laptop/desktop and when no camera photo is attached.
 
@@ -197,19 +263,27 @@ class ClockInAPIView(APIView):
                 return Response(
                     {"error": "Employee record not found"}, status=400
                 )
-            # Fallback camera lỗi (không ảnh): CHỈ cho chấm khi GPS đang trong
-            # văn phòng — chống chấm hộ từ xa. Ngoài VP mà không ảnh → chặn.
+            # Fallback vị trí: GPS không xác nhận trong VP (lỗi GPS / ngoài VP) →
+            # thử WiFi VP (IP công cộng nằm trong dải Admin cấu hình ở "Thiết lập
+            # Wifi Chấm công"). WiFi VP hợp lệ → cho chấm (nguồn 'wifi'). Nếu không
+            # ảnh + không WiFi VP → chặn như cũ (chống chấm hộ từ xa).
             is_no_camera = not _has_clock_photo(request)
-            if is_no_camera and _clock_inside_geofence(request, employee) is not True:
-                clock_logger.warning(
-                    "CLOCK BLOCKED user=%s reason=no_camera_outside_office",
-                    request.user.username,
-                )
-                return Response(
-                    {"error": "Camera lỗi: chỉ chấm công được khi bạn đang ở trong văn "
-                               "phòng. Vui lòng thử lại camera, hoặc liên hệ HR nếu ở ngoài."},
-                    status=400,
-                )
+            inside_geofence = _clock_inside_geofence(request, employee)
+            wifi_ok = False
+            if inside_geofence is not True:
+                client_ip = _client_public_ip(request)
+                wifi_ok = _ip_in_office_wifi(client_ip)
+                if is_no_camera and not wifi_ok:
+                    clock_logger.warning(
+                        "CLOCK BLOCKED user=%s reason=no_camera_no_gps_no_wifi ip=%s",
+                        request.user.username, client_ip,
+                    )
+                    return Response(
+                        {"error": "Không chấm công được: GPS không xác định vị trí, không có "
+                                   "ảnh, và không ở WiFi văn phòng cho phép. Vui lòng bật GPS/"
+                                   "camera, hoặc kết nối WiFi văn phòng rồi thử lại."},
+                        status=400,
+                    )
             datetime_now = django_tz.localtime(django_tz.now())
             if request.__dict__.get("datetime"):
                 datetime_now = request.datetime
@@ -259,8 +333,18 @@ class ClockInAPIView(APIView):
             activity = self._save_clock_in_extras(request, employee, datetime_now)
             geo_valid = self._check_geofence(request, employee, attendance, activity)
 
-            # Chấm không ảnh (camera lỗi) → luôn cần HR duyệt, dù trong VP.
-            if is_no_camera:
+            # Nguồn chấm: 'wifi' nếu GPS không xác nhận nhưng IP thuộc WiFi VP;
+            # ngược lại 'gps'. WiFi VP coi như xác nhận đang ở VP → geo hợp lệ.
+            clock_source = "wifi" if (inside_geofence is not True and wifi_ok) else "gps"
+            if activity is not None:
+                activity.clock_in_source = clock_source
+                activity.save(update_fields=["clock_in_source"])
+            if clock_source == "wifi":
+                geo_valid = True
+
+            # Chấm không ảnh (camera lỗi) → cần HR duyệt, TRỪ KHI đã xác nhận qua
+            # WiFi văn phòng (coi như đang ở VP).
+            if is_no_camera and clock_source != "wifi":
                 attendance.attendance_validated = False
                 attendance.save(update_fields=["attendance_validated"])
                 clock_logger.warning(
@@ -269,11 +353,11 @@ class ClockInAPIView(APIView):
                 )
 
             clock_logger.info(
-                "CLOCK IN ok user=%s emp=%s device=%s geo_valid=%s ua=%s",
-                request.user.username, employee.id, _dl, geo_valid, _ua[:200],
+                "CLOCK IN ok user=%s emp=%s device=%s source=%s geo_valid=%s ua=%s",
+                request.user.username, employee.id, _dl, clock_source, geo_valid, _ua[:200],
             )
             return Response(
-                {"message": "Clocked-In", "geo_valid": geo_valid},
+                {"message": "Clocked-In", "geo_valid": geo_valid, "clock_source": clock_source},
                 status=200,
             )
         return Response({"message": "Already clocked-in"}, status=400)
@@ -577,6 +661,86 @@ class ClockOutAPIView(APIView):
             )
         except Exception as e:
             logger.warning("Failed to notify manager for geofence: %s", e)
+
+
+class WifiAttendanceRangeAPIView(APIView):
+    """Admin hệ thống cấu hình dải IP WiFi chấm công ("Thiết lập Wifi Chấm công").
+
+    GET  /api/attendance/wifi-ranges/        → {ranges, my_ip, is_admin}
+    POST /api/attendance/wifi-ranges/        → tạo {label, ip_cidr, note, is_active}
+    PUT  /api/attendance/wifi-ranges/<pk>/   → cập nhật
+    DELETE /api/attendance/wifi-ranges/<pk>/ → xoá
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    @staticmethod
+    def _serialize(r):
+        return {
+            "id": r.id, "label": r.label, "ip_cidr": r.ip_cidr,
+            "is_active": r.is_active, "note": r.note,
+        }
+
+    def get(self, request, pk=None):
+        from attendance.models import WifiAttendanceRange
+
+        ranges = [self._serialize(r) for r in WifiAttendanceRange.objects.all()]
+        return Response({
+            "ranges": ranges,
+            "my_ip": _client_public_ip(request),   # cho nút "Lấy IP hiện tại"
+            "is_admin": _is_system_admin(request.user),
+        })
+
+    def post(self, request, pk=None):
+        if not _is_system_admin(request.user):
+            return Response({"detail": "Chỉ Admin hệ thống mới được cấu hình."}, status=403)
+        from attendance.models import WifiAttendanceRange
+
+        cidr = _valid_cidr(request.data.get("ip_cidr"))
+        if not cidr:
+            return Response(
+                {"detail": "Dải IP không hợp lệ (VD 123.45.67.0/24 hoặc 123.45.67.89)."},
+                status=400,
+            )
+        label = (request.data.get("label") or "").strip()
+        if not label:
+            return Response({"detail": "Thiếu tên WiFi / Văn phòng."}, status=400)
+        r = WifiAttendanceRange.objects.create(
+            label=label, ip_cidr=cidr,
+            is_active=request.data.get("is_active", True) in (True, "true", "1", 1),
+            note=(request.data.get("note") or "").strip(),
+        )
+        return Response(self._serialize(r), status=201)
+
+    def put(self, request, pk=None):
+        if not _is_system_admin(request.user):
+            return Response({"detail": "Chỉ Admin hệ thống mới được cấu hình."}, status=403)
+        from attendance.models import WifiAttendanceRange
+
+        r = WifiAttendanceRange.objects.filter(pk=pk).first()
+        if not r:
+            return Response({"detail": "Không tìm thấy dải."}, status=404)
+        if "ip_cidr" in request.data:
+            cidr = _valid_cidr(request.data.get("ip_cidr"))
+            if not cidr:
+                return Response({"detail": "Dải IP không hợp lệ."}, status=400)
+            r.ip_cidr = cidr
+        if "label" in request.data:
+            r.label = (request.data.get("label") or "").strip() or r.label
+        if "is_active" in request.data:
+            r.is_active = request.data.get("is_active") in (True, "true", "1", 1)
+        if "note" in request.data:
+            r.note = (request.data.get("note") or "").strip()
+        r.save()
+        return Response(self._serialize(r))
+
+    def delete(self, request, pk=None):
+        if not _is_system_admin(request.user):
+            return Response({"detail": "Chỉ Admin hệ thống mới được cấu hình."}, status=403)
+        from attendance.models import WifiAttendanceRange
+
+        WifiAttendanceRange.objects.filter(pk=pk).delete()
+        return Response(status=204)
 
 
 class OfficesAPIView(APIView):
@@ -1573,12 +1737,18 @@ class UserAttendanceView(APIView):
             employee_id=OuterRef('employee_id'),
             attendance_date=OuterRef('attendance_date'),
         ).order_by('-id')
+        # Nguồn chấm của lượt VÀO đầu ngày (gps/wifi) → badge trong danh sách.
+        first_act = AttendanceActivity.objects.filter(
+            employee_id=OuterRef('employee_id'),
+            attendance_date=OuterRef('attendance_date'),
+        ).order_by('id')
 
         attendance_queryset = Attendance.objects.filter(
             employee_id=employee_id
         ).annotate(
             latest_act_clock_in=Subquery(latest_act.values('clock_in')[:1]),
             latest_act_clock_out=Subquery(latest_act.values('clock_out')[:1]),
+            first_act_source=Subquery(first_act.values('clock_in_source')[:1]),
         ).order_by("-id")
 
         paginator = PageNumberPagination()

@@ -47,6 +47,30 @@ _validate_time_in_minutes = validate_time_in_minutes
 # Create your models here.
 
 
+class WifiAttendanceRange(models.Model):
+    """Dải IP công cộng của WiFi văn phòng được phép chấm công (Admin cấu hình ở
+    'Thiết lập Wifi Chấm công'). Khi GPS lỗi, nếu IP công cộng của điện thoại nằm
+    trong 1 dải active → cho phép chấm công (đánh dấu nguồn 'wifi')."""
+
+    label = models.CharField(max_length=120, verbose_name="Tên WiFi / Văn phòng")
+    ip_cidr = models.CharField(
+        max_length=64, verbose_name="Dải IP (CIDR) hoặc IP đơn",
+        help_text="VD: 123.45.67.0/24 hoặc 123.45.67.89",
+    )
+    is_active = models.BooleanField(default=True, verbose_name="Đang áp dụng")
+    note = models.CharField(max_length=255, blank=True, default="", verbose_name="Ghi chú")
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Dải WiFi chấm công"
+        verbose_name_plural = "Dải WiFi chấm công"
+        ordering = ["-is_active", "label"]
+
+    def __str__(self):
+        return f"{self.label} ({self.ip_cidr})"
+
+
 class AttendanceActivity(HorillaModel):
     """
     AttendanceActivity model
@@ -121,6 +145,9 @@ class AttendanceActivity(HorillaModel):
     clock_in_user_agent = models.TextField(blank=True, default="")
     clock_out_device = models.CharField(max_length=120, blank=True, default="")
     clock_out_user_agent = models.TextField(blank=True, default="")
+    # Nguồn xác nhận vị trí lúc chấm vào: "gps" (định vị) | "wifi" (IP mạng VP
+    # cho phép khi GPS lỗi) | "" (không xác định). Dùng để phân biệt badge.
+    clock_in_source = models.CharField(max_length=10, blank=True, default="")
 
     objects = HorillaCompanyManager(
         related_company_field="employee_id__employee_work_info__company_id"

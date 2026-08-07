@@ -26,6 +26,7 @@ interface AttendanceRecord {
   is_validate_request: boolean
   latest_activity_clock_in: string | null
   latest_activity_clock_out: string | null
+  clock_in_source?: string   // 'gps' | 'wifi' | ''
 }
 
 interface PaginatedResponse<T> {
@@ -68,10 +69,10 @@ function fmtTime(t: string | null | undefined): string {
 }
 
 /* ── Log row ── */
-function LogRow({ date, day, clockIn, clockOut, hours, validated, pending, nco, last, onClick }: {
+function LogRow({ date, day, clockIn, clockOut, hours, validated, pending, nco, source, last, onClick }: {
   date: string; day: string
   clockIn: string; clockOut: string; hours: string
-  validated: boolean; pending: boolean; nco?: boolean
+  validated: boolean; pending: boolean; nco?: boolean; source?: string
   last?: boolean; onClick?: () => void
 }) {
   const isAutoValid = !validated && !pending && !nco
@@ -100,6 +101,16 @@ function LogRow({ date, day, clockIn, clockOut, hours, validated, pending, nco, 
         </div>
         <div className="flex items-center gap-1.5" style={{ marginTop: 4 }}>
           <Badge tone={tagTone} size="s">{tag}</Badge>
+          {source === 'wifi' && (
+            <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 7, background: HNH.navy50, color: HNH.navy }}>
+              📶 App Wifi
+            </span>
+          )}
+          {source === 'gps' && (
+            <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 7px', borderRadius: 7, background: HNH.cream, color: HNH.ink3, display: 'inline-flex', alignItems: 'center', gap: 3 }}>
+              <Icon name="pin" size={10} color={HNH.ink3} stroke={2.2} /> App GPS
+            </span>
+          )}
           {isAutoValid && (
             <div title="Giờ công vượt ngưỡng tự động — hệ thống ghi nhận hợp lệ, chờ HR xác nhận nếu cần" style={{
               width: 16, height: 16, borderRadius: '50%', flexShrink: 0,
@@ -354,6 +365,7 @@ export function AttendancePage() {
               nco={isNco}
               validated={att.attendance_validated}
               pending={att.is_validate_request && !att.attendance_validated}
+              source={att.clock_in_source}
               last={i === Math.min(history.length, 10) - 1}
               onClick={() => setSelectedAtt(att)}
             />

@@ -405,11 +405,9 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
     }
     const body: Record<string, unknown> = {}
     if (noCamera) {
-      // Fallback: chỉ cho khi ĐANG trong VP.
-      if (isInsideSelected !== true) {
-        setBlockMsg('Camera lỗi: chỉ chấm công không ảnh được khi bạn đang ở trong văn phòng.')
-        return
-      }
+      // Fallback camera lỗi: KHÔNG chặn cứng ở client nữa. Để BACKEND quyết —
+      // nếu GPS xác nhận trong VP HOẶC đang ở WiFi văn phòng (IP hợp lệ) thì cho
+      // chấm (server tự đánh dấu nguồn gps/wifi); nếu không sẽ trả lỗi rõ ràng.
       body.no_camera = true
     } else {
       // Bắt buộc bật camera + chụp ảnh

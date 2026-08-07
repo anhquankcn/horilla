@@ -230,10 +230,15 @@ class UserAttendanceListSerializer(serializers.ModelSerializer):
 class UserAttendanceDetailedSerializer(serializers.ModelSerializer):
     latest_activity_clock_in = serializers.SerializerMethodField()
     latest_activity_clock_out = serializers.SerializerMethodField()
+    clock_in_source = serializers.SerializerMethodField()
 
     class Meta:
         model = Attendance
         fields = "__all__"
+
+    def get_clock_in_source(self, obj):
+        # Nguồn chấm lượt vào đầu ngày: 'gps' | 'wifi' | '' (annotate ở view).
+        return getattr(obj, "first_act_source", None) or ""
 
     def get_latest_activity_clock_in(self, obj):
         # Uses Subquery annotation from UserAttendanceView list (no extra query)
