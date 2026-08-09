@@ -630,6 +630,18 @@ class HNHApprovedLeavesView(APIView):
                 "cancel_reason": getattr(lr, "cancel_reason", "") or "",
                 "refunded_days": round((lr.approved_available_days or 0) + (lr.approved_carryforward_days or 0), 2) if getattr(lr, "balance_refunded", False) else 0,
             })
+
+        # Tab ĐÃ DUYỆT: sắp xếp CHƯA XEM trước (đẩy đơn đã xem xuống); trong mỗi
+        # nhóm, đơn có NGÀY NGHỈ (start_date) SÁT ngày hiện tại hiện lên trước.
+        if status_param == "approved":
+            def _approved_sort_key(r):
+                try:
+                    dist = abs((date.fromisoformat(r["start_date"]) - today).days)
+                except (ValueError, TypeError):
+                    dist = 10 ** 9
+                return (r["seen"], dist, r["start_date"])
+            results.sort(key=_approved_sort_key)
+
         return Response(results)
 
 
