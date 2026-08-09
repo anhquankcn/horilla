@@ -21,6 +21,7 @@ urlpatterns = [
     # HR Master Data + Danh mục
     path("hr-master/", hrm.HRMasterDataListView.as_view(), name="api-hr-master-list"),
     path("hr-master/export/", hrm.HRMasterDataExportView.as_view(), name="api-hr-master-export"),
+    path("hr-master/export-leavers/", hrm.HRMasterLeaversExportView.as_view(), name="api-hr-master-export-leavers"),
     path("hr-master/<int:pk>/", hrm.HRMasterDataDetailView.as_view(), name="api-hr-master-detail"),
     path("hr-categories/", hrm.HRCategoriesView.as_view(), name="api-hr-categories"),
     path("me/bank/", views.EmployeeBankView.as_view(), name="api-employee-me-bank"),

@@ -58,6 +58,11 @@ class ReactivateEmployeeView(APIView):
         # 1) HRM: bật cờ Employee + tài khoản auth (đăng nhập Django/JWT)
         emp.is_active = True
         emp.save(update_fields=["is_active"])
+        # Gỡ ngày tạm dừng (NV làm việc lại → không còn nằm trong danh sách nghỉ).
+        if isinstance(emp.additional_info, dict) and isinstance(emp.additional_info.get("hr_master"), dict):
+            if emp.additional_info["hr_master"].get("deactivated_date"):
+                emp.additional_info["hr_master"]["deactivated_date"] = ""
+                Employee.objects.filter(pk=emp.pk).update(additional_info=emp.additional_info)
         user = emp.employee_user_id
         if user and not user.is_active:
             user.is_active = True
@@ -160,6 +165,14 @@ class SuspendEmployeeView(APIView):
         # lý do PUT is_active=false trước đây trả 200 nhưng NV vẫn active. Ta đã
         # tự guard đúng policy ở trên (chỉ chặn cấp dưới ĐANG hoạt động).
         Employee.objects.filter(pk=emp.pk).update(is_active=False)
+        # Ghi ngày tạm dừng vào additional_info['hr_master'] (dùng cho export NV
+        # nghỉ/tháng ở Data Nhân sự). Dùng .update() để không kích guard save().
+        from datetime import date as _date
+        ai = emp.additional_info if isinstance(emp.additional_info, dict) else {}
+        hm = ai.get("hr_master") if isinstance(ai.get("hr_master"), dict) else {}
+        hm["deactivated_date"] = _date.today().isoformat()
+        ai["hr_master"] = hm
+        Employee.objects.filter(pk=emp.pk).update(additional_info=ai)
         emp.refresh_from_db()
         # Tài khoản auth (chặn đăng nhập Django/JWT) — User.save() không có guard.
         user = emp.employee_user_id

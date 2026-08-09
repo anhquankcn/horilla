@@ -129,7 +129,12 @@ export function DataNhanSuPage() {
   const [companyId, setCompanyId] = useState('')
   const [deptId, setDeptId] = useState('')
   const [joinYear, setJoinYear] = useState('')
-  const [workStatus, setWorkStatus] = useState<'active' | 'inactive' | 'all'>('active')  // mặc định Đang làm việc
+  const [workStatus, setWorkStatus] = useState<'active' | 'inactive' | 'all' | 'probation'>('active')  // mặc định Đang làm việc
+  const [leaverMonth, setLeaverMonth] = useState(() => {
+    const d = new Date()
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  })
+  const [exportingLeavers, setExportingLeavers] = useState(false)
 
   useEffect(() => { const t = setTimeout(() => setQ(search.trim()), 300); return () => clearTimeout(t) }, [search])
   useEffect(() => { setPage(1) }, [q, companyId, deptId, joinYear, workStatus])
@@ -150,6 +155,7 @@ export function DataNhanSuPage() {
       if (joinYear) p.set('join_year', joinYear)
       if (workStatus === 'active') p.set('active', '1')
       else if (workStatus === 'inactive') p.set('active', '0')
+      else if (workStatus === 'probation') { p.set('active', '1'); p.set('probation', '1') }
       const d = await api.get<ListResp>(`/api/employee/hr-master/?${p}`)
       setRows(d.results); setCount(d.count); setCompanies(d.companies)
       setDepartments(d.departments); setJoinYears(d.join_years); setCanEdit(d.can_edit)
@@ -169,12 +175,24 @@ export function DataNhanSuPage() {
       if (deptId) p.set('department_id', deptId); if (joinYear) p.set('join_year', joinYear)
       if (workStatus === 'active') p.set('active', '1')
       else if (workStatus === 'inactive') p.set('active', '0')
+      else if (workStatus === 'probation') { p.set('active', '1'); p.set('probation', '1') }
       const resp = await fetch(`/bff/api/employee/hr-master/export/?${p}`, { credentials: 'include' })
       if (!resp.ok) throw new Error()
       const blob = await resp.blob()
       const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
       a.download = 'MasterData_NhanSu.xlsx'; a.click(); URL.revokeObjectURL(a.href)
     } catch { alert('Không thể xuất file') } finally { setExporting(false) }
+  }
+
+  async function handleExportLeavers() {
+    setExportingLeavers(true)
+    try {
+      const resp = await fetch(`/bff/api/employee/hr-master/export-leavers/?month=${leaverMonth}`, { credentials: 'include' })
+      if (!resp.ok) throw new Error()
+      const blob = await resp.blob()
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob)
+      a.download = `NV_nghi_${leaverMonth}.xlsx`; a.click(); URL.revokeObjectURL(a.href)
+    } catch { alert('Không thể xuất file NV nghỉ') } finally { setExportingLeavers(false) }
   }
 
   const totalPages = Math.max(1, Math.ceil(count / 50))
@@ -216,11 +234,23 @@ export function DataNhanSuPage() {
             <option value="">Mọi năm vào</option>
             {joinYears.map(y => <option key={y} value={y}>Vào năm {y}</option>)}
           </select>
-          <select value={workStatus} onChange={e => setWorkStatus(e.target.value as 'active' | 'inactive' | 'all')} style={selStyle}>
+          <select value={workStatus} onChange={e => setWorkStatus(e.target.value as 'active' | 'inactive' | 'all' | 'probation')} style={selStyle}>
             <option value="active">Đang làm việc</option>
+            <option value="probation">Đang thử việc</option>
             <option value="inactive">Đã nghỉ việc</option>
             <option value="all">Tất cả trạng thái</option>
           </select>
+        </div>
+        {/* Xuất NV tạm dừng / nghỉ việc trong tháng */}
+        <div className="flex items-center gap-2" style={{ flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, color: HNH.ink3, fontWeight: 600 }}>NV nghỉ tháng:</span>
+          <input type="month" value={leaverMonth} onChange={e => setLeaverMonth(e.target.value)}
+            style={{ ...selStyle, flex: '0 0 auto', minWidth: 130 }} />
+          <button onClick={handleExportLeavers} disabled={exportingLeavers}
+            className="flex items-center border-none cursor-pointer"
+            style={{ height: 34, borderRadius: 10, padding: '0 12px', gap: 6, background: HNH.navy, color: '#fff', fontWeight: 700, fontSize: 12.5, opacity: exportingLeavers ? 0.6 : 1, whiteSpace: 'nowrap' }}>
+            <Icon name="download" size={14} color="#fff" stroke={2.2} />{exportingLeavers ? 'Đang xuất…' : 'Xuất NV nghỉ'}
+          </button>
         </div>
       </div>
 

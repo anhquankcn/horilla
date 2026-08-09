@@ -67,6 +67,8 @@ EXTRA_FIELDS = [
     "eval_rating", "raise_date", "raise_amount", "raise_effective", "promotion_date",
     "work_status", "resign_date", "resign_reason", "resign_type", "notice_date",
     "handover", "note", "team", "level_label", "nationality", "company_code", "dept_code",
+    # Ngày hệ thống ghi khi C&B chuyển Tạm nghỉ (auto). Dùng cho export NV nghỉ/tháng.
+    "deactivated_date",
 ]
 
 
@@ -203,6 +205,8 @@ def serialize_employee(emp) -> dict:
         "notice_date": hm.get("notice_date") or "",
         "handover": hm.get("handover") or "",
         "note": hm.get("note") or "",
+        "deactivated_date": hm.get("deactivated_date") or "",
+        "employee_type": (wi.employee_type_id.employee_type if wi and wi.employee_type_id else ""),
     }
 
 
@@ -227,6 +231,12 @@ def _filtered_qs(request):
         qs = qs.filter(is_active=True)
     elif active == "0":
         qs = qs.filter(is_active=False)
+    # Lọc "Đang thử việc": theo loại HĐ Thử việc (probation_status trong hr_master
+    # trống toàn bộ nên không dùng được; employee_type mới có dữ liệu đầy đủ).
+    if request.query_params.get("probation") == "1":
+        qs = qs.filter(
+            employee_work_info__employee_type_id__employee_type__icontains="thử việc"
+        )
     q = (request.query_params.get("q") or "").strip()
     if q:
         qs = qs.filter(
@@ -508,6 +518,99 @@ class HRMasterDataExportView(APIView):
             content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
         resp["Content-Disposition"] = 'attachment; filename="MasterData_NhanSu.xlsx"'
+        return resp
+
+
+def _parse_any_date(s):
+    """Parse resign_date/deactivated_date (ISO 'YYYY-MM-DD', 'DD/MM/YYYY', ISO datetime)."""
+    if not s:
+        return None
+    from datetime import datetime as _dt
+    s = str(s).strip()
+    for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+        try:
+            return _dt.strptime(s[:10], fmt).date()
+        except ValueError:
+            continue
+    try:
+        return _dt.fromisoformat(s).date()
+    except ValueError:
+        return None
+
+
+class HRMasterLeaversExportView(APIView):
+    """Xuất Excel NV tạm dừng/nghỉ việc TRONG THÁNG.
+
+    GET /api/employee/hr-master/export-leavers/?month=YYYY-MM (mặc định tháng hiện tại).
+    Ngày hiệu lực = resign_date (HR nhập, ưu tiên) → else deactivated_date (hệ thống
+    tự ghi khi C&B chuyển Tạm nghỉ). Chỉ NV is_active=False có ngày rơi trong tháng."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not _can_view(request):
+            return Response({"detail": "Không có quyền"}, status=403)
+        from django.http import HttpResponse
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from datetime import date
+        import io, calendar
+
+        try:
+            y, m = map(int, (request.query_params.get("month") or "").split("-"))
+            assert 1 <= m <= 12
+        except Exception:
+            t = date.today(); y, m = t.year, t.month
+        start, end = date(y, m, 1), date(y, m, calendar.monthrange(y, m)[1])
+
+        rows = []
+        for e in Employee.objects.filter(is_active=False).select_related(
+            "employee_work_info__department_id", "employee_work_info__company_id",
+            "employee_work_info__job_position_id", "employee_work_info__employee_type_id",
+        ):
+            hm = _extra(e)
+            eff = _parse_any_date(hm.get("resign_date")) or _parse_any_date(hm.get("deactivated_date"))
+            if not eff or not (start <= eff <= end):
+                continue
+            wi = getattr(e, "employee_work_info", None)
+            rows.append({
+                "badge": e.badge_id or e.employee_code or "", "name": _vn_name(e),
+                "company": wi.company_id.company if wi and wi.company_id else "",
+                "dept": wi.department_id.department if wi and wi.department_id else "",
+                "pos": wi.job_position_id.job_position if wi and wi.job_position_id else "",
+                "etype": wi.employee_type_id.employee_type if wi and wi.employee_type_id else "",
+                "kind": "Nghỉ việc" if hm.get("resign_date") else "Tạm dừng",
+                "eff": eff.strftime("%d/%m/%Y"),
+                "rtype": hm.get("resign_type") or "", "reason": hm.get("resign_reason") or "",
+            })
+        rows.sort(key=lambda r: r["eff"])
+
+        wb = Workbook(); ws = wb.active; ws.title = f"NV nghỉ {m:02d}-{y}"
+        cols = [("STT", 6), ("Mã NV", 12), ("Họ và tên", 24), ("Công ty", 22),
+                ("Phòng ban", 20), ("Chức danh", 20), ("Loại HĐ", 14), ("Loại nghỉ", 11),
+                ("Ngày nghỉ", 12), ("Hình thức", 16), ("Lý do", 30)]
+        thin = Border(*(Side(style="thin", color="D9D9D9"),) * 4)
+        hf = Font(bold=True, color="FFFFFF", size=10)
+        hfill = PatternFill("solid", fgColor="1A2340")
+        ce = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        ws.merge_cells(start_row=1, start_column=1, end_row=1, end_column=len(cols))
+        t = ws.cell(row=1, column=1, value=f"DANH SÁCH NHÂN VIÊN TẠM DỪNG / NGHỈ VIỆC — THÁNG {m:02d}/{y}")
+        t.font = Font(bold=True, size=13, color="C0222B"); t.alignment = Alignment(horizontal="center", vertical="center")
+        ws.row_dimensions[1].height = 24
+        for col, (name, w) in enumerate(cols, 1):
+            c = ws.cell(row=2, column=col, value=name)
+            c.font = hf; c.fill = hfill; c.alignment = ce; c.border = thin
+            ws.column_dimensions[c.column_letter].width = w
+        for i, r in enumerate(rows, 1):
+            vals = [i, r["badge"], r["name"], r["company"], r["dept"], r["pos"],
+                    r["etype"], r["kind"], r["eff"], r["rtype"], r["reason"]]
+            for col, v in enumerate(vals, 1):
+                c = ws.cell(row=i + 2, column=col, value=v)
+                c.border = thin; c.alignment = Alignment(vertical="center", wrap_text=(col in (3, 11)))
+        ws.freeze_panes = "A3"
+        buf = io.BytesIO(); wb.save(buf); buf.seek(0)
+        resp = HttpResponse(buf.read(), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        resp["Content-Disposition"] = f'attachment; filename="NV_nghi_{y}_{m:02d}.xlsx"'
         return resp
 
 
