@@ -71,6 +71,10 @@ EXTRA_FIELDS = [
     "deactivated_date",
 ]
 
+# Thời gian thử việc (ngày) tính từ ngày vào làm. Đánh dấu "Đang thử việc" theo
+# THÔNG TIN NHÂN VIÊN (date_joining), KHÔNG theo loại hợp đồng (thường bị cũ).
+PROBATION_DAYS = 60  # 2 tháng (chuẩn Luật LĐ VN cho đa số vị trí)
+
 
 def _can_view(request) -> bool:
     u = request.user
@@ -207,7 +211,16 @@ def serialize_employee(emp) -> dict:
         "note": hm.get("note") or "",
         "deactivated_date": hm.get("deactivated_date") or "",
         "employee_type": (wi.employee_type_id.employee_type if wi and wi.employee_type_id else ""),
+        # Đang thử việc = còn active + vào làm trong vòng PROBATION_DAYS ngày (theo
+        # thông tin NV, không theo HĐ). Dùng để đánh dấu/lọc đồng nhất.
+        "is_probation": _is_probation(emp, wi),
     }
+
+
+def _is_probation(emp, wi) -> bool:
+    from datetime import date
+    dj = wi.date_joining if wi else None
+    return bool(emp.is_active and dj and (date.today() - dj).days <= PROBATION_DAYS)
 
 
 class HRMasterPagination(PageNumberPagination):
@@ -231,11 +244,16 @@ def _filtered_qs(request):
         qs = qs.filter(is_active=True)
     elif active == "0":
         qs = qs.filter(is_active=False)
-    # Lọc "Đang thử việc": theo loại HĐ Thử việc (probation_status trong hr_master
-    # trống toàn bộ nên không dùng được; employee_type mới có dữ liệu đầy đủ).
+    # Lọc "Đang thử việc" theo THÔNG TIN NHÂN VIÊN: ngày vào làm trong vòng
+    # PROBATION_DAYS gần đây. KHÔNG dùng loại HĐ (nhiều NV vào 2025 vẫn để HĐ Thử
+    # việc do không cập nhật → sai); cấp NV không có field probation nào khác.
     if request.query_params.get("probation") == "1":
+        from datetime import date, timedelta
+        cutoff = date.today() - timedelta(days=PROBATION_DAYS)
         qs = qs.filter(
-            employee_work_info__employee_type_id__employee_type__icontains="thử việc"
+            is_active=True,
+            employee_work_info__date_joining__isnull=False,
+            employee_work_info__date_joining__gte=cutoff,
         )
     q = (request.query_params.get("q") or "").strip()
     if q:

@@ -273,7 +273,12 @@ export function DataNhanSuPage() {
               <div key={r.id} onClick={() => setDetailId(r.id)} className="cursor-pointer"
                 style={{ display: 'flex', height: 42, background: i % 2 ? '#fafafa' : '#fff', borderBottom: `1px solid ${HNH.line}` }}>
                 <div style={{ position: 'sticky', left: 0, zIndex: 1, width: CODE_W, ...cell(), fontWeight: 700, color: HNH.navy, background: 'inherit', borderRight: `1px solid ${HNH.line}` }}>{String(r.badge_id || '')}</div>
-                <div style={{ position: 'sticky', left: CODE_W, zIndex: 1, width: NAME_W, ...cell(), fontWeight: 600, color: HNH.ink, background: 'inherit', borderRight: `1px solid ${HNH.line}` }}>{String(r.name || '')}</div>
+                <div style={{ position: 'sticky', left: CODE_W, zIndex: 1, width: NAME_W, ...cell(), fontWeight: 600, color: HNH.ink, background: 'inherit', borderRight: `1px solid ${HNH.line}`, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{String(r.name || '')}</span>
+                  {r.is_probation === true && (
+                    <span title="Đang thử việc" style={{ flexShrink: 0, fontSize: 8.5, fontWeight: 800, padding: '1px 4px', borderRadius: 5, background: HNH.warn50, color: HNH.warn }}>TV</span>
+                  )}
+                </div>
                 {TABLE_COLS.map(c => <div key={c.key} style={{ width: c.w, ...cell(), color: HNH.ink2 }}>{fmtCell(c.key, r[c.key])}</div>)}
               </div>
             ))}
