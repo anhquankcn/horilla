@@ -419,6 +419,22 @@ class OnboardEmployeeView(APIView):
                 emp.save()  # tự tạo User (username=email, password=phone)
                 emp.refresh_from_db()
 
+                # Thử việc (độc lập hợp đồng): bật cờ + số ngày chọn khi onboarding
+                # (mặc định 60). HR tắt cờ khi ký chính thức.
+                try:
+                    prob_days = int(d.get("probation_days") or 60)
+                except (TypeError, ValueError):
+                    prob_days = 60
+                prob_flag = d.get("probation_flag", True)
+                prob_flag = prob_flag in (True, "true", "1", 1) if prob_flag is not None else True
+                ai = emp.additional_info if isinstance(emp.additional_info, dict) else {}
+                hm = ai.get("hr_master") if isinstance(ai.get("hr_master"), dict) else {}
+                hm["probation_flag"] = bool(prob_flag)
+                hm["probation_days"] = prob_days
+                ai["hr_master"] = hm
+                emp.additional_info = ai
+                emp.save(update_fields=["additional_info"])
+
                 wi = getattr(emp, "employee_work_info", None) or EmployeeWorkInformation(employee_id=emp)
                 wi.company_id = _fk(Company, "company_id")
                 wi.department_id = _fk(Department, "department_id")

@@ -19,6 +19,7 @@ interface Form {
   // Bắt buộc
   full_name: string; dob: string; gender: string; cccd: string
   email: string; phone: string; badge_id: string; date_joining: string
+  probation_flag: boolean; probation_days: string
   company_id: number | null; department_id: number | null; job_position_id: number | null
   job_role_id: number | null; shift_id: number | null; work_type_id: number | null; job_title: string
   // Giấy tờ & hộ khẩu
@@ -36,6 +37,7 @@ interface Form {
 
 const EMPTY: Form = {
   full_name: '', dob: '', gender: 'female', cccd: '', email: '', phone: '', badge_id: '', date_joining: '',
+  probation_flag: true, probation_days: '60',
   company_id: null, department_id: null, job_position_id: null, job_role_id: null, shift_id: null,
   work_type_id: null, job_title: '',
   cccd_issue_date: '', cccd_issue_place: 'Bộ Công an', address: '', temporary_address: '',
@@ -330,6 +332,17 @@ export function OnboardEmployeePage() {
                 <Field label="Ngày vào làm *">
                   <TextInput type="date" value={f.date_joining} onChange={v => set('date_joining', v)} />
                 </Field>
+                <Field label="Nhân viên thử việc">
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13.5, cursor: 'pointer' }}>
+                    <input type="checkbox" checked={f.probation_flag} onChange={e => set('probation_flag', e.target.checked)} style={{ width: 18, height: 18 }} />
+                    <span>Đánh dấu là NV thử việc</span>
+                  </label>
+                </Field>
+                {f.probation_flag && (
+                  <Field label="Số ngày thử việc">
+                    <TextInput type="number" value={f.probation_days} onChange={v => set('probation_days', v)} />
+                  </Field>
+                )}
               </>
             )}
             {step === 1 && (

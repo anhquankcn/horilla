@@ -69,11 +69,28 @@ EXTRA_FIELDS = [
     "handover", "note", "team", "level_label", "nationality", "company_code", "dept_code",
     # Ngày hệ thống ghi khi C&B chuyển Tạm nghỉ (auto). Dùng cho export NV nghỉ/tháng.
     "deactivated_date",
+    # Thử việc (độc lập hợp đồng): cờ bật/tắt + số ngày (chọn khi onboarding).
+    "probation_flag", "probation_days",
 ]
 
-# Thời gian thử việc (ngày) tính từ ngày vào làm. Đánh dấu "Đang thử việc" theo
-# THÔNG TIN NHÂN VIÊN (date_joining), KHÔNG theo loại hợp đồng (thường bị cũ).
-PROBATION_DAYS = 60  # 2 tháng (chuẩn Luật LĐ VN cho đa số vị trí)
+# Số ngày thử việc mặc định (chuẩn Luật LĐ VN cho đa số vị trí). NV có thể có số
+# ngày riêng (probation_days) chọn khi onboarding.
+PROBATION_DAYS = 60  # 2 tháng
+
+
+def _probation_state(emp, wi, hm):
+    """Trả (is_probation, expired, days). Đánh dấu thử việc theo CỜ (probation_flag)
+    + số ngày (probation_days) lưu ở cấp NV — độc lập hợp đồng. expired = cờ còn bật
+    nhưng đã quá số ngày kể từ ngày vào làm (HR quên tắt cờ → cảnh báo)."""
+    from datetime import date
+    try:
+        days = int(hm.get("probation_days"))
+    except (TypeError, ValueError):
+        days = PROBATION_DAYS
+    is_prob = bool(hm.get("probation_flag")) and bool(emp.is_active)
+    dj = wi.date_joining if wi else None
+    expired = bool(is_prob and dj and (date.today() - dj).days > days)
+    return is_prob, expired, days
 
 
 def _can_view(request) -> bool:
@@ -211,16 +228,12 @@ def serialize_employee(emp) -> dict:
         "note": hm.get("note") or "",
         "deactivated_date": hm.get("deactivated_date") or "",
         "employee_type": (wi.employee_type_id.employee_type if wi and wi.employee_type_id else ""),
-        # Đang thử việc = còn active + vào làm trong vòng PROBATION_DAYS ngày (theo
-        # thông tin NV, không theo HĐ). Dùng để đánh dấu/lọc đồng nhất.
-        "is_probation": _is_probation(emp, wi),
+        # Thử việc theo CỜ + số ngày ở cấp NV (độc lập hợp đồng).
+        "probation_flag": bool(hm.get("probation_flag")),
+        "probation_days": _probation_state(emp, wi, hm)[2],
+        "is_probation": _probation_state(emp, wi, hm)[0],
+        "probation_expired": _probation_state(emp, wi, hm)[1],
     }
-
-
-def _is_probation(emp, wi) -> bool:
-    from datetime import date
-    dj = wi.date_joining if wi else None
-    return bool(emp.is_active and dj and (date.today() - dj).days <= PROBATION_DAYS)
 
 
 class HRMasterPagination(PageNumberPagination):
@@ -244,17 +257,10 @@ def _filtered_qs(request):
         qs = qs.filter(is_active=True)
     elif active == "0":
         qs = qs.filter(is_active=False)
-    # Lọc "Đang thử việc" theo THÔNG TIN NHÂN VIÊN: ngày vào làm trong vòng
-    # PROBATION_DAYS gần đây. KHÔNG dùng loại HĐ (nhiều NV vào 2025 vẫn để HĐ Thử
-    # việc do không cập nhật → sai); cấp NV không có field probation nào khác.
+    # Lọc "Đang thử việc" theo CỜ thử việc (probation_flag) ở cấp NV — độc lập hợp
+    # đồng. Cờ bật khi onboarding, HR tắt khi ký chính thức.
     if request.query_params.get("probation") == "1":
-        from datetime import date, timedelta
-        cutoff = date.today() - timedelta(days=PROBATION_DAYS)
-        qs = qs.filter(
-            is_active=True,
-            employee_work_info__date_joining__isnull=False,
-            employee_work_info__date_joining__gte=cutoff,
-        )
+        qs = qs.filter(is_active=True, additional_info__hr_master__probation_flag=True)
     q = (request.query_params.get("q") or "").strip()
     if q:
         qs = qs.filter(
@@ -379,6 +385,14 @@ class HRMasterDataDetailView(APIView):
                     if f in d:
                         hm[f] = d.get(f)
                         emp_dirty = True
+                # Ép kiểu đúng cho cờ/số ngày thử việc (HR sửa qua detail).
+                if "probation_flag" in d:
+                    hm["probation_flag"] = d.get("probation_flag") in (True, "true", "1", 1)
+                if "probation_days" in d:
+                    try:
+                        hm["probation_days"] = int(d.get("probation_days"))
+                    except (TypeError, ValueError):
+                        hm["probation_days"] = PROBATION_DAYS
                 if emp_dirty:
                     ai["hr_master"] = hm
                     emp.additional_info = ai

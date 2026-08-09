@@ -16,7 +16,7 @@ interface ListResp {
 }
 
 // ── Field metadata (khớp 9 nhóm Master Data) ──
-type FT = 'text' | 'date' | 'num' | 'enum' | 'company' | 'department' | 'position' | 'ro'
+type FT = 'text' | 'date' | 'num' | 'enum' | 'company' | 'department' | 'position' | 'ro' | 'bool'
 interface Field { key: string; label: string; type?: FT; enumKey?: string }
 interface Group { title: string; fields: Field[] }
 
@@ -44,6 +44,8 @@ const GROUPS: Group[] = [
     { key: 'recruit_applied_date', label: 'Ngày ứng tuyển', type: 'date' },
     { key: 'recruit_source', label: 'Nguồn tuyển dụng', type: 'enum', enumKey: 'recruit_source' },
     { key: 'date_joining', label: 'Ngày nhận việc', type: 'date' },
+    { key: 'probation_flag', label: 'NV thử việc (cờ)', type: 'bool' },
+    { key: 'probation_days', label: 'Số ngày thử việc', type: 'num' },
     { key: 'probation_end', label: 'Ngày kết thúc thử việc', type: 'date' },
     { key: 'probation_salary', label: 'Lương thử việc' },
     { key: 'reporting_manager', label: 'Quản lý trực tiếp', type: 'ro' },
@@ -276,7 +278,9 @@ export function DataNhanSuPage() {
                 <div style={{ position: 'sticky', left: CODE_W, zIndex: 1, width: NAME_W, ...cell(), fontWeight: 600, color: HNH.ink, background: 'inherit', borderRight: `1px solid ${HNH.line}`, display: 'flex', alignItems: 'center', gap: 4 }}>
                   <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{String(r.name || '')}</span>
                   {r.is_probation === true && (
-                    <span title="Đang thử việc" style={{ flexShrink: 0, fontSize: 8.5, fontWeight: 800, padding: '1px 4px', borderRadius: 5, background: HNH.warn50, color: HNH.warn }}>TV</span>
+                    r.probation_expired === true
+                      ? <span title="Hết hạn ngày thử việc — cần ký chính thức / tắt cờ" style={{ flexShrink: 0, fontSize: 8.5, fontWeight: 800, padding: '1px 4px', borderRadius: 5, background: HNH.red50, color: HNH.red }}>⚠ Hết hạn TV</span>
+                      : <span title="Đang thử việc" style={{ flexShrink: 0, fontSize: 8.5, fontWeight: 800, padding: '1px 4px', borderRadius: 5, background: HNH.warn50, color: HNH.warn }}>TV</span>
                   )}
                 </div>
                 {TABLE_COLS.map(c => <div key={c.key} style={{ width: c.w, ...cell(), color: HNH.ink2 }}>{fmtCell(c.key, r[c.key])}</div>)}
@@ -349,6 +353,14 @@ function EmployeeDetailModal({ id, canEdit, enums, companies, departments, onClo
   const renderField = (f: Field) => {
     const val = edit[f.key]
     const strVal = val == null ? '' : String(val)
+    if (f.type === 'bool') {
+      const cur = edit[f.key] != null ? edit[f.key] : data?.[f.key]
+      const on = cur === true || cur === 'true'
+      if (mode === 'view') return <div style={{ fontSize: 13, fontWeight: 700, color: on ? HNH.warn : HNH.ink4 }}>{on ? 'Có' : 'Không'}</div>
+      return <select value={on ? '1' : '0'} onChange={e => setEdit({ ...edit, [f.key]: e.target.value === '1' })} style={inp}>
+        <option value="1">Có</option><option value="0">Không</option>
+      </select>
+    }
     if (mode === 'view' || f.type === 'ro') {
       const disp = f.type === 'company' ? String(data?.company ?? '')
         : f.type === 'department' ? String(data?.department ?? '')
