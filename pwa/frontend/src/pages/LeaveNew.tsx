@@ -541,7 +541,10 @@ export function LeaveNewPage() {
   const toggleDay = (ds: string) => {
     setDays(prev => {
       if (prev.some(d => d.date === ds)) return prev.filter(d => d.date !== ds)
-      return [...prev, { date: ds, bd: 'full_day' as Breakdown }].sort((a, b) => a.date.localeCompare(b.date))
+      // Thứ 7 HNH chỉ làm nửa ngày sáng → mặc định 1/2 ngày Sáng (chống chọn nhầm
+      // Cả ngày). NV vẫn đổi lại được nếu cần.
+      const isSat = new Date(ds + 'T00:00:00').getDay() === 6
+      return [...prev, { date: ds, bd: (isSat ? 'first_half' : 'full_day') as Breakdown }].sort((a, b) => a.date.localeCompare(b.date))
     })
   }
   const removeDay = (ds: string) => setDays(prev => prev.filter(d => d.date !== ds))
@@ -559,6 +562,17 @@ export function LeaveNewPage() {
 
   const doSubmit = async () => {
     if (!canSubmit) return
+    // Cảnh báo nếu xin nghỉ CẢ NGÀY vào thứ 7 (công ty làm nửa ngày sáng) — chống
+    // chọn nhầm. Cho phép tiếp tục nếu NV xác nhận.
+    if (mode === 'day') {
+      const satFull = days.filter(d => d.bd === 'full_day' && new Date(d.date + 'T00:00:00').getDay() === 6)
+      if (satFull.length > 0) {
+        const list = satFull.map(d => fmtDate(d.date)).join(', ')
+        if (!confirm(`Bạn đang xin nghỉ CẢ NGÀY vào thứ 7 (${list}).\n\nThứ 7 công ty chỉ làm buổi sáng — thường chỉ nghỉ 1/2 ngày Sáng.\n\nBấm OK nếu chắc chắn nghỉ CẢ NGÀY, hoặc Cancel để chỉnh lại.`)) {
+          return
+        }
+      }
+    }
     setSubmitting(true); setError(null)
     const desc = title.trim() ? `${title.trim()} — ${reason.trim()}` : reason.trim()
     try {
@@ -741,6 +755,16 @@ export function LeaveNewPage() {
                   )
                 })}
               </div>
+              {new Date(d.date + 'T00:00:00').getDay() === 6 && (
+                <div style={{ marginTop: 7, fontSize: 11, fontWeight: 600, lineHeight: 1.45, borderRadius: 8, padding: '6px 9px',
+                  color: d.bd === 'full_day' ? HNH.red : HNH.warn,
+                  background: d.bd === 'full_day' ? HNH.red50 : HNH.warn50,
+                  border: `1px solid ${d.bd === 'full_day' ? HNH.red : HNH.warn}40` }}>
+                  {d.bd === 'full_day'
+                    ? '⚠ Thứ 7 công ty chỉ làm buổi sáng. Bạn đang chọn CẢ NGÀY — hãy đổi sang "Sáng" (1/2 ngày) nếu chỉ nghỉ sáng thứ 7.'
+                    : '📌 Thứ 7 làm nửa ngày sáng — đã đặt mặc định 1/2 ngày Sáng. Vui lòng xác nhận cho đúng.'}
+                </div>
+              )}
             </div>
           ))}
 
