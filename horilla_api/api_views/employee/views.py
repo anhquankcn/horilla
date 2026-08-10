@@ -2518,6 +2518,11 @@ class MyAppsView(APIView):
         ).exists():
             allowed.add("team-monitor")
 
+        # Nhân viên nhóm C&B LUÔN thấy "Quản lý DS Đơn" — API tự chặn non-C&B.
+        gnames = [g.name.lower() for g in groups]
+        if any("c&b" in g or "chuyên viên c" in g for g in gnames):
+            allowed.add("request-list")
+
         if not allowed:
             return Response({"allowed": all_slugs, "is_admin": False, "is_staff": user.is_staff})
 

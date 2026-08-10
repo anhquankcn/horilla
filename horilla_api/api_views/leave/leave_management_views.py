@@ -22,6 +22,38 @@ from rest_framework.views import APIView
 from employee.models import Employee
 from leave.models import AvailableLeave, HNHCompensatoryProposal
 
+# Đăng ký transform __unaccent (Postgres) để tìm HỌ TÊN không dấu. Cần extension
+# unaccent (bật bằng migration). Idempotent — bọc try để không lỗi khi import lại.
+try:
+    import unicodedata as _ud
+    from django.db.models import CharField as _CF, TextField as _TF, Transform as _Tr
+
+    class _Unaccent(_Tr):
+        lookup_name = "unaccent"
+        function = "UNACCENT"
+
+    try:
+        _CF.register_lookup(_Unaccent)
+        _TF.register_lookup(_Unaccent)
+    except Exception:
+        pass
+
+    def _vn_unaccent(s: str) -> str:
+        """Bỏ dấu tiếng Việt phía value (khớp UNACCENT của Postgres, gồm đ→d)."""
+        s = _ud.normalize("NFD", s or "")
+        s = "".join(c for c in s if _ud.category(c) != "Mn")
+        return s.replace("đ", "d").replace("Đ", "D")
+except Exception:  # pragma: no cover
+    def _vn_unaccent(s: str) -> str:
+        return s or ""
+
+
+def _parse_ymd(v):
+    try:
+        return date.fromisoformat((v or "").strip())
+    except (ValueError, TypeError):
+        return None
+
 
 def _get_employee(request):
     try:
@@ -2124,3 +2156,242 @@ class TeamLeavesView(APIView):
                 "requested_date": lr.created_at.isoformat() if lr.created_at else None,
             })
         return Response({"team_size": len(team), "results": rows})
+
+
+# ============================================================================
+# Quản lý DS Đơn (Request List) — App Feature CHỈ cho C&B.
+# 1 trang gộp DS đơn nghỉ; lọc đa chiều (khoảng ngày · tình trạng xem · tình
+# trạng xử lý · công ty/phòng/tên-mã); xử lý đơn + xuất Excel. Đơn TỪ CHỐI
+# (rejected) hiển thị ĐẦY ĐỦ ở đây — trước bị ẩn ở màn Quản lý phép cũ.
+# ============================================================================
+
+STATUS_LABEL_VI = {
+    "requested": "Chờ duyệt",
+    "approved": "Đã duyệt",
+    "rejected": "Đã từ chối",
+    "cancelled": "Đã xóa",
+}
+BREAKDOWN_VI = {"full_day": "Cả ngày", "first_half": "Buổi sáng", "second_half": "Buổi chiều"}
+
+
+def _request_list_qs(request, me):
+    """Queryset đơn nghỉ theo filter cho Quản lý DS Đơn."""
+    from leave.models import LeaveRequest
+
+    today = timezone.localdate()
+    dfrom = _parse_ymd(request.query_params.get("from"))
+    dto = _parse_ymd(request.query_params.get("to"))
+    if not dfrom and not dto:
+        dfrom = today.replace(day=1)
+        dto = date(today.year, today.month, monthrange(today.year, today.month)[1])
+
+    qs = LeaveRequest.objects.all()
+    # Lọc theo KHOẢNG NGÀY nghỉ (giao với [from, to]).
+    if dfrom:
+        qs = qs.filter(Q(end_date__gte=dfrom) | Q(end_date__isnull=True, start_date__gte=dfrom))
+    if dto:
+        qs = qs.filter(start_date__lte=dto)
+
+    status_param = (request.query_params.get("status") or "all").strip()
+    if status_param in ("requested", "approved", "rejected", "cancelled"):
+        qs = qs.filter(status=status_param)
+
+    # Tình trạng XEM của C&B hiện tại (mỗi C&B có trạng thái riêng qua cb_seen_set).
+    seen_param = (request.query_params.get("seen") or "all").strip()
+    if me is not None and seen_param in ("seen", "unseen"):
+        if seen_param == "seen":
+            qs = qs.filter(cb_seen_set__employee=me)
+        else:
+            qs = qs.exclude(cb_seen_set__employee=me)
+
+    company_id = request.query_params.get("company")
+    if company_id:
+        qs = qs.filter(employee_id__employee_work_info__company_id=company_id)
+    dept_id = request.query_params.get("department")
+    if dept_id:
+        qs = qs.filter(employee_id__employee_work_info__department_id=dept_id)
+
+    # Tìm Họ tên (CÓ/KHÔNG dấu — dùng UNACCENT Postgres), Mã NV, Mã Kế toán.
+    q = (request.query_params.get("q") or "").strip()
+    if q:
+        qv = _vn_unaccent(q)
+        qs = qs.filter(
+            Q(employee_id__employee_first_name__unaccent__icontains=qv)
+            | Q(employee_id__employee_last_name__unaccent__icontains=qv)
+            | Q(employee_id__badge_id__icontains=q)
+            | Q(employee_id__accounting_code__icontains=q)
+        )
+
+    return (
+        qs.select_related(
+            "employee_id",
+            "leave_type_id",
+            "cancelled_by",
+            "employee_id__employee_work_info__department_id",
+            "employee_id__employee_work_info__company_id",
+            "employee_id__employee_work_info__job_position_id",
+        )
+        .order_by("-start_date", "-id")
+        .distinct()
+    )
+
+
+def _serialize_request_rows(qs, me, limit=1000):
+    lrs = list(qs[:limit])
+    seen_ids: set = set()
+    if lrs and me is not None:
+        from leave.models import HNHLeaveRequestSeen
+        seen_ids = set(
+            HNHLeaveRequestSeen.objects.filter(
+                employee=me, leave_request_id__in=[lr.id for lr in lrs]
+            ).values_list("leave_request_id", flat=True)
+        )
+    rows = []
+    for lr in lrs:
+        e = lr.employee_id
+        wi = getattr(e, "employee_work_info", None)
+        end = lr.end_date or lr.start_date
+        rows.append({
+            "id": lr.id,
+            "employee_id": lr.employee_id_id,
+            "employee_name": _vn_full_name(e),
+            "badge_id": e.badge_id,
+            "accounting_code": getattr(e, "accounting_code", None) or "",
+            "department": wi.department_id.department if wi and wi.department_id else None,
+            "company": wi.company_id.company if wi and wi.company_id else None,
+            "job_position": (wi.job_position_id.job_position
+                             if wi and getattr(wi, "job_position_id", None) else None),
+            "request_type": "leave",
+            "request_type_label": "Nghỉ phép",
+            "leave_type": lr.leave_type_id.name if lr.leave_type_id else "",
+            "start_date": lr.start_date.isoformat(),
+            "end_date": end.isoformat(),
+            "start_breakdown": getattr(lr, "start_date_breakdown", "") or "",
+            "end_breakdown": getattr(lr, "end_date_breakdown", "") or "",
+            "requested_days": lr.requested_days,
+            "status": lr.status,
+            "status_label": STATUS_LABEL_VI.get(lr.status, lr.status),
+            "description": lr.description or "",
+            "reject_reason": getattr(lr, "reject_reason", "") or "",
+            "requested_date": (lr.created_at.isoformat() if lr.created_at
+                               else (lr.requested_date.isoformat() if lr.requested_date else None)),
+            "approved_at": lr.approved_at.isoformat() if getattr(lr, "approved_at", None) else None,
+            "cancelled_at": lr.cancelled_at.isoformat() if getattr(lr, "cancelled_at", None) else None,
+            "cancelled_by": _vn_full_name(lr.cancelled_by) if getattr(lr, "cancelled_by", None) else None,
+            "cancel_reason": getattr(lr, "cancel_reason", "") or "",
+            "refunded_days": (round((lr.approved_available_days or 0) + (lr.approved_carryforward_days or 0), 2)
+                              if getattr(lr, "balance_refunded", False) else 0),
+            "seen": lr.id in seen_ids,
+        })
+    return rows
+
+
+class HNHRequestListView(APIView):
+    """GET /api/leave/hnh-request-list/ — Quản lý DS Đơn (C&B). Lọc:
+    from,to (YYYY-MM-DD, mặc định tháng này) · status=all|requested|approved|rejected|cancelled
+    · seen=all|seen|unseen · company · department · q (Họ tên có/không dấu, Mã NV, Mã KT).
+    Trả {results, count, companies, departments}. Đơn TỪ CHỐI hiển thị đầy đủ."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not _is_cnb(request):
+            return Response({"detail": "Chỉ Nhân viên nhóm C&B mới dùng được"}, status=403)
+        me = _get_employee(request)
+        rows = _serialize_request_rows(_request_list_qs(request, me), me)
+
+        from base.models import Company, Department
+        companies = [{"id": c.id, "name": c.company}
+                     for c in Company.objects.all().order_by("company")]
+        departments = [
+            {"id": d.id, "name": d.department,
+             "company_ids": list(d.company_id.values_list("id", flat=True))}
+            for d in Department.objects.prefetch_related("company_id").order_by("department")
+        ]
+        return Response({
+            "results": rows, "count": len(rows),
+            "companies": companies, "departments": departments,
+        })
+
+
+class HNHRequestListExportView(APIView):
+    """GET /api/leave/hnh-request-list/export/ — Xuất Excel DS đơn (cùng filter)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not _is_cnb(request):
+            return Response({"detail": "Chỉ C&B"}, status=403)
+        import io
+        from django.http import HttpResponse
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+
+        me = _get_employee(request)
+        rows = _serialize_request_rows(_request_list_qs(request, me), me, limit=5000)
+
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "DS Don"
+        headers = [
+            "STT", "Mã NV", "Mã KT", "Họ tên", "Công ty", "Phòng ban", "Chức vụ",
+            "Loại đơn", "Loại nghỉ", "Từ ngày", "Buổi (từ)", "Đến ngày", "Buổi (đến)",
+            "Số ngày", "Tình trạng", "C&B xem", "Lý do", "Lý do từ chối",
+            "Ngày gửi", "Ngày duyệt", "Ngày hủy", "Người hủy", "Ngày hoàn",
+        ]
+        COL_W = [5, 10, 10, 22, 20, 18, 18, 12, 18, 12, 11, 12, 11, 8, 12, 11, 28, 24, 16, 16, 16, 18, 10]
+        hdr_font = Font(bold=True, color="FFFFFF", size=10)
+        hdr_fill = PatternFill(start_color="C0222B", end_color="C0222B", fill_type="solid")
+        thin = Border(left=Side(style="thin"), right=Side(style="thin"),
+                      top=Side(style="thin"), bottom=Side(style="thin"))
+        fills = {
+            "approved": PatternFill(start_color="E8F5E9", end_color="E8F5E9", fill_type="solid"),
+            "rejected": PatternFill(start_color="FFEBEE", end_color="FFEBEE", fill_type="solid"),
+            "requested": PatternFill(start_color="FFF8E1", end_color="FFF8E1", fill_type="solid"),
+            "cancelled": PatternFill(start_color="F5F5F5", end_color="F5F5F5", fill_type="solid"),
+        }
+        for col, (h, w) in enumerate(zip(headers, COL_W), 1):
+            c = ws.cell(row=1, column=col, value=h)
+            c.font = hdr_font
+            c.fill = hdr_fill
+            c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            c.border = thin
+            ws.column_dimensions[c.column_letter].width = w
+        ws.row_dimensions[1].height = 28
+
+        def _d(iso):
+            if not iso:
+                return ""
+            p = iso.split("T")[0].split("-")
+            return f"{p[2]}/{p[1]}/{p[0]}" if len(p) == 3 else iso
+
+        for stt, r in enumerate(rows, 1):
+            vals = [
+                stt, r["badge_id"], r["accounting_code"], r["employee_name"],
+                r["company"] or "", r["department"] or "", r["job_position"] or "",
+                r["request_type_label"], r["leave_type"], _d(r["start_date"]),
+                BREAKDOWN_VI.get(r["start_breakdown"], ""), _d(r["end_date"]),
+                BREAKDOWN_VI.get(r["end_breakdown"], ""), r["requested_days"],
+                r["status_label"], "Đã xem" if r["seen"] else "Chưa xem",
+                r["description"], r["reject_reason"], _d(r["requested_date"]),
+                _d(r["approved_at"]), _d(r["cancelled_at"]), r["cancelled_by"] or "",
+                r["refunded_days"] or "",
+            ]
+            fill = fills.get(r["status"])
+            for col, v in enumerate(vals, 1):
+                cell = ws.cell(row=stt + 1, column=col, value=v)
+                cell.border = thin
+                cell.alignment = Alignment(vertical="center", wrap_text=(col in (4, 17, 18)))
+                if fill:
+                    cell.fill = fill
+
+        ws.freeze_panes = "A2"
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        resp = HttpResponse(
+            buf.getvalue(),
+            content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+        resp["Content-Disposition"] = 'attachment; filename="DS_Don.xlsx"'
+        return resp

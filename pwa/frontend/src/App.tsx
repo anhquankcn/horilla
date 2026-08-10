@@ -1,6 +1,7 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { UpdatePrompt } from './components/UpdatePrompt'
 import { TeamMonitorPage } from './pages/TeamMonitor'
+import { RequestListPage } from './pages/RequestList'
 import { AppShell } from './components/layout/AppShell'
 import { ProtectedRoute } from './components/layout/ProtectedRoute'
 import { LoginPage } from './pages/Login'
@@ -153,6 +154,7 @@ export function App() {
         <Route path="/leave/approver-config" element={<LeaveApproverConfigPage />} />
         <Route path="/attendance-manager" element={<AttendanceManagerViewPage />} />
         <Route path="/team-monitor" element={<TeamMonitorPage />} />
+        <Route path="/request-list" element={<RequestListPage />} />
         <Route path="/life" element={<HNHLifePage />} />
         <Route path="/task-board" element={<TaskBoardPage />} />
         <Route path="/day/:date" element={<DayDetailPage />} />
