@@ -2510,6 +2510,14 @@ class MyAppsView(APIView):
         for apps in vis_map.values():
             allowed.update(apps)
 
+        # QL (là reporting manager của ai đó) LUÔN thấy "Theo dõi Team" dù nhóm quyền
+        # chưa gán — feature scope tự giới hạn theo team của họ.
+        me = getattr(user, "employee_get", None)
+        if me is not None and EmployeeWorkInformation.objects.filter(
+            reporting_manager_id=me
+        ).exists():
+            allowed.add("team-monitor")
+
         if not allowed:
             return Response({"allowed": all_slugs, "is_admin": False, "is_staff": user.is_staff})
 

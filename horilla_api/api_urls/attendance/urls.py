@@ -56,6 +56,7 @@ urlpatterns = [
     path("permission-check/attendance", AttendancePermissionCheck.as_view()),
     path("checking-in", CheckingStatus.as_view()),
     path("offices/", OfficesAPIView.as_view(), name="api-offices"),
+    path("team-attendance/", TeamAttendanceView.as_view(), name="api-team-attendance"),
     path("wifi-ranges/", WifiAttendanceRangeAPIView.as_view(), name="api-wifi-ranges"),
     path("wifi-ranges/<int:pk>/", WifiAttendanceRangeAPIView.as_view(), name="api-wifi-ranges-detail"),
     path("offline-employee-mail-send", OfflineEmployeeMailsend.as_view()),

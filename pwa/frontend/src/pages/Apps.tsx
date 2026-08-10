@@ -60,6 +60,7 @@ const features: AppFeature[] = [
   { slug: 'attendance-activity', icon: 'clock', label: 'HĐ Chấm công', desc: 'Tổng hợp hoạt động chấm công',                         path: '/attendance-activity',       tone: 'navy', group: 'attendance' },
   { slug: 'monthly-att',         icon: 'grid',  label: 'CC Tháng',      desc: 'Bảng chấm công từng ngày cho toàn bộ nhân viên',       path: '/attendance-monthly-detail', tone: 'navy', group: 'attendance' },
   { slug: 'attendance-manager',   icon: 'users', label: 'Quản lý Công NV', desc: 'Bảng First-Last chấm công NV dưới quyền theo tháng', path: '/attendance-manager',        tone: 'red',  group: 'attendance' },
+  { slug: 'team-monitor',        icon: 'users', label: 'Theo dõi Team', desc: 'QL xem nghỉ phép & giờ vào/ra của team mình (cấp dưới trực tiếp)', path: '/team-monitor', tone: 'red', group: 'attendance' },
   { slug: 'hrm-att-setting',     icon: 'gear',  label: 'Cài đặt CC',   desc: 'Cấu hình Chấm công, Geofence',                         path: '/attendance-settings',       tone: 'navy', group: 'attendance' },
   { slug: 'leave',            icon: 'leaf',  label: 'Nghỉ phép',    desc: 'Số dư, lịch sử nghỉ phép, gửi đơn',  path: '/leave',            tone: 'success', group: 'attendance', always: true },
   { slug: 'leave-management', icon: 'leaf',  label: 'Quản lý Phép',    desc: 'Phép bù, thâm niên, duyệt đề xuất',   path: '/leave-management', tone: 'success', group: 'attendance' },

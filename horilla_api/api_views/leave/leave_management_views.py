@@ -2053,3 +2053,74 @@ def _credit_bu_days(employee: Employee, days: float):
     avail.available_days = (avail.available_days or 0) + days
     avail.total_leave_days = (avail.total_leave_days or 0) + days
     avail.save()
+
+
+def _team_ids(me):
+    """Team của QL = chính QL + cấp dưới TRỰC TIẾP đang active (mỗi QL chỉ thấy team
+    trực tiếp của mình)."""
+    ids = {me.id}
+    ids.update(
+        Employee.objects.filter(
+            employee_work_info__reporting_manager_id=me, is_active=True
+        ).values_list("id", flat=True)
+    )
+    return ids
+
+
+class TeamLeavesView(APIView):
+    """GET /api/leave/team-leaves/?month=YYYY-MM&status=all|requested|approved|cancelled|rejected
+
+    QL xem đơn nghỉ phép của TEAM mình (cấp dưới trực tiếp + chính QL). Phạm vi tự
+    giới hạn theo team của người gọi — không xem được team khác."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        me = _get_employee(request)
+        if me is None:
+            return Response({"detail": "Không có hồ sơ nhân viên"}, status=400)
+        team = _team_ids(me)
+
+        from leave.models import LeaveRequest
+
+        today = timezone.localdate()
+        try:
+            y, m = (int(x) for x in request.query_params.get("month", "").split("-"))
+            date(y, m, 1)
+        except (AttributeError, ValueError):
+            y, m = today.year, today.month
+        m_start, m_end = date(y, m, 1), date(y, m, monthrange(y, m)[1])
+
+        qs = LeaveRequest.objects.filter(employee_id__in=team)
+        # Đơn có khoảng nghỉ giao với tháng đang xem.
+        qs = qs.filter(start_date__lte=m_end).filter(
+            Q(end_date__gte=m_start) | Q(end_date__isnull=True)
+        )
+        status_param = request.query_params.get("status")
+        if status_param and status_param != "all":
+            qs = qs.filter(status=status_param)
+        qs = qs.select_related(
+            "employee_id", "leave_type_id",
+            "employee_id__employee_work_info__department_id",
+        ).order_by("-start_date", "-id")
+
+        rows = []
+        for lr in qs[:500]:
+            wi = getattr(lr.employee_id, "employee_work_info", None)
+            end = lr.end_date or lr.start_date
+            rows.append({
+                "id": lr.id,
+                "employee_id": lr.employee_id_id,
+                "employee_name": _vn_full_name(lr.employee_id),
+                "badge_id": lr.employee_id.badge_id,
+                "department": wi.department_id.department if wi and wi.department_id else None,
+                "is_self": lr.employee_id_id == me.id,
+                "leave_type": lr.leave_type_id.name if lr.leave_type_id else "",
+                "start_date": lr.start_date.isoformat(),
+                "end_date": end.isoformat(),
+                "requested_days": lr.requested_days,
+                "status": lr.status,
+                "description": lr.description or "",
+                "requested_date": lr.created_at.isoformat() if lr.created_at else None,
+            })
+        return Response({"team_size": len(team), "results": rows})

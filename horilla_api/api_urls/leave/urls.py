@@ -72,6 +72,7 @@ urlpatterns = [
     path("hnh-leave-detail/", lmv.HNHLeaveDetailView.as_view(), name="api-leave-hnh-detail"),
     path("hnh-adjust-balance/", lmv.HNHAdjustBalanceView.as_view(), name="api-leave-hnh-adjust-balance"),
     path("hnh-approved-leaves/", lmv.HNHApprovedLeavesView.as_view(), name="api-leave-hnh-approved-leaves"),
+    path("team-leaves/", lmv.TeamLeavesView.as_view(), name="api-leave-team-leaves"),
     path("hnh-leave-counts/", lmv.HNHLeaveCountsView.as_view(), name="api-leave-hnh-leave-counts"),
     path("hnh-mark-seen/<int:pk>/", lmv.HNHMarkLeaveSeenView.as_view(), name="api-leave-hnh-mark-seen"),
     path("hnh-leave-request-detail/<int:pk>/", lmv.HNHLeaveRequestDetailView.as_view(), name="api-leave-hnh-request-detail"),

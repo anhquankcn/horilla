@@ -743,6 +743,62 @@ class WifiAttendanceRangeAPIView(APIView):
         return Response(status=204)
 
 
+class TeamAttendanceView(APIView):
+    """GET /api/attendance/team-attendance/?date=YYYY-MM-DD
+
+    QL xem giờ vào/ra của TEAM mình (cấp dưới trực tiếp + chính QL) trong 1 ngày để
+    theo dõi. Phạm vi tự giới hạn theo team người gọi — không xem được team khác."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from django.db.models import Q as _Q
+        from employee.models import Employee
+
+        me = getattr(request.user, "employee_get", None)
+        if me is None:
+            return Response({"detail": "Không có hồ sơ nhân viên"}, status=400)
+
+        team = list(
+            Employee.objects.filter(
+                _Q(pk=me.pk) | _Q(employee_work_info__reporting_manager_id=me),
+                is_active=True,
+            ).select_related("employee_work_info__department_id").distinct()
+        )
+        try:
+            d = date.fromisoformat(request.query_params.get("date") or "")
+        except (ValueError, TypeError):
+            d = django_tz.localdate()
+
+        atts = {
+            a.employee_id_id: a
+            for a in Attendance.objects.filter(
+                employee_id__in=[e.id for e in team], attendance_date=d
+            )
+        }
+        rows = []
+        for e in team:
+            att = atts.get(e.id)
+            wi = getattr(e, "employee_work_info", None)
+            ci = att.attendance_clock_in if att else None
+            co = att.attendance_clock_out if att else None
+            rows.append({
+                "employee_id": e.id,
+                "employee_name": (f"{e.employee_last_name or ''} {e.employee_first_name or ''}").strip(),
+                "badge_id": e.badge_id,
+                "department": wi.department_id.department if wi and wi.department_id else None,
+                "is_self": e.id == me.id,
+                "clock_in": str(ci)[:5] if ci else None,
+                "clock_out": str(co)[:5] if co else None,
+                "worked_hour": (att.attendance_worked_hour[:5] if att and att.attendance_worked_hour else None),
+                "validated": att.attendance_validated if att else None,
+                "status": "present" if att else "absent",
+            })
+        # NV đã chấm lên trước, rồi theo mã NV.
+        rows.sort(key=lambda r: (r["status"] == "absent", r["badge_id"] or ""))
+        return Response({"date": d.isoformat(), "team_size": len(team), "results": rows})
+
+
 class OfficesAPIView(APIView):
     """Return all company offices that have GPS coordinates configured via GeoFencing."""
 
