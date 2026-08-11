@@ -2222,6 +2222,10 @@ def _request_list_qs(request, me):
             | Q(employee_id__accounting_code__icontains=q)
         )
 
+    # Sắp xếp theo THỜI GIAN TẠO ĐƠN: created_desc (mới→cũ, mặc định) | created_asc (cũ→mới).
+    sort = (request.query_params.get("sort") or "created_desc").strip()
+    ordering = ("created_at", "id") if sort == "created_asc" else ("-created_at", "-id")
+
     return (
         qs.select_related(
             "employee_id",
@@ -2231,7 +2235,7 @@ def _request_list_qs(request, me):
             "employee_id__employee_work_info__company_id",
             "employee_id__employee_work_info__job_position_id",
         )
-        .order_by("-start_date", "-id")
+        .order_by(*ordering)
         .distinct()
     )
 

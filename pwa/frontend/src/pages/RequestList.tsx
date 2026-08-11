@@ -62,6 +62,8 @@ export function RequestListPage() {
   const [department, setDepartment] = useState('')
   const [q, setQ] = useState('')
   const [qDebounced, setQDebounced] = useState('')
+  const [sort, setSort] = useState<'created_desc' | 'created_asc'>('created_desc')
+  const [groupBySeen, setGroupBySeen] = useState(true)
 
   const [rows, setRows] = useState<Row[]>([])
   const [companies, setCompanies] = useState<Company[]>([])
@@ -86,8 +88,9 @@ export function RequestListPage() {
     if (company) p.set('company', company)
     if (department) p.set('department', department)
     if (qDebounced) p.set('q', qDebounced)
+    p.set('sort', sort)
     return p.toString()
-  }, [from, to, status, seen, company, department, qDebounced])
+  }, [from, to, status, seen, company, department, qDebounced, sort])
 
   const reqIdRef = useRef(0)
   const load = useCallback(async () => {
@@ -202,13 +205,62 @@ export function RequestListPage() {
         </button>
       </div>
 
+      {/* Thanh sắp xếp + gom nhóm */}
+      <div className="flex items-center gap-2" style={{ background: '#fff', borderBottom: `1px solid ${HNH.line}`, padding: '7px 12px', flexShrink: 0, overflowX: 'auto' }}>
+        <span style={{ fontSize: 11, color: HNH.ink3, fontWeight: 700, flexShrink: 0 }}>Sắp xếp:</span>
+        <span onClick={() => setSort('created_desc')} style={chip(sort === 'created_desc')}>Mới nhất trước</span>
+        <span onClick={() => setSort('created_asc')} style={chip(sort === 'created_asc')}>Cũ nhất trước</span>
+        <span onClick={() => setGroupBySeen(g => !g)} style={{ ...chip(groupBySeen), marginLeft: 'auto', flexShrink: 0 }}>
+          {groupBySeen ? '☑' : '☐'} Gom Đã/Chưa xem
+        </span>
+      </div>
+
       {/* Danh sách */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '10px 12px 32px', minHeight: 0 }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: 40, color: HNH.ink3, fontSize: 13 }}>Đang tải…</div>
         ) : rows.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 40, color: HNH.ink3, fontSize: 13 }}>Không có đơn phù hợp bộ lọc</div>
-        ) : rows.map(r => {
+        ) : groupBySeen ? (
+          [{ seen: false, lbl: 'Chưa xem' }, { seen: true, lbl: 'Đã xem' }].map(g => {
+            const grp = rows.filter(r => r.seen === g.seen)
+            if (!grp.length) return null
+            return (
+              <div key={String(g.seen)} style={{ marginBottom: 6 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 2px 8px', position: 'sticky', top: 0 }}>
+                  <span style={{ fontSize: 12.5, fontWeight: 800, color: g.seen ? HNH.ink3 : HNH.warn }}>{g.lbl}</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: g.seen ? HNH.ink3 : HNH.warn, background: g.seen ? HNH.cream2 : HNH.warn50, borderRadius: 999, padding: '1px 8px' }}>{grp.length}</span>
+                  <span style={{ flex: 1, height: 1, background: HNH.line }} />
+                </div>
+                {grp.map(renderCard)}
+              </div>
+            )
+          })
+        ) : rows.map(renderCard)}
+      </div>
+
+      {/* Modal nhập lý do */}
+      {reasonModal && (
+        <div onClick={() => setReasonModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,20,40,0.4)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 50 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: '16px 16px 0 0', padding: 18, width: '100%', maxWidth: 520 }}>
+            <div style={{ fontSize: 15, fontWeight: 700, color: HNH.ink, marginBottom: 10 }}>{reasonModal.kind === 'reject' ? 'Lý do từ chối đơn' : 'Lý do hủy đơn'}</div>
+            <textarea value={reasonText} onChange={e => setReasonText(e.target.value)} autoFocus rows={3}
+              placeholder="Nhập lý do…" style={{ width: '100%', padding: 10, borderRadius: 10, border: `1px solid ${HNH.line}`, fontSize: 13, resize: 'none', boxSizing: 'border-box' }} />
+            <div className="flex items-center gap-2" style={{ marginTop: 12 }}>
+              <button onClick={() => setReasonModal(null)} className="flex-1 border-none cursor-pointer" style={{ padding: '10px', borderRadius: 10, background: HNH.cream2, color: HNH.ink2, fontWeight: 700, fontSize: 13 }}>Bỏ qua</button>
+              <button onClick={doReason} className="flex-1 border-none cursor-pointer" style={{ padding: '10px', borderRadius: 10, background: HNH.red, color: '#fff', fontWeight: 700, fontSize: 13 }}>Xác nhận</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {toast && (
+        <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: HNH.ink, color: '#fff', padding: '10px 18px', borderRadius: 999, fontSize: 13, fontWeight: 600, zIndex: 60, boxShadow: '0 4px 16px rgba(0,0,0,0.2)' }}>{toast}</div>
+      )}
+    </div>
+  )
+
+  function renderCard(r: Row) {
           const st = STATUS_META[r.status] ?? { label: r.status_label, color: HNH.ink3, bg: HNH.cream2 }
           const isOpen = expanded === r.id
           const dateStr = r.end_date !== r.start_date ? `${fmtDate(r.start_date)} → ${fmtDate(r.end_date)}` : fmtDate(r.start_date)
@@ -256,27 +308,5 @@ export function RequestListPage() {
               </div>
             </div>
           )
-        })}
-      </div>
-
-      {/* Modal nhập lý do */}
-      {reasonModal && (
-        <div onClick={() => setReasonModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,20,40,0.4)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 50 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#fff', borderRadius: '16px 16px 0 0', padding: 18, width: '100%', maxWidth: 520 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: HNH.ink, marginBottom: 10 }}>{reasonModal.kind === 'reject' ? 'Lý do từ chối đơn' : 'Lý do hủy đơn'}</div>
-            <textarea value={reasonText} onChange={e => setReasonText(e.target.value)} autoFocus rows={3}
-              placeholder="Nhập lý do…" style={{ width: '100%', padding: 10, borderRadius: 10, border: `1px solid ${HNH.line}`, fontSize: 13, resize: 'none', boxSizing: 'border-box' }} />
-            <div className="flex items-center gap-2" style={{ marginTop: 12 }}>
-              <button onClick={() => setReasonModal(null)} className="flex-1 border-none cursor-pointer" style={{ padding: '10px', borderRadius: 10, background: HNH.cream2, color: HNH.ink2, fontWeight: 700, fontSize: 13 }}>Bỏ qua</button>
-              <button onClick={doReason} className="flex-1 border-none cursor-pointer" style={{ padding: '10px', borderRadius: 10, background: HNH.red, color: '#fff', fontWeight: 700, fontSize: 13 }}>Xác nhận</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {toast && (
-        <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: HNH.ink, color: '#fff', padding: '10px 18px', borderRadius: 999, fontSize: 13, fontWeight: 600, zIndex: 60, boxShadow: '0 4px 16px rgba(0,0,0,0.2)' }}>{toast}</div>
-      )}
-    </div>
-  )
+  }
 }
