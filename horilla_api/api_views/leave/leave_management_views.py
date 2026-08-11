@@ -2226,17 +2226,19 @@ def _request_list_qs(request, me):
     sort = (request.query_params.get("sort") or "created_desc").strip()
     ordering = ("created_at", "id") if sort == "created_asc" else ("-created_at", "-id")
 
+    from django.db.models import Max
     return (
-        qs.select_related(
+        qs.annotate(_updated_at=Max("history_set__history_date"))
+        .select_related(
             "employee_id",
             "leave_type_id",
             "cancelled_by",
+            "approved_by",
             "employee_id__employee_work_info__department_id",
             "employee_id__employee_work_info__company_id",
             "employee_id__employee_work_info__job_position_id",
         )
         .order_by(*ordering)
-        .distinct()
     )
 
 
@@ -2279,7 +2281,11 @@ def _serialize_request_rows(qs, me, limit=1000):
             "reject_reason": getattr(lr, "reject_reason", "") or "",
             "requested_date": (lr.created_at.isoformat() if lr.created_at
                                else (lr.requested_date.isoformat() if lr.requested_date else None)),
+            "updated_at": (lr._updated_at.isoformat()
+                           if getattr(lr, "_updated_at", None) else None),
             "approved_at": lr.approved_at.isoformat() if getattr(lr, "approved_at", None) else None,
+            "approved_by": (_vn_full_name(lr.approved_by)
+                            if getattr(lr, "approved_by", None) else None),
             "cancelled_at": lr.cancelled_at.isoformat() if getattr(lr, "cancelled_at", None) else None,
             "cancelled_by": _vn_full_name(lr.cancelled_by) if getattr(lr, "cancelled_by", None) else None,
             "cancel_reason": getattr(lr, "cancel_reason", "") or "",
@@ -2341,9 +2347,10 @@ class HNHRequestListExportView(APIView):
             "STT", "Mã NV", "Mã KT", "Họ tên", "Công ty", "Phòng ban", "Chức vụ",
             "Loại đơn", "Loại nghỉ", "Từ ngày", "Buổi (từ)", "Đến ngày", "Buổi (đến)",
             "Số ngày", "Tình trạng", "C&B xem", "Lý do", "Lý do từ chối",
-            "Ngày gửi", "Ngày duyệt", "Ngày hủy", "Người hủy", "Ngày hoàn",
+            "Ngày gửi", "Ngày cập nhật", "Ngày duyệt", "Người duyệt",
+            "Ngày hủy", "Người hủy", "Ngày hoàn",
         ]
-        COL_W = [5, 10, 10, 22, 20, 18, 18, 12, 18, 12, 11, 12, 11, 8, 12, 11, 28, 24, 16, 16, 16, 18, 10]
+        COL_W = [5, 10, 10, 22, 20, 18, 18, 12, 18, 12, 11, 12, 11, 8, 12, 11, 28, 24, 16, 16, 16, 20, 16, 18, 10]
         hdr_font = Font(bold=True, color="FFFFFF", size=10)
         hdr_fill = PatternFill(start_color="C0222B", end_color="C0222B", fill_type="solid")
         thin = Border(left=Side(style="thin"), right=Side(style="thin"),
@@ -2378,7 +2385,8 @@ class HNHRequestListExportView(APIView):
                 BREAKDOWN_VI.get(r["end_breakdown"], ""), r["requested_days"],
                 r["status_label"], "Đã xem" if r["seen"] else "Chưa xem",
                 r["description"], r["reject_reason"], _d(r["requested_date"]),
-                _d(r["approved_at"]), _d(r["cancelled_at"]), r["cancelled_by"] or "",
+                _d(r["updated_at"]), _d(r["approved_at"]), r["approved_by"] or "",
+                _d(r["cancelled_at"]), r["cancelled_by"] or "",
                 r["refunded_days"] or "",
             ]
             fill = fills.get(r["status"])

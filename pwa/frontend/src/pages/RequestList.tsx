@@ -15,6 +15,7 @@ interface Row {
   start_date: string; end_date: string; start_breakdown: string; end_breakdown: string
   requested_days: number | null; status: string; status_label: string
   description: string; reject_reason: string; requested_date: string | null
+  updated_at: string | null; approved_by: string | null
   approved_at: string | null; cancelled_at: string | null; cancelled_by: string | null
   cancel_reason: string; refunded_days: number; seen: boolean
 }
@@ -283,9 +284,15 @@ export function RequestListPage() {
                 <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px dashed ${HNH.line}`, fontSize: 11.5, color: HNH.ink2, display: 'grid', gap: 3 }}>
                   <div>Chức vụ: <b>{r.job_position || '—'}</b></div>
                   <div>Buổi: <b>{BD_VI[r.start_breakdown] || '—'}{r.end_breakdown && r.end_breakdown !== r.start_breakdown ? ` → ${BD_VI[r.end_breakdown]}` : ''}</b></div>
-                  <div>Ngày gửi: <b>{fmtDate(r.requested_date)}</b>{r.approved_at ? ` · Duyệt: ${fmtDate(r.approved_at)}` : ''}</div>
                 </div>
               )}
+
+              {/* Mốc thời gian — chữ nhỏ dưới card */}
+              <div style={{ fontSize: 10.5, color: HNH.ink4, marginTop: 6, lineHeight: 1.55 }}>
+                Tạo: <b style={{ color: HNH.ink3 }}>{fmtDate(r.requested_date)}</b>
+                {r.updated_at && <> · Cập nhật: <b style={{ color: HNH.ink3 }}>{fmtDate(r.updated_at)}</b></>}
+                {r.approved_at && <> · Duyệt: <b style={{ color: HNH.success }}>{fmtDate(r.approved_at)}</b>{r.approved_by ? <> bởi <b style={{ color: HNH.ink3 }}>{r.approved_by}</b></> : null}</>}
+              </div>
 
               {/* Hành động */}
               <div className="flex items-center gap-2" style={{ marginTop: 9, flexWrap: 'wrap' }}>
