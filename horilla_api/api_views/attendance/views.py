@@ -2715,6 +2715,14 @@ class AttendanceActivityDetailView(APIView):
         if not emp:
             return Response({"error": "Không tìm thấy nhân viên"}, status=404)
 
+        return Response(self.build_payload(emp, the_date))
+
+    @classmethod
+    def build_payload(cls, emp, the_date):
+        """Payload chi tiết chấm công 1 NV/1 ngày (dùng chung C&B + QL team).
+        KHÔNG kiểm quyền — caller phải tự giới hạn phạm vi xem."""
+        from attendance.models import AttendanceActivity, Attendance
+
         # Office address + geofence from the employee's company
         office_address = ""
         office_lat = office_lng = None
@@ -2791,21 +2799,21 @@ class AttendanceActivityDetailView(APIView):
                 "clock_out_lat": str(a.clock_out_latitude) if a.clock_out_latitude is not None else None,
                 "clock_out_lng": str(a.clock_out_longitude) if a.clock_out_longitude is not None else None,
                 "work_location": wl,
-                "work_location_label": self._WORK_LOCATION_VI.get(wl, ""),
+                "work_location_label": cls._WORK_LOCATION_VI.get(wl, ""),
                 "geofence_mismatch": geofence_mismatch,
                 "clock_in_inside": clock_in_inside,
                 "clock_in_distance_m": clock_in_distance_m,
                 "clock_out_inside": clock_out_inside,
                 "clock_out_distance_m": clock_out_distance_m,
                 "out_of_office_type": oot,
-                "out_of_office_label": self._OUT_TYPE_VI.get(oot, ""),
+                "out_of_office_label": cls._OUT_TYPE_VI.get(oot, ""),
                 "out_of_office_note": a.out_of_office_note or "",
                 "clock_in_photo": photo_url(a.clock_in_photo),
                 "clock_out_photo": photo_url(a.clock_out_photo),
                 "no_camera": bool(a.no_camera),
                 # Nguồn chấm: biometric (máy) vs app (PWA) — để UI dán badge phân biệt
-                "clock_in_source": self._punch_source(a.clock_in_device),
-                "clock_out_source": self._punch_source(a.clock_out_device),
+                "clock_in_source": cls._punch_source(a.clock_in_device),
+                "clock_out_source": cls._punch_source(a.clock_out_device),
             })
 
         # Trạng thái NCO + đơn khai báo cho ngày này
@@ -2823,7 +2831,7 @@ class AttendanceActivityDetailView(APIView):
             except Exception:
                 nco_declared_out = None
 
-        return Response({
+        return {
             "employee_id": emp.id,
             "employee_name": emp.get_full_name(),
             "date": the_date.isoformat(),
@@ -2836,7 +2844,7 @@ class AttendanceActivityDetailView(APIView):
             "nco_pending": nco_pending,
             "nco_declared_clock_out": nco_declared_out,
             "nco_reason": (att.request_description if nco_pending else None),
-        })
+        }
 
 
 class NCODeclareView(APIView):
@@ -3813,11 +3821,67 @@ class ManagerPunchMatrixView(APIView):
         })
 
 
+def _day_attendance_summary(emp, d):
+    """Tóm tắt chấm công 1 NV/1 ngày — khớp logic CC Tháng (monthly-detail):
+    status/giờ vào-ra/giờ làm/tăng ca/công/loại nghỉ. Dùng cho modal QL team."""
+    from attendance.models import Attendance
+    from leave.models import LeaveRequest
+
+    today = date.today()
+    is_weekend = d.weekday() >= 5
+    cell = {"check_in": None, "check_out": None, "status": "", "is_weekend": is_weekend}
+    att = (
+        Attendance.objects.filter(employee_id=emp, attendance_date=d)
+        .values("attendance_clock_in", "attendance_clock_out",
+                "minimum_hour", "at_work_second", "overtime_second")
+        .first()
+    )
+    if att:
+        ci, co = att["attendance_clock_in"], att["attendance_clock_out"]
+        cell["check_in"] = ci.strftime("%H:%M") if ci else None
+        cell["check_out"] = co.strftime("%H:%M") if co else None
+        cell["at_work_second"] = att.get("at_work_second") or 0
+        cell["overtime_second"] = att.get("overtime_second") or 0
+        try:
+            mh, mm = map(int, str(att.get("minimum_hour") or "00:00").split(":"))
+            min_secs = mh * 3600 + mm * 60
+        except Exception:
+            min_secs = 0
+        work_secs = cell["at_work_second"]
+        denom = min_secs or 34500
+        if co is None and d < today:
+            cell["status"] = "nco"
+            cell["cong"] = 0.0
+        else:
+            cell["status"] = "late" if (min_secs > 0 and work_secs < min_secs) else "present"
+            cell["cong"] = round(min(1.0, work_secs / denom), 2)
+    elif is_weekend:
+        cell["status"] = "weekend"
+    elif d > today:
+        cell["status"] = "future"
+    else:
+        lr = (
+            LeaveRequest.objects.filter(
+                employee_id=emp, status="approved", start_date__lte=d, end_date__gte=d
+            ).select_related("leave_type_id").first()
+        )
+        if lr:
+            paid = getattr(lr.leave_type_id, "payment", "unpaid") == "paid"
+            cell["status"] = "leave" if paid else "unpaid"
+            cell["leave_name"] = lr.leave_type_id.name if lr.leave_type_id else ""
+            if paid:
+                cell["cong"] = 1.0
+        else:
+            cell["status"] = "absent"
+    return cell
+
+
 class ManagerPunchDetailView(APIView):
     """GET /api/attendance/manager-punch-detail/?employee_id=&date=YYYY-MM-DD
 
-    Returns all punch events for one employee on one date.
-    Accessible by the employee's manager (any level) or HR.
+    Trả chi tiết ĐẦY ĐỦ chấm công 1 NV/1 ngày (giống C&B xem ở CC Tháng):
+    summary (status/giờ làm/công) + activities (VP/địa điểm/ảnh/lý do/nguồn) + NCO.
+    Chỉ QL của NV (mọi cấp) hoặc chính NV. Phạm vi giới hạn theo cây tổ chức.
     """
 
     permission_classes = [IsAuthenticated]
@@ -3852,25 +3916,8 @@ class ManagerPunchDetailView(APIView):
         if not emp:
             return Response({"error": "Không tìm thấy nhân viên"}, status=404)
 
-        activities = AttendanceActivity.objects.filter(
-            employee_id=emp,
-            attendance_date=target_date,
-        ).order_by("clock_in")
-
-        punches = []
-        for act in activities:
-            if act.clock_in:
-                punches.append({"time": act.clock_in.strftime("%H:%M"), "type": "in",
-                                "source": AttendanceActivityDetailView._punch_source(act.clock_in_device)})
-            if act.clock_out:
-                punches.append({"time": act.clock_out.strftime("%H:%M"), "type": "out",
-                                "source": AttendanceActivityDetailView._punch_source(act.clock_out_device)})
-        punches.sort(key=lambda x: x["time"])
-
-        return Response({
-            "employee_id":   emp.id,
-            "employee_name": emp.get_full_name(),
-            "badge_id":      emp.badge_id or "",
-            "date":          date_str,
-            "punches":       punches,
-        })
+        # Chi tiết đầy đủ (VP/địa điểm/ảnh/nguồn/NCO) — tái dùng builder của C&B,
+        # đã được scope theo cây tổ chức ở trên nên an toàn cho QL team.
+        payload = AttendanceActivityDetailView.build_payload(emp, target_date)
+        payload["summary"] = _day_attendance_summary(emp, target_date)
+        return Response(payload)

@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../lib/api'
 import { HNH } from '../lib/theme'
-import { PunchSourceBadge, type PunchSource } from '../components/PunchSourceBadge'
+import { PunchList, type ActivityResp } from '../components/AttendanceActivityDetail'
+import { roundCong, fmtCong } from '../lib/cong'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -43,18 +44,21 @@ interface MatrixData {
   employees: EmployeeRow[]
 }
 
-interface PunchEvent {
-  time: string
-  type: 'in' | 'out'
-  source?: PunchSource   // nguồn chấm: biometric (máy) vs app
+// Tóm tắt ngày (khớp CC Tháng): status + giờ làm + công + tăng ca + loại nghỉ.
+interface DaySummary {
+  status: string
+  check_in: string | null
+  check_out: string | null
+  at_work_second?: number
+  overtime_second?: number
+  cong?: number
+  leave_name?: string
+  is_weekend?: boolean
 }
 
-interface PunchDetail {
-  employee_id: number
-  employee_name: string
-  badge_id: string
-  date: string
-  punches: PunchEvent[]
+// Response manager-punch-detail (đầy đủ như C&B): summary + activities + NCO.
+interface DetailResp extends ActivityResp {
+  summary: DaySummary
 }
 
 interface Dept    { id: number; name: string }
@@ -470,7 +474,33 @@ export function AttendanceManagerViewPage() {
   )
 }
 
-// ── Punch Detail Modal ────────────────────────────────────────────────────────
+// ── Detail Modal (đầy đủ như C&B ở CC Tháng) — hiển thị GIỮA màn hình ────────────
+
+const STATUS_CFG: Record<string, { bg: string; border: string; text: string; label: string; icon: string }> = {
+  present: { bg: '#dcfce7', border: '#86efac', text: '#15803d', label: 'Đủ công', icon: '✅' },
+  late:    { bg: '#f0fdf4', border: '#bbf7d0', text: '#16a34a', label: 'Thiếu giờ', icon: '⚠️' },
+  leave:   { bg: '#fefce8', border: '#fde047', text: '#92400e', label: 'Nghỉ phép', icon: '🌿' },
+  unpaid:  { bg: '#f3f4f6', border: '#d1d5db', text: '#6b7280', label: 'K. lương', icon: '⏸️' },
+  absent:  { bg: '#fff1f2', border: '#fca5a5', text: '#be123c', label: 'Vắng mặt', icon: '❌' },
+  nco:     { bg: '#fff7ed', border: '#fdba74', text: '#c2410c', label: 'NCO', icon: '🟠' },
+  weekend: { bg: '#f8fafc', border: '#e2e8f0', text: '#94a3b8', label: 'Cuối tuần', icon: '📅' },
+  '':      { bg: '#f8fafc', border: '#e2e8f0', text: '#94a3b8', label: '', icon: '📅' },
+}
+
+function fmtSecs(s: number) {
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60)
+  return `${h}h${m > 0 ? ` ${m}p` : ''}`
+}
+
+function DetailRow({ icon, label, value, valueColor }: { icon: string; label: string; value: string; valueColor?: string }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', background: '#f8fafc', borderRadius: 10 }}>
+      <span style={{ fontSize: 15 }}>{icon}</span>
+      <span style={{ fontSize: 12.5, color: HNH.ink3, flex: 1 }}>{label}</span>
+      <span style={{ fontSize: 13, fontWeight: 700, color: valueColor ?? HNH.ink }}>{value}</span>
+    </div>
+  )
+}
 
 function PunchDetailModal({
   emp, dayNum, year, month, onClose,
@@ -483,102 +513,102 @@ function PunchDetailModal({
 }) {
   const dateISO = `${year}-${String(month).padStart(2,'0')}-${String(dayNum).padStart(2,'0')}`
   const dateLabel = `${String(dayNum).padStart(2,'0')}/${String(month).padStart(2,'0')}/${year}`
+  const weekday = ['CN','T2','T3','T4','T5','T6','T7'][new Date(year, month - 1, dayNum).getDay()]
+  const isPast = dateISO < new Date().toISOString().slice(0, 10)
 
-  const [detail, setDetail] = useState<PunchDetail | null>(null)
+  const [resp, setResp] = useState<DetailResp | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    api.get<PunchDetail>(`/api/attendance/manager-punch-detail/?employee_id=${emp.id}&date=${dateISO}`)
-      .then(setDetail)
-      .catch(() => setDetail(null))
+    setLoading(true)
+    api.get<DetailResp>(`/api/attendance/manager-punch-detail/?employee_id=${emp.id}&date=${dateISO}`)
+      .then(setResp)
+      .catch(() => setResp(null))
       .finally(() => setLoading(false))
   }, [emp.id, dateISO])
 
+  const sm = resp?.summary
+  const st = sm?.status ?? ''
+  const cfg = STATUS_CFG[st] ?? STATUS_CFG['']
+
   return (
     <div
-      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
       onClick={onClose}
     >
       <div
         style={{
-          background: '#fff', borderRadius: '20px 20px 0 0',
-          width: '100%', maxWidth: 480, maxHeight: '75vh',
-          overflow: 'hidden', display: 'flex', flexDirection: 'column',
-          boxShadow: '0 -4px 24px rgba(0,0,0,0.18)',
+          background: '#fff', borderRadius: 18, width: '100%', maxWidth: 480,
+          maxHeight: '85vh', overflowY: 'auto', padding: 20,
+          boxShadow: '0 12px 40px rgba(0,0,0,0.25)',
         }}
         onClick={e => e.stopPropagation()}
       >
         {/* Header */}
-        <div style={{ padding: '16px 20px 12px', borderBottom: `1px solid ${HNH.line}` }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 15, color: HNH.ink }}>{emp.first_name} {emp.last_name}</div>
-              <div style={{ fontSize: 12, color: HNH.ink3, marginTop: 2 }}>
-                {emp.badge_id && <span>{emp.badge_id} · </span>}
-                {dateLabel} · {emp.department}
-              </div>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, marginBottom: 16 }}>
+          <div style={{ width: 42, height: 42, borderRadius: 10, background: cfg.bg, border: `1.5px solid ${cfg.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18, flexShrink: 0 }}>
+            {cfg.icon}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: HNH.ink }}>{emp.name}</div>
+            <div style={{ fontSize: 11, color: HNH.ink3, marginTop: 1 }}>
+              {emp.badge_id && <span style={{ color: HNH.navy, fontWeight: 600 }}>{emp.badge_id} · </span>}
+              {emp.accounting_code && <span style={{ fontWeight: 600 }}>KT {emp.accounting_code} · </span>}
+              {weekday} {dateLabel}{emp.department ? ` · ${emp.department}` : ''}
             </div>
-            <button
-              onClick={onClose}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 22, color: HNH.ink3, lineHeight: 1, padding: '0 4px' }}
-            >
-              ×
-            </button>
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: cfg.text, background: cfg.bg, border: `1px solid ${cfg.border}`, borderRadius: 20, padding: '3px 10px' }}>
+            {cfg.label || st}
           </div>
         </div>
 
-        {/* Punch list */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: '12px 20px', paddingBottom: 'calc(20px + env(safe-area-inset-bottom, 0px))' }}>
-          {loading ? (
-            <div style={{ textAlign: 'center', color: HNH.ink3, padding: 24 }}>Đang tải...</div>
-          ) : !detail || detail.punches.length === 0 ? (
-            <div style={{ textAlign: 'center', color: HNH.ink3, padding: 24 }}>Không có lượt chấm nào</div>
-          ) : (
+        {loading ? (
+          <div style={{ textAlign: 'center', color: HNH.ink3, padding: 24 }}>Đang tải…</div>
+        ) : (
+          <>
+            {/* Tóm tắt ngày */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {detail.punches.map((p, i) => {
-                // Ca 24h (ALD26): lượt đầu tiên → các lượt tiếp theo, không vào/ra cứng.
-                const isFirst = i === 0
-                const c = isFirst
-                  ? { bg: '#f0fdf4', bd: '#bbf7d0', icon: '#dcfce7', fg: '#15803d' }
-                  : { bg: HNH.navy50, bd: '#c7d2fe', icon: '#e0e7ff', fg: HNH.navy }
-                return (
-                  <div key={i} style={{
-                    display: 'flex', alignItems: 'center', gap: 14,
-                    background: c.bg,
-                    border: `1px solid ${c.bd}`,
-                    borderRadius: 10, padding: '10px 16px',
-                  }}>
-                    <div style={{
-                      width: 32, height: 32, borderRadius: '50%',
-                      background: c.icon,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      flexShrink: 0,
-                    }}>
-                      {isFirst ? (
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                          <path d="M12 19V5M5 12l7-7 7 7" stroke={c.fg} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      ) : (
-                        <svg width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4" fill={c.fg}/></svg>
-                      )}
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 16, fontWeight: 800, color: c.fg, letterSpacing: 0.5 }}>
-                        {p.time}
-                      </div>
-                      <div style={{ fontSize: 11, color: HNH.ink3, marginTop: 1 }}>
-                        Lượt {i + 1} · {isFirst ? 'Lần đầu' : 'Lần tiếp theo'}
-                      </div>
-                    </div>
-                    <div style={{ marginLeft: 'auto' }}>
-                      <PunchSourceBadge source={p.source} />
-                    </div>
-                  </div>
-                )
-              })}
+              {(st === 'present' || st === 'late' || st === 'nco') && (
+                <>
+                  <DetailRow icon="🕐" label="Giờ vào" value={sm?.check_in ?? '—'} />
+                  <DetailRow icon="🕔" label="Giờ ra" value={sm?.check_out ?? (st === 'nco' ? 'Chưa chấm ra' : '—')} valueColor={st === 'nco' ? '#c2410c' : undefined} />
+                  {sm?.at_work_second != null && <DetailRow icon="⏱️" label="Giờ làm việc" value={fmtSecs(sm.at_work_second)} valueColor={HNH.success} />}
+                  {sm?.cong != null && <DetailRow icon="📊" label="Công ngày" value={`${fmtCong(sm.cong)} (9h35 = 1.0)`} valueColor={roundCong(sm.cong) >= 1 ? HNH.success : '#c2410c'} />}
+                  {(sm?.overtime_second ?? 0) > 0 && <DetailRow icon="🔥" label="Tăng ca" value={fmtSecs(sm!.overtime_second!)} valueColor="#d97706" />}
+                </>
+              )}
+              {(st === 'leave' || st === 'unpaid') && (
+                <DetailRow icon="📋" label="Loại nghỉ" value={sm?.leave_name || (st === 'leave' ? 'Nghỉ phép có lương' : 'Nghỉ không lương')} />
+              )}
+              {st === 'absent' && (
+                <div style={{ background: '#fff1f2', border: '1px solid #fca5a5', borderRadius: 10, padding: '10px 14px', fontSize: 13, color: '#be123c' }}>
+                  Không ghi nhận chấm công ngày này.
+                </div>
+              )}
+              {st === 'nco' && (
+                <div style={{ background: '#fff7ed', border: '1px solid #fdba74', borderRadius: 10, padding: '10px 14px', fontSize: 12.5, color: '#c2410c' }}>
+                  <b>NCO — Quên chấm công ra.</b> Có giờ vào nhưng chưa có giờ ra.
+                  {resp?.nco_pending && <div style={{ marginTop: 6, color: HNH.ink2 }}>Đã khai báo giờ ra: <b>{resp.nco_declared_clock_out}</b>{resp.nco_reason ? ` · ${resp.nco_reason}` : ''} (chờ C&B duyệt)</div>}
+                </div>
+              )}
             </div>
-          )}
-        </div>
+
+            {/* Lượt chấm công — VP/địa điểm/ảnh/lý do/nguồn (đầy đủ như C&B) */}
+            {(st === 'present' || st === 'late' || st === 'nco' || st === 'absent') && (
+              <div style={{ marginTop: 16 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: HNH.ink2, marginBottom: 8 }}>Lượt chấm công</div>
+                <PunchList resp={resp} loading={false} isPast={isPast} />
+              </div>
+            )}
+          </>
+        )}
+
+        <button
+          onClick={onClose}
+          style={{ marginTop: 20, width: '100%', padding: 12, borderRadius: 12, border: 'none', background: HNH.navy, color: '#fff', fontSize: 14, fontWeight: 700, cursor: 'pointer' }}
+        >
+          Đóng
+        </button>
       </div>
     </div>
   )
