@@ -2237,6 +2237,7 @@ def _request_list_qs(request, me):
             "employee_id__employee_work_info__department_id",
             "employee_id__employee_work_info__company_id",
             "employee_id__employee_work_info__job_position_id",
+            "employee_id__employee_work_info__reporting_manager_id",
         )
         .order_by(*ordering)
     )
@@ -2267,6 +2268,8 @@ def _serialize_request_rows(qs, me, limit=1000):
             "company": wi.company_id.company if wi and wi.company_id else None,
             "job_position": (wi.job_position_id.job_position
                              if wi and getattr(wi, "job_position_id", None) else None),
+            "manager_name": (_vn_full_name(wi.reporting_manager_id)
+                             if wi and getattr(wi, "reporting_manager_id", None) else None),
             "request_type": "leave",
             "request_type_label": "Nghỉ phép",
             "leave_type": lr.leave_type_id.name if lr.leave_type_id else "",
@@ -2344,13 +2347,13 @@ class HNHRequestListExportView(APIView):
         ws = wb.active
         ws.title = "DS Don"
         headers = [
-            "STT", "Mã NV", "Mã KT", "Họ tên", "Công ty", "Phòng ban", "Chức vụ",
+            "STT", "Mã NV", "Mã KT", "Họ tên", "Công ty", "Phòng ban", "Chức vụ", "Quản lý",
             "Loại đơn", "Loại nghỉ", "Từ ngày", "Buổi (từ)", "Đến ngày", "Buổi (đến)",
             "Số ngày", "Tình trạng", "C&B xem", "Lý do", "Lý do từ chối",
             "Ngày gửi", "Ngày cập nhật", "Ngày duyệt", "Người duyệt",
             "Ngày hủy", "Người hủy", "Ngày hoàn",
         ]
-        COL_W = [5, 10, 10, 22, 20, 18, 18, 12, 18, 12, 11, 12, 11, 8, 12, 11, 28, 24, 16, 16, 16, 20, 16, 18, 10]
+        COL_W = [5, 10, 10, 22, 20, 18, 18, 20, 12, 18, 12, 11, 12, 11, 8, 12, 11, 28, 24, 16, 16, 16, 20, 16, 18, 10]
         hdr_font = Font(bold=True, color="FFFFFF", size=10)
         hdr_fill = PatternFill(start_color="C0222B", end_color="C0222B", fill_type="solid")
         thin = Border(left=Side(style="thin"), right=Side(style="thin"),
@@ -2380,6 +2383,7 @@ class HNHRequestListExportView(APIView):
             vals = [
                 stt, r["badge_id"], r["accounting_code"], r["employee_name"],
                 r["company"] or "", r["department"] or "", r["job_position"] or "",
+                r["manager_name"] or "",
                 r["request_type_label"], r["leave_type"], _d(r["start_date"]),
                 BREAKDOWN_VI.get(r["start_breakdown"], ""), _d(r["end_date"]),
                 BREAKDOWN_VI.get(r["end_breakdown"], ""), r["requested_days"],
@@ -2393,7 +2397,7 @@ class HNHRequestListExportView(APIView):
             for col, v in enumerate(vals, 1):
                 cell = ws.cell(row=stt + 1, column=col, value=v)
                 cell.border = thin
-                cell.alignment = Alignment(vertical="center", wrap_text=(col in (4, 17, 18)))
+                cell.alignment = Alignment(vertical="center", wrap_text=(col in (4, 18, 19)))
                 if fill:
                     cell.fill = fill
 

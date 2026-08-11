@@ -11,7 +11,7 @@ import { api } from '../lib/api'
 interface Row {
   id: number; employee_id: number; employee_name: string; badge_id: string
   accounting_code: string; department: string | null; company: string | null
-  job_position: string | null; request_type_label: string; leave_type: string
+  job_position: string | null; manager_name: string | null; request_type_label: string; leave_type: string
   start_date: string; end_date: string; start_breakdown: string; end_breakdown: string
   requested_days: number | null; status: string; status_label: string
   description: string; reject_reason: string; requested_date: string | null
@@ -285,6 +285,7 @@ export function RequestListPage() {
               <div style={{ fontSize: 11, color: HNH.ink3, marginTop: 2 }}>
                 {r.badge_id}{r.accounting_code ? ` · KT:${r.accounting_code}` : ''}{r.company ? ` · ${r.company}` : ''}{r.department ? ` · ${r.department}` : ''}
               </div>
+              {r.manager_name && <div style={{ fontSize: 11, color: HNH.navy, marginTop: 2, fontWeight: 600 }}>QL duyệt: {r.manager_name}</div>}
               {r.description && <div style={{ fontSize: 11.5, color: HNH.ink3, marginTop: 4, fontStyle: 'italic' }}>Lý do: {r.description}</div>}
               {r.status === 'rejected' && r.reject_reason && <div style={{ fontSize: 11.5, color: HNH.red, marginTop: 3 }}>Từ chối: {r.reject_reason}</div>}
               {r.status === 'cancelled' && <div style={{ fontSize: 11.5, color: HNH.ink3, marginTop: 3 }}>Hủy{r.cancelled_by ? ` bởi ${r.cancelled_by}` : ''}{r.cancel_reason ? ` · ${r.cancel_reason}` : ''}{r.refunded_days ? ` · hoàn ${r.refunded_days} ngày` : ''}</div>}
