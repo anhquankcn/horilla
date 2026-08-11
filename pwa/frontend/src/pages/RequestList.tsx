@@ -47,6 +47,15 @@ function fmtDate(iso: string | null) {
   const [d] = iso.split('T'); const p = d.split('-')
   return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : iso
 }
+// Ngày + giờ (theo múi giờ thiết bị = VN). Chuỗi chỉ có ngày (không 'T') → chỉ hiện ngày.
+function fmtDT(iso: string | null) {
+  if (!iso) return '—'
+  if (!iso.includes('T')) return fmtDate(iso)
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return fmtDate(iso)
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()} ${p(d.getHours())}:${p(d.getMinutes())}`
+}
 function ymd(d: Date) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}` }
 
 export function RequestListPage() {
@@ -287,11 +296,11 @@ export function RequestListPage() {
                 </div>
               )}
 
-              {/* Mốc thời gian — chữ nhỏ dưới card */}
+              {/* Mốc thời gian (ngày giờ) — chữ nhỏ dưới card */}
               <div style={{ fontSize: 10.5, color: HNH.ink4, marginTop: 6, lineHeight: 1.55 }}>
-                Tạo: <b style={{ color: HNH.ink3 }}>{fmtDate(r.requested_date)}</b>
-                {r.updated_at && <> · Cập nhật: <b style={{ color: HNH.ink3 }}>{fmtDate(r.updated_at)}</b></>}
-                {r.approved_at && <> · Duyệt: <b style={{ color: HNH.success }}>{fmtDate(r.approved_at)}</b>{r.approved_by ? <> bởi <b style={{ color: HNH.ink3 }}>{r.approved_by}</b></> : null}</>}
+                Tạo: <b style={{ color: HNH.ink3 }}>{fmtDT(r.requested_date)}</b>
+                {r.updated_at && <> · Cập nhật: <b style={{ color: HNH.ink3 }}>{fmtDT(r.updated_at)}</b></>}
+                {r.approved_at && <> · Duyệt: <b style={{ color: HNH.success }}>{fmtDT(r.approved_at)}</b>{r.approved_by ? <> bởi <b style={{ color: HNH.ink3 }}>{r.approved_by}</b></> : null}</>}
               </div>
 
               {/* Hành động */}
