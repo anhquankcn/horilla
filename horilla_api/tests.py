@@ -217,3 +217,59 @@ class SuspendEmployeeTests(TestCase):
         self.assertEqual(resp.status_code, 200, resp.content)
         emp.refresh_from_db()
         self.assertFalse(emp.is_active)
+
+
+class M2MClientIPTests(TestCase):
+    """Regression (prod 2026-08-12): máy chấm công ronaljack bị 403 'Nguồn gọi không
+    nằm trong dải mạng cho phép'.
+
+    Root cause: Tailscale ở máy VP (it7067081928) offline → connector fallback gọi
+    qua URL công khai (Cloudflare). Traffic public tới HRM mang IP gateway Docker
+    172.20.0.1 (cloudflared→nginx→web), trong khi account chỉ mở dải Tailscale
+    100.64.0.0/10 → Layer-1 chặn. Fix: _get_client_ip ưu tiên CF-Connecting-IP (IP
+    thật do Cloudflare set) nhưng CHỈ khi hop tới là IP nội bộ Docker (chống giả mạo
+    header khi hit thẳng nginx qua Tailscale), + allowlist IP công cộng VP.
+    """
+
+    def _ip(self, **meta):
+        from horilla_api.m2m_auth import _get_client_ip
+
+        class _Req:
+            pass
+
+        r = _Req()
+        r.META = meta
+        return _get_client_ip(r)
+
+    def test_cf_ip_trusted_when_hop_is_docker_internal(self):
+        """Qua Cloudflare: hop = gateway Docker → tin CF-Connecting-IP (IP thật VP)."""
+        self.assertEqual(
+            self._ip(HTTP_X_REAL_IP="172.20.0.1", HTTP_CF_CONNECTING_IP="222.253.41.190"),
+            "222.253.41.190",
+        )
+
+    def test_cf_ip_ignored_when_hop_is_external_anti_spoof(self):
+        """Hit thẳng nginx qua Tailscale (peer 100.x) + CF header giả → KHÔNG tin,
+        dùng peer thật để không cho vượt allowlist bằng header giả mạo."""
+        self.assertEqual(
+            self._ip(HTTP_X_REAL_IP="100.81.191.29", HTTP_CF_CONNECTING_IP="8.8.8.8"),
+            "100.81.191.29",
+        )
+
+    def test_falls_back_to_x_real_ip_without_cf_header(self):
+        """Không có CF-Connecting-IP (đường Tailscale trực tiếp) → dùng X-Real-IP."""
+        self.assertEqual(self._ip(HTTP_X_REAL_IP="100.81.191.29"), "100.81.191.29")
+
+    def test_falls_back_to_remote_addr(self):
+        self.assertEqual(self._ip(REMOTE_ADDR="127.0.0.1"), "127.0.0.1")
+
+    def test_office_public_ip_passes_allowlist_via_cf(self):
+        """End-to-end Layer-1: traffic public từ IP VP + allowlist đúng → pass."""
+        from horilla_api.m2m_auth import _ip_in_cidrs
+
+        ip = self._ip(HTTP_X_REAL_IP="172.20.0.1", HTTP_CF_CONNECTING_IP="222.253.41.190")
+        cidrs = ["100.64.0.0/10", "222.253.41.190/32"]
+        self.assertTrue(_ip_in_cidrs(ip, cidrs))
+        # IP public lạ (không phải VP) vẫn bị chặn dù đi qua Cloudflare.
+        other = self._ip(HTTP_X_REAL_IP="172.20.0.1", HTTP_CF_CONNECTING_IP="1.2.3.4")
+        self.assertFalse(_ip_in_cidrs(other, cidrs))

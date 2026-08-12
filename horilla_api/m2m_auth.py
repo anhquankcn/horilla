@@ -33,11 +33,21 @@ ALT_PREFIX = "ServiceToken "
 
 
 def _get_client_ip(request):
-    # In Docker, REMOTE_ADDR is the nginx proxy IP. Use X-Real-IP (set by nginx)
-    # which is more trustworthy than X-Forwarded-For (easily spoofed).
-    real_ip = request.META.get("HTTP_X_REAL_IP")
+    # Trong Docker, REMOTE_ADDR là IP proxy nội bộ. X-Real-IP (nginx set) đáng tin
+    # hơn X-Forwarded-For (dễ giả mạo).
+    #
+    # Khi đi qua Cloudflare tunnel (cloudflared→nginx→web), IP THẬT của client nằm
+    # ở header CF-Connecting-IP; X-Real-IP khi đó chỉ là gateway Docker (172.20.0.1).
+    # Cloudflare LUÔN ghi đè CF-Connecting-IP bằng IP client thấy ở edge nên client
+    # không giả mạo được qua đường public. Ta CHỈ tin CF-Connecting-IP khi hop tới
+    # nginx là IP nội bộ Docker (tức đã qua cloudflared) — nếu ai đó hit thẳng nginx
+    # qua Tailscale (peer 100.x) và gắn CF-Connecting-IP giả thì KHÔNG được tin.
+    real_ip = (request.META.get("HTTP_X_REAL_IP") or "").strip()
+    cf_ip = (request.META.get("HTTP_CF_CONNECTING_IP") or "").strip()
+    if cf_ip and _ip_in_cidrs(real_ip, ["172.16.0.0/12"]):
+        return cf_ip
     if real_ip:
-        return real_ip.strip()
+        return real_ip
     return request.META.get("REMOTE_ADDR", "")
 
 
