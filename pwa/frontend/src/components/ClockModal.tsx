@@ -229,8 +229,35 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
       setBlockMsg('Không thể chấm công trên máy tính/laptop. Vui lòng dùng điện thoại có camera.')
     }
     let mounted = true
+    // iOS Safari đôi khi getUserMedia TREO (không resolve cũng không reject) → modal
+    // kẹt mãi ở "Đang mở camera...", nút chấm bị disable, và vì KHÔNG có lỗi nên
+    // fallback "chấm không ảnh" cũng không xuất hiện → NV không chấm công được.
+    // Bọc timeout: quá 15s coi như lỗi (TimeoutError) để hiện Thử lại + fallback.
+    const CAMERA_TIMEOUT_MS = 15000
     async function startWithConstraints(constraints: MediaStreamConstraints): Promise<MediaStream> {
-      return navigator.mediaDevices.getUserMedia(constraints)
+      return new Promise<MediaStream>((resolve, reject) => {
+        let settled = false
+        const timer = setTimeout(() => {
+          if (settled) return
+          settled = true
+          reject(new DOMException('Camera mở quá lâu', 'TimeoutError'))
+        }, CAMERA_TIMEOUT_MS)
+        navigator.mediaDevices.getUserMedia(constraints).then(
+          (s) => {
+            // Stream về SAU khi đã timeout → dọn ngay để camera không bật ngầm.
+            if (settled) { s.getTracks().forEach((t) => t.stop()); return }
+            settled = true
+            clearTimeout(timer)
+            resolve(s)
+          },
+          (err) => {
+            if (settled) return
+            settled = true
+            clearTimeout(timer)
+            reject(err)
+          },
+        )
+      })
     }
     async function start() {
       try {
@@ -271,6 +298,8 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
           setCameraError('Thiết bị không có camera')
         } else if (name === 'NotReadableError') {
           setCameraError('Camera đang dùng bởi ứng dụng khác — tắt app khác rồi thử lại')
+        } else if (name === 'TimeoutError') {
+          setCameraError('Camera mở quá lâu, thiết bị chưa phản hồi.\nNhấn "Thử lại". Nếu đang ở văn phòng, có thể dùng "Camera lỗi — chấm không ảnh".')
         } else {
           setCameraError('Không mở được camera')
         }
