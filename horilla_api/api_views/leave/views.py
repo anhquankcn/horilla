@@ -362,21 +362,24 @@ class EmployeeLeaveRequestDaysAPIView(APIView):
             parsed.append({"date": dt, "breakdown": bd})
         parsed.sort(key=lambda x: x["date"])
 
-        # Gom đoạn: ngày 'full_day' liên tiếp → 1 range; nửa ngày → từng ngày riêng
+        # Gom NGÀY LIÊN TIẾP thành 1 đơn DUY NHẤT (giữ breakdown 2 biên): nghỉ từ
+        # nửa ngày Chiều ngày đầu → nửa ngày Sáng ngày cuối, ngày giữa cả ngày.
+        # Nửa ngày ở BIÊN (đầu=Chiều, cuối=Sáng — kể cả thứ 7=Sáng vì thứ 7 LUÔN là
+        # ngày cuối chuỗi do CN nghỉ không được chọn) → calculate_requested_days
+        # tính đúng tổng, không cần tách. CHỈ tách đơn khi có KHOẢNG TRỐNG ngày
+        # (không liên tục). Trước đây tách mỗi nửa-ngày → 2 đơn thừa (1 cả ngày + 1
+        # nửa ngày) cho cùng 1 kỳ nghỉ liên tục.
         segments = []
         i, n = 0, len(parsed)
         while i < n:
-            cur = parsed[i]
-            if cur["breakdown"] == "full_day":
-                j = i
-                while (j + 1 < n and parsed[j + 1]["breakdown"] == "full_day"
-                       and (parsed[j + 1]["date"] - parsed[j]["date"]).days == 1):
-                    j += 1
-                segments.append((parsed[i]["date"], parsed[j]["date"], "full_day", "full_day"))
-                i = j + 1
-            else:
-                segments.append((cur["date"], cur["date"], cur["breakdown"], cur["breakdown"]))
-                i += 1
+            j = i
+            while j + 1 < n and (parsed[j + 1]["date"] - parsed[j]["date"]).days == 1:
+                j += 1
+            segments.append((
+                parsed[i]["date"], parsed[j]["date"],
+                parsed[i]["breakdown"], parsed[j]["breakdown"],
+            ))
+            i = j + 1
 
         # Pre-check tổng số ngày xin so với số dư
         total_req = 0.0
