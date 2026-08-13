@@ -190,8 +190,10 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
+  const autoNoCamRef = useRef(false)   // đã tự chuyển "chấm không ảnh" sau timeout chưa
   const [cameraReady, setCameraReady] = useState(false)
   const [cameraError, setCameraError] = useState<string | null>(null)
+  const [cameraTimedOut, setCameraTimedOut] = useState(false)   // camera TREO quá hạn
   const [cameraRetry, setCameraRetry] = useState(0)
   const [selfie, setSelfie] = useState<string | null>(null)
   const [done, setDone] = useState<DoneState>(null)
@@ -212,8 +214,10 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
     if (!open) {
       streamRef.current?.getTracks().forEach(t => t.stop())
       streamRef.current = null
+      autoNoCamRef.current = false
       setCameraReady(false)
       setCameraError(null)
+      setCameraTimedOut(false)
       setSelfie(null)
       setDone(null)
       setWorkLocation('in_office')
@@ -232,8 +236,9 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
     // iOS Safari đôi khi getUserMedia TREO (không resolve cũng không reject) → modal
     // kẹt mãi ở "Đang mở camera...", nút chấm bị disable, và vì KHÔNG có lỗi nên
     // fallback "chấm không ảnh" cũng không xuất hiện → NV không chấm công được.
-    // Bọc timeout: quá 15s coi như lỗi (TimeoutError) để hiện Thử lại + fallback.
-    const CAMERA_TIMEOUT_MS = 15000
+    // Bọc timeout: quá 10s coi như lỗi (TimeoutError) → nếu đang trong VP thì TỰ
+    // chuyển "chấm không ảnh"; ngoài VP thì hiện Thử lại + fallback thủ công.
+    const CAMERA_TIMEOUT_MS = 10000
     async function startWithConstraints(constraints: MediaStreamConstraints): Promise<MediaStream> {
       return new Promise<MediaStream>((resolve, reject) => {
         let settled = false
@@ -299,7 +304,8 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
         } else if (name === 'NotReadableError') {
           setCameraError('Camera đang dùng bởi ứng dụng khác — tắt app khác rồi thử lại')
         } else if (name === 'TimeoutError') {
-          setCameraError('Camera mở quá lâu, thiết bị chưa phản hồi.\nNhấn "Thử lại". Nếu đang ở văn phòng, có thể dùng "Camera lỗi — chấm không ảnh".')
+          setCameraTimedOut(true)
+          setCameraError('Camera mở quá lâu, thiết bị chưa phản hồi.\nNếu đang ở văn phòng, hệ thống tự chuyển "chấm không ảnh". Hoặc nhấn "Thử lại".')
         } else {
           setCameraError('Không mở được camera')
         }
@@ -362,7 +368,9 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
   const retryCam = useCallback(() => {
     streamRef.current?.getTracks().forEach(t => t.stop())
     streamRef.current = null
+    autoNoCamRef.current = false
     setCameraError(null)
+    setCameraTimedOut(false)
     setCameraReady(false)
     setSelfie(null)
     setCameraRetry(c => c + 1)
@@ -461,6 +469,17 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
     setShowConfirm(true)
     setCountdown(10)
   }, [acting, done, geo.loading, isClockedIn, capture, geo.position, deviceKind, selectedOfficeId, workLocation, oofType, oofNote, rapidConfirm, isInsideSelected])
+
+  // Camera TREO quá hạn + GPS xác nhận ĐANG TRONG VP → TỰ chuyển "chấm không ảnh"
+  // (mở hộp xác nhận, NV chỉ cần bấm Xác nhận). Ngoài VP / GPS chưa rõ thì giữ nút
+  // fallback thủ công. Chạy 1 lần (autoNoCamRef) — cả khi GPS xác nhận sau timeout.
+  useEffect(() => {
+    if (cameraTimedOut && isInsideSelected === true
+        && !autoNoCamRef.current && !showConfirm && !done && !acting) {
+      autoNoCamRef.current = true
+      openConfirm(true)
+    }
+  }, [cameraTimedOut, isInsideSelected, showConfirm, done, acting, openConfirm])
 
   const dismissConfirm = useCallback(() => {
     setShowConfirm(false)
