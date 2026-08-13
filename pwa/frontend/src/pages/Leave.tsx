@@ -42,6 +42,23 @@ interface HNHSummary {
   usage_this_year?: UsageItem[]
 }
 
+// Chi tiết phép (khớp số C&B): mỗi loại có Phép đầu (start=dư+tồn) + Đã dùng năm nay.
+interface LeaveDetailBalance {
+  id: number | null
+  leave_type_id: number
+  name: string
+  available_days: number
+  carryforward_days: number
+  start: number            // Phép đầu = số dư hiện có + phép tồn
+  taken_this_year: number  // Đã dùng năm nay
+  count_this_year: number
+  deduct: boolean          // loại trừ vào tổng dư
+}
+interface LeaveDetailResp {
+  balances: LeaveDetailBalance[]
+  total_start: number      // tổng Phép đầu (các loại trừ-dư)
+}
+
 interface LeaveRequestItem {
   id: number
   leave_type_id: LeaveTypeInfo
@@ -248,6 +265,7 @@ function EditLeaveSheet({ req, onClose, onSaved }: {
 export function LeavePage() {
   const navigate = useNavigate()
   const { data: summary } = useApi<HNHSummary>('/api/leave/hnh-leave-summary/')
+  const { data: leaveDetail } = useApi<LeaveDetailResp>('/api/leave/hnh-leave-detail/')
   const { data: balResp } = useApi<Paginated<AvailableLeave>>('/api/leave/available-leave/?page_size=20')
   const { data: reqResp, refresh: refreshReqs } = useApi<Paginated<LeaveRequestItem>>('/api/leave/user-request/')
   const { data: pendingApprovals } = useApi<{ id: number }[]>('/api/leave/pending-approvals/')
@@ -305,6 +323,12 @@ export function LeavePage() {
 
   // Hình thức nghỉ đang có + số lượt đã áp dụng từ đầu năm (bỏ Nghỉ ốm — không áp dụng).
   const usageItems = (summary?.usage_this_year ?? []).filter(u => !u.name.toLowerCase().includes('ốm'))
+
+  // Tổng hợp phép (Phép đầu + Đã dùng) — chỉ loại trừ-dư: Phép năm, Phép Bù, Thâm niên.
+  const detailRows = (leaveDetail?.balances ?? []).filter(b => b.deduct)
+  const totalStart = leaveDetail?.total_start ?? 0
+  const totalTaken = detailRows.reduce((s, b) => s + (b.taken_this_year || 0), 0)
+  const fmtD = (n: number) => (n % 1 === 0 ? String(n) : n.toFixed(1))
 
   return (
     <div style={{ background: HNH.cream, minHeight: '100%', position: 'relative' }}>
@@ -389,6 +413,38 @@ export function LeavePage() {
                   Còn lại <strong style={{ color: HNH.ink, fontWeight: 700 }}>{annualAvail % 1 === 0 ? annualAvail : annualAvail.toFixed(1)}</strong>
                 </div>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tổng hợp phép: Phép đầu + Đã dùng (Tổng + Phép năm/Bù/Thâm niên) */}
+        {detailRows.length > 0 && (
+          <div style={{ background: '#fff', borderRadius: 18, border: `1px solid ${HNH.line}`, marginTop: 12, overflow: 'hidden' }}>
+            <div style={{ padding: '12px 16px 8px', fontSize: 12.5, fontWeight: 800, color: HNH.ink3, letterSpacing: 0.4, textTransform: 'uppercase' }}>
+              Tổng hợp phép · {now.getFullYear()}
+            </div>
+            {/* Header cột */}
+            <div className="flex items-center" style={{ padding: '4px 16px', fontSize: 10.5, fontWeight: 700, color: HNH.ink4, textTransform: 'uppercase', letterSpacing: 0.3 }}>
+              <span style={{ flex: 1 }}>Loại phép</span>
+              <span style={{ width: 76, textAlign: 'right' }}>Phép đầu</span>
+              <span style={{ width: 76, textAlign: 'right' }}>Đã dùng</span>
+            </div>
+            {/* Dòng TỔNG — nổi bật */}
+            <div className="flex items-center" style={{ padding: '11px 16px', background: HNH.navy50, borderTop: `1px solid ${HNH.line}` }}>
+              <span style={{ flex: 1, fontSize: 13.5, fontWeight: 800, color: HNH.navy }}>Tổng phép</span>
+              <span style={{ width: 76, textAlign: 'right', fontSize: 16, fontWeight: 800, color: HNH.navy, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{fmtD(totalStart)}</span>
+              <span style={{ width: 76, textAlign: 'right', fontSize: 16, fontWeight: 800, color: HNH.red, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{fmtD(totalTaken)}</span>
+            </div>
+            {/* Chi tiết từng loại */}
+            {detailRows.map(b => (
+              <div key={b.leave_type_id} className="flex items-center" style={{ padding: '10px 16px', borderTop: `1px solid ${HNH.line}` }}>
+                <span style={{ flex: 1, fontSize: 13, fontWeight: 600, color: HNH.ink }}>{b.name}</span>
+                <span style={{ width: 76, textAlign: 'right', fontSize: 14, fontWeight: 700, color: HNH.ink, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{fmtD(b.start)}</span>
+                <span style={{ width: 76, textAlign: 'right', fontSize: 14, fontWeight: 700, color: b.taken_this_year > 0 ? HNH.red : HNH.ink4, fontFamily: "'Plus Jakarta Sans', sans-serif" }}>{fmtD(b.taken_this_year)}</span>
+              </div>
+            ))}
+            <div style={{ padding: '8px 16px 12px', fontSize: 10.5, color: HNH.ink4, lineHeight: 1.4, borderTop: `1px solid ${HNH.line}` }}>
+              Phép đầu = số dư hiện có (gồm phép tồn). Đã dùng = số ngày đã nghỉ từ đầu năm.
             </div>
           </div>
         )}
