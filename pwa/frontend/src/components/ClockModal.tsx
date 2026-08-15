@@ -295,10 +295,18 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
         if (name === 'NotAllowedError') {
           const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
             (/Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 0)
-          setCameraError(isIOS
-            ? 'Chưa cấp quyền Camera cho ứng dụng này.\nVào Cài đặt iPhone → Quyền riêng tư & Bảo mật → Camera → bật Safari → sau đó nhấn Thử lại bên dưới.'
-            : 'Chưa cấp quyền Camera — vào Cài đặt trình duyệt để cho phép, rồi nhấn Thử lại.'
-          )
+          // PWA đã cài vào màn hình chính (standalone): quyền Camera nằm ở MỤC RIÊNG
+          // của app trong Cài đặt — KHÔNG phải mục Safari. Hướng dẫn cũ chỉ Safari nên
+          // NV làm theo không sửa được. iOS <16.4 có thể không lưu quyền → cài lại.
+          const isStandalone = window.matchMedia('(display-mode: standalone)').matches ||
+            (navigator as unknown as { standalone?: boolean }).standalone === true
+          if (isIOS && isStandalone) {
+            setCameraError('Chưa cấp quyền Camera cho app đã cài.\nCài đặt iPhone → kéo tìm "HNH HRM" → Camera → Bật (KHÔNG phải mục Safari).\nNếu không thấy hoặc vẫn lỗi: xoá app khỏi màn hình chính rồi cài lại để hiện lại hộp xin quyền, rồi nhấn Thử lại.')
+          } else if (isIOS) {
+            setCameraError('Chưa cấp quyền Camera cho ứng dụng này.\nVào Cài đặt iPhone → Quyền riêng tư & Bảo mật → Camera → bật Safari → sau đó nhấn Thử lại bên dưới.')
+          } else {
+            setCameraError('Chưa cấp quyền Camera — vào Cài đặt trình duyệt để cho phép, rồi nhấn Thử lại.')
+          }
         } else if (name === 'NotFoundError') {
           setCameraError('Thiết bị không có camera')
         } else if (name === 'NotReadableError') {
