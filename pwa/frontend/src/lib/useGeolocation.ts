@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 
 interface Position {
   lat: number
@@ -32,23 +32,46 @@ export function useGeolocation(fence = HNH_OFFICE): GeolocationState {
   const [position, setPosition] = useState<Position | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const watchIdRef = useRef<number | null>(null)
+  const hasFixRef = useRef(false)
+
+  const clearWatch = () => {
+    if (watchIdRef.current !== null) {
+      navigator.geolocation.clearWatch(watchIdRef.current)
+      watchIdRef.current = null
+    }
+  }
 
   const refresh = useCallback(() => {
     setLoading(true)
     setError(null)
+    hasFixRef.current = false
     if (!navigator.geolocation) {
       setError('GPS không được hỗ trợ')
       setLoading(false)
       return
     }
-    navigator.geolocation.getCurrentPosition(
+    clearWatch()
+    // watchPosition (thay cho getCurrentPosition một-phát): trong nhà/văn phòng
+    // GPS vệ tinh yếu, fix ĐẦU thường thô/kém chính xác → định vị cải thiện DẦN
+    // khi WiFi-positioning hội tụ. watch nhận từng fix tốt lên và TỰ cập nhật UI
+    // (không cần NV bấm "Thử lại" nhiều lần chờ vài phút). Giữ fix CHÍNH XÁC NHẤT
+    // để không nhảy lùi ra "ngoài VP" khi có 1 mẫu kém xen giữa.
+    watchIdRef.current = navigator.geolocation.watchPosition(
       (p) => {
-        setPosition({
+        const next: Position = {
           lat: p.coords.latitude,
           lng: p.coords.longitude,
           accuracy: p.coords.accuracy,
+        }
+        setPosition((prev) => {
+          if (!prev) return next
+          if (next.accuracy <= prev.accuracy) return next   // fix mới chính xác hơn
+          return prev.accuracy > 80 ? next : prev           // fix cũ đã tốt → giữ
         })
+        hasFixRef.current = true
         setLoading(false)
+        setError(null)
       },
       (e) => {
         const msgs: Record<number, string> = {
@@ -56,15 +79,19 @@ export function useGeolocation(fence = HNH_OFFICE): GeolocationState {
           2: 'GPS không khả dụng',
           3: 'Hết thời gian chờ GPS',
         }
-        setError(msgs[e.code] ?? 'Lỗi GPS')
-        setLoading(false)
+        // watch có thể phát lỗi lẻ tẻ giữa chừng — chỉ báo lỗi khi CHƯA có fix nào.
+        if (!hasFixRef.current) {
+          setError(msgs[e.code] ?? 'Lỗi GPS')
+          setLoading(false)
+        }
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 },
+      { enableHighAccuracy: true, timeout: 20000, maximumAge: 15000 },
     )
   }, [])
 
   useEffect(() => {
     refresh()
+    return clearWatch
   }, [refresh])
 
   const distance = position
