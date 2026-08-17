@@ -331,16 +331,22 @@ class ClockInAPIView(APIView):
             )
 
             activity = self._save_clock_in_extras(request, employee, datetime_now)
-            geo_valid = self._check_geofence(request, employee, attendance, activity)
 
             # Nguồn chấm: 'wifi' nếu GPS không xác nhận nhưng IP thuộc WiFi VP;
             # ngược lại 'gps'. WiFi VP coi như xác nhận đang ở VP → geo hợp lệ.
             clock_source = "wifi" if (inside_geofence is not True and wifi_ok) else "gps"
+            if clock_source == "wifi":
+                # WiFi VP là bằng chứng đang ở VP → hợp lệ NGAY, KHÔNG chạy geofence
+                # (tránh cờ 'ngoài VP' sai + lật work_location khi GPS gửi kèm còn
+                # chưa hội tụ / kém chính xác lúc mới mở app).
+                geo_valid = True
+                attendance.attendance_validated = True
+                attendance.save(update_fields=["attendance_validated"])
+            else:
+                geo_valid = self._check_geofence(request, employee, attendance, activity)
             if activity is not None:
                 activity.clock_in_source = clock_source
                 activity.save(update_fields=["clock_in_source"])
-            if clock_source == "wifi":
-                geo_valid = True
 
             # Chấm không ảnh (camera lỗi) → cần HR duyệt, TRỪ KHI đã xác nhận qua
             # WiFi văn phòng (coi như đang ở VP).
@@ -685,9 +691,13 @@ class WifiAttendanceRangeAPIView(APIView):
         from attendance.models import WifiAttendanceRange
 
         ranges = [self._serialize(r) for r in WifiAttendanceRange.objects.all()]
+        my_ip = _client_public_ip(request)
         return Response({
             "ranges": ranges,
-            "my_ip": _client_public_ip(request),   # cho nút "Lấy IP hiện tại"
+            "my_ip": my_ip,   # cho nút "Lấy IP hiện tại"
+            # Client dùng cờ này để cho chấm công NGAY khi đang ở WiFi VP (khỏi chờ
+            # GPS). Cùng logic với clock-in nên nhất quán tuyệt đối.
+            "on_office_wifi": _ip_in_office_wifi(my_ip),
             "is_admin": _is_system_admin(request.user),
         })
 

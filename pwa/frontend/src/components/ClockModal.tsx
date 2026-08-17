@@ -200,6 +200,7 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
   const wasClockedIn = useRef(false)
   const [offices, setOffices] = useState<Office[]>([])
   const [selectedOfficeId, setSelectedOfficeId] = useState<number | null>(null)
+  const [onOfficeWifi, setOnOfficeWifi] = useState(false)   // đang ở WiFi VP hợp lệ
   const [workLocation, setWorkLocation] = useState<'in_office' | 'out_of_office'>('in_office')
   const [oofType, setOofType] = useState('')
   const [oofNote, setOofNote] = useState('')
@@ -220,6 +221,7 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
       setCameraTimedOut(false)
       setSelfie(null)
       setDone(null)
+      setOnOfficeWifi(false)
       setWorkLocation('in_office')
       setOofType('')
       setOofNote('')
@@ -326,6 +328,11 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
       setOffices(data)
       if (data.length > 0) setSelectedOfficeId(data[0].id)
     }).catch(() => {})
+    // WiFi VP: nếu IP công cộng của NV nằm trong dải WiFi VP đã khai báo → cho chấm
+    // NGAY (khỏi chờ GPS). Server tự xác nhận nguồn 'wifi'. Cùng logic nên nhất quán.
+    api.get<{ on_office_wifi: boolean }>('/api/attendance/wifi-ranges/').then(r => {
+      if (mounted) setOnOfficeWifi(!!r.on_office_wifi)
+    }).catch(() => {})
     return () => {
       mounted = false
       streamRef.current?.getTracks().forEach(t => t.stop())
@@ -365,13 +372,14 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
   // nhất (đã chọn) hay không. Trong → in_office; Ngoài → out_of_office (cần lý do).
   useEffect(() => {
     if (done) return
-    if (isInsideSelected === true) {
+    // Ở WiFi VP → luôn coi là TRONG VP (bằng chứng đã ở VP), bất kể GPS.
+    if (onOfficeWifi || isInsideSelected === true) {
       setWorkLocation('in_office'); setOofType(''); setOofNote('')
     } else if (isInsideSelected === false) {
       setWorkLocation('out_of_office')
       setOofType(prev => prev || 'remote')   // mặc định "Làm từ xa" khi Ngoài VP
     }
-  }, [isInsideSelected, done])
+  }, [isInsideSelected, done, onOfficeWifi])
 
   const retryCam = useCallback(() => {
     streamRef.current?.getTracks().forEach(t => t.stop())
@@ -601,12 +609,15 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
   // Chỉ enable nút khi: không đang xử lý/chưa xong, không phải máy tính,
   // camera sẵn sàng (chụp được selfie), có toạ độ GPS, đã chọn Trong/Ngoài VP,
   // và nếu Trong VP thì phải nằm trong GeoFence.
+  // Ở WiFi VP → bỏ qua mọi điều kiện GPS (không chờ định vị, không cần trong bán
+  // kính): bằng chứng đang ở VP là đủ. GPS chỉ còn bắt buộc khi KHÔNG ở WiFi VP.
   const btnDisabled =
-    acting || !!done || gpsBlocked || deviceKind === 'desktop'
+    acting || !!done || deviceKind === 'desktop'
     || !cameraReady || !!cameraError
-    || !geo.position                       // GPS off / chưa định vị → không cho chấm
+    || (!onOfficeWifi && gpsBlocked)
+    || (!onOfficeWifi && !geo.position)     // GPS off / chưa định vị → chặn (trừ khi ở WiFi VP)
     || !workLocation
-    || (workLocation === 'in_office' && isInsideSelected !== true)
+    || (workLocation === 'in_office' && !onOfficeWifi && isInsideSelected !== true)
     || (workLocation === 'out_of_office' && !oofType)                          // Ngoài VP phải có lý do
     || (workLocation === 'out_of_office' && oofType === 'other' && !oofNote.trim())
 
@@ -638,8 +649,23 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
             {blockMsg}
           </div>
         )}
+        {/* WiFi VP: đang ở mạng WiFi văn phòng → cho chấm NGAY, khỏi chờ GPS */}
+        {!done && onOfficeWifi && (
+          <div className="flex items-center gap-2.5" style={{
+            background: HNH.success50, border: `1.5px solid ${HNH.success}`,
+            borderRadius: 14, padding: '11px 14px', marginBottom: 10,
+          }}>
+            <div className="flex items-center justify-center" style={{ width: 36, height: 36, borderRadius: 10, background: HNH.success, flexShrink: 0 }}>
+              <Icon name="check" size={19} color="#fff" stroke={2.5} />
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 13.5, fontWeight: 800, color: HNH.success }}>ĐANG Ở WIFI VĂN PHÒNG</div>
+              <div style={{ fontSize: 11.5, color: HNH.ink2, marginTop: 1 }}>Xác nhận có mặt tại VP qua WiFi — chấm công được ngay, không cần chờ GPS.</div>
+            </div>
+          </div>
+        )}
         {/* ===== TRÊN CÙNG: Trạng thái Trong/Ngoài VP (hệ thống TỰ xác định theo GPS) ===== */}
-        {!done && (
+        {!done && !onOfficeWifi && (
           <>
             {/* Card auto Trong/Ngoài VP */}
             <div style={{
