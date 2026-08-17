@@ -202,6 +202,9 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
   const [selectedOfficeId, setSelectedOfficeId] = useState<number | null>(null)
   const [onOfficeWifi, setOnOfficeWifi] = useState(false)   // đang ở WiFi VP hợp lệ
   const [workLocation, setWorkLocation] = useState<'in_office' | 'out_of_office'>('in_office')
+  // 'auto' = xác định Trong/Ngoài VP theo GPS/WiFi; 'remote' = NV tự chọn làm online
+  // (ngoài VP) → chấm ngay bằng lý do + selfie, KHÔNG chờ GPS.
+  const [locMode, setLocMode] = useState<'auto' | 'remote'>('auto')
   const [oofType, setOofType] = useState('')
   const [oofNote, setOofNote] = useState('')
   const [showConfirm, setShowConfirm] = useState(false)
@@ -222,6 +225,7 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
       setSelfie(null)
       setDone(null)
       setOnOfficeWifi(false)
+      setLocMode('auto')
       setWorkLocation('in_office')
       setOofType('')
       setOofNote('')
@@ -372,6 +376,12 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
   // nhất (đã chọn) hay không. Trong → in_office; Ngoài → out_of_office (cần lý do).
   useEffect(() => {
     if (done) return
+    // NV tự chọn "làm online" → ép Ngoài VP, KHÔNG để GPS ghi đè (chấm ngay).
+    if (locMode === 'remote') {
+      setWorkLocation('out_of_office')
+      setOofType(prev => prev || 'remote')
+      return
+    }
     // Ở WiFi VP → luôn coi là TRONG VP (bằng chứng đã ở VP), bất kể GPS.
     if (onOfficeWifi || isInsideSelected === true) {
       setWorkLocation('in_office'); setOofType(''); setOofNote('')
@@ -379,7 +389,7 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
       setWorkLocation('out_of_office')
       setOofType(prev => prev || 'remote')   // mặc định "Làm từ xa" khi Ngoài VP
     }
-  }, [isInsideSelected, done, onOfficeWifi])
+  }, [isInsideSelected, done, onOfficeWifi, locMode])
 
   const retryCam = useCallback(() => {
     streamRef.current?.getTracks().forEach(t => t.stop())
@@ -609,13 +619,15 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
   // Chỉ enable nút khi: không đang xử lý/chưa xong, không phải máy tính,
   // camera sẵn sàng (chụp được selfie), có toạ độ GPS, đã chọn Trong/Ngoài VP,
   // và nếu Trong VP thì phải nằm trong GeoFence.
-  // Ở WiFi VP → bỏ qua mọi điều kiện GPS (không chờ định vị, không cần trong bán
-  // kính): bằng chứng đang ở VP là đủ. GPS chỉ còn bắt buộc khi KHÔNG ở WiFi VP.
+  // GPS chỉ bắt buộc khi chấm TRONG VP theo GPS. Ở WiFi VP hoặc chọn "làm online"
+  // (Ngoài VP) → bỏ qua mọi điều kiện GPS (không chờ định vị): WiFi/selfie + lý do
+  // là đủ. Tránh cảnh NV làm online kẹt chờ GPS ở nhà.
+  const noGpsNeeded = onOfficeWifi || workLocation === 'out_of_office'
   const btnDisabled =
     acting || !!done || deviceKind === 'desktop'
     || !cameraReady || !!cameraError
-    || (!onOfficeWifi && gpsBlocked)
-    || (!onOfficeWifi && !geo.position)     // GPS off / chưa định vị → chặn (trừ khi ở WiFi VP)
+    || (!noGpsNeeded && gpsBlocked)
+    || (!noGpsNeeded && !geo.position)     // GPS off / chưa định vị → chặn (chỉ khi chấm Trong VP theo GPS)
     || !workLocation
     || (workLocation === 'in_office' && !onOfficeWifi && isInsideSelected !== true)
     || (workLocation === 'out_of_office' && !oofType)                          // Ngoài VP phải có lý do
@@ -664,8 +676,26 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
             </div>
           </div>
         )}
-        {/* ===== TRÊN CÙNG: Trạng thái Trong/Ngoài VP (hệ thống TỰ xác định theo GPS) ===== */}
+        {/* Chọn nơi chấm: Tại VP (theo GPS) hoặc Làm online / ngoài VP (khỏi chờ GPS) */}
         {!done && !onOfficeWifi && (
+          <div className="flex" style={{ background: HNH.cream2, borderRadius: 12, padding: 3, marginBottom: 10, gap: 3 }}>
+            {([['auto', 'Tại văn phòng'], ['remote', 'Làm online (ngoài VP)']] as const).map(([m, lbl]) => (
+              <button key={m} onClick={() => setLocMode(m)}
+                className="flex-1 border-none cursor-pointer"
+                style={{
+                  padding: '9px 8px', borderRadius: 10, fontSize: 12.5, fontWeight: 700,
+                  background: locMode === m ? '#fff' : 'transparent',
+                  color: locMode === m ? (m === 'remote' ? HNH.warn : HNH.navy) : HNH.ink3,
+                  boxShadow: locMode === m ? '0 1px 3px rgba(15,20,40,0.10)' : 'none',
+                  transition: 'all 0.15s',
+                }}>
+                {lbl}
+              </button>
+            ))}
+          </div>
+        )}
+        {/* ===== Trạng thái Trong/Ngoài VP theo GPS (chỉ khi chấm Tại VP) ===== */}
+        {!done && !onOfficeWifi && locMode === 'auto' && (
           <>
             {/* Card auto Trong/Ngoài VP */}
             <div style={{
@@ -744,9 +774,11 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
                 </div>
               </div>
             )}
+          </>
+        )}
 
-            {/* Lý do khi Ngoài VP (bắt buộc) */}
-            {gpsReady && workLocation === 'out_of_office' && (
+        {/* Lý do khi Ngoài VP / làm online (bắt buộc) — hiện cả khi NV tự chọn remote */}
+        {!done && workLocation === 'out_of_office' && (
               <div style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: 10.5, fontWeight: 700, color: HNH.ink3, letterSpacing: 0.3, marginBottom: 6, textTransform: 'uppercase' }}>Lý do ngoài VP *</div>
                 <div className="flex flex-wrap gap-2" style={{ marginBottom: oofType === 'other' ? 8 : 0 }}>
@@ -785,8 +817,6 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
                 )}
               </div>
             )}
-          </>
-        )}
 
         {/* Mini map */}
         {!done && selectedOffice && geo.position && selectedDist !== null && selectedDist < 1000 && (
