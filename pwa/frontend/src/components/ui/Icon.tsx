@@ -75,6 +75,7 @@ export function Icon({ name, size = 18, color = HNH.ink, stroke: sw = 1.8 }: Ico
     case 'sitemap': return <svg width={size} height={size} viewBox="0 0 24 24"><rect x="9" y="2" width="6" height="5" rx="1" {...p}/><rect x="1" y="14" width="6" height="5" rx="1" {...p}/><rect x="9" y="14" width="6" height="5" rx="1" {...p}/><rect x="17" y="14" width="6" height="5" rx="1" {...p}/><path d="M12 7v4M12 11H4v3M12 11h8v3" {...p}/></svg>
     case 'pencil': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3Z" {...p}/></svg>
     case 'trophy': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" {...p}/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" {...p}/><path d="M4 22h16" {...p}/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" {...p}/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" {...p}/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" {...p}/></svg>
+    case 'eye': return <svg width={size} height={size} viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" {...p}/><circle cx="12" cy="12" r="3" {...p}/></svg>
     case 'help': return <svg width={size} height={size} viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" {...p}/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3" {...p}/><circle cx="12" cy="17" r="0.5" fill={color} stroke="none"/></svg>
     default: return null
   }

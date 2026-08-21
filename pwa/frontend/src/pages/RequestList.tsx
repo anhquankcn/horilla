@@ -4,6 +4,7 @@ import { HNH } from '../lib/theme'
 import { Icon } from '../components/ui/Icon'
 import { TopBar } from '../components/layout/TopBar'
 import { api } from '../lib/api'
+import { LeaveDetailModal } from '../components/leave/LeaveDetailModal'
 
 // ── Quản lý DS Đơn (C&B) — 1 trang gộp DS đơn nghỉ, lọc đa chiều, xử lý + Excel.
 //    Đơn TỪ CHỐI (rejected) hiển thị đầy đủ ở đây.
@@ -80,6 +81,7 @@ export function RequestListPage() {
   const [departments, setDepartments] = useState<Department[]>([])
   const [loading, setLoading] = useState(false)
   const [expanded, setExpanded] = useState<number | null>(null)
+  const [detailId, setDetailId] = useState<number | null>(null)
   const [busy, setBusy] = useState<number | null>(null)
   const [exporting, setExporting] = useState(false)
   const [reasonModal, setReasonModal] = useState<{ id: number; kind: 'reject' | 'cancel' } | null>(null)
@@ -249,6 +251,9 @@ export function RequestListPage() {
         ) : rows.map(renderCard)}
       </div>
 
+      {/* Chi tiết đơn — DÙNG CHUNG modal của App Feature Quản lý Phép */}
+      {detailId != null && <LeaveDetailModal id={detailId} onClose={() => setDetailId(null)} />}
+
       {/* Modal nhập lý do */}
       {reasonModal && (
         <div onClick={() => setReasonModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,20,40,0.4)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', zIndex: 50 }}>
@@ -306,6 +311,10 @@ export function RequestListPage() {
 
               {/* Hành động */}
               <div className="flex items-center gap-2" style={{ marginTop: 9, flexWrap: 'wrap' }}>
+                <button onClick={() => setDetailId(r.id)}
+                  className="flex items-center gap-1 border-none cursor-pointer" style={{ fontSize: 11.5, fontWeight: 700, padding: '5px 10px', borderRadius: 8, background: HNH.navy, color: '#fff' }}>
+                  <Icon name="eye" size={13} color="#fff" stroke={2.2} />Xem chi tiết
+                </button>
                 <button onClick={() => toggleSeen(r)} disabled={busy === r.id}
                   className="border-none cursor-pointer" style={{ fontSize: 11.5, fontWeight: 700, padding: '5px 10px', borderRadius: 8, background: r.seen ? HNH.cream2 : HNH.navy50, color: r.seen ? HNH.ink3 : HNH.navy }}>
                   {r.seen ? '✓ Đã xem' : 'Đánh dấu đã xem'}
