@@ -137,7 +137,7 @@ const BAR_COLOR: Record<string, string> = {
 export function AttendancePage() {
   const navigate = useNavigate()
   const { employee } = useAuth()
-  const { isClockedIn, duration, clockInTime, clockIn, clockOut, acting } = useClock()
+  const { isClockedIn, stale: clockStale, duration, clockInTime, clockIn, clockOut, acting, refresh: refreshClock } = useClock()
   const { now, time } = useLiveClock()
   const [clockModalOpen, setClockModalOpen] = useState(false)
   const [selectedAtt, setSelectedAtt] = useState<AttendanceRecord | null>(null)
@@ -147,10 +147,16 @@ export function AttendancePage() {
   const isTablet = useTablet()
 
   useEffect(() => {
-    const onVisible = () => { if (document.visibilityState === 'visible') refreshHistory() }
+    // Trước đây chỉ nạp lại LỊCH SỬ, quên nạp lại TRẠNG THÁI chấm — nên nút
+    // giữ chiều in/out cũ từ sáng và gửi nhầm lệnh lúc tan làm.
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible') return
+      refreshHistory()
+      refreshClock()
+    }
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
-  }, [refreshHistory])
+  }, [refreshHistory, refreshClock])
 
   const handleClockIn = useCallback(async (body?: Record<string, unknown>) => {
     const res = await clockIn(body)
@@ -317,7 +323,7 @@ export function AttendancePage() {
       </div>
 
       <button
-        onClick={() => setClockModalOpen(true)}
+        onClick={() => { refreshClock(); setClockModalOpen(true) }}
         className="flex items-center justify-center gap-2.5 border-none cursor-pointer w-full"
         style={{
           marginTop: 16, height: 54, borderRadius: 16,
@@ -424,6 +430,7 @@ export function AttendancePage() {
         open={clockModalOpen}
         onClose={() => setClockModalOpen(false)}
         isClockedIn={isClockedIn}
+        statusStale={clockStale}
         clockInTime={clockInTime}
         duration={duration}
         shiftName={employee?.shift_name ?? 'Ca hành chính'}

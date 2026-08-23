@@ -20,6 +20,9 @@ interface ClockModalProps {
   open: boolean
   onClose: () => void
   isClockedIn: boolean
+  /** Trạng thái chấm chưa xác nhận được với server → chặn chấm để khỏi gửi
+   *  nhầm chiều in/out. */
+  statusStale?: boolean
   clockInTime: string | null
   duration: string
   shiftName: string
@@ -184,7 +187,7 @@ function detectDeviceKind(): 'mobile' | 'tablet' | 'desktop' {
   return 'desktop'
 }
 
-export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName, acting, onClockIn, onClockOut }: ClockModalProps) {
+export function ClockModal({ open, onClose, isClockedIn, statusStale = false, clockInTime, shiftName, acting, onClockIn, onClockOut }: ClockModalProps) {
   const geo = useGeolocation()
   const isTablet = useTablet()
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -591,6 +594,7 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
   const btnBg =
     done === 'valid' ? HNH.success
     : done === 'pending' ? HNH.warn
+    : statusStale ? HNH.ink3
     : acting ? HNH.ink3
     : gpsBlocked ? HNH.ink3
     : isClockedIn
@@ -602,6 +606,7 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
   const btnLabel =
     done === 'valid' ? 'Đã chấm công thành công'
     : done === 'pending' ? 'Chờ xác nhận từ quản lý'
+    : statusStale ? 'Đang đồng bộ trạng thái...'
     : acting ? 'Đang xử lý...'
     : gpsBlocked ? 'Đang định vị GPS...'
     : gpsOff ? 'Bật GPS để chấm công'
@@ -611,6 +616,7 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
   const btnIcon =
     done === 'valid' ? 'check'
     : done === 'pending' ? 'clock'
+    : statusStale ? 'refresh'
     : acting ? 'clock'
     : gpsBlocked ? 'pin'
     : gpsOff ? 'pin'
@@ -624,7 +630,8 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
   // là đủ. Tránh cảnh NV làm online kẹt chờ GPS ở nhà.
   const noGpsNeeded = onOfficeWifi || workLocation === 'out_of_office'
   const btnDisabled =
-    acting || !!done || deviceKind === 'desktop'
+    statusStale                       // chưa biết đang in hay out → không cho bấm
+    || acting || !!done || deviceKind === 'desktop'
     || !cameraReady || !!cameraError
     || (!noGpsNeeded && gpsBlocked)
     || (!noGpsNeeded && !geo.position)     // GPS off / chưa định vị → chặn (chỉ khi chấm Trong VP theo GPS)
@@ -1066,7 +1073,7 @@ export function ClockModal({ open, onClose, isClockedIn, clockInTime, shiftName,
           transition: 'all 0.2s ease',
         }}
       >
-        {(acting || gpsBlocked) && !done
+        {(acting || gpsBlocked || statusStale) && !done
           ? <div style={{ width: 20, height: 20, border: '2.5px solid rgba(255,255,255,0.35)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
           : <Icon name={btnIcon} size={20} color="#fff" stroke={2.5} />
         }

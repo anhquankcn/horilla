@@ -28,7 +28,7 @@ function VerifyChip({ icon, label, value, ok, warn, bad }: {
 
 export function OfficeCheckinPage() {
   const { employee } = useAuth()
-  const { isClockedIn, duration, clockInTime, clockIn, clockOut, acting } = useClock()
+  const { isClockedIn, stale: clockStale, duration, clockInTime, clockIn, clockOut, acting } = useClock()
   const geo = useGeolocation()
 
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -295,7 +295,7 @@ export function OfficeCheckinPage() {
 
           <button
             onClick={handleAction}
-            disabled={acting}
+            disabled={acting || clockStale}
             className="relative flex flex-col items-center justify-center gap-2 border-none cursor-pointer mx-auto"
             style={{
               marginTop: 18, width: 140, height: 140, borderRadius: '50%',
