@@ -41,12 +41,13 @@ Khôi phục:
 pg_restore -U horilla -d <db_dich> --no-owner horilla_prod_YYYYmmdd_HHMMSS.dump
 ```
 
-> **Chưa từng restore thử.** Dump đọc được bằng `pg_restore -l`, nhưng chưa ai nạp ra một
-> DB trống để xác nhận dùng được. Backup chưa restore thử thì vẫn chỉ là file.
+> ✅ **Đã kiểm chứng 2026-08-25.** Dump ngày 25/08 restore lên hnhlocal ra 416 bảng,
+> `exit 0`, 385 nhân viên / 385 tài khoản khớp đúng prod. Backup này dùng được thật,
+> không chỉ đọc được header.
 
 ## Đồng bộ stage
 
-`sync_to_stage.sh` copy **dữ liệu 9 bảng** từ standby `100.112.134.39:5433` (replica
+`sync_to_stage.sh` copy **dữ liệu 9 bảng** từ standby `100.99.228.31:5433` (hnhlocal, replica
 read-only của prod) về stage local: `auth_user`, `employee_employee`,
 `employee_employeeworkinformation`, `base_employeeshift`, `base_employeeshiftschedule`,
 `attendance_employeeshiftplan`, `attendance_attendance`, `attendance_attendanceactivity`,
@@ -87,9 +88,13 @@ Giữ script lại vì lỗi này sẽ tái diễn nếu dựng lại standby ho
 
 ## Cảnh báo: slot replication
 
-Nếu bỏ hẳn standby thì **phải** `pg_drop_replication_slot('standby_staging')`. Slot mồ côi
-giữ WAL vô hạn — hồi 22/08 nó đã ôm 13 GB trong khi `/` của prod ở mức 78%. Không dọn thì
-đĩa đầy → Postgres ngừng ghi → HRM chết.
+Slot hiện tại là **`standby_hnhlocal`**. Nếu bỏ hẳn standby thì **phải**
+`pg_drop_replication_slot('standby_hnhlocal')`. Slot mồ côi giữ WAL vô hạn — hồi 22/08
+`standby_staging` đã ôm 13 GB trong khi `/` của prod ở mức 78%. Không dọn thì đĩa đầy →
+Postgres ngừng ghi → HRM chết.
+
+Đã làm đúng thứ tự này khi chuyển máy 25/08: dừng container standby cũ TRƯỚC (slot chuyển
+`active=f`), rồi mới drop. Drop khi slot còn active thì Postgres báo lỗi "slot is active".
 
 Kiểm tra:
 ```sql
