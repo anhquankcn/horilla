@@ -1,0 +1,13 @@
+services:
+  standby-db:
+    image: postgres:16
+    container_name: horilla-standby-db-1
+    restart: unless-stopped
+    shm_size: 256mb
+    volumes:
+      - horilla_standby_pgdata:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+volumes:
+  horilla_standby_pgdata:
+    external: true

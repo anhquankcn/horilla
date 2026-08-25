@@ -1,0 +1,46 @@
+# docker-compose.stb.yml — override cho may hnhlocal (100.99.228.31), site
+# https://qlns-stb.hnhtravel.work
+#
+# Dung kem: docker compose -f docker-compose.stage.yml -f docker-compose.stb.yml ...
+#
+# Hai khac biet so voi stage cu:
+#  1) Bo bind mount /data/* -> dung named volume. May nay sudo can mat khau nen
+#     khong tao duoc thu muc /data o root. Compose merge volumes theo target path
+#     nen khai lai cung target la de len duoc.
+#  2) BFF_ORIGIN + MS_REDIRECT_URI tro ve qlns-stb thay vi qlns-stage.
+#
+# Cong nginx doi sang 8081 de neu sau nay may nay chay them thu khac o 8080
+# thi khong dam nhau. Cloudflared noi thang vao container nginx nen cong host
+# chi dung de test trong LAN (172.16.15.90:8081).
+
+services:
+  web:
+    volumes:
+      - staticfiles:/app/staticfiles
+      - media:/app/media
+
+  bff:
+    environment:
+      BFF_ORIGIN: https://qlns-stb.hnhtravel.work
+      MS_REDIRECT_URI: ${MS_REDIRECT_URI:-https://qlns-stb.hnhtravel.work/bff/outlook/callback}
+
+  db:
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    volumes:
+      - redisdata:/data
+
+  nginx:
+    ports:
+      - "8080:80"
+    volumes:
+      - staticfiles:/static:ro
+      - media:/media:ro
+      - ./docker/nginx.conf:/etc/nginx/nginx.conf:ro
+
+volumes:
+  media:
+  pgdata:
+  redisdata:

@@ -15,7 +15,13 @@ Chính máy Windows đó là stage — và nó đã tự xoá sạch DB một l�
 | `hnh-sync/db_pull_from_prod.sh` | local Windows | `~/hnh-sync/` | Task `HNH-DB-Backup-Pull`, 02:15 hằng ngày |
 | `hnh-sync/sync_to_stage.sh` | local Windows | `~/hnh-sync/` | Task `HNH-Stage-Sync`, mỗi 6h (01:23/07:23/13:23/19:23) |
 | `hnh-sync/sso_pull_from_prod.sh` | local Windows | `~/hnh-sync/` | Task `HNH-SSO-Sync`, hằng giờ |
+| `hnhlocal/docker-compose.standby.yml` | hnhlocal `100.99.228.31` | `~/hnh-standby/` | chạy thường trực |
+| `hnhlocal/docker-compose.stb.yml` | hnhlocal | `~/hnh/horilla/` | chạy thường trực |
 | `prod/fix_pg_hba.sh` | prod | `/tmp/` (chạy 1 lần) | thủ công — xem mục dưới |
+
+> **2026-08-25:** standby chuyển từ `100.112.134.39` sang **hnhlocal `100.99.228.31`**
+> (slot `standby_hnhlocal`). Standby cũ đã tắt, slot `standby_staging` đã drop.
+> Site mới `https://qlns-stb.hnhtravel.work` cũng chạy trên máy đó — xem `hnhlocal/README.md`.
 
 ## Backup DB (dựng 2026-08-22)
 

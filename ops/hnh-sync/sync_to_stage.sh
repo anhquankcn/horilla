@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # sync_to_stage.sh — chạy trên MÁY LOCAL (stage). Copy dữ liệu chấm công/NV/ca từ
-# Standby remote (100.112.134.39:5433) → Stage DB local (horilla-db-1/horilla_stage).
+# Standby remote (100.99.228.31:5433) → Stage DB local (horilla-db-1/horilla_stage).
 # Standby cần password (scram) — đọc từ ~/hnh-sync/.env (HNH_STANDBY_PW).
 set -uo pipefail
 DIR="$(cd "$(dirname "$0")" && pwd)"; [ -f "$DIR/.env" ] && source "$DIR/.env"
@@ -8,8 +8,8 @@ DRY=0; TRIGGER="scheduled"
 while [ $# -gt 0 ]; do case "$1" in --dry-run) DRY=1;; --trigger) TRIGGER="$2"; shift;; esac; shift; done
 PW="${HNH_STANDBY_PW:-}"
 [ -z "$PW" ] && { echo "THIẾU HNH_STANDBY_PW trong ~/hnh-sync/.env"; exit 1; }
-SB="docker exec -i -e PGPASSWORD=$PW horilla-db-1 psql -h 100.112.134.39 -p 5433 -U horilla -d horilla_prod -tA"
-SB_COPY="docker exec -i -e PGPASSWORD=$PW horilla-db-1 psql -h 100.112.134.39 -p 5433 -U horilla -d horilla_prod"
+SB="docker exec -i -e PGPASSWORD=$PW horilla-db-1 psql -h 100.99.228.31 -p 5433 -U horilla -d horilla_prod -tA"
+SB_COPY="docker exec -i -e PGPASSWORD=$PW horilla-db-1 psql -h 100.99.228.31 -p 5433 -U horilla -d horilla_prod"
 ST="docker exec -i horilla-db-1 psql -U horilla -d horilla_stage -tA"
 ST_RUN="docker exec -i horilla-db-1 psql -U horilla -d horilla_stage -v ON_ERROR_STOP=1"
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT; START=$(date +%s); declare -A ROWS
