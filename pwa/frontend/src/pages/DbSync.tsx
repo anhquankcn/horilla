@@ -66,8 +66,9 @@ function SyncTab() {
   return (
     <div>
       <div style={{ fontSize: 12, color: HNH.ink3, marginBottom: 12, lineHeight: 1.5 }}>
-        Job tự động lúc <b>05:00</b> và <b>13:00</b> chuyển dữ liệu chấm công + nhân viên + ca
-        từ Standby (bản sao Production) sang Stage, rồi đối chiếu số bản ghi.
+        Job tự động <b>02:00</b> hằng đêm làm tươi DB của <b>qlns-stb</b>: dump toàn bộ từ
+        Standby (bản sao Production, đặt cùng máy) rồi restore lại, sau đó đối chiếu số bản ghi.
+        Prod không chịu tải vì dump lấy từ Standby chứ không phải Production.
       </div>
       {loading && <div style={{ fontSize: 13, color: HNH.ink3, textAlign: 'center', padding: 20 }}>Đang tải…</div>}
       {!loading && logs.length === 0 && (
@@ -123,6 +124,7 @@ function ReplicationTab() {
     <div>
       <div style={{ fontSize: 12, color: HNH.ink3, marginBottom: 12, lineHeight: 1.5 }}>
         Kiểm tra mỗi <b>1 giờ</b>: độ trễ replication Prod→Standby và số bản ghi khớp nhau.
+        Standby là bản sao streaming liên tục (không phải job định kỳ), đặt tại máy <b>hnhlocal</b>.
       </div>
       {loading && <div style={{ fontSize: 13, color: HNH.ink3, textAlign: 'center', padding: 20 }}>Đang tải…</div>}
       {!loading && logs.length === 0 && (
@@ -200,7 +202,8 @@ function SsoBackupTab() {
   return (
     <div>
       <div style={{ fontSize: 12, color: HNH.ink3, marginBottom: 12, lineHeight: 1.5 }}>
-        Kiểm tra mỗi <b>1 giờ</b>: tuổi của bản backup SSO mới nhất và đã sync về Stage chưa.
+        Backup SSO tạo trên Production lúc <b>02:00</b> hằng ngày. Máy local kéo bản sao về
+        mỗi <b>1 giờ</b> rồi báo lại: tuổi của bản mới nhất và đã kéo về chưa.
       </div>
       {loading && <div style={{ fontSize: 13, color: HNH.ink3, textAlign: 'center', padding: 20 }}>Đang tải…</div>}
       {!loading && logs.length === 0 && (
@@ -243,21 +246,21 @@ function SsoBackupTab() {
               </div>
               <div style={{ width: 1, background: HNH.line }} />
               <div>
-                <div style={{ color: HNH.ink3, fontSize: 11 }}>Đã sync Stage</div>
+                <div style={{ color: HNH.ink3, fontSize: 11 }}>Đã kéo về</div>
                 <div style={{ fontWeight: 700, color: d.stage_synced ? '#15803d' : '#c2410c' }}>
                   {d.stage_synced ? '✓ Có' : '✗ Chưa'}
                 </div>
               </div>
               <div style={{ width: 1, background: HNH.line }} />
               <div>
-                <div style={{ color: HNH.ink3, fontSize: 11 }}>Bản sao trên Stage</div>
+                <div style={{ color: HNH.ink3, fontSize: 11 }}>Số bản đã kéo</div>
                 <div style={{ fontWeight: 600 }}>{d.stage_count ?? '?'}</div>
               </div>
             </div>
 
             {d.stage_latest && (
               <div style={{ fontSize: 11, color: HNH.ink3, marginBottom: 2 }}>
-                Stage mới nhất: <b>{d.stage_latest}</b>
+                Bản mới nhất đã kéo: <b>{d.stage_latest}</b>
                 {d.prod_latest && d.prod_latest !== 'SSH_ERROR' && ` · Prod: ${d.prod_latest}`}
               </div>
             )}

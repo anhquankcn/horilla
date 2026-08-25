@@ -114,7 +114,7 @@ const features: AppFeature[] = [
 
   // ── Quản trị hệ thống ──
   { slug: 'service-accounts',  icon: 'shield', label: 'Service Account', desc: 'Quản lý M2M token, scope, IP cho hệ thống ngoài', path: '/m2m', tone: 'navy', group: 'system' },
-  { slug: 'service-accounts',  icon: 'gear',   label: 'Đồng bộ DB',      desc: 'Lịch sử & đối chiếu Standby→Stage (5h/13h)',      path: '/db-sync', tone: 'navy', group: 'system' },
+  { slug: 'service-accounts',  icon: 'gear',   label: 'Đồng bộ DB',      desc: 'Làm tươi qlns-stb 02:00 · replication Prod↔Standby · backup SSO',      path: '/db-sync', tone: 'navy', group: 'system' },
 ]
 
 const toneBg: Record<string, string> = {

@@ -24,8 +24,26 @@ COMPOSE_DIR=/home/quanna/hnh/horilla
 DUMPDIR=/home/quanna/hnh/dumps
 LOG=/home/quanna/hnh/refresh_stb.log
 
+# Token day log len dashboard (tab "Dong bo DB"). Dung chung file voi
+# check_standby_health.sh tren cung may.
+[ -f /home/quanna/hnh-standby/.sync_push_env ] && . /home/quanna/hnh-standby/.sync_push_env
+PROD_URL="${PROD_SYNC_URL:-https://qlns.hnhtravel.work}"
+TOKEN="${PROD_SYNC_TOKEN:-}"
+START=$(date +%s)
+
 say() { echo "$(date '+%Y-%m-%d %H:%M:%S') $*" | tee -a "$LOG"; }
-die() { say "LOI: $*"; exit 1; }
+
+# Day ket qua len dashboard. sync_to_stage.sh cu hong trong im lang vi khong ai
+# bao cao that bai -> die() cung phai day, khong chi luc thanh cong.
+push_log() {  # status  reconciliation_json  message
+  [ -n "$TOKEN" ] || { say "  bo qua day log: khong co token"; return 0; }
+  local dur=$(( $(date +%s) - START ))
+  local code
+  code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 -X POST     "$PROD_URL/api/base/standby-sync/logs/"     -H "X-Sync-Token: $TOKEN" -H "Content-Type: application/json"     -d "{\"duration_seconds\":$dur,\"trigger\":\"scheduled\",\"status\":\"$1\",\"tables\":{},\"reconciliation\":$2,\"message\":\"$3\"}" 2>/dev/null)
+  [ "$code" = "201" ] && say "  da day log len dashboard ($1)" || say "  day log THAT BAI http=$code"
+}
+
+die() { say "LOI: $*"; push_log error '{"match":false}' "$*"; exit 1; }
 
 mkdir -p "$DUMPDIR"
 TS=$(date '+%Y%m%d_%H%M%S')
@@ -87,20 +105,28 @@ $DC start web bff >/dev/null 2>&1
 say "da bat lai web + bff"
 
 # 8) Doi chieu: so lieu site phai khop replica
-read -r R_NV R_ATT <<< "$(docker exec "$REPLICA" psql -U horilla -d horilla_prod -tAc \
-  "SELECT (SELECT count(*) FROM employee_employee)||' '||(SELECT count(*) FROM attendance_attendance);" 2>/dev/null)"
-read -r S_NV S_ATT <<< "$(docker exec "$SITE" psql -U horilla -d "$SITE_DB" -tAc \
-  "SELECT (SELECT count(*) FROM employee_employee)||' '||(SELECT count(*) FROM attendance_attendance);" 2>/dev/null)"
-say "doi chieu  nhan_vien: replica=$R_NV site=$S_NV   cham_cong: replica=$R_ATT site=$S_ATT"
+read -r R_NV R_ATT R_ACT <<< "$(docker exec "$REPLICA" psql -U horilla -d horilla_prod -tAc \
+  "SELECT (SELECT count(*) FROM employee_employee)||' '||(SELECT count(*) FROM attendance_attendance)||' '||(SELECT count(*) FROM attendance_attendanceactivity);" 2>/dev/null)"
+read -r S_NV S_ATT S_ACT <<< "$(docker exec "$SITE" psql -U horilla -d "$SITE_DB" -tAc \
+  "SELECT (SELECT count(*) FROM employee_employee)||' '||(SELECT count(*) FROM attendance_attendance)||' '||(SELECT count(*) FROM attendance_attendanceactivity);" 2>/dev/null)"
+say "doi chieu  nhan_vien: replica=$R_NV site=$S_NV   cham_cong: replica=$R_ATT site=$S_ATT   hoat_dong: replica=$R_ACT site=$S_ACT"
+
+# Chuan hoa rong -> 0. sync_to_stage.sh cu sinh "stage_attendance":, khien endpoint
+# bao Bad payload va dashboard mu suot hon mot thang.
+R_ATT=${R_ATT:-0}; S_ATT=${S_ATT:-0}; R_ACT=${R_ACT:-0}; S_ACT=${S_ACT:-0}
+MATCH=false; [ "$R_ATT" = "$S_ATT" ] && [ "$R_ACT" = "$S_ACT" ] && MATCH=true
+RECON="{\"prod_attendance\":$R_ATT,\"stage_attendance\":$S_ATT,\"prod_activity\":$R_ACT,\"stage_activity\":$S_ACT,\"match\":$MATCH}"
 
 # 9) Don dump cu, giu 3 ban
 ls -1t "$DUMPDIR"/stb_refresh_*.dump 2>/dev/null | tail -n +4 | while read -r f; do
   rm -f "$f" && say "  xoa dump cu: $(basename "$f")"
 done
 
-if [ "${S_NV:-0}" != "${R_NV:-1}" ]; then
+if [ "${S_NV:-0}" != "${R_NV:-1}" ] || [ "$MATCH" != true ]; then
   say "!! SO LIEU LECH - kiem tra lai"
+  push_log partial "$RECON" "So lieu lech giua replica va site"
   exit 1
 fi
+push_log success "$RECON" "Lam tuoi DB site tu replica cung may"
 say "=== xong, DB site da tuoi ==="
 exit 0
