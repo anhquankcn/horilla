@@ -2518,10 +2518,12 @@ class MyAppsView(APIView):
         ).exists():
             allowed.add("team-monitor")
 
-        # Nhân viên nhóm C&B LUÔN thấy "Quản lý DS Đơn" — API tự chặn non-C&B.
+        # Nhân viên nhóm C&B LUÔN thấy "Quản lý DS Đơn" + "Chấm công chưa khớp"
+        # — API tự chặn non-C&B (_is_cnb), tile chỉ ẩn/hiện.
         gnames = [g.name.lower() for g in groups]
         if any("c&b" in g or "chuyên viên c" in g for g in gnames):
             allowed.add("request-list")
+            allowed.add("biometric-pending")
 
         if not allowed:
             return Response({"allowed": all_slugs, "is_admin": False, "is_staff": user.is_staff})
