@@ -1765,3 +1765,66 @@ class ShiftChangeRequest(models.Model):
 
     def __str__(self):
         return f"{self.employee} | {self.date} → {self.shift.employee_shift} [{self.status}]"
+
+
+class BiometricDeviceMapping(models.Model):
+    """Ánh xạ User ID trên máy chấm công vân tay (ZKTeco/Ronald Jack) → Employee
+    Horilla. Trước đây việc dịch này nằm trong file badge_map.json ở máy gateway
+    (phải SSH sửa tay). Giờ Horilla là NGUỒN DUY NHẤT — C&B tự map qua App
+    Feature "Chấm công chưa khớp", gateway chỉ gửi User ID thô.
+
+    ignored=True dùng cho ID rác trên máy (vd vân tay test, nhân viên demo) —
+    không gán nhân viên, chỉ để C&B đánh dấu "biết rồi, bỏ qua" và không hiện
+    lại trong danh sách chờ xử lý.
+    """
+
+    device_sn = models.CharField(max_length=64, verbose_name="Serial máy chấm công")
+    device_user_id = models.CharField(max_length=64, verbose_name="User ID trên máy")
+    employee_id = models.ForeignKey(
+        "employee.Employee",
+        null=True, blank=True,
+        on_delete=models.CASCADE,
+        related_name="biometric_device_mappings",
+        verbose_name="Nhân viên",
+    )
+    ignored = models.BooleanField(default=False, verbose_name="Bỏ qua (không map)")
+    created_by = models.ForeignKey(
+        "auth.User",
+        null=True, blank=True,
+        on_delete=models.SET_NULL,
+        related_name="+",
+        verbose_name="Người map",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "attendance_biometricdevicemapping"
+        unique_together = [["device_sn", "device_user_id"]]
+        verbose_name = "Biometric Device Mapping"
+        verbose_name_plural = "Biometric Device Mappings"
+
+    def __str__(self):
+        target = "bỏ qua" if self.ignored else str(self.employee_id)
+        return f"{self.device_sn}:{self.device_user_id} → {target}"
+
+
+class BiometricPendingPunch(models.Model):
+    """Lượt chấm từ máy vân tay chưa xác định được nhân viên (chưa có
+    BiometricDeviceMapping cho device_user_id đó). Lưu tạm ở đây thay vì bỏ đi
+    — C&B map xong thì được xử lý thành AttendanceActivity thật rồi xoá khỏi
+    bảng này (xem BiometricPendingMapView)."""
+
+    device_sn = models.CharField(max_length=64, verbose_name="Serial máy chấm công")
+    device_user_id = models.CharField(max_length=64, verbose_name="User ID trên máy")
+    punch_at = models.DateTimeField(verbose_name="Thời điểm chấm (trên máy)")
+    received_at = models.DateTimeField(auto_now_add=True, verbose_name="Thời điểm server nhận")
+
+    class Meta:
+        db_table = "attendance_biometricpendingpunch"
+        unique_together = [["device_sn", "device_user_id", "punch_at"]]
+        ordering = ["punch_at"]
+        verbose_name = "Biometric Pending Punch"
+        verbose_name_plural = "Biometric Pending Punches"
+
+    def __str__(self):
+        return f"{self.device_sn}:{self.device_user_id} @ {self.punch_at}"
