@@ -92,6 +92,67 @@ function StrSelect({ value, onChange, opts }: { value: string; onChange: (v: str
   )
 }
 
+// Cho phép C&B tạo nhanh Vị trí / Vai trò công việc ngay trên màn hình onboarding
+// thay vì phải vào Admin trước — dùng khi phòng ban/vị trí mới chưa có sẵn lựa chọn.
+function QuickAddInline({ label, disabledHint, onAdd }: {
+  label: string
+  disabledHint?: string
+  onAdd: (name: string) => Promise<void>
+}) {
+  const [open, setOpen] = useState(false)
+  const [name, setName] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [err, setErr] = useState('')
+
+  if (disabledHint) {
+    return <div style={{ fontSize: 11, color: HNH.ink4, marginTop: 4 }}>{disabledHint}</div>
+  }
+
+  if (!open) {
+    return (
+      <button type="button" onClick={() => setOpen(true)}
+        style={{ marginTop: 5, border: 'none', background: 'transparent', color: HNH.navy, fontWeight: 700, fontSize: 11.5, cursor: 'pointer', padding: 0 }}>
+        + {label}
+      </button>
+    )
+  }
+
+  const submit = async () => {
+    const v = name.trim()
+    if (!v || busy) return
+    setBusy(true); setErr('')
+    try {
+      await onAdd(v)
+      setName(''); setOpen(false)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : 'Lỗi tạo mới')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div style={{ marginTop: 6, padding: 8, borderRadius: 10, background: HNH.cream2 }}>
+      <div className="flex gap-2">
+        <input autoFocus value={name} onChange={e => setName(e.target.value)}
+          placeholder={`Tên ${label.toLowerCase()}`}
+          onKeyDown={e => { if (e.key === 'Enter') submit() }}
+          style={{ ...inputStyle, flex: 1, padding: '8px 10px' }} />
+        <button type="button" onClick={submit} disabled={busy || !name.trim()}
+          style={{ padding: '0 12px', borderRadius: 8, border: 'none', fontWeight: 700, fontSize: 12.5, cursor: 'pointer',
+            background: (busy || !name.trim()) ? HNH.ink4 : HNH.navy, color: '#fff' }}>
+          {busy ? '...' : 'Thêm'}
+        </button>
+        <button type="button" onClick={() => { setOpen(false); setName(''); setErr('') }}
+          style={{ padding: '0 10px', borderRadius: 8, border: `1px solid ${HNH.line}`, background: '#fff', color: HNH.ink3, fontWeight: 700, fontSize: 12.5, cursor: 'pointer' }}>
+          Hủy
+        </button>
+      </div>
+      {err && <div style={{ fontSize: 11, color: HNH.red, marginTop: 4, fontWeight: 600 }}>{err}</div>}
+    </div>
+  )
+}
+
 // Nén & resize ảnh CCCD trước khi gửi (giảm payload → tránh 413, dưới ngưỡng Arkon 8MB,
 // nhanh hơn). Giữ tỉ lệ, cạnh dài tối đa maxDim, xuất JPEG.
 function compressImage(file: File, maxDim = 1600, quality = 0.85): Promise<string> {
@@ -349,8 +410,34 @@ export function OnboardEmployeePage() {
               <>
                 <Field label="Văn phòng làm việc *"><Select value={f.company_id} onChange={v => set('company_id', v)} opts={opts.companies} placeholder="Chọn văn phòng" /></Field>
                 <Field label="Phòng ban / Bộ phận *"><Select value={f.department_id} onChange={v => { set('department_id', v); set('job_position_id', null); set('job_role_id', null) }} opts={opts.departments} placeholder="Chọn phòng ban" /></Field>
-                <Field label="Vị trí công việc *"><Select value={f.job_position_id} onChange={v => { set('job_position_id', v); set('job_role_id', null) }} opts={positions} placeholder="Chọn vị trí" /></Field>
-                <Field label="Vai trò (→ role Keycloak)"><Select value={f.job_role_id} onChange={v => set('job_role_id', v)} opts={roles} placeholder="Chọn vai trò" /></Field>
+                <Field label="Vị trí công việc *">
+                  <Select value={f.job_position_id} onChange={v => { set('job_position_id', v); set('job_role_id', null) }} opts={positions} placeholder="Chọn vị trí" />
+                  <QuickAddInline
+                    label="Tạo vị trí mới"
+                    disabledHint={!f.department_id ? 'Chọn phòng ban trước để tạo vị trí mới' : undefined}
+                    onAdd={async (name) => {
+                      const r = await api.post<{ id: number; name: string; department_id: number }>('/api/employee/onboard/quick-create/', {
+                        kind: 'position', name, department_id: f.department_id, company_id: f.company_id,
+                      })
+                      setOpts(p => p ? { ...p, job_positions: [...p.job_positions.filter(x => x.id !== r.id), { id: r.id, name: r.name, department_id: r.department_id }] } : p)
+                      set('job_position_id', r.id); set('job_role_id', null)
+                    }}
+                  />
+                </Field>
+                <Field label="Vai trò (→ role Keycloak)">
+                  <Select value={f.job_role_id} onChange={v => set('job_role_id', v)} opts={roles} placeholder="Chọn vai trò" />
+                  <QuickAddInline
+                    label="Tạo vai trò mới"
+                    disabledHint={!f.job_position_id ? 'Chọn vị trí công việc trước để tạo vai trò mới' : undefined}
+                    onAdd={async (name) => {
+                      const r = await api.post<{ id: number; name: string; job_position_id: number }>('/api/employee/onboard/quick-create/', {
+                        kind: 'role', name, job_position_id: f.job_position_id, company_id: f.company_id,
+                      })
+                      setOpts(p => p ? { ...p, job_roles: [...p.job_roles.filter(x => x.id !== r.id), { id: r.id, name: r.name, job_position_id: r.job_position_id }] } : p)
+                      set('job_role_id', r.id)
+                    }}
+                  />
+                </Field>
                 <Field label="Chức danh công việc" hint="VD: Nhân viên Booker (team Vé Đoàn)"><TextInput value={f.job_title} onChange={v => set('job_title', v)} placeholder="Chức danh cụ thể" /></Field>
                 <Field label="Ca làm việc"><Select value={f.shift_id} onChange={v => set('shift_id', v)} opts={opts.shifts} placeholder="Chọn ca" /></Field>
                 <Field label="Loại hình"><Select value={f.work_type_id} onChange={v => set('work_type_id', v)} opts={opts.work_types} placeholder="Chọn loại hình" /></Field>

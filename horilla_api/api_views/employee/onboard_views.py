@@ -278,6 +278,65 @@ class OnboardOptionsView(APIView):
         })
 
 
+class OnboardQuickCreateView(APIView):
+    """POST /api/employee/onboard/quick-create/ — C&B tạo nhanh Vị trí/Vai trò công
+    việc ngay trên màn hình Onboarding, không cần vào Admin trước.
+
+    Body (kind="position"): {"kind": "position", "name": "...", "department_id": <int>,
+        "company_id": <int, optional>}
+    Body (kind="role"): {"kind": "role", "name": "...", "job_position_id": <int>,
+        "company_id": <int, optional>}
+
+    get_or_create theo (department, tên) / (vị trí, tên) — gọi lại với tên đã có
+    không tạo trùng, chỉ trả về bản ghi sẵn có.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if not _can_onboard(request.user):
+            return Response({"error": "Không có quyền"}, status=403)
+
+        from base.models import Company, Department, JobPosition, JobRole
+
+        kind = (request.data.get("kind") or "").strip()
+        name = (request.data.get("name") or "").strip()
+        if not name:
+            return Response({"error": "Thiếu tên"}, status=400)
+
+        company = Company.objects.filter(id=request.data.get("company_id")).first()
+
+        if kind == "position":
+            dept = Department.objects.filter(id=request.data.get("department_id")).first()
+            if not dept:
+                return Response({"error": "Thiếu/không tìm thấy phòng ban"}, status=400)
+            obj, created = JobPosition.objects.get_or_create(
+                job_position=name, department_id=dept,
+            )
+            if company:
+                obj.company_id.add(company)
+            return Response(
+                {"id": obj.id, "name": obj.job_position, "department_id": obj.department_id_id},
+                status=201 if created else 200,
+            )
+
+        if kind == "role":
+            pos = JobPosition.objects.filter(id=request.data.get("job_position_id")).first()
+            if not pos:
+                return Response({"error": "Thiếu/không tìm thấy vị trí công việc"}, status=400)
+            obj, created = JobRole.objects.get_or_create(
+                job_position_id=pos, job_role=name,
+            )
+            if company:
+                obj.company_id.add(company)
+            return Response(
+                {"id": obj.id, "name": obj.job_role, "job_position_id": obj.job_position_id_id},
+                status=201 if created else 200,
+            )
+
+        return Response({"error": "kind phải là 'position' hoặc 'role'"}, status=400)
+
+
 class OnboardScanIdView(APIView):
     """Quét ảnh CCCD/CMND/Hộ chiếu qua Arkon AI → trả field tiền-điền form onboard.
 
