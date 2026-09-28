@@ -1958,9 +1958,11 @@ class ApproveLeaveView(APIView):
             remaining = round(lr.requested_days, 2)
             taken_avail = 0.0
             taken_cf = 0.0
+            deductions = []
             for al in _hnh_pool_rows(lr.employee_id):
                 if remaining <= 1e-9:
                     break
+                t = tc = 0.0
                 av = al.available_days or 0
                 t = min(av, remaining)
                 if t > 0:
@@ -1974,8 +1976,15 @@ class ApproveLeaveView(APIView):
                     remaining = round(remaining - tc, 2)
                     taken_cf += tc
                 al.save()
+                if t > 0 or tc > 0:
+                    deductions.append({
+                        "leave_type_id": al.leave_type_id_id,
+                        "av": round(max(t, 0), 2),
+                        "cf": round(max(tc, 0), 2),
+                    })
             lr.approved_available_days = round(taken_avail, 2)
             lr.approved_carryforward_days = round(taken_cf, 2)
+            lr.pool_deductions = deductions
         else:
             available_leave = AvailableLeave.objects.filter(
                 employee_id=lr.employee_id,

@@ -435,6 +435,17 @@ def _refund_leave_balance(lr):
     lr.balance_refunded = True
     if av <= 0 and cf <= 0:
         return 0.0, 0.0  # đơn chưa từng trừ (huỷ khi đang chờ / nghỉ không lương)
+    # Đơn pool (Bù/Thâm niên/Năm) duyệt từ khi có pool_deductions: hoàn từng phần
+    # về đúng loại đã trừ. Đơn duyệt trước đó không có chi tiết → hoàn về loại đơn.
+    if lr.pool_deductions:
+        for d in lr.pool_deductions:
+            al, _ = AvailableLeave.objects.get_or_create(
+                employee_id=lr.employee_id, leave_type_id_id=d["leave_type_id"]
+            )
+            al.available_days = round((al.available_days or 0) + (d.get("av") or 0), 2)
+            al.carryforward_days = round((al.carryforward_days or 0) + (d.get("cf") or 0), 2)
+            al.save()
+        return av, cf
     al, _ = AvailableLeave.objects.get_or_create(
         employee_id=lr.employee_id, leave_type_id=lr.leave_type_id
     )

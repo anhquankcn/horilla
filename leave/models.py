@@ -957,6 +957,11 @@ class LeaveRequest(HorillaModel):
     balance_refunded = models.BooleanField(
         default=False, verbose_name=_("Đã hoàn số dư phép")
     )
+    # HNH — chi tiết trừ pool lúc duyệt: [{"leave_type_id", "av", "cf"}, ...] để
+    # khi hủy hoàn ĐÚNG loại đã trừ (Bù/Thâm niên/Năm), không dồn hết về loại đại diện.
+    pool_deductions = models.JSONField(
+        null=True, blank=True, verbose_name=_("Chi tiết trừ phép")
+    )
     # HNH — mốc thời gian + người DUYỆT đơn (sắp xếp + hiện chi tiết "người duyệt").
     approved_at = models.DateTimeField(
         null=True, blank=True, verbose_name=_("Approved At")
