@@ -38,7 +38,14 @@ def leave_Validations(self, data):
         and not AvailableLeave.objects.filter(leave_type_id=leave_type_id).exists()
     )
 
-    if not available_leave and not is_no_balance_type:
+    # HNH pool (Bù → Thâm niên → Năm): đơn mang 1 loại đại diện nhưng khi duyệt trừ
+    # bậc thang cả pool — nên số dư phải kiểm theo TỔNG pool. Kiểm riêng loại đại
+    # diện (thường là Phép năm) chặn nhầm NV hết phép năm nhưng còn phép bù.
+    from horilla_api.api_views.leave.views import _hnh_pool_balance, _is_pool_type
+    is_pool = _is_pool_type(leave_type_id)
+    pool_balance = _hnh_pool_balance(employee) if is_pool else None
+
+    if not available_leave and not is_no_balance_type and not (is_pool and pool_balance > 0):
         raise serializers.ValidationError(
             f"Employee is not assigned with leave type {leave_type_id}."
         )
@@ -75,9 +82,12 @@ def leave_Validations(self, data):
             leave_type_id=leave_type_id,
             requested_days=requested_days,
         )
-        total_leave_days = (
-            available_leave.available_days + available_leave.carryforward_days
-        )
+        if is_pool:
+            total_leave_days = pool_balance
+        else:
+            total_leave_days = (
+                available_leave.available_days + available_leave.carryforward_days
+            )
         if not effective_requested_days <= total_leave_days:
             raise serializers.ValidationError("Employee doesn't have enough leave days..")
 
