@@ -6,7 +6,7 @@ POST /api/employee/onboard/          → tạo NV trọn gói (atomic) + KC
 import logging
 
 from django.contrib.auth.models import Group
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -448,6 +448,36 @@ class OnboardEmployeeView(APIView):
         if Employee.objects.filter(badge_id=badge_id).exists():
             return Response({"error": f"Mã NV {badge_id} đã tồn tại"}, status=400)
 
+        # Tài khoản đăng nhập (auth_user) có thể vẫn giữ email này dù Employee.email
+        # của NV cũ đã đổi (vd đổi sang ...off1@) — tài khoản theo vai trò dùng lại cho
+        # người mới. Báo rõ ai đang giữ thay vì để Postgres ném lỗi unique khó hiểu.
+        from django.contrib.auth.models import User
+        from django.db.models import Q
+        holder = User.objects.filter(Q(username__iexact=email) | Q(email__iexact=email)).first()
+        if holder:
+            h_emp = Employee.objects.filter(employee_user_id=holder).first()
+            if h_emp:
+                who = (
+                    f"nhân viên {(h_emp.employee_last_name or '') + ' ' + (h_emp.employee_first_name or '')} "
+                    f"({h_emp.badge_id or 'chưa có mã'}, "
+                    f"{'đang làm việc' if h_emp.is_active else 'đã nghỉ/tạm nghỉ'}, email hồ sơ: {h_emp.email})"
+                )
+            else:
+                who = f"tài khoản #{holder.pk} (không gắn nhân viên nào)"
+            return Response({
+                "error": (
+                    f"Tài khoản đăng nhập {email} vẫn đang thuộc {who}. "
+                    "Cần đổi tên đăng nhập của tài khoản cũ trước (liên hệ IT/Admin), "
+                    "hoặc dùng email khác cho nhân viên mới."
+                ),
+                "conflict": {
+                    "user_id": holder.pk,
+                    "username": holder.username,
+                    "employee_id": h_emp.pk if h_emp else None,
+                    "badge_id": h_emp.badge_id if h_emp else None,
+                },
+            }, status=400)
+
         def _fk(model, key):
             v = d.get(key)
             return model.objects.filter(id=v).first() if v else None
@@ -553,6 +583,13 @@ class OnboardEmployeeView(APIView):
                 user = emp.employee_user_id
                 if group_ids and user:
                     user.groups.add(*Group.objects.filter(id__in=group_ids))
+        except IntegrityError as e:
+            logger.exception("onboard create failed")
+            detail = str(e).split("DETAIL:")[-1].strip() if "DETAIL:" in str(e) else str(e)
+            return Response({
+                "error": f"Lỗi tạo nhân sự: dữ liệu bị trùng với bản ghi đã có ({detail}). "
+                         "Kiểm tra lại email, mã NV, số CCCD.",
+            }, status=400)
         except Exception as e:
             logger.exception("onboard create failed")
             return Response({"error": f"Lỗi tạo nhân sự: {e}"}, status=400)

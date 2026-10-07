@@ -125,7 +125,7 @@ function QuickAddInline({ label, disabledHint, onAdd }: {
       await onAdd(v)
       setName(''); setOpen(false)
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Lỗi tạo mới')
+      setErr(errText(e, 'Lỗi tạo mới'))
     } finally {
       setBusy(false)
     }
@@ -179,6 +179,17 @@ function compressImage(file: File, maxDim = 1600, quality = 0.85): Promise<strin
     }
     reader.readAsDataURL(file)
   })
+}
+
+// ApiError.message là body thô ('{"error":"..."}') — lấy đúng câu thông báo để hiển thị.
+function errText(e: unknown, fallback: string): string {
+  const raw = e instanceof Error ? e.message : ''
+  try {
+    const j = JSON.parse(raw)
+    if (j && typeof j.error === 'string') return j.error
+    if (j && typeof j.detail === 'string') return j.detail
+  } catch { /* không phải JSON */ }
+  return raw || fallback
 }
 
 // Tách "NGUYỄN THỊ LY" → last_name="NGUYỄN THỊ", first_name="LY"
@@ -239,7 +250,7 @@ export function OnboardEmployeePage() {
   useEffect(() => {
     api.get<Options>('/api/employee/onboard/options/')
       .then(o => { setOpts(o); setF(p => ({ ...p, shift_id: o.default_shift_id, badge_id: p.badge_id || o.suggested_badge_id || '' })) })
-      .catch(e => setErr(e instanceof Error ? e.message : 'Lỗi tải dữ liệu'))
+      .catch(e => setErr(errText(e, 'Lỗi tải dữ liệu')))
   }, [])
 
   const set = (k: keyof Form, v: any) => setF(p => ({ ...p, [k]: v }))
@@ -268,8 +279,9 @@ export function OnboardEmployeePage() {
   }
 
   const submit = async () => {
+    const showErr = (m: string) => { setErr(m); window.scrollTo({ top: 0, behavior: 'smooth' }) }
     const miss = missingRequired()
-    if (miss.length) { setErr('Thiếu thông tin bắt buộc: ' + miss.join(', ')); return }
+    if (miss.length) { showErr('Thiếu thông tin bắt buộc: ' + miss.join(', ')); return }
     setBusy(true); setErr('')
     const { first_name, last_name } = splitName(f.full_name)
     const payload = { ...f, first_name, last_name }
@@ -277,7 +289,7 @@ export function OnboardEmployeePage() {
       const res = await api.post<{ name: string; badge_id: string; keycloak: any }>('/api/employee/onboard/', payload)
       setDone({ name: res.name, badge_id: res.badge_id, kc: res.keycloak })
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Lỗi tạo nhân sự'); setBusy(false)
+      showErr(errText(e, 'Lỗi tạo nhân sự')); setBusy(false)
     }
   }
 
@@ -322,7 +334,15 @@ export function OnboardEmployeePage() {
           ))}
         </div>
 
-        {err && <div style={{ padding: 10, borderRadius: 10, background: HNH.red50, color: HNH.red, fontSize: 12.5, fontWeight: 600, marginBottom: 12 }}>{err}</div>}
+        {err && (
+          <div role="alert" className="flex gap-2" style={{ padding: '12px 14px', borderRadius: 12, background: HNH.red50, border: `1.5px solid ${HNH.red}`, color: HNH.red, fontSize: 13, fontWeight: 600, marginBottom: 12, lineHeight: 1.45 }}>
+            <Icon name="alert" size={18} color={HNH.red} stroke={2.2} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 800, marginBottom: 2 }}>Không tạo được nhân sự</div>
+              {err}
+            </div>
+          </div>
+        )}
         {!opts && !err && <div style={{ textAlign: 'center', color: HNH.ink3, fontSize: 13, padding: 30 }}>Đang tải…</div>}
 
         {opts && (
@@ -548,7 +568,12 @@ export function OnboardEmployeePage() {
 
       {/* Bottom nav */}
       {opts && (
-        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: `1px solid ${HNH.line}`, padding: '10px 16px', paddingBottom: 'calc(10px + env(safe-area-inset-bottom,0px))', display: 'flex', gap: 10 }}>
+        <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#fff', borderTop: `1px solid ${HNH.line}`, padding: '10px 16px', paddingBottom: 'calc(10px + env(safe-area-inset-bottom,0px))', display: 'flex', flexWrap: 'wrap', gap: 10 }}>
+          {err && (
+            <div role="alert" style={{ flexBasis: '100%', padding: '8px 10px', borderRadius: 10, background: HNH.red50, color: HNH.red, fontSize: 12, fontWeight: 700, lineHeight: 1.4 }}>
+              ⚠ {err}
+            </div>
+          )}
           {step > 0 && (
             <button onClick={() => setStep(s => s - 1)} style={{ flex: 1, padding: 13, borderRadius: 12, border: `1px solid ${HNH.line}`, background: '#fff', fontWeight: 700, color: HNH.ink2, cursor: 'pointer' }}>Quay lại</button>
           )}
