@@ -51,6 +51,10 @@ def write_punch(emp, ts, device_sn, ua):
     from attendance.methods.utils import Request as DeviceRequest
     from attendance.views.clock_in_out import clock_in, clock_out
 
+    # Giờ VN: ts từ DB (BiometricPendingPunch.punch_at) là UTC-aware — .time() trên
+    # đó lệch 7 tiếng. Luồng máy gửi ISO +07:00 thì localtime không đổi gì.
+    if dj_tz.is_aware(ts):
+        ts = dj_tz.localtime(ts)
     d = ts.date()
     t = ts.time()
     day_acts = list(AttendanceActivity.objects.filter(employee_id=emp, attendance_date=d))
