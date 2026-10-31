@@ -37,6 +37,40 @@ def _request_halves(lr):
     )
 
 
+def hourly_conflict(employee, d, t1, t2, exclude_id=None):
+    """Đơn theo giờ [t1, t2) ngày d trùng đơn nào đang hiệu lực? Giờ-với-giờ so khung
+    giờ giao nhau; giờ-với-đơn ngày/nửa ngày so theo buổi (mốc 12:00). Trả đơn trùng hoặc None."""
+    from datetime import time as _t
+    noon = _t(12, 0)
+    mine = set()
+    if t1 < noon:
+        mine.add((d, "am"))
+    if t2 > noon:
+        mine.add((d, "pm"))
+    qs = employee.leaverequest_set.filter(start_date__lte=d, end_date__gte=d).exclude(
+        status__in=["cancelled", "rejected"]
+    )
+    if exclude_id:
+        qs = qs.exclude(id=exclude_id)
+    for lr in qs:
+        if getattr(lr, "is_hourly", False) and lr.start_time and lr.end_time:
+            if t1 < lr.end_time and t2 > lr.start_time:
+                return lr
+        elif mine & _request_halves(lr):
+            return lr
+    return None
+
+
+def describe_leave(lr):
+    if getattr(lr, "is_hourly", False) and lr.start_time and lr.end_time:
+        return f"{lr.start_date:%d/%m/%Y} {lr.start_time:%H:%M}–{lr.end_time:%H:%M}"
+    labels = {"first_half": "sáng", "second_half": "chiều"}
+    if lr.start_date == lr.end_date:
+        part = labels.get(lr.start_date_breakdown, "cả ngày")
+        return f"{lr.start_date:%d/%m/%Y} ({part})"
+    return f"{lr.start_date:%d/%m/%Y}–{lr.end_date:%d/%m/%Y}"
+
+
 def leave_Validations(self, data):
     start_date = data.get("start_date")
     end_date = data.get("end_date")

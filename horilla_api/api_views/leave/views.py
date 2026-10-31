@@ -521,6 +521,16 @@ class EmployeeLeaveRequestHoursAPIView(APIView):
                 return Response({"error": f"Giờ kết thúc phải sau giờ bắt đầu ({ds})"}, status=400)
             parsed.append({"date": dt, "t1": t1, "t2": t2, "hours": mins / 60.0})
 
+        from horilla_api.api_serializers.leave.serializers import hourly_conflict, describe_leave
+        by_date = sorted(parsed, key=lambda p: (p["date"], p["t1"]))
+        for a, b in zip(by_date, by_date[1:]):
+            if a["date"] == b["date"] and b["t1"] < a["t2"]:
+                return Response({"error": f"Các khung giờ ngày {a['date']:%d/%m/%Y} bị chồng nhau"}, status=400)
+        for p in parsed:
+            hit = hourly_conflict(employee, p["date"], p["t1"], p["t2"])
+            if hit:
+                return Response({"error": f"Đã có đơn nghỉ trùng thời gian: {describe_leave(hit)}"}, status=400)
+
         total_hours = round(sum(p["hours"] for p in parsed), 2)
         total_days = round(total_hours / 8.0, 2)
 
@@ -672,6 +682,10 @@ class EmployeeLeaveRequestUpdateDeleteAPIView(APIView):
             if mins <= 0:
                 return Response({"error": "Giờ kết thúc phải sau giờ bắt đầu"}, status=400)
             hours = round(mins / 60.0, 2)
+            from horilla_api.api_serializers.leave.serializers import hourly_conflict, describe_leave
+            hit = hourly_conflict(employee, dt, t1, t2, exclude_id=leave_request.id)
+            if hit:
+                return Response({"error": f"Đã có đơn nghỉ trùng thời gian: {describe_leave(hit)}"}, status=400)
             err = _balance_error(round(hours / 8.0, 2))
             if err:
                 return Response({"error": err}, status=400)
