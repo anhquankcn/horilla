@@ -5,6 +5,38 @@ from leave.methods import calculate_requested_days
 from leave.models import *
 
 
+def _leave_halves(start, end, sbd, ebd):
+    """Tập (ngày, 'am'|'pm') mà 1 đơn nghỉ theo ngày chiếm. Biên: ngày đầu
+    'second_half' = chỉ chiều; ngày cuối 'first_half' = chỉ sáng."""
+    from datetime import timedelta
+    out = set()
+    d = start
+    while d <= end:
+        if not (d == start and sbd == "second_half"):
+            out.add((d, "am"))
+        if not (d == end and ebd == "first_half"):
+            out.add((d, "pm"))
+        d += timedelta(days=1)
+    return out
+
+
+def _request_halves(lr):
+    """Như _leave_halves cho LeaveRequest đã có; đơn theo giờ quy ra buổi theo mốc 12:00."""
+    from datetime import time as _t
+    if getattr(lr, "is_hourly", False) and lr.start_time and lr.end_time:
+        noon = _t(12, 0)
+        out = set()
+        if lr.start_time < noon:
+            out.add((lr.start_date, "am"))
+        if lr.end_time > noon:
+            out.add((lr.start_date, "pm"))
+        return out
+    return _leave_halves(
+        lr.start_date, lr.end_date,
+        lr.start_date_breakdown or "full_day", lr.end_date_breakdown or "full_day",
+    )
+
+
 def leave_Validations(self, data):
     start_date = data.get("start_date")
     end_date = data.get("end_date")
@@ -58,7 +90,9 @@ def leave_Validations(self, data):
     ).exclude(status__in=["cancelled", "rejected"])
     if self.instance:
         leave_requests = leave_requests.exclude(id=self.instance.id)
-    if leave_requests:
+    # Xét theo BUỔI: đã nghỉ chiều vẫn được xin nghỉ sáng cùng ngày; chỉ chặn khi trùng buổi.
+    new_halves = _leave_halves(start_date, end_date, start_date_breakdown, end_date_breakdown)
+    if any(new_halves & _request_halves(lr) for lr in leave_requests):
         raise serializers.ValidationError(
             "There is already a leave request for this date range."
         )
