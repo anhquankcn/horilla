@@ -532,10 +532,24 @@ export function LeaveNewPage() {
   const totalDays = mode === 'day'
     ? days.reduce((s, d) => s + coefOf(d.bd), 0)
     : Math.round((totalHours / 8) * 100) / 100
-  const canSubmit = !!selectedTypeId && title.trim() && reason.trim() && approverIds.length > 0 && !submitting && (
-    mode === 'day' ? days.length > 0
-      : hourDays.length > 0 && hourDays.every(d => d.date && d.frames.length > 0 && d.frames.every(f => frameHours(f) > 0))
-  )
+  // Danh sách mục còn thiếu — nút Gửi tắt mà không nói thiếu gì khiến NV tưởng app lỗi.
+  const missing: string[] = []
+  if (!selectedTypeId) missing.push('loại nghỉ')
+  if (!title.trim()) missing.push('tiêu đề')
+  if (mode === 'day') {
+    if (days.length === 0) missing.push('ngày nghỉ')
+  } else if (hourDays.length === 0) {
+    missing.push('ngày nghỉ (bấm "Thêm ngày nghỉ")')
+  } else {
+    if (hourDays.some(d => !d.date)) missing.push('ngày nghỉ (bấm "Chọn ngày")')
+    if (hourDays.some(d => d.frames.length === 0 || d.frames.some(f => frameHours(f) <= 0))) {
+      missing.push('khung giờ hợp lệ (giờ kết thúc phải sau giờ bắt đầu)')
+    }
+  }
+  if (approverIds.length === 0) missing.push('người duyệt')
+  if (!reason.trim()) missing.push('lý do')
+  const canSubmit = missing.length === 0 && !submitting
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   // Toggle a day in the multi-select calendar
   const toggleDay = (ds: string) => {
@@ -596,6 +610,7 @@ export function LeaveNewPage() {
       let msg = e instanceof Error ? e.message : 'Có lỗi xảy ra'
       try { const j = JSON.parse(msg); if (j.error) msg = j.error } catch { /* keep */ }
       setError(msg); setConfirmOpen(false)
+      scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
     } finally {
       setSubmitting(false)
     }
@@ -619,7 +634,7 @@ export function LeaveNewPage() {
         <div style={{ width: 72 }} />
       </div>
 
-      <div className="flex-1 overflow-auto" style={{ padding: '6px 20px 20px', minHeight: 0 }}>
+      <div ref={scrollRef} className="flex-1 overflow-auto" style={{ padding: '6px 20px 20px', minHeight: 0 }}>
         {error && (
           <div style={{ background: HNH.red50, border: `1px solid ${HNH.red}`, borderRadius: 12, padding: '10px 14px', marginBottom: 12, fontSize: 12.5, color: HNH.red, fontWeight: 600 }}>
             {error}
@@ -709,7 +724,11 @@ export function LeaveNewPage() {
           {([['day', 'Theo ngày'], ['hour', 'Theo giờ']] as const).map(([m, lbl]) => {
             const sel = mode === m
             return (
-              <button key={m} onClick={() => setMode(m)} className="flex-1 border-none cursor-pointer"
+              <button key={m} onClick={() => {
+                setMode(m)
+                // Vào chế độ giờ là có sẵn 1 ngày để chọn — trước đây phải tự bấm "Thêm ngày", NV không biết.
+                if (m === 'hour' && hourDays.length === 0) setHourDays([{ date: '', frames: [{ from: '08:00', to: '12:00' }] }])
+              }} className="flex-1 border-none cursor-pointer"
                 style={{ padding: '10px 0', borderRadius: 12, fontSize: 13.5, fontWeight: 700, border: `1.5px solid ${sel ? HNH.red : HNH.line}`, background: sel ? HNH.red : '#fff', color: sel ? '#fff' : HNH.ink3 }}>
                 {lbl}
               </button>
@@ -776,7 +795,7 @@ export function LeaveNewPage() {
           )}
           {overBalance && (
             <div style={{ marginTop: 8, fontSize: 11.5, color: HNH.red, fontWeight: 600 }}>
-              Vượt quá số ngày phép còn lại ({poolTotal} ngày)
+              Vượt quá số ngày phép còn lại ({poolTotal} ngày) — nếu đã hết phép, hãy chọn "Nghỉ không lương" ở mục Không trừ phép
             </div>
           )}
         </div>
@@ -854,7 +873,7 @@ export function LeaveNewPage() {
         <button onClick={() => setHourDays(prev => [...prev, { date: '', frames: [{ from: '08:00', to: '12:00' }] }])}
           className="flex items-center justify-center gap-2 w-full border-none cursor-pointer"
           style={{ padding: '11px 0', borderRadius: 12, background: '#fff', border: `1px dashed ${HNH.red}`, color: HNH.red, fontWeight: 700, fontSize: 13 }}>
-          <Icon name="plus" size={16} color={HNH.red} stroke={2.5} /> Thêm ngày nối tiếp
+          <Icon name="plus" size={16} color={HNH.red} stroke={2.5} /> {hourDays.length === 0 ? 'Thêm ngày nghỉ' : 'Thêm ngày khác'}
         </button>
 
         {hourDays.length > 0 && (
@@ -865,7 +884,7 @@ export function LeaveNewPage() {
         )}
         {mode === 'hour' && overBalance && (
           <div style={{ marginTop: 8, fontSize: 11.5, color: HNH.red, fontWeight: 600 }}>
-            Vượt quá số ngày phép còn lại ({poolTotal} ngày)
+            Vượt quá số ngày phép còn lại ({poolTotal} ngày) — nếu đã hết phép, hãy chọn "Nghỉ không lương" ở mục Không trừ phép
           </div>
         )}
         </>)}
@@ -891,6 +910,16 @@ export function LeaveNewPage() {
 
       {/* Bottom bar */}
       <div style={{ flexShrink: 0, background: '#fff', borderTop: `1px solid ${HNH.line}`, padding: '10px 16px', paddingBottom: 'calc(10px + env(safe-area-inset-bottom, 0px))' }}>
+        {error && (
+          <div role="alert" style={{ marginBottom: 8, padding: '8px 10px', borderRadius: 10, background: HNH.red50, color: HNH.red, fontSize: 12, fontWeight: 700, lineHeight: 1.4 }}>
+            ⚠ {error}
+          </div>
+        )}
+        {!canSubmit && !submitting && missing.length > 0 && (
+          <div style={{ marginBottom: 8, padding: '8px 10px', borderRadius: 10, background: HNH.warn50, color: HNH.warn, fontSize: 12, fontWeight: 700, lineHeight: 1.4 }}>
+            Còn thiếu: {missing.join(', ')}
+          </div>
+        )}
         <button onClick={() => { if (canSubmit) setConfirmOpen(true) }} disabled={!canSubmit}
           className="flex items-center justify-center gap-2 w-full border-none"
           style={{ height: 50, borderRadius: 14, background: canSubmit ? HNH.red : HNH.cream2, color: canSubmit ? '#fff' : HNH.ink3, fontWeight: 800, fontSize: 15.5, cursor: canSubmit ? 'pointer' : 'not-allowed' }}>
